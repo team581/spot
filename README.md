@@ -34,6 +34,14 @@ python3 -m venv .venv
 CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[test,systemd]'
 ```
 
+NTCore is optional so the raw detector can be installed on Jetson images where
+a compatible `pyntcore` wheel is unavailable. Install the `nt` extra when NT4
+publishing is needed:
+
+```sh
+CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[nt,systemd]'
+```
+
 The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
 pre-clone that revision and add `-DBUDDY_CCCL_ROOT=/path/to/cccl` to
 `CMAKE_ARGS`.

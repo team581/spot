@@ -7,6 +7,8 @@ dist/
 __pycache__/
 .pytest_cache/
 .coverage
+cpp/cccl/
+wheelhouse/
 *.so
 *.dylib
 *.pyc

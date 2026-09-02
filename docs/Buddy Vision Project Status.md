@@ -64,8 +64,9 @@ The camera mode and exposure values are working first-pass values, not final pro
 
 - CMake, pybind11, and scikit-build-core packaging.
 - Jetson-specific CUDA build adjustments.
-- A vendored NVIDIA CCCL tree and an aarch64 Python wheelhouse have been prepared for Jetson/offline builds, but are currently uncommitted.
-- A Jetson deployment helper exists locally, but it currently contains embedded credentials and must be sanitized before it is committed or shared.
+- NVIDIA CCCL is fetched at its pinned revision by CMake. An explicitly supplied `BUDDY_CCCL_ROOT` remains available for offline builds.
+- Local CCCL checkouts and Python wheelhouses are treated as regenerable build caches and excluded from source control.
+- Deployment uses the checked-in, credential-free `deploy/install.sh`; the temporary credential-bearing deployment helper has been removed.
 
 ## Validated So Far
 
@@ -100,9 +101,9 @@ The raw live tag-detection milestone is therefore complete.
 
 ### Priority 0: Make the current proof reproducible
 
-- [ ] Sanitize the deployment helper so no credentials are stored in source control.
-- [ ] Review and commit the intentional Jetson build/configuration changes.
-- [ ] Decide whether the large CCCL and wheelhouse directories belong in Git, Git LFS, or a versioned deployment artifact.
+- [x] Remove the temporary credential-bearing deployment helper.
+- [x] Review and commit the intentional Jetson build/configuration changes.
+- [x] Keep CCCL checkouts and wheelhouses out of Git as regenerable local caches.
 - [ ] Record the exact supported V4L2 modes and controls for the attached camera.
 - [ ] Run a 2–5 minute probe and save structured output with detection FPS, processing latency, overwrites, and errors.
 - [ ] Confirm clean shutdown and restart after camera and service interruption.

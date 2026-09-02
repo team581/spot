@@ -15,12 +15,12 @@
       "id": "front",
       "enabled": true,
       "selector": {
-        "by_id": "REPLACE_WITH_CAMERA_BY_ID_NAME"
+        "by_id": "usb-Arducam_Technology_Co.__Ltd._Arducam_OV2311_USB_Camera_UC621-video-index0"
       },
       "format": "MJPEG",
       "width": 1280,
-      "height": 800,
-      "fps": 100,
+      "height": 720,
+      "fps": 50,
       "exposure_us": 1000,
       "gain": 20,
       "auto_exposure": false,

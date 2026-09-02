@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(BuddyVision LANGUAGES CXX)
+project(BuddyVision LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,7 @@ if(BUDDY_BUILD_CUDA)
   set(CMAKE_CUDA_STANDARD 20)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
   set(CMAKE_CUDA_ARCHITECTURES "${BUDDY_CUDA_ARCHITECTURES}")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --extended-lambda")
 
   find_package(CUDAToolkit REQUIRED)
   find_package(gflags REQUIRED)
