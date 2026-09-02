@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from collections import deque
+from threading import Condition, Event, Lock
+from typing import Generic, TypeVar
+
+from .models import FramePacket
+
+T = TypeVar("T")
+
+
+class LatestFrameSlot:
+    def __init__(self, wake_event: Event | None = None) -> None:
+        self._lock = Lock()
+        self._frame: FramePacket | None = None
+        self._closed = False
+        self._wake_event = wake_event
+
+    def put(self, frame: FramePacket) -> bool:
+        """Store a frame and return True if an older pending frame was replaced."""
+        with self._lock:
+            if self._closed:
+                return False
+            replaced = self._frame is not None
+            self._frame = frame
+        if self._wake_event is not None:
+            self._wake_event.set()
+        return replaced
+
+    def take(self) -> FramePacket | None:
+        with self._lock:
+            frame = self._frame
+            self._frame = None
+            return frame
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._frame = None
+        if self._wake_event is not None:
+            self._wake_event.set()
+
+
+class BoundedDropOldestQueue(Generic[T]):
+    def __init__(self, capacity: int) -> None:
+        if capacity < 1:
+            raise ValueError("capacity must be positive")
+        self.capacity = capacity
+        self._items: deque[T] = deque()
+        self._condition = Condition()
+        self._closed = False
+
+    def put(self, item: T) -> bool:
+        """Insert an item and return True when the oldest item was discarded."""
+        with self._condition:
+            if self._closed:
+                return False
+            dropped = len(self._items) == self.capacity
+            if dropped:
+                self._items.popleft()
+            self._items.append(item)
+            self._condition.notify()
+            return dropped
+
+    def get(self, timeout: float | None = None) -> T | None:
+        with self._condition:
+            if not self._items and not self._closed:
+                self._condition.wait(timeout)
+            if self._items:
+                return self._items.popleft()
+            return None
+
+    def close(self) -> None:
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+
+    def __len__(self) -> int:
+        with self._condition:
+            return len(self._items)

@@ -1,0 +1,17 @@
+{
+  "camera_id": "front",
+  "width": 1280,
+  "height": 800,
+  "pixel_format": "MJPEG",
+  "camera_matrix": [
+    [900.0, 0.0, 640.0],
+    [0.0, 900.0, 400.0],
+    [0.0, 0.0, 1.0]
+  ],
+  "distortion_coefficients": [0.0, 0.0, 0.0, 0.0, 0.0],
+  "reprojection_error_px": null,
+  "camera_serial": "REPLACE_ME",
+  "lens_identity": "REPLACE_ME",
+  "calibration_date": "REPLACE_ME",
+  "tool_version": "REPLACE_ME"
+}

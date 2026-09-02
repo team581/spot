@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package buddy.vision.v1;
+
+message VisionFrame {
+  uint32 schema_version = 1;
+  string camera_id = 2;
+  uint64 sequence = 3;
+  uint64 camera_frame_sequence = 4;
+  uint64 config_revision = 5;
+  uint64 field_revision = 6;
+  repeated PoseCandidate candidates = 7;
+  repeated TagObservation tags = 8;
+  ProcessingTiming timing = 9;
+}
+
+message PoseCandidate {
+  enum Method {
+    METHOD_UNKNOWN = 0;
+    MULTI_TAG_SQPNP = 1;
+    SINGLE_TAG_IPPE_SQUARE = 2;
+  }
+  Method method = 1;
+  double x_m = 2;
+  double y_m = 3;
+  double z_m = 4;
+  double qw = 5;
+  double qx = 6;
+  double qy = 7;
+  double qz = 8;
+  double reprojection_error_px = 9;
+  repeated uint32 tag_ids = 10;
+}
+
+message TagObservation {
+  uint32 id = 1;
+  repeated double corners_xy_px = 2;
+  int32 hamming = 3;
+  double decision_margin = 4;
+  bool used_for_pose = 5;
+  string rejection_reason = 6;
+}
+
+message ProcessingTiming {
+  double capture_to_detect_ms = 1;
+  double detect_ms = 2;
+  double solve_ms = 3;
+  double total_ms = 4;
+}

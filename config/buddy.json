@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "field_layout": null,
+  "field_revision": 0,
+  "tag_size_m": 0.1651,
+  "result_queue_capacity": 32,
+  "nt": {
+    "enabled": false,
+    "mode": "client",
+    "server": "127.0.0.1",
+    "identity": "buddy-vision"
+  },
+  "cameras": [
+    {
+      "id": "front",
+      "enabled": true,
+      "selector": {
+        "by_id": "REPLACE_WITH_CAMERA_BY_ID_NAME"
+      },
+      "format": "MJPEG",
+      "width": 1280,
+      "height": 800,
+      "fps": 100,
+      "exposure_us": 1000,
+      "gain": 20,
+      "auto_exposure": false,
+      "calibration": null,
+      "timestamp_correction_us": 0,
+      "config_revision": 1,
+      "detector": {
+        "backend": "cuda",
+        "fallback_to_cpu": true,
+        "family": "tag36h11",
+        "decimate": 2.0,
+        "blur": 0.0,
+        "threads": 1,
+        "refine_edges": true,
+        "max_hamming": 2
+      }
+    }
+  ]
+}

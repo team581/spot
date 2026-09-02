@@ -1,0 +1,291 @@
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
+#include <array>
+#include <chrono>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "apriltag_gpu.h"
+#include "apriltag_utils.h"
+
+extern "C" {
+#include "apriltag.h"
+}
+
+namespace py = pybind11;
+using Clock = std::chrono::steady_clock;
+
+namespace {
+
+struct CameraMatrix {
+  double fx = 1.0;
+  double fy = 1.0;
+  double cx = 0.0;
+  double cy = 0.0;
+};
+
+struct DistortionCoefficients {
+  double k1 = 0.0;
+  double k2 = 0.0;
+  double p1 = 0.0;
+  double p2 = 0.0;
+  double k3 = 0.0;
+};
+
+struct DetectorOptions {
+  std::string family = "tag36h11";
+  double decimate = 2.0;
+  double blur = 0.0;
+  int threads = 1;
+  bool refine_edges = true;
+  int max_hamming = 2;
+};
+
+struct Detection {
+  int id = -1;
+  int hamming = 0;
+  double decision_margin = 0.0;
+  std::vector<std::array<double, 2>> corners;
+};
+
+struct DetectionBatch {
+  std::vector<Detection> detections;
+  double detect_ms = 0.0;
+  std::uintptr_t input_address = 0;
+};
+
+struct DetectorMetrics {
+  std::uint64_t calls = 0;
+  double last_detect_ms = 0.0;
+  double total_detect_ms = 0.0;
+  std::uintptr_t last_input_address = 0;
+};
+
+struct FrameView {
+  const std::uint8_t *data;
+  std::uintptr_t address;
+};
+
+FrameView ValidateFrame(const py::array &frame, int width, int height) {
+  if (!py::isinstance<py::array_t<std::uint8_t>>(frame)) {
+    throw py::type_error("frame must have dtype uint8");
+  }
+  const py::buffer_info info = frame.request();
+  if (info.ndim != 3 || info.shape[0] != height || info.shape[1] != width ||
+      info.shape[2] != 2) {
+    throw py::value_error("frame must have shape (height, width, 2)");
+  }
+  if (info.strides[2] != 1 || info.strides[1] != 2 ||
+      info.strides[0] != static_cast<py::ssize_t>(width * 2)) {
+    throw py::value_error("frame must be packed, C-contiguous YUYV");
+  }
+  auto *data = static_cast<const std::uint8_t *>(info.ptr);
+  return {.data = data, .address = reinterpret_cast<std::uintptr_t>(data)};
+}
+
+Detection ConvertDetection(const apriltag_detection_t &source) {
+  Detection result;
+  result.id = source.id;
+  result.hamming = source.hamming;
+  result.decision_margin = source.decision_margin;
+  result.corners.reserve(4);
+  for (int index = 0; index < 4; ++index) {
+    result.corners.push_back({source.p[index][0], source.p[index][1]});
+  }
+  return result;
+}
+
+class DetectorState {
+ public:
+  explicit DetectorState(const DetectorOptions &options) : options_(options) {
+    if (options_.threads < 1) throw py::value_error("threads must be positive");
+    setup_tag_family(&family_, options_.family.c_str());
+    if (family_ == nullptr) throw py::value_error("unsupported AprilTag family");
+    detector_ = apriltag_detector_create();
+    if (detector_ == nullptr) throw std::runtime_error("failed to create AprilTag detector");
+    apriltag_detector_add_family_bits(detector_, family_, options_.max_hamming);
+    detector_->quad_decimate = options_.decimate;
+    detector_->quad_sigma = options_.blur;
+    detector_->nthreads = options_.threads;
+    detector_->refine_edges = options_.refine_edges;
+    detector_->wp = workerpool_create(options_.threads);
+  }
+
+  virtual ~DetectorState() {
+    if (detector_ != nullptr) apriltag_detector_destroy(detector_);
+    if (family_ != nullptr) teardown_tag_family(&family_, options_.family.c_str());
+  }
+
+  DetectorState(const DetectorState &) = delete;
+  DetectorState &operator=(const DetectorState &) = delete;
+
+  DetectorMetrics Metrics() const {
+    std::scoped_lock lock(mutex_);
+    return metrics_;
+  }
+
+ protected:
+  DetectionBatch FinishBatch(const zarray_t *detections, double detect_ms,
+                             std::uintptr_t address) {
+    DetectionBatch batch;
+    batch.detect_ms = detect_ms;
+    batch.input_address = address;
+    if (detections != nullptr) {
+      batch.detections.reserve(zarray_size(detections));
+      for (int index = 0; index < zarray_size(detections); ++index) {
+        apriltag_detection_t *detection = nullptr;
+        zarray_get(detections, index, &detection);
+        if (detection != nullptr) batch.detections.push_back(ConvertDetection(*detection));
+      }
+    }
+    ++metrics_.calls;
+    metrics_.last_detect_ms = detect_ms;
+    metrics_.total_detect_ms += detect_ms;
+    metrics_.last_input_address = address;
+    return batch;
+  }
+
+  DetectorOptions options_;
+  apriltag_family_t *family_ = nullptr;
+  apriltag_detector_t *detector_ = nullptr;
+  mutable std::mutex mutex_;
+  DetectorMetrics metrics_;
+};
+
+class CudaDetector final : public DetectorState {
+ public:
+  CudaDetector(int width, int height, const CameraMatrix &camera,
+               const DistortionCoefficients &distortion, const DetectorOptions &options)
+      : DetectorState(options), width_(width), height_(height) {
+    if (width <= 0 || height <= 0 || width % 8 != 0 || height % 8 != 0) {
+      throw py::value_error("CUDA detector dimensions must be positive multiples of 8");
+    }
+    int device_count = 0;
+    const cudaError_t device_status = cudaGetDeviceCount(&device_count);
+    if (device_status != cudaSuccess || device_count < 1) {
+      throw std::runtime_error(std::string("no usable CUDA device: ") +
+                               cudaGetErrorString(device_status));
+    }
+    frc971::apriltag::CameraMatrix native_camera{
+        .fx = camera.fx, .cx = camera.cx, .fy = camera.fy, .cy = camera.cy};
+    frc971::apriltag::DistCoeffs native_distortion{
+        .k1 = distortion.k1, .k2 = distortion.k2, .p1 = distortion.p1,
+        .p2 = distortion.p2, .k3 = distortion.k3};
+    gpu_detector_ = std::make_unique<frc971::apriltag::GpuDetector>(
+        width_, height_, detector_, native_camera, native_distortion);
+  }
+
+  DetectionBatch Detect(const py::array &frame) {
+    const FrameView view = ValidateFrame(frame, width_, height_);
+    std::scoped_lock lock(mutex_);
+    const auto start = Clock::now();
+    {
+      py::gil_scoped_release release;
+      gpu_detector_->Detect(view.data);
+    }
+    const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    return FinishBatch(gpu_detector_->Detections(), elapsed, view.address);
+  }
+
+  void Reset() {
+    std::scoped_lock lock(mutex_);
+    gpu_detector_->ReinitializeDetections();
+    metrics_ = {};
+  }
+
+ private:
+  int width_;
+  int height_;
+  std::unique_ptr<frc971::apriltag::GpuDetector> gpu_detector_;
+};
+
+class CpuDetector final : public DetectorState {
+ public:
+  CpuDetector(int width, int height, const DetectorOptions &options)
+      : DetectorState(options), width_(width), height_(height), grayscale_(width * height) {
+    if (width <= 0 || height <= 0) throw py::value_error("dimensions must be positive");
+  }
+
+  DetectionBatch Detect(const py::array &frame) {
+    const FrameView view = ValidateFrame(frame, width_, height_);
+    std::scoped_lock lock(mutex_);
+    const auto start = Clock::now();
+    zarray_t *detections = nullptr;
+    {
+      py::gil_scoped_release release;
+      for (std::size_t index = 0; index < grayscale_.size(); ++index) {
+        grayscale_[index] = view.data[index * 2];
+      }
+      image_u8_t image{.width = width_, .height = height_, .stride = width_,
+                       .buf = grayscale_.data()};
+      detections = apriltag_detector_detect(detector_, &image);
+    }
+    const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    DetectionBatch batch = FinishBatch(detections, elapsed, view.address);
+    apriltag_detections_destroy(detections);
+    return batch;
+  }
+
+  void Reset() {
+    std::scoped_lock lock(mutex_);
+    metrics_ = {};
+  }
+
+ private:
+  int width_;
+  int height_;
+  std::vector<std::uint8_t> grayscale_;
+};
+
+}  // namespace
+
+PYBIND11_MODULE(_buddy_cuda, module) {
+  module.doc() = "Team 766 CUDA AprilTag detector bindings for Buddy Vision";
+  module.attr("CUDA_AVAILABLE") = true;
+
+  py::class_<CameraMatrix>(module, "CameraMatrix")
+      .def(py::init<>()).def_readwrite("fx", &CameraMatrix::fx)
+      .def_readwrite("fy", &CameraMatrix::fy).def_readwrite("cx", &CameraMatrix::cx)
+      .def_readwrite("cy", &CameraMatrix::cy);
+  py::class_<DistortionCoefficients>(module, "DistortionCoefficients")
+      .def(py::init<>()).def_readwrite("k1", &DistortionCoefficients::k1)
+      .def_readwrite("k2", &DistortionCoefficients::k2)
+      .def_readwrite("p1", &DistortionCoefficients::p1)
+      .def_readwrite("p2", &DistortionCoefficients::p2)
+      .def_readwrite("k3", &DistortionCoefficients::k3);
+  py::class_<DetectorOptions>(module, "DetectorOptions")
+      .def(py::init<>()).def_readwrite("family", &DetectorOptions::family)
+      .def_readwrite("decimate", &DetectorOptions::decimate)
+      .def_readwrite("blur", &DetectorOptions::blur)
+      .def_readwrite("threads", &DetectorOptions::threads)
+      .def_readwrite("refine_edges", &DetectorOptions::refine_edges)
+      .def_readwrite("max_hamming", &DetectorOptions::max_hamming);
+  py::class_<Detection>(module, "Detection")
+      .def_readonly("id", &Detection::id).def_readonly("hamming", &Detection::hamming)
+      .def_readonly("decision_margin", &Detection::decision_margin)
+      .def_readonly("corners", &Detection::corners);
+  py::class_<DetectionBatch>(module, "DetectionBatch")
+      .def_readonly("detections", &DetectionBatch::detections)
+      .def_readonly("detect_ms", &DetectionBatch::detect_ms)
+      .def_readonly("input_address", &DetectionBatch::input_address);
+  py::class_<DetectorMetrics>(module, "DetectorMetrics")
+      .def_readonly("calls", &DetectorMetrics::calls)
+      .def_readonly("last_detect_ms", &DetectorMetrics::last_detect_ms)
+      .def_readonly("total_detect_ms", &DetectorMetrics::total_detect_ms)
+      .def_readonly("last_input_address", &DetectorMetrics::last_input_address);
+  py::class_<CudaDetector>(module, "CudaDetector")
+      .def(py::init<int, int, const CameraMatrix &, const DistortionCoefficients &,
+                    const DetectorOptions &>())
+      .def("detect", &CudaDetector::Detect).def("metrics", &CudaDetector::Metrics)
+      .def("reset", &CudaDetector::Reset);
+  py::class_<CpuDetector>(module, "CpuDetector")
+      .def(py::init<int, int, const DetectorOptions &>())
+      .def("detect", &CpuDetector::Detect).def("metrics", &CpuDetector::Metrics)
+      .def("reset", &CpuDetector::Reset);
+}
