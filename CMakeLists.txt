@@ -39,6 +39,10 @@ if(BUDDY_BUILD_CUDA)
   endif()
   file(GLOB APRILTAG_COMMON_SOURCES CONFIGURE_DEPENDS cpp/apriltag/common/*.c)
   file(GLOB APRILTAG_FAMILY_SOURCES CONFIGURE_DEPENDS cpp/apriltag/tag*.c)
+  # macOS archive tools can materialize AppleDouble metadata as `._*.c` files.
+  # Never allow those sidecars to enter a Linux deployment build.
+  list(FILTER APRILTAG_COMMON_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
+  list(FILTER APRILTAG_FAMILY_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
   add_library(apriltag STATIC
     cpp/apriltag/apriltag.c
     cpp/apriltag/apriltag_pose.c

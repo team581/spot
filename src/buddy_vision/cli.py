@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .capture import CaptureWorker, enumerate_camera, resolve_device
+from .capture import CaptureWorker, enumerate_camera, orient_yuyv_frame, resolve_device
 from .config import ConfigError, load_calibration, load_config
 from .logging_utils import configure_logging
 from .models import CameraCounters, DetectionBatch
@@ -71,7 +71,7 @@ def _calibration(camera):
         return None
     calibration = load_calibration(camera.calibration)
     calibration.validate_for(camera)
-    return calibration
+    return calibration.for_image_rotation(camera)
 
 
 def _batch_json(sequence: int, batch: DetectionBatch, total_ms: float,
@@ -128,7 +128,7 @@ def _run_probe(args) -> int:
     return 0
 
 
-def _recording_frames(path: str | Path, width: int, height: int) -> Iterator[np.ndarray]:
+def _recording_frames(path: str | Path, camera) -> Iterator[np.ndarray]:
     import cv2
 
     source = Path(path)
@@ -152,10 +152,10 @@ def _recording_frames(path: str | Path, width: int, height: int) -> Iterator[np.
                     yield frame
             iterator = video_iterator()
         for bgr in iterator:
-            if bgr.shape[:2] != (height, width):
+            if bgr.shape[:2] != (camera.height, camera.width):
                 raise RuntimeError(
-                    f"recording is {bgr.shape[1]}x{bgr.shape[0]}, expected {width}x{height}")
-            yield cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV_YUY2)
+                    f"recording is {bgr.shape[1]}x{bgr.shape[0]}, expected {camera.width}x{camera.height}")
+            yield orient_yuyv_frame(cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV_YUY2), camera)
     finally:
         if frames is None:
             capture.release()
@@ -166,7 +166,7 @@ def _run_replay(args) -> int:
     camera = config.camera(args.camera)
     detector = create_detector(camera, _calibration(camera))
     for sequence, frame in enumerate(
-            _recording_frames(args.input, camera.width, camera.height), start=1):
+            _recording_frames(args.input, camera), start=1):
         started = time.perf_counter_ns()
         batch = detector.detect(frame)
         print(_batch_json(sequence, batch, (time.perf_counter_ns() - started) / 1e6))
@@ -187,7 +187,7 @@ def _run_compare(args) -> int:
     mismatches = 0
     processed = 0
     max_corner_delta = 0.0
-    for frame in _recording_frames(args.input, camera.width, camera.height):
+    for frame in _recording_frames(args.input, camera):
         gpu_batch = gpu.detect(frame)
         cpu_batch = cpu.detect(frame)
         gpu_by_id = {item.id: item for item in gpu_batch.detections}
@@ -211,7 +211,7 @@ def _run_benchmark(args) -> int:
     detector = create_detector(camera, _calibration(camera))
     durations: list[float] = []
     detections = 0
-    for frame in _recording_frames(args.input, camera.width, camera.height):
+    for frame in _recording_frames(args.input, camera):
         batch = detector.detect(frame)
         durations.append(batch.detect_ms)
         detections += len(batch.detections)
@@ -239,6 +239,7 @@ def _run_validate_calibration(args) -> int:
         raise ConfigError(f"camera {camera.id!r} has no calibration path")
     calibration = load_calibration(camera.calibration)
     calibration.validate_for(camera)
+    calibration = calibration.for_image_rotation(camera)
     layout = None
     if config.field_layout:
         layout = FieldLayout.load(config.field_layout, config.field_revision)

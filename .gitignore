@@ -1,5 +1,6 @@
 /.obsidian
 .DS_Store
+._*
 .venv/
 build/
 dist/
@@ -12,3 +13,4 @@ wheelhouse/
 *.so
 *.dylib
 *.pyc
+/prototype-runs/

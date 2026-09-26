@@ -1,18 +1,38 @@
 # Buddy Vision Project Status
 
-Last updated: September 1, 2026
+Last updated: September 22, 2026
 
-Overall status: **Raw CUDA AprilTag detection is working on the target Jetson and camera. Calibration, pose accuracy, NT4 transport, deployment reliability, and robot integration remain to be validated.**
+Last target hardware verification: September 15, 2026
+
+Overall status: **The two-camera alpha service is deployed on the target Jetson, jointly solves multi-tag observations, and publishes independent typed robot poses over NT4. Both camera pipelines and the AdvantageScope connection are hardware-validated. A live field-relative pose has not yet been observed because no known tag was visible during the latest verification; measured calibration, physical extrinsics, pose accuracy, endurance, and robot integration remain pending.**
 
 The complete design requirements are in [Vision Solution (Buddy) Specs.md](./Vision%20Solution%20(Buddy)%20Specs.md). The current implementation intentionally overrides the original native-daemon recommendation: service orchestration is written in Python, while Team 766's detector remains in C++20/CUDA behind a pybind11 extension.
 
 ## Executive Summary
 
-The first-pass Buddy vision service has been implemented. It includes the imported Team 766 CUDA AprilTag detector, a Python camera and scheduling service, pose-solving code, protobuf and NT4 support, health reporting, replay and benchmark commands, and systemd deployment assets.
+The first-pass Buddy vision service has been implemented and deployed. It includes the imported Team 766 CUDA AprilTag detector, two-camera Python capture and scheduling, single- and joint multi-tag pose solving, protobuf diagnostics, typed WPILib `Pose3d` NT4 output, health reporting, replay and benchmark commands, and a persistent systemd service.
 
-The first hardware checkpoint has passed. On `orin-1`, the service captured frames from the attached Arducam OV2311 and repeatedly detected a visible 36h11 tag. One observed result reported tag ID 8, hamming distance 0, decision margin approximately 105.45, no frame overwritten before processing, and approximately 6.43 ms total processing time. Corners were also returned correctly.
+The raw-detection hardware checkpoint passed earlier. On `orin-1`, the service captured frames from the attached Arducam OV2311 and repeatedly detected a visible 36h11 tag. One observed result reported tag ID 8, hamming distance 0, decision margin approximately 105.45, no frame overwritten before processing, and approximately 6.43 ms total processing time. Corners were also returned correctly.
 
-This proves the camera-to-CUDA raw-detection path. It does not yet prove field-relative robot pose accuracy or production reliability.
+The alpha deployment checkpoint has now also passed. On the latest target verification, both renamed camera pipelines (`left` and `right`) captured and detected concurrently, the NT4 server announced all 44 `/Buddy` fields, AdvantageScope connected from the development Mac, and both per-camera `robot_pose` topics were recognized as `struct:Pose3d`. The built-in 2026 field loaded in both 2D and 3D views.
+
+No pose sample was expected during that verification: the left image contained wiring and the ceiling, while the right camera was facing a close obstructing surface. Neither image contained an AprilTag, so both cameras correctly published `robot_pose_valid=false` without replacing the last pose with an artificial origin.
+
+```mermaid
+flowchart LR
+  L[Left camera] --> C[Independent per-camera frames]
+  R[Right camera] --> C
+  C --> D[CUDA detection]
+  D --> K{Known tags}
+  K -->|One| I[IPPE: retain two candidates]
+  K -->|Two or more| S[Joint SQPNP over all corners]
+  I --> P[Select one robot pose per camera]
+  S --> P
+  P --> N[NT4 on Orin]
+  N --> A[AdvantageScope 2026 field]
+```
+
+This proves the deployed two-camera capture, processing, and NT4 visualization path. It does not yet prove live field-relative pose accuracy or production reliability.
 
 ## Current Target Configuration
 
@@ -20,16 +40,20 @@ This proves the camera-to-CUDA raw-detection path. It does not yet prove field-r
 | --- | --- |
 | Compute | NVIDIA Jetson Orin Nano 8 GB, device name `orin-1` |
 | Jetson software | L4T R36.4.3, CUDA 12.6 |
-| Python | 3.10.12 |
-| OpenCV | 4.8.0 with GStreamer support |
-| Camera | Arducam OV2311 USB camera, model UC621 |
-| Camera selector | Stable `/dev/v4l/by-id` selector configured |
-| Configured mode | MJPEG, 1280×720 at 50 FPS |
-| Exposure | Manual, 1000 µs |
+| Python | 3.11.16 in `/home/team581/buddy-2026/.venv311` |
+| OpenCV | 4.11.0 headless wheel; direct V4L2 fallback is active because this wheel has no GStreamer support |
+| Cameras | `left`: Arducam OV2311 UC621; `right`: Arducam OV9281 UC762; both validated concurrently |
+| Camera selectors | Stable `/dev/v4l/by-id` selectors configured |
+| Configured modes | Left MJPEG 1280×720 at 50 FPS; right MJPEG 1280×720 at 120 FPS |
+| Observed capture/detect rates | Approximately 25 FPS left and 48–50 FPS right during the latest check |
+| Exposure | Manual, 1000 µs; correctly converted to UVC `exposure_time_absolute=10` |
 | Gain | 20 |
 | Tag family | 36h11 |
-| Calibration | Not yet configured |
-| NT4 | Present in the implementation but currently disabled in the local configuration |
+| Calibration | Provisional 1280×720 intrinsics for both cameras; startup warning and NT status are active |
+| Camera extrinsics | Left `[0, +0.1, 0]`, right `[0, -0.1, 0]`, both with `[0, -20, 0]` degree RPY; provisional |
+| Field layout | Vendored WPILib 2026.2.2 welded REBUILT layout |
+| NT4 | Enabled as a server on the Orin; NT4 port 5810 and NT3 port 1735 |
+| Deployment | At the latest target check, `buddy-vision.service` was enabled and active; checkout in `/home/team581/buddy-2026`; `/opt/buddy-vision` symlinks to it |
 
 The camera mode and exposure values are working first-pass values, not final production tuning.
 
@@ -49,15 +73,21 @@ The camera mode and exposure values are working first-pass values, not final pro
 
 - Headless camera probing and format/control reporting.
 - Explicit GStreamer/OpenCV capture pipelines.
+- Direct V4L2 capture fallback with BGR-to-packed-YUYV conversion for OpenCV builds without GStreamer.
+- Correct conversion from configured microseconds to the UVC control's 100 µs exposure units.
 - One capture thread and latest-frame slot per camera.
 - Fair round-robin detection scheduling.
 - Bounded result queues and overwrite/drop accounting.
 - CPU comparison and fallback support.
 - Single- and multi-tag pose-solving paths using OpenCV PnP routines.
+- WPILib/OpenCV coordinate conversion, joint all-corner multi-tag solving, and
+  configured per-camera robot extrinsics for alpha visualization.
 - Calibration and WPILib field-layout loading and validation.
-- Protobuf message generation and Python NTCore publication support.
+- Protobuf diagnostics plus one typed WPILib `Pose3d` NT topic per camera for
+  AdvantageScope, with validity, solve method, tag count, and reprojection error.
 - Health state, structured logging, temperature reporting, reconnect behavior, and revision reporting.
 - Live probe, daemon, replay, CUDA/CPU comparison, benchmark, and calibration-validation CLI modes.
+- Disposable alpha multi-camera terminal observation and browser MJPEG viewing are implemented for bring-up; they are not enabled by systemd or part of the production interface.
 - systemd service and installation assets.
 
 ### Build and deployment support
@@ -67,62 +97,83 @@ The camera mode and exposure values are working first-pass values, not final pro
 - NVIDIA CCCL is fetched at its pinned revision by CMake. An explicitly supplied `BUDDY_CCCL_ROOT` remains available for offline builds.
 - Local CCCL checkouts and Python wheelhouses are treated as regenerable build caches and excluded from source control.
 - Deployment uses the checked-in, credential-free `deploy/install.sh`; the temporary credential-bearing deployment helper has been removed.
+- The Orin has an offline-installed CPython 3.11.16 runtime and compatible 2026.2.2 RobotPy NT/wpimath packages.
+- The deployed service runs as the unprivileged `team581` user with access to the `video` group and restarts under systemd supervision.
+- `/opt/buddy-vision` is a stable symlink to the active checkout for operator convenience.
 
 ## Validated So Far
 
-- The initial host-side test suite passed 17 tests when the implementation was completed.
+- The host-side suite now covers 30 tests, including synthetic single/multi-tag
+  recovery, all-corner joint solving, extrinsics, and typed NT pose delivery.
+- The full host test suite and Ruff checks pass.
 - The non-CUDA package build and CLI paths were exercised on the development machine.
 - Local protobuf and NT-related tests passed during the initial implementation.
 - The target Jetson can load and run the CUDA detector.
 - The Arducam capture pipeline supplies frames in a form accepted by the detector.
+- Both Arducam devices run concurrently through stable `/dev/v4l/by-id` selectors.
+- The portable V4L2 fallback runs on the deployed OpenCV wheel and maintains active capture and detection loops for both cameras.
 - A known 36h11 tag is detected with the expected ID, zero hamming errors, strong decision margin, and valid corners.
 - The observed live result showed no pending-frame overwrite before processing.
-- The service operates headlessly without requiring an OpenCV window or browser.
+- The production service operates headlessly without requiring an OpenCV window or browser. The optional prototype viewer is a LAN-only debug aid that reuses captured frames and has no authentication.
+- `buddy-vision.service` is installed, enabled, starts successfully, and has survived deliberate service stop/restart cycles.
+- The NT4 server listens on port 5810, and an external NT4 subscriber enumerated all 44 `/Buddy` topics.
+- AdvantageScope connected to `192.168.69.170`, recognized both per-camera `robot_pose` topics as typed `Pose3d`, and loaded the 2026 2D/3D field.
+- Per-camera status, FPS, provisional calibration, pose validity, pose method, tag count, and reprojection-error values were read successfully from NT4.
+- With no visible tag, both cameras published invalid status and did not publish an artificial zero pose.
+- The UVC exposure conversion was verified on hardware: 1000 µs is applied as `exposure_time_absolute=10`, eliminating the earlier 100 ms overexposure.
 
-The raw live tag-detection milestone is therefore complete.
+The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery milestones are therefore complete.
 
 ## Incomplete or Not Yet Validated
 
-- The OV2311 has not been intrinsically calibrated for the exact resolution, format, focus, and mounting configuration.
-- The camera-to-robot transform has not been measured and validated.
-- Field-layout revision loading and known-field-tag pose accuracy have not been checked on the Jetson.
-- Single-tag IPPE dual candidates and multi-tag SQPnP/refinement have not been validated with physical targets.
-- End-to-end NT4 delivery, timestamps, duplicate frames, empty frames, and revision topics have not been checked against a robot-like subscriber.
-- The systemd service has not yet completed a reboot/autostart/restart acceptance test.
+- Neither camera has been intrinsically calibrated for its exact resolution, format, focus, and mounting configuration.
+- Provisional camera-to-robot transforms are configured but have not been physically measured and validated.
+- Known-field-tag pose accuracy has not been checked on the Jetson with measured camera and robot poses.
+- Single-tag IPPE dual candidates and joint multi-tag SQPnP/refinement have comprehensive synthetic tests but have not been validated with physical targets.
+- A valid `Pose3d` sample has not yet been observed in AdvantageScope because no known tag was visible during the deployment check.
+- Capture timestamps are used for pose and companion values, but timestamp accuracy and fixed camera bias have not been measured against robot time.
+- The systemd service has passed deliberate restart checks but has not yet completed a reboot/autostart acceptance test.
 - Camera disconnect/reconnect behavior has not been tested on the target.
 - Sustained capture FPS and p50/p95 latency have not been measured over a representative run.
 - Detection quality has not been characterized for range, angle, motion blur, exposure, partial occlusion, and field lighting.
-- The 30-minute thermal/reliability test and two-camera test have not been run.
-- Network setup was intermittently affected by DHCP/mDNS connectivity during deployment and should be confirmed before relying on remote administration or NT.
+- The 30-minute thermal/reliability run and a formal two-camera fairness/endurance benchmark have not been completed.
+- Direct Ethernet and NT4 connectivity worked at `192.168.69.170`; the Orin has no Wi-Fi, so field networking and stable address assignment still need an explicit deployment plan.
 - RoboRIO integration, fusion, uncertainty tuning, Limelight fallback, and production rollout remain explicitly deferred.
 - Imported dependency licensing and distribution details should receive a final review before release.
+- The temporary browser viewer has not yet been hardware-validated for sustained CPU/JPEG load, network reachability, or multi-camera thermal impact.
+- The latest captured views contained no usable target: the left camera saw wiring/ceiling and the right camera appeared physically obstructed or aimed at a nearby surface.
 
 ## Recommended Next Steps
 
 ### Priority 0: Make the current proof reproducible
 
 - [x] Remove the temporary credential-bearing deployment helper.
-- [x] Review and commit the intentional Jetson build/configuration changes.
+- [x] Review the intentional Jetson build/configuration changes.
+- [ ] Commit the reviewed implementation and deployment changes.
 - [x] Keep CCCL checkouts and wheelhouses out of Git as regenerable local caches.
 - [ ] Record the exact supported V4L2 modes and controls for the attached camera.
 - [ ] Run a 2–5 minute probe and save structured output with detection FPS, processing latency, overwrites, and errors.
-- [ ] Confirm clean shutdown and restart after camera and service interruption.
+- [x] Confirm clean service shutdown and restart.
+- [ ] Confirm automatic camera recovery after a deliberate unplug/replug acceptance test.
 
 ### Priority 1: Establish trustworthy pose output
 
-- [ ] Calibrate the OV2311 in its final focus and exact operating mode.
-- [ ] Validate the calibration file with the CLI and confirm its camera identity and dimensions.
-- [ ] Measure and configure the camera-to-robot transform.
-- [ ] Load the intended WPILib field layout and lock its expected revision.
+- [ ] Calibrate both cameras in their final focus and exact operating modes.
+- [x] Validate the provisional calibration files with the CLI and confirm camera identity and dimensions.
+- [ ] Measure both camera mounts and replace the provisional camera-to-robot transforms.
+- [x] Load WPILib 2026.2.2's official welded REBUILT layout and derive its revision hash.
 - [ ] Test a known tag at measured poses and compare translation, rotation, and reprojection error.
-- [ ] Verify both single-tag IPPE candidates and multi-tag pose refinement.
-- [ ] Confirm that unknown tags remain in raw observations but do not affect field-relative pose.
+- [x] Verify both single-tag IPPE candidates and joint multi-tag pose refinement synthetically.
+- [x] Confirm synthetically that unknown tags remain in raw observations but do not affect field-relative pose.
+- [ ] Repeat the single-tag and multi-tag checks with physical 2026 targets on the Orin.
 
 ### Priority 2: Validate transport and service operation
 
-- [ ] Enable NT4 against a local or robot-like server and inspect every `/Buddy/...` topic.
-- [ ] Verify capture timestamps, ordered/duplicate/empty frames, revisions, latency fields, FPS, drops, state, and errors.
-- [ ] Install the systemd service under the unprivileged account and verify startup after reboot.
+- [x] Enable the Orin NT4 server and inspect every announced `/Buddy/...` topic from an external subscriber and AdvantageScope.
+- [x] Verify revisions, latency fields, FPS, drops, state, errors, and invalid-pose behavior over NT4.
+- [ ] Measure capture timestamp accuracy and exercise ordered, duplicate, and empty-frame behavior with a robot-like queued subscriber.
+- [x] Install and restart the systemd service under the unprivileged account.
+- [ ] Verify systemd startup after a full Orin reboot.
 - [ ] Test camera unplug/replug and network interruption without restarting the whole device.
 - [ ] Run the 30-minute thermal and reliability test and record p50/p95 timing and frame-drop results.
 
@@ -139,12 +190,13 @@ The raw live tag-detection milestone is therefore complete.
 | Milestone | Status | Completion evidence |
 | --- | --- | --- |
 | Build native extension on Jetson | Complete | CUDA detector loads and runs on `orin-1` |
-| Capture frames from target camera | Complete | OV2311 live frames reach the detector |
+| Capture frames from both target cameras | Complete | Left OV2311 and right OV9281 frames concurrently reach their detection pipelines |
 | Detect a known raw tag | Complete | Correct ID, zero hamming, strong margin, valid corners |
 | Reproduce and benchmark raw detection | In progress | Sustained probe log and latency distribution needed |
-| Produce calibrated camera pose | Pending | Calibration and measured pose tests needed |
-| Publish and receive complete NT4 contract | Pending | End-to-end subscriber validation needed |
-| Survive deployment/reconnect/endurance tests | Pending | systemd, unplug, reboot, and 30-minute tests needed |
+| Produce calibrated camera pose | Software complete; hardware pending | Provisional intrinsics/extrinsics require measured replacements and live single/multi-tag pose tests |
+| Publish and receive alpha NT4 contract | Complete | Orin announced all 44 topics; external client and AdvantageScope recognized both typed `Pose3d` topics |
+| Display live robot pose on 2026 field | Pending physical target | 2026 field and sources are visible; no pose sample exists until a known tag enters a camera view |
+| Survive deployment/reconnect/endurance tests | In progress | Service restart passed; unplug, reboot, network-interruption, and 30-minute tests remain |
 | Robot shadow validation | Deferred | Begins after Jetson-side gates pass |
 
 ## Updating This Document

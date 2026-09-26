@@ -10,7 +10,10 @@ def jetson_temperature_c() -> float:
         try:
             raw = float(Path(path_text).read_text().strip())
             readings.append(raw / 1000.0 if raw > 500 else raw)
-        except (OSError, ValueError):
+        # Some Jetson thermal-zone drivers can transiently return malformed
+        # data while a sensor is being refreshed. Temperature telemetry must
+        # not be able to terminate the vision output worker.
+        except (OSError, TypeError, ValueError):
             continue
     return max(readings, default=float("nan"))
 

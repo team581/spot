@@ -34,9 +34,8 @@ python3 -m venv .venv
 CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[test,systemd]'
 ```
 
-NTCore is optional so the raw detector can be installed on Jetson images where
-a compatible `pyntcore` wheel is unavailable. Install the `nt` extra when NT4
-publishing is needed:
+NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
+Install it for the default alpha configuration:
 
 ```sh
 CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[nt,systemd]'
@@ -58,14 +57,14 @@ Edit `config/buddy.json` with the camera's persistent `/dev/v4l/by-id` name,
 then enumerate what the driver actually supports:
 
 ```sh
-.venv/bin/buddy-vision camera-modes --config config/buddy.json --camera front
+.venv/bin/buddy-vision camera-modes --config config/buddy.json --camera left
 ```
 
 Run the headless proof. Each output line contains tag IDs, corners, hamming,
 decision margin, FPS, timing, and drops:
 
 ```sh
-.venv/bin/buddy-vision probe --config config/buddy.json --camera front
+.venv/bin/buddy-vision probe --config config/buddy.json --camera left
 ```
 
 Run the service:
@@ -74,17 +73,51 @@ Run the service:
 .venv/bin/buddy-vision daemon --config config/buddy.json
 ```
 
+The alpha configuration starts an NT4 server on the Jetson. For each camera,
+`/Buddy/left/output/robot_pose` and `/Buddy/right/output/robot_pose` are typed
+WPILib `Pose3d` topics. Add both topics to an AdvantageScope 3D Field tab and
+select the 2026 REBUILT field. A frame with two or more known tags is solved
+jointly from all tag corners and emits one pose; single-tag IPPE ambiguity is
+retained in the protobuf diagnostics while the lowest-error candidate is used
+for the typed pose. The calibration files shipped in `config/` are explicitly
+provisional and should be replaced after camera calibration.
+Set each mount's `image_rotation_deg` to `0` or `180` in `config/buddy.json`.
+Buddy corrects capture frames before detection, pose solving, and preview,
+and transforms raw-sensor calibration intrinsics into the corrected pixel frame.
+`robot_from_camera` describes that corrected camera frame. The bundled left mount
+uses `180`; the right mount uses `0`. Changing a USB port or replacing a camera
+on the same mount does not change this setting. Recheck it if the physical mount
+changes.
+The tag geometry is copied from WPILib 2026.2.2's official
+[`2026-rebuilt-welded.json`](https://github.com/wpilibsuite/allwpilib/blob/v2026.2.2/apriltag/src/main/native/resources/edu/wpi/first/apriltag/2026-rebuilt-welded.json),
+which matches AdvantageScope's welded 2026 field model.
+
+For a step-by-step check of both camera feeds and their Pose3d outputs at the
+same time, see the [Pose3d test guide](docs/Pose3d%20Test%20Guide.md).
+
+For temporary two-camera alpha testing from the Mac checkout, run one command.
+It manages the installed Jetson service for the duration of the session, shows
+per-camera terminal telemetry, and opens a read-only LAN camera grid:
+
+```sh
+python3 tools/probe_dashboard.py --alpha
+```
+
+This unauthenticated viewer is an alpha debugging tool, is never started by systemd,
+and must only be used on a trusted network. See [`tools/README.md`](tools/README.md).
+
 ## Offline tools
 
 ```sh
-buddy-vision replay --config config/buddy.json --camera front --input recording.mp4
-buddy-vision compare --config config/buddy.json --camera front --input recording.mp4
-buddy-vision benchmark --config config/buddy.json --camera front --input recording.mp4
-buddy-vision validate-calibration --config config/buddy.json --camera front
+buddy-vision replay --config config/buddy.json --camera left --input recording.mp4
+buddy-vision compare --config config/buddy.json --camera left --input recording.mp4
+buddy-vision benchmark --config config/buddy.json --camera left --input recording.mp4
+buddy-vision validate-calibration --config config/buddy.json --camera left
 ```
 
-Recordings must match the configured resolution. Replay converts decoded BGR
-frames to packed YUYV before invoking the same detector boundary.
+Recordings must match the configured resolution and contain raw camera orientation.
+Replay converts decoded BGR frames to packed YUYV and applies the configured
+orientation before invoking the same detector boundary.
 
 ## Important buffer behavior
 

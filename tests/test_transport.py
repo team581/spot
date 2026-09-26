@@ -55,6 +55,7 @@ def test_protobuf_round_trip_preserves_variable_results(tmp_path):
 
 def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
     import ntcore
+    from wpimath.geometry import Pose3d
 
     config, camera, detected, solution = fixtures(tmp_path)
     publisher = NtPublisher(NtConfig(enabled=True, mode="server"), [camera.id])
@@ -62,17 +63,31 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
         "/Buddy/front/output/observations").subscribe(
             "proto:buddy.vision.v1.VisionFrame", b"",
             ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
+    pose_subscriber = publisher.instance.getStructTopic(
+        "/Buddy/front/output/robot_pose", Pose3d).subscribe(
+            Pose3d(), ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
+    valid_subscriber = publisher.instance.getBooleanTopic(
+        "/Buddy/front/output/robot_pose_valid").subscribe(
+            False, ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
     message = make_vision_frame(config, camera, detected, solution, 4.0)
     timestamp = detected.frame.capture_timestamp_us
     counters = CameraCounters()
-    publisher.publish_frame(camera, 7, message, timestamp, counters, 40.0)
-    publisher.publish_frame(camera, 7, message, timestamp + 1, counters, 40.0)
+    robot_pose = solution.candidates[0]
+    publisher.publish_frame(camera, 7, message, timestamp, counters, 40.0, robot_pose)
+    publisher.publish_frame(camera, 7, message, timestamp + 1, counters, 40.0, robot_pose)
+    publisher.publish_frame(camera, 7, message, timestamp + 2, counters, 40.0, None)
     publisher.instance.flush()
     deadline = time.monotonic() + 1
     updates = []
     while len(updates) < 2 and time.monotonic() < deadline:
         updates.extend(subscriber.readQueue())
         time.sleep(0.005)
+    pose_updates = pose_subscriber.readQueue()
+    valid_updates = valid_subscriber.readQueue()
     publisher.close()
-    assert [update.time for update in updates[-2:]] == [timestamp, timestamp + 1]
-    assert all(VisionFrame.FromString(update.value).sequence == 4 for update in updates[-2:])
+    assert [update.time for update in updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]
+    assert all(VisionFrame.FromString(update.value).sequence == 4 for update in updates[-3:])
+    assert [update.time for update in pose_updates[-2:]] == [timestamp, timestamp + 1]
+    assert all(np.isclose(update.value.X(), 1.0) for update in pose_updates[-2:])
+    assert [update.value for update in valid_updates[-3:]] == [True, True, False]
+    assert [update.time for update in valid_updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]

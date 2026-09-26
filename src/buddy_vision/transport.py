@@ -5,10 +5,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .config import CameraConfig, NtConfig, ServiceConfig
-from .models import CameraCounters, DetectedFrame, PoseSolution
+from .models import CameraCounters, DetectedFrame, PoseCandidate, PoseSolution
 from .proto import vision_pb2
 
 LOGGER = logging.getLogger(__name__)
+_POSE_METHOD_NAMES = {
+    0: "METHOD_UNKNOWN",
+    1: "MULTI_TAG_SQPNP",
+    2: "SINGLE_TAG_IPPE_SQUARE",
+}
 
 
 def make_vision_frame(config: ServiceConfig, camera: CameraConfig, detected: DetectedFrame,
@@ -47,6 +52,12 @@ def make_vision_frame(config: ServiceConfig, camera: CameraConfig, detected: Det
 @dataclass
 class CameraPublishers:
     observation: Any
+    robot_pose: Any
+    robot_pose_valid: Any
+    robot_pose_method: Any
+    robot_pose_reprojection_error_px: Any
+    robot_pose_tag_count: Any
+    calibration_provisional: Any
     state: Any
     applied_config_revision: Any
     applied_field_revision: Any
@@ -69,9 +80,13 @@ class NtPublisher:
             return
         try:
             import ntcore
+            from wpimath.geometry import Pose3d
         except ImportError as exc:
-            raise RuntimeError("pyntcore is required when NT publishing is enabled") from exc
+            raise RuntimeError(
+                "pyntcore and robotpy-wpimath are required when NT publishing is enabled"
+            ) from exc
         self.ntcore = ntcore
+        self.pose_type = Pose3d
         instance = ntcore.NetworkTableInstance.create()
         self.instance = instance
         if nt_config.mode == "server":
@@ -94,6 +109,18 @@ class NtPublisher:
             self.publishers[camera_id] = CameraPublishers(
                 observation=instance.getRawTopic(f"{root}/output/observations").publish(
                     "proto:buddy.vision.v1.VisionFrame", options),
+                robot_pose=instance.getStructTopic(
+                    f"{root}/output/robot_pose", Pose3d).publish(options),
+                robot_pose_valid=instance.getBooleanTopic(
+                    f"{root}/output/robot_pose_valid").publish(options),
+                robot_pose_method=instance.getStringTopic(
+                    f"{root}/output/robot_pose_method").publish(options),
+                robot_pose_reprojection_error_px=instance.getDoubleTopic(
+                    f"{root}/output/robot_pose_reprojection_error_px").publish(options),
+                robot_pose_tag_count=instance.getIntegerTopic(
+                    f"{root}/output/robot_pose_tag_count").publish(options),
+                calibration_provisional=instance.getBooleanTopic(
+                    f"{root}/status/calibration_provisional").publish(options),
                 state=instance.getStringTopic(f"{root}/status/state").publish(options),
                 applied_config_revision=instance.getIntegerTopic(
                     f"{root}/status/applied_config_revision").publish(options),
@@ -115,13 +142,45 @@ class NtPublisher:
         self.global_publishers[0].set(schema_version)
         self.global_publishers[1].set(True)
 
+    def publish_calibration_status(self, camera: CameraConfig, provisional: bool) -> None:
+        if not self.enabled:
+            return
+        self.publishers[camera.id].calibration_provisional.set(provisional)
+
     def publish_frame(self, camera: CameraConfig, field_revision: int,
                       message: vision_pb2.VisionFrame, capture_timestamp_us: int,
-                      counters: CameraCounters, temperature_c: float) -> None:
+                      counters: CameraCounters, temperature_c: float,
+                      robot_pose: PoseCandidate | None = None) -> None:
         if not self.enabled:
             return
         publishers = self.publishers[camera.id]
         publishers.observation.set(message.SerializeToString(), capture_timestamp_us)
+        if robot_pose is None:
+            publishers.robot_pose_valid.set(False, capture_timestamp_us)
+            publishers.robot_pose_method.set("METHOD_UNKNOWN", capture_timestamp_us)
+            publishers.robot_pose_reprojection_error_px.set(0.0, capture_timestamp_us)
+            publishers.robot_pose_tag_count.set(0, capture_timestamp_us)
+        else:
+            try:
+                from wpimath.geometry import Pose3d, Quaternion, Rotation3d, Translation3d
+                typed_pose = Pose3d(
+                    Translation3d(*robot_pose.translation),
+                    Rotation3d(Quaternion(*robot_pose.quaternion_wxyz)),
+                )
+                publishers.robot_pose.set(typed_pose, capture_timestamp_us)
+                publishers.robot_pose_valid.set(True, capture_timestamp_us)
+                publishers.robot_pose_method.set(
+                    _POSE_METHOD_NAMES.get(int(robot_pose.method), "METHOD_UNKNOWN"),
+                    capture_timestamp_us)
+                publishers.robot_pose_reprojection_error_px.set(
+                    robot_pose.reprojection_error_px, capture_timestamp_us)
+                publishers.robot_pose_tag_count.set(len(robot_pose.tag_ids), capture_timestamp_us)
+            except Exception:  # pragma: no cover - runtime library/backend failures
+                LOGGER.exception("failed to publish typed robot pose for %s", camera.id)
+                publishers.robot_pose_valid.set(False, capture_timestamp_us)
+                publishers.robot_pose_method.set("METHOD_UNKNOWN", capture_timestamp_us)
+                publishers.robot_pose_reprojection_error_px.set(0.0, capture_timestamp_us)
+                publishers.robot_pose_tag_count.set(0, capture_timestamp_us)
         publishers.state.set(counters.state.value)
         publishers.applied_config_revision.set(camera.config_revision)
         publishers.applied_field_revision.set(field_revision)
@@ -153,14 +212,21 @@ class MemoryPublisher:
 
     def __init__(self) -> None:
         self.frames: list[tuple[str, bytes, int]] = []
+        self.robot_poses: list[tuple[str, PoseCandidate | None, int]] = []
 
     def publish_global(self, schema_version: int) -> None:
         self.schema_version = schema_version
 
+    def publish_calibration_status(self, camera: CameraConfig, provisional: bool) -> None:
+        del camera
+        self.calibration_provisional = provisional
+
     def publish_frame(self, camera: CameraConfig, field_revision: int,
                       message: vision_pb2.VisionFrame, capture_timestamp_us: int,
-                      counters: CameraCounters, temperature_c: float) -> None:
+                      counters: CameraCounters, temperature_c: float,
+                      robot_pose: PoseCandidate | None = None) -> None:
         self.frames.append((camera.id, message.SerializeToString(), capture_timestamp_us))
+        self.robot_poses.append((camera.id, robot_pose, capture_timestamp_us))
 
     def close(self) -> None:
         pass

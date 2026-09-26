@@ -10,6 +10,25 @@ import numpy as np
 from .config import Calibration, ConfigError, file_revision
 from .models import Detection, PoseCandidate, PoseMethod, PoseSolution
 
+# OpenCV's camera basis is +X right, +Y down, +Z forward.  WPILib's camera
+# pose convention is NWU: +X forward, +Y left, +Z up.  This matrix converts a
+# vector expressed in the OpenCV camera basis into the WPILib camera basis.
+NWU_FROM_OPENCV = np.array([
+    [0.0, 0.0, 1.0],
+    [-1.0, 0.0, 0.0],
+    [0.0, -1.0, 0.0],
+], dtype=np.float64)
+
+# OpenCV's IPPE tag plane is +X right, +Y down, +Z into the tag.  A WPILib
+# field-layout tag uses +X out of the tag, +Y to the viewer's right, and +Z up.
+# This is a proper rigid rotation (unlike merely projecting XY onto the YZ
+# plane), so it can safely participate in pose composition.
+TAG_NWU_FROM_OPENCV = np.array([
+    [0.0, 0.0, -1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, -1.0, 0.0],
+], dtype=np.float64)
+
 
 @dataclass(frozen=True)
 class FieldTag:
@@ -111,6 +130,33 @@ def _tag_corners(tag_size_m: float) -> np.ndarray:
     ], dtype=np.float64)
 
 
+def _tag_plane_to_field(field_from_tag: np.ndarray, local_corners: np.ndarray) -> np.ndarray:
+    """Map canonical planar (u,v) corners into a WPILib tag's Y-Z plane."""
+    homogeneous = np.column_stack((local_corners, np.ones(len(local_corners))))
+    tag_from_plane = _transform(TAG_NWU_FROM_OPENCV, np.zeros(3))
+    return (field_from_tag @ tag_from_plane @ homogeneous.T).T[:, :3]
+
+
+def _rpy_matrix(rpy_deg: tuple[float, float, float]) -> np.ndarray:
+    """Return Rz(yaw) @ Ry(pitch) @ Rx(roll) for right-handed NWU axes."""
+    roll, pitch, yaw = np.deg2rad(np.asarray(rpy_deg, dtype=np.float64))
+    cr, sr = np.cos(roll), np.sin(roll)
+    cp, sp = np.cos(pitch), np.sin(pitch)
+    cy, sy = np.cos(yaw), np.sin(yaw)
+    rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]], dtype=np.float64)
+    ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]], dtype=np.float64)
+    rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]], dtype=np.float64)
+    return rz @ ry @ rx
+
+
+def robot_from_camera_transform(
+        translation_m: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        rotation_rpy_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
+) -> np.ndarray:
+    """Build the configured camera-to-robot transform in WPILib/NWU space."""
+    return _transform(_rpy_matrix(rotation_rpy_deg), np.asarray(translation_m))
+
+
 class PoseSolver:
     def __init__(self, calibration: Calibration | None, layout: FieldLayout | None,
                  tag_size_m: float) -> None:
@@ -163,10 +209,13 @@ class PoseSolver:
         if not result[0]:
             return ()
         field_from_tag = self.layout.tags[detection.id].field_from_tag
+        tag_from_plane = _transform(TAG_NWU_FROM_OPENCV, np.zeros(3))
         candidates: list[PoseCandidate] = []
         for rvec, tvec in zip(result[1], result[2]):
-            camera_from_tag = _transform(cv2.Rodrigues(rvec)[0], tvec)
-            field_from_camera = field_from_tag @ np.linalg.inv(camera_from_tag)
+            camera_from_plane = _transform(cv2.Rodrigues(rvec)[0], tvec)
+            field_from_camera_cv = field_from_tag @ tag_from_plane @ np.linalg.inv(camera_from_plane)
+            field_from_camera = field_from_camera_cv @ np.linalg.inv(
+                _transform(NWU_FROM_OPENCV, np.zeros(3)))
             error = self._reprojection_error(self.local_corners, detection.corners, rvec, tvec)
             candidates.append(PoseCandidate(
                 method=PoseMethod.SINGLE_TAG_IPPE_SQUARE,
@@ -184,8 +233,7 @@ class PoseSolver:
         image_points: list[np.ndarray] = []
         for detection in detections:
             field_from_tag = self.layout.tags[detection.id].field_from_tag
-            homogeneous = np.column_stack((self.local_corners, np.ones(4)))
-            field_corners = (field_from_tag @ homogeneous.T).T[:, :3]
+            field_corners = _tag_plane_to_field(field_from_tag, self.local_corners)
             object_points.append(field_corners)
             image_points.append(detection.corners)
         objects = np.concatenate(object_points).astype(np.float64)
@@ -203,7 +251,9 @@ class PoseSolver:
         if not refined:
             return ()
         camera_from_field = _transform(cv2.Rodrigues(rvec)[0], tvec)
-        field_from_camera = np.linalg.inv(camera_from_field)
+        field_from_camera_cv = np.linalg.inv(camera_from_field)
+        field_from_camera = field_from_camera_cv @ np.linalg.inv(
+            _transform(NWU_FROM_OPENCV, np.zeros(3)))
         error = self._reprojection_error(objects, images, rvec, tvec)
         return (PoseCandidate(
             method=PoseMethod.MULTI_TAG_SQPNP,
@@ -221,3 +271,29 @@ class PoseSolver:
                                       self.distortion)[0].reshape(-1, 2)
         residuals = projected - np.asarray(images).reshape(-1, 2)
         return float(np.sqrt(np.mean(np.sum(residuals * residuals, axis=1))))
+
+
+def select_robot_pose(solution: PoseSolution,
+                      robot_from_camera: np.ndarray) -> PoseCandidate | None:
+    """Select one camera candidate and express the corresponding robot pose."""
+    selected = min(
+        enumerate(solution.candidates),
+        key=lambda pair: (pair[1].reprojection_error_px, pair[0]),
+        default=None,
+    )
+    if selected is None:
+        return None
+    candidate = selected[1]
+    robot_from_camera = np.asarray(robot_from_camera, dtype=np.float64)
+    if robot_from_camera.shape != (4, 4):
+        raise ConfigError("robot_from_camera must be a 4x4 transform")
+    field_from_camera = _transform(
+        quaternion_to_matrix(candidate.quaternion_wxyz), candidate.translation)
+    field_from_robot = field_from_camera @ np.linalg.inv(robot_from_camera)
+    return PoseCandidate(
+        method=candidate.method,
+        translation=field_from_robot[:3, 3].copy(),
+        quaternion_wxyz=matrix_to_quaternion(field_from_robot[:3, :3]),
+        reprojection_error_px=candidate.reprojection_error_px,
+        tag_ids=candidate.tag_ids,
+    )

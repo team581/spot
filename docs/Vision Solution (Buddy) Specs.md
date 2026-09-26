@@ -184,6 +184,12 @@ For one known tag:
 
 Publish raw detections even when pose solving fails. Unknown IDs are excluded from solving but retained with `UNKNOWN_TAG_ID` status.
 
+For the alpha AdvantageScope workflow only, Buddy also selects the lowest-reprojection
+single-tag candidate (or the sole joint multi-tag candidate), applies the configured
+static `robot_from_camera` transform, and publishes one field-relative robot pose.
+The protobuf candidates remain field-relative camera poses; production robot fusion
+continues to own ambiguity resolution and final validation.
+
 ## 5. NetworkTables contract
 
 ### 5.1 Topics
@@ -201,7 +207,13 @@ Publish raw detections even when pose solving fails. Unknown IDs are excluded fr
 /Buddy/<camera>/config/setup_stream_enabled
 
 /Buddy/<camera>/output/observations
+/Buddy/<camera>/output/robot_pose
+/Buddy/<camera>/output/robot_pose_valid
+/Buddy/<camera>/output/robot_pose_method
+/Buddy/<camera>/output/robot_pose_reprojection_error_px
+/Buddy/<camera>/output/robot_pose_tag_count
 /Buddy/<camera>/status/state
+/Buddy/<camera>/status/calibration_provisional
 /Buddy/<camera>/status/applied_config_revision
 /Buddy/<camera>/status/applied_field_revision
 /Buddy/<camera>/status/last_consumed_sequence

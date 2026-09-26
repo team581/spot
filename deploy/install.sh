@@ -20,12 +20,22 @@ usermod -a -G video buddy-vision
 python3 -m venv "$project_dir/.venv"
 "$project_dir/.venv/bin/pip" install --upgrade pip
 CMAKE_ARGS=-DBUDDY_CUDA_ARCHITECTURES=87 \
-  "$project_dir/.venv/bin/pip" install "$project_dir[systemd]"
+  "$project_dir/.venv/bin/pip" install "$project_dir[nt,systemd]"
 
 install -d -o root -g buddy-vision -m 0750 /etc/buddy-vision
+install -o root -g buddy-vision -m 0640 \
+  "$project_dir/config/2026-rebuilt-welded.json" \
+  "$project_dir/config/calibration-left.json" \
+  "$project_dir/config/calibration-right.json" \
+  /etc/buddy-vision/
 if [[ ! -f /etc/buddy-vision/buddy.json ]]; then
   install -o root -g buddy-vision -m 0640 "$project_dir/config/buddy.json" \
     /etc/buddy-vision/buddy.json
+else
+  install -o root -g buddy-vision -m 0640 "$project_dir/config/buddy.json" \
+    /etc/buddy-vision/buddy.json.new
+  echo "Existing /etc/buddy-vision/buddy.json preserved."
+  echo "Review /etc/buddy-vision/buddy.json.new before replacing it."
 fi
 install -o root -g root -m 0644 "$project_dir/deploy/buddy-vision.service" \
   /etc/systemd/system/buddy-vision.service

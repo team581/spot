@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-nt = ["pyntcore>=2025.0.0"]
+nt = ["pyntcore>=2026.2.2,<2027", "robotpy-wpimath>=2026.2.2,<2027"]
 test = ["pytest>=8.2", "pytest-cov>=5.0"]
 systemd = ["sdnotify>=0.3.2"]
 

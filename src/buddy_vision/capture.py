@@ -97,10 +97,13 @@ def configure_controls(camera: CameraConfig, device: str) -> None:
         _set_control(device, "exposure_auto", 3) or _set_control(device, "auto_exposure", 3)
     else:
         _set_control(device, "exposure_auto", 1) or _set_control(device, "auto_exposure", 1)
-        # UVC exposure_absolute is conventionally measured in 100 us units.
+        # Both V4L2 UVC spellings use 100 us units, while the public config is
+        # intentionally expressed in microseconds.
+        exposure_units = (None if camera.exposure_us is None else
+                          max(1, camera.exposure_us // 100))
         if (camera.exposure_us is not None
-                and not _set_control(device, "exposure_time_absolute", camera.exposure_us)
-                and not _set_control(device, "exposure_absolute", max(1, camera.exposure_us // 100))):
+                and not _set_control(device, "exposure_time_absolute", exposure_units)
+                and not _set_control(device, "exposure_absolute", exposure_units)):
             raise CameraError("camera does not expose a supported manual exposure control")
     if camera.gain is not None and not _set_control(device, "gain", camera.gain):
         raise CameraError("camera does not expose a gain control")
@@ -115,6 +118,58 @@ def validate_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:
     if not frame.flags.c_contiguous or frame.strides != (camera.width * 2, 2, 1):
         raise CameraError(f"expected packed YUYV strides, received {frame.strides}")
     return frame
+
+
+def orient_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:
+    """Apply the configured optical-axis rotation without breaking YUYV pairs."""
+    frame = validate_yuyv_frame(frame, camera)
+    if camera.image_rotation_deg == 0:
+        return frame
+    if camera.image_rotation_deg != 180 or camera.width % 2:
+        raise CameraError("unsupported packed YUYV image rotation")
+    # YUYV stores two pixels as Y0 U Y1 V. Reverse the pairs and rows, then
+    # exchange only Y0 and Y1 within each pair; U and V stay in their slots.
+    pairs = frame.reshape(camera.height, camera.width // 2, 4)
+    rotated = np.ascontiguousarray(pairs[::-1, ::-1])
+    rotated[..., 0], rotated[..., 2] = pairs[::-1, ::-1, 2], pairs[::-1, ::-1, 0]
+    return rotated.reshape(camera.height, camera.width, 2)
+
+
+def bgr_to_yuyv_frame(frame: np.ndarray, camera: CameraConfig, cv2) -> np.ndarray:
+    expected = (camera.height, camera.width, 3)
+    if frame.dtype != np.uint8 or frame.shape != expected:
+        raise CameraError(f"expected BGR shape {expected}, received {frame.shape}")
+    conversion = getattr(cv2, "COLOR_BGR2YUV_YUY2", None)
+    if conversion is None:
+        raise CameraError("OpenCV does not provide BGR-to-YUYV conversion")
+    return validate_yuyv_frame(cv2.cvtColor(frame, conversion), camera)
+
+
+def open_capture(cv2, camera: CameraConfig, device: str):
+    """Prefer the zero-copy GStreamer path, with a portable V4L2 fallback."""
+    pipeline = build_gstreamer_pipeline(camera, device)
+    capture = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    capture.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+    if capture.isOpened():
+        return capture, False
+
+    capture.release()
+    LOGGER.warning(
+        "camera %s could not open GStreamer pipeline; falling back to direct V4L2",
+        camera.id,
+    )
+    capture = cv2.VideoCapture(device, cv2.CAP_V4L2)
+    fourcc_name = "MJPG" if camera.format in {"MJPG", "MJPEG"} else "YUYV"
+    capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc_name))
+    capture.set(cv2.CAP_PROP_FRAME_WIDTH, camera.width)
+    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, camera.height)
+    capture.set(cv2.CAP_PROP_FPS, camera.fps)
+    capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    capture.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+    if not capture.isOpened():
+        capture.release()
+        raise CameraError(f"could not open pipeline or direct V4L2 device: {pipeline}")
+    return capture, True
 
 
 class CaptureWorker(threading.Thread):
@@ -154,11 +209,7 @@ class CaptureWorker(threading.Thread):
         device = resolve_device(self.camera.selector)
         self.counters.state = CameraState.CONFIGURING
         configure_controls(self.camera, device)
-        pipeline = build_gstreamer_pipeline(self.camera, device)
-        capture = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
-        capture.set(cv2.CAP_PROP_CONVERT_RGB, 0)
-        if not capture.isOpened():
-            raise CameraError(f"could not open pipeline: {pipeline}")
+        capture, converts_from_bgr = open_capture(cv2, self.camera, device)
         sequence = 0
         previous_capture = time.monotonic()
         successful_since = previous_capture
@@ -169,7 +220,9 @@ class CaptureWorker(threading.Thread):
                 if not ok or frame is None:
                     raise CameraError("capture returned no frame")
                 try:
-                    image = validate_yuyv_frame(frame, self.camera)
+                    decoded = (bgr_to_yuyv_frame(frame, self.camera, cv2)
+                               if converts_from_bgr else validate_yuyv_frame(frame, self.camera))
+                    image = orient_yuyv_frame(decoded, self.camera)
                 except CameraError:
                     self.counters.decode_failures += 1
                     raise
