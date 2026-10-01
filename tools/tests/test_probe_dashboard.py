@@ -190,7 +190,7 @@ def test_demo_terminal_resize_and_restore(tmp_path, exit_mode):
                 captured.extend(os.read(master, 65536))
             if b'Detector' in captured:
                 break
-        assert b'Buddy prototype' in captured and b'Detector' in captured
+        assert b'Spot prototype' in captured and b'Detector' in captured
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 8, 35, 0, 0))
         process.send_signal(signal.SIGWINCH)
         time.sleep(.3)
@@ -347,8 +347,8 @@ def alpha_ssh(tmp_path):
     executable = tmp_path / 'ssh'
     executable.write_text('#!' + sys.executable + '\n' + '''
 import os, pathlib, sys
-state = pathlib.Path(os.environ['BUDDY_FAKE_STATE'])
-calls = pathlib.Path(os.environ['BUDDY_FAKE_CALLS'])
+state = pathlib.Path(os.environ['SPOT_FAKE_STATE'])
+calls = pathlib.Path(os.environ['SPOT_FAKE_CALLS'])
 command = sys.argv[-1]
 with calls.open('a') as log:
     log.write(command + '\\n')
@@ -356,14 +356,14 @@ if '-fN' in sys.argv or command == 'exit':
     sys.exit(0)
 if command.startswith('systemctl show'):
     print(state.read_text().strip())
-elif command == 'sudo systemctl stop buddy-vision.service':
-    if os.environ.get('BUDDY_FAKE_STOP_FAIL'):
+elif command == 'sudo systemctl stop spot-vision.service':
+    if os.environ.get('SPOT_FAKE_STOP_FAIL'):
         sys.exit(1)
     state.write_text('inactive')
-elif command == 'sudo systemctl start buddy-vision.service':
+elif command == 'sudo systemctl start spot-vision.service':
     state.write_text('active')
 elif 'prototype_daemon.py' in command:
-    if os.environ.get('BUDDY_FAKE_LAUNCH_FAIL'):
+    if os.environ.get('SPOT_FAKE_LAUNCH_FAIL'):
         sys.exit(2)
     print('fake alpha daemon', flush=True)
     while True:
@@ -401,12 +401,12 @@ def test_alpha_service_lifecycle(alpha_ssh, tmp_path, initial, exit_mode,
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 30, 120, 0, 0))
     environment = dict(os.environ, PATH=str(tmp_path) + os.pathsep + os.environ['PATH'],
-                       TERM='xterm-256color', BUDDY_FAKE_STATE=str(state),
-                       BUDDY_FAKE_CALLS=str(calls))
+                       TERM='xterm-256color', SPOT_FAKE_STATE=str(state),
+                       SPOT_FAKE_CALLS=str(calls))
     if stop_fails:
-        environment['BUDDY_FAKE_STOP_FAIL'] = '1'
+        environment['SPOT_FAKE_STOP_FAIL'] = '1'
     if exit_mode == 'launch_failure':
-        environment['BUDDY_FAKE_LAUNCH_FAIL'] = '1'
+        environment['SPOT_FAKE_LAUNCH_FAIL'] = '1'
     process = subprocess.Popen([
         sys.executable, str(SCRIPT), '--alpha', '--host', 'team581@192.0.2.5',
         '--no-open-browser',
@@ -488,7 +488,7 @@ def test_daemon_demo_renders_and_records(tmp_path):
             if select.select([master], [], [], .1)[0]:
                 captured.extend(os.read(master, 65536))
         assert process.wait(timeout=1) == 0
-        assert b'Buddy daemon prototype' in captured
+        assert b'Spot daemon prototype' in captured
         assert b'front' in captured and b'rear' in captured
         assert list(tmp_path.glob('*/daemon.log'))
     finally:

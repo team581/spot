@@ -1,4 +1,4 @@
-"""Disposable laptop-only observer for Buddy probe and daemon bring-up."""
+"""Disposable laptop-only observer for Spot probe and daemon bring-up."""
 from __future__ import annotations
 
 import argparse
@@ -116,7 +116,7 @@ class State:
             freshness = ('Waiting for first result' if self.latest is None else
                          'STALE: no new results for two seconds' if stale else
                          'No tags in latest result' if not self.latest['tags'] else 'Fresh results')
-            lines = [f'Buddy prototype | {host} / {camera} | {now - self.started:.1f}s | {status}',
+            lines = [f'Spot prototype | {host} / {camera} | {now - self.started:.1f}s | {status}',
                      freshness]
             if self.latest:
                 r = self.latest
@@ -266,7 +266,7 @@ class DaemonState:
             temperature = ('unknown' if self.temperature_c is None
                            else f'{self.temperature_c:.1f} C')
             service_stale = self.last_status is not None and now - self.last_status >= 2
-            lines = [f'Buddy daemon prototype | {host} | {now - self.started:.1f}s | {status}',
+            lines = [f'Spot daemon prototype | {host} | {now - self.started:.1f}s | {status}',
                      f'{self.viewer_status} | Jetson {temperature}'
                      + (' | STATUS STALE' if service_stale else ''), '']
             lines.append('CAMERA       STATE/AGE       SEQ  TAGS       CAP   DET   RX    TOTAL  DROPS C/D/O/Q/S')
@@ -380,7 +380,7 @@ def remote_command(args) -> str:
         probe = [args.remote_python, '-u', 'tools/prototype_daemon.py',
                  '--config', args.config, '--port', str(args.stream_port)]
     else:
-        probe = [args.remote_python, '-u', '-m', 'buddy_vision', 'probe',
+        probe = [args.remote_python, '-u', '-m', 'spot_vision', 'probe',
                  '--config', args.config, '--camera', args.camera]
         if args.frames:
             probe += ['--frames', str(args.frames)]
@@ -407,12 +407,12 @@ def ssh_command(args, socket: str) -> list[str]:
 def service_state(host: str, socket: str) -> str:
     command = ssh_options(socket) + [
         '-o', 'BatchMode=yes', host,
-        'systemctl show --property=ActiveState --value buddy-vision.service',
+        'systemctl show --property=ActiveState --value spot-vision.service',
     ]
     result = subprocess.run(command, capture_output=True, text=True, timeout=15, check=True)
     state = result.stdout.strip()
     if state not in {'active', 'inactive', 'failed'}:
-        raise RuntimeError(f'Unexpected buddy-vision.service state: {state!r}')
+        raise RuntimeError(f'Unexpected spot-vision.service state: {state!r}')
     return state
 
 
@@ -420,7 +420,7 @@ def service_action(host: str, socket: str, action: str) -> None:
     if action not in {'start', 'stop'}:
         raise ValueError(f'Unsupported service action: {action}')
     subprocess.run(ssh_options(socket) + [
-        '-tt', host, f'sudo systemctl {action} buddy-vision.service',
+        '-tt', host, f'sudo systemctl {action} spot-vision.service',
     ], check=True)
 
 
@@ -618,9 +618,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument('--camera')
     result.add_argument('--daemon', action='store_true')
     result.add_argument('--alpha', action='store_true',
-                        help='run the documented two-camera Jetson alpha session')
+                        help='run the documented four-camera Jetson alpha session')
     result.add_argument('--alpha-interface', help='Mac Ethernet interface for direct Jetson link')
-    result.add_argument('--config', default='config/buddy.json')
+    result.add_argument('--config', default='config/spot.json')
     result.add_argument('--remote-python')
     result.add_argument('--frames', type=int, default=0)
     result.add_argument('--stream-host')
@@ -652,7 +652,7 @@ def open_viewer_when_ready(state: DaemonState, url: str, timeout: float = 15.0) 
         if not webbrowser.open(url):
             raise OSError('browser declined the URL')
         with state.lock:
-            state.event(f'Opened camera viewer: {url}', time.monotonic())
+            state.event(f'Opened alpha dashboard: {url}', time.monotonic())
     except Exception as exc:  # noqa: BLE001 - browser launch is best-effort
         with state.lock:
             state.event(f'Could not open viewer automatically: {exc}; open {url}', time.monotonic())
@@ -666,7 +666,7 @@ def main() -> int:
             argument_parser.error('--alpha cannot be combined with --demo')
         args.daemon = True
         args.host = args.host or ALPHA_HOST
-        args.remote_dir = args.remote_dir or '/home/team581/buddy-2026'
+        args.remote_dir = args.remote_dir or '/home/team581/spot-2026'
     elif args.alpha_interface:
         argument_parser.error('--alpha-interface requires --alpha')
     args.remote_python = args.remote_python or (
@@ -698,7 +698,7 @@ def main() -> int:
     try:
         if args.alpha:
             alpha_interface = prepare_alpha_network(args.host, args.alpha_interface)
-        with tempfile.TemporaryDirectory(prefix='buddy-ssh-', dir='/tmp') as temporary:
+        with tempfile.TemporaryDirectory(prefix='spot-ssh-', dir='/tmp') as temporary:
             socket = str(Path(temporary) / 'control')
             try:
                 if args.demo:
@@ -713,11 +713,11 @@ def main() -> int:
                         prior_state = service_state(args.host, socket)
                         if prior_state == 'active':
                             restore_service = True
-                            print('Stopping installed Buddy service for alpha camera access...',
+                            print('Stopping installed Spot service for alpha camera access...',
                                   flush=True)
                             service_action(args.host, socket, 'stop')
                             if service_state(args.host, socket) != 'inactive':
-                                raise RuntimeError('Installed Buddy service did not stop')
+                                raise RuntimeError('Installed Spot service did not stop')
                     command = ssh_command(args, socket)
                 state.started = time.monotonic()
                 def display(child):
@@ -733,12 +733,12 @@ def main() -> int:
                 if not args.demo:
                     if restore_service:
                         try:
-                            print('Restoring installed Buddy service...', flush=True)
+                            print('Restoring installed Spot service...', flush=True)
                             service_action(args.host, socket, 'start')
                             if service_state(args.host, socket) != 'active':
-                                raise RuntimeError('Installed Buddy service did not become active')
+                                raise RuntimeError('Installed Spot service did not become active')
                         except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
-                            print(f'Buddy service restoration failed: {exc}', file=sys.stderr)
+                            print(f'Spot service restoration failed: {exc}', file=sys.stderr)
                             exit_code = 1
                     try:
                         subprocess.run(ssh_options(socket) + ['-O', 'exit', args.host],
@@ -764,7 +764,7 @@ def main() -> int:
               f'Tag-bearing: {state.tagged} | {measurement} mean/max: '
               f'{mean:.2f}/{state.maximum_ms:.2f} ms')
         if args.daemon:
-            print(f'Viewer: {stream_url(args) if args.host else "demo only"}')
+            print(f'Alpha GUI: {stream_url(args) if args.host else "demo only"}')
         elif state.latest:
             print(f"Final reported overwrites: {state.latest['dropped_before_processing']}")
         if exit_code:

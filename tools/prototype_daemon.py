@@ -1,4 +1,4 @@
-"""Disposable alpha daemon + LAN camera viewer launcher.
+"""Disposable alpha daemon with calibration GUI and LAN camera viewer.
 
 Run from the repository checkout on the Jetson.  This intentionally lives in
 ``tools`` and is not installed or referenced by systemd.
@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
 
+from alpha_calibration import AlphaCalibration
 from prototype_stream import StreamHub
 
-from buddy_vision.config import load_config
-from buddy_vision.logging_utils import configure_logging
-from buddy_vision.service import VisionService
+from spot_vision.config import load_config
+from spot_vision.logging_utils import configure_logging
+from spot_vision.service import VisionService
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,6 +26,10 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(verbose=True, json_logs=True)
     config = load_config(args.config)
     hub = StreamHub([camera.id for camera in config.cameras if camera.enabled])
+    calibration = AlphaCalibration(
+        config, hub.latest_frame, Path(args.config).resolve().parent / ".calibration-sessions",
+        Path(__file__).with_name("calibration_ui.html"))
+    hub.attach_calibration(calibration)
     try:
         try:
             hub.serve(args.host, args.port)
@@ -38,10 +44,11 @@ def main(argv: list[str] | None = None) -> int:
                     "type": "viewer", "ready": False, "port": args.port, "error": str(exc),
                 }},
             )
-        service = VisionService(config, frame_observer=lambda frame: hub.publish(
-            frame.camera_id, frame.image, frame.sequence))
+        service = VisionService(config, result_observer=hub.publish_result)
+        hub.attach_service(service)
         service.run_forever()
     finally:
+        calibration.close()
         hub.close()
     return 0
 
