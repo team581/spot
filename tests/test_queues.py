@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from buddy_vision.models import FramePacket
-from buddy_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
+from spot_vision.models import FramePacket
+from spot_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
 
 
 def frame(sequence: int) -> FramePacket:

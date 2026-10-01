@@ -7,16 +7,16 @@
 
 ## Imported code
 
-Buddy retains the detector, CUDA utilities, thresholding, connected-component
+Spot retains the detector, CUDA utilities, thresholding, connected-component
 labeling, point collection, line/quad fitting, AprilTag decode integration, and
 the associated headers. The upstream GPU test and its two input images are also
 retained outside this directory.
 
-## Buddy changes around the implementation
+## Spot changes around the implementation
 
 The upstream application, OpenCV GUI demos, websocket server, NetworkTables
 senders, camera wrapper, and obsolete dependency download graph are omitted.
-Buddy supplies its own CMake target and a pybind11 boundary. The imported CUDA
+Spot supplies its own CMake target and a pybind11 boundary. The imported CUDA
 algorithm files are otherwise intentionally kept recognizable so changes can be
 audited against the pinned revision.
 
@@ -34,4 +34,4 @@ license is retained in that directory.
 
 As in Team 766's build, NVIDIA CCCL 2.3.2 is required. CMake pins commit
 `64d3a5f0c1c83ed83be8c0a9a1f0cdb31f913e81`; an existing checkout can be
-supplied with `BUDDY_CCCL_ROOT` to make builds network-independent.
+supplied with `SPOT_CCCL_ROOT` to make builds network-independent.

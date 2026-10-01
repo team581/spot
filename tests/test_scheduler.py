@@ -5,9 +5,9 @@ import time
 
 import numpy as np
 
-from buddy_vision.models import CameraCounters, DetectionBatch, FramePacket
-from buddy_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
-from buddy_vision.scheduler import FairDetectorScheduler
+from spot_vision.models import CameraCounters, DetectionBatch, FramePacket
+from spot_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
+from spot_vision.scheduler import FairDetectorScheduler
 
 
 class FakeDetector:

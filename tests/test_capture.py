@@ -5,8 +5,8 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from buddy_vision import capture
-from buddy_vision.capture import (
+from spot_vision import capture
+from spot_vision.capture import (
     CameraError,
     bgr_to_yuyv_frame,
     build_gstreamer_pipeline,
@@ -14,7 +14,7 @@ from buddy_vision.capture import (
     orient_yuyv_frame,
     validate_yuyv_frame,
 )
-from buddy_vision.config import CameraConfig, CameraSelector, DetectorConfig
+from spot_vision.config import CameraConfig, CameraSelector, DetectorConfig
 
 
 def camera(format="YUY2"):

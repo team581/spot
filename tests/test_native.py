@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from buddy_vision.models import DetectionBatch
-from buddy_vision.native import FallbackDetector
+from spot_vision.models import DetectionBatch
+from spot_vision.native import FallbackDetector
 
 
 class FakeDetector:

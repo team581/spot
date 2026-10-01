@@ -25,11 +25,11 @@ class GpuDetectorTest : public ::testing::Test {
 
   void SetUp() override {
     // Read in the image
-    bgr_img = cv::imread(BUDDY_TEST_DATA_DIR "/colorimage.jpg", cv::IMREAD_COLOR);
+    bgr_img = cv::imread(SPOT_TEST_DATA_DIR "/colorimage.jpg", cv::IMREAD_COLOR);
     cvtColor(bgr_img, yuyv_img, COLOR_BGR2YUV_YUYV);
 
     bgr_img_notags =
-        cv::imread(BUDDY_TEST_DATA_DIR "/colorimage_notags.jpg", cv::IMREAD_COLOR);
+        cv::imread(SPOT_TEST_DATA_DIR "/colorimage_notags.jpg", cv::IMREAD_COLOR);
     cvtColor(bgr_img_notags, yuyv_img_notags, COLOR_BGR2YUV_YUYV);
 
     // Setup Tag Family and tag detector

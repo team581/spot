@@ -31,7 +31,7 @@ class Watchdog:
         if self._notifier:
             self._notifier.notify("READY=1")
 
-    def ping(self, status: str = "Buddy Vision running") -> None:
+    def ping(self, status: str = "Spot Vision running") -> None:
         if self._notifier:
             self._notifier.notify(f"WATCHDOG=1\nSTATUS={status}")
 

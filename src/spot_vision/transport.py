@@ -99,16 +99,16 @@ class NtPublisher:
             instance.startClient4(nt_config.identity)
         options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)
         self.global_publishers = [
-            instance.getIntegerTopic("/Buddy/config/schema_version").publish(options),
-            instance.getBooleanTopic("/Buddy/config/enabled").publish(options),
+            instance.getIntegerTopic("/Spot/config/schema_version").publish(options),
+            instance.getBooleanTopic("/Spot/config/enabled").publish(options),
         ]
         for camera_id in camera_ids:
-            root = f"/Buddy/{camera_id}"
+            root = f"/Spot/{camera_id}"
             drops = {name: instance.getIntegerTopic(f"{root}/status/dropped_{name}").publish(options)
                      for name in ("capture", "decode", "overwrite", "result_queue", "sequence")}
             self.publishers[camera_id] = CameraPublishers(
                 observation=instance.getRawTopic(f"{root}/output/observations").publish(
-                    "proto:buddy.vision.v1.VisionFrame", options),
+                    "proto:spot.vision.v1.VisionFrame", options),
                 robot_pose=instance.getStructTopic(
                     f"{root}/output/robot_pose", Pose3d).publish(options),
                 robot_pose_valid=instance.getBooleanTopic(

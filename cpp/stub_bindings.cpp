@@ -2,7 +2,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(_buddy_cuda, module) {
-  module.doc() = "Buddy Vision placeholder built without CUDA";
+PYBIND11_MODULE(_spot_cuda, module) {
+  module.doc() = "Spot Vision placeholder built without CUDA";
   module.attr("CUDA_AVAILABLE") = false;
 }

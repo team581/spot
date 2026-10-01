@@ -65,7 +65,7 @@ class NtConfig:
     mode: str = "client"
     server: str | None = None
     team: int | None = None
-    identity: str = "buddy-vision"
+    identity: str = "spot-vision"
 
 
 @dataclass(frozen=True)
@@ -98,6 +98,13 @@ class Calibration:
     provisional: bool = False
 
     def validate_for(self, camera: CameraConfig) -> None:
+        if len(self.distortion) not in {4, 5, 8, 12, 14}:
+            raise ConfigError("calibration distortion requires 4, 5, 8, 12, or 14 coefficients")
+        if not all(math.isfinite(value) for row in self.camera_matrix for value in row) or not all(
+                math.isfinite(value) for value in self.distortion):
+            raise ConfigError("calibration intrinsics must be finite")
+        if self.camera_matrix[0][0] <= 0 or self.camera_matrix[1][1] <= 0:
+            raise ConfigError("calibration focal lengths must be positive")
         mismatches: list[str] = []
         if self.camera_id and self.camera_id != camera.id:
             mismatches.append(f"camera_id={self.camera_id!r}")

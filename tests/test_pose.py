@@ -5,9 +5,9 @@ from dataclasses import replace
 import cv2
 import numpy as np
 
-from buddy_vision.config import Calibration, CameraConfig, CameraSelector, DetectorConfig
-from buddy_vision.models import Detection, PoseCandidate, PoseMethod, PoseSolution
-from buddy_vision.pose import (
+from spot_vision.config import Calibration, CameraConfig, CameraSelector, DetectorConfig
+from spot_vision.models import Detection, PoseCandidate, PoseMethod, PoseSolution
+from spot_vision.pose import (
     NWU_FROM_OPENCV,
     TAG_NWU_FROM_OPENCV,
     FieldLayout,

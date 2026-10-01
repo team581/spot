@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from .capture import CaptureWorker
 from .config import Calibration, ConfigError, ServiceConfig, load_calibration
 from .health import Watchdog, jetson_temperature_c
-from .models import CameraCounters, DetectedFrame, FramePacket
+from .models import CameraCounters, DetectedFrame, FramePacket, PoseCandidate, PoseSolution
 from .native import Detector, create_detector
 from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_robot_pose
 from .queues import BoundedDropOldestQueue, LatestFrameSlot
@@ -23,7 +23,8 @@ class OutputWorker(threading.Thread):
     def __init__(self, config: ServiceConfig, cameras: dict, counters: dict[str, CameraCounters],
                  solvers: dict[str, PoseSolver], queue: BoundedDropOldestQueue[DetectedFrame],
                  publisher: NtPublisher, stop_event: threading.Event,
-                 field_revision: int, frame_observer: Callable[[FramePacket], None] | None = None) -> None:
+                 field_revision: int, frame_observer: Callable[[FramePacket], None] | None = None,
+                 result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = None) -> None:
         super().__init__(name="pose-and-output", daemon=True)
         self.config = config
         self.cameras = cameras
@@ -34,6 +35,7 @@ class OutputWorker(threading.Thread):
         self.stop_event = stop_event
         self.field_revision = field_revision
         self.frame_observer = frame_observer
+        self.result_observer = result_observer
         self.robot_from_cameras = {
             camera_id: robot_from_camera_transform(
                 camera.robot_from_camera_translation,
@@ -66,6 +68,11 @@ class OutputWorker(threading.Thread):
                 detected.frame.capture_timestamp_us, self.counters[camera_id],
                 temperature_c, robot_pose,
             )
+            if self.result_observer is not None:
+                try:
+                    self.result_observer(detected, solution, robot_pose)
+                except Exception:
+                    LOGGER.debug("result observer failed for %s", camera_id, exc_info=True)
             LOGGER.debug(
                 "frame camera=%s sequence=%d tags=%d candidates=%d total_ms=%.3f",
                 camera_id, message.sequence, len(message.tags), len(message.candidates), total_ms,
@@ -105,6 +112,7 @@ class OutputWorker(threading.Thread):
 class VisionService:
     config: ServiceConfig
     frame_observer: Callable[[FramePacket], None] | None = None
+    result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = None
 
     def __post_init__(self) -> None:
         self.stop_event = threading.Event()
@@ -124,6 +132,7 @@ class VisionService:
                     calibration.validate_for(camera)
                     calibration = calibration.for_image_rotation(camera)
                 except ConfigError as exc:
+                    calibration = None
                     self.counters[camera.id].configuration_error = str(exc)
                     self.counters[camera.id].error = str(exc)
                     LOGGER.warning("camera %s pose output disabled: %s", camera.id, exc)
@@ -167,6 +176,7 @@ class VisionService:
         self.output_worker = OutputWorker(
             self.config, self.cameras, self.counters, self.solvers, self.result_queue,
             self.publisher, self.stop_event, self.field_revision, self.frame_observer,
+            self.result_observer,
         )
         self.watchdog = Watchdog()
 

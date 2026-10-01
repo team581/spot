@@ -6,14 +6,14 @@ import time
 
 import numpy as np
 
-from buddy_vision.config import (
+from spot_vision.config import (
     CameraConfig,
     CameraSelector,
     DetectorConfig,
     NtConfig,
     ServiceConfig,
 )
-from buddy_vision.models import (
+from spot_vision.models import (
     CameraCounters,
     DetectedFrame,
     Detection,
@@ -23,9 +23,9 @@ from buddy_vision.models import (
     PoseMethod,
     PoseSolution,
 )
-from buddy_vision.queues import BoundedDropOldestQueue
-from buddy_vision.service import OutputWorker
-from buddy_vision.transport import MemoryPublisher
+from spot_vision.queues import BoundedDropOldestQueue
+from spot_vision.service import OutputWorker
+from spot_vision.transport import MemoryPublisher
 
 
 class Solver:
@@ -49,7 +49,7 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
         'front', True, CameraSelector(device='/dev/null'), 'YUY2', 16, 8, 60,
         None, None, False, None, 0, 1, DetectorConfig())
     config = ServiceConfig(1, None, 0, .1651, 2, NtConfig(enabled=False),
-                           (camera,), tmp_path / 'buddy.json')
+                           (camera,), tmp_path / 'spot.json')
     packet = FramePacket('front', 4, 4, 123, time.monotonic_ns(),
                          np.zeros((8, 16, 2), dtype=np.uint8))
     detection = Detection(8, np.zeros((4, 2)), 0, 100)
@@ -62,8 +62,12 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
     def observer(_frame):
         raise RuntimeError('preview failed')
 
+    def result_observer(frame, solution, robot_pose):
+        assert frame is detected and not solution.candidates and robot_pose is None
+        raise RuntimeError('inspection failed')
+
     worker = OutputWorker(config, {'front': camera}, {'front': CameraCounters()},
-        {'front': Solver()}, queue, publisher, stop, 0, observer)
+        {'front': Solver()}, queue, publisher, stop, 0, observer, result_observer)
     caplog.set_level(logging.DEBUG)
     worker.start()
     deadline = time.monotonic() + 1
@@ -79,6 +83,7 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
     assert frame_record.prototype['camera_id'] == 'front'
     assert frame_record.prototype['tags'][0]['id'] == 8
     assert any('frame observer failed' in record.message for record in caplog.records)
+    assert any('result observer failed' in record.message for record in caplog.records)
 
 
 def test_output_worker_emits_one_selected_robot_pose_for_ambiguous_frame(tmp_path):
@@ -86,7 +91,7 @@ def test_output_worker_emits_one_selected_robot_pose_for_ambiguous_frame(tmp_pat
         'left', True, CameraSelector(device='/dev/null'), 'YUY2', 16, 8, 60,
         None, None, False, None, 0, 1, DetectorConfig())
     config = ServiceConfig(1, None, 0, .1651, 2, NtConfig(enabled=False),
-                           (camera,), tmp_path / 'buddy.json')
+                           (camera,), tmp_path / 'spot.json')
     packet = FramePacket('left', 4, 4, 123, time.monotonic_ns(),
                          np.zeros((8, 16, 2), dtype=np.uint8))
     detected = DetectedFrame(

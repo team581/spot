@@ -1,4 +1,4 @@
-from buddy_vision import health
+from spot_vision import health
 
 
 def test_temperature_skips_unreadable_sensor(monkeypatch):

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from buddy_vision.config import Calibration, ConfigError, load_calibration, load_config
-from buddy_vision.pose import FieldLayout
+from spot_vision.config import Calibration, ConfigError, load_calibration, load_config
+from spot_vision.pose import FieldLayout
 
 
 def valid_config(tmp_path):
-    path = tmp_path / "buddy.json"
+    path = tmp_path / "spot.json"
     path.write_text(json.dumps({
         "nt": {"enabled": False},
         "cameras": [{
@@ -63,13 +63,27 @@ def test_invalid_robot_extrinsics_are_rejected(tmp_path):
 
 def test_alpha_config_loads_welded_layout_mounts_and_provisional_calibrations():
     root = Path(__file__).resolve().parents[1]
-    config = load_config(root / "config" / "buddy.json")
-    assert [camera.id for camera in config.cameras] == ["left", "right"]
+    config = load_config(root / "config" / "spot.json")
+    assert [camera.id for camera in config.cameras] == ["1", "2", "3", "4"]
     assert config.nt.enabled and config.nt.mode == "server"
-    assert config.camera("left").robot_from_camera_translation == (0.0, 0.1, 0.0)
-    assert config.camera("left").image_rotation_deg == 180
-    assert config.camera("right").robot_from_camera_translation == (0.0, -0.1, 0.0)
-    assert config.camera("right").image_rotation_deg == 0
+    assert "OV2311_USB_Camera_UC621" in config.camera("1").selector.by_id
+    assert config.camera("2").selector.by_path.endswith("0:2.3:1.0-video-index0")
+    assert config.camera("3").selector.by_path.endswith("0:2.1:1.0-video-index0")
+    assert config.camera("4").selector.by_path.endswith("0:2.2:1.0-video-index0")
+    assert config.camera("1").robot_from_camera_translation == (0.0, 0.1, 0.0)
+    assert config.camera("1").image_rotation_deg == 180
+    assert config.camera("2").robot_from_camera_translation == (0.0, -0.1, 0.0)
+    assert config.camera("2").image_rotation_deg == 0
+    for camera_id in ("3", "4"):
+        camera = config.camera(camera_id)
+        reference = config.camera("2")
+        assert (camera.format, camera.width, camera.height, camera.fps) == (
+            reference.format, reference.width, reference.height, reference.fps)
+        assert (camera.exposure_us, camera.gain, camera.auto_exposure) == (
+            reference.exposure_us, reference.gain, reference.auto_exposure)
+        assert camera.robot_from_camera_translation == reference.robot_from_camera_translation
+        assert camera.robot_from_camera_rpy_deg == reference.robot_from_camera_rpy_deg
+        assert camera.detector == reference.detector
     layout = FieldLayout.load(config.field_layout)
     assert set(layout.tags) == set(range(1, 33))
     assert 0 < layout.revision < 2 ** 63
@@ -111,9 +125,9 @@ def test_rotated_calibration_projects_to_rotated_pixels():
     cv2 = pytest.importorskip("cv2")
     import numpy as np
 
-    path = Path(__file__).resolve().parents[1] / "config" / "buddy.json"
-    camera = load_config(path).camera("left")
-    raw = Calibration("left", 1280, 720, "MJPEG",
+    path = Path(__file__).resolve().parents[1] / "config" / "spot.json"
+    camera = load_config(path).camera("1")
+    raw = Calibration("1", 1280, 720, "MJPEG",
                       ((1001.0, 0.0, 630.2), (0.0, 997.0, 355.7), (0.0, 0.0, 1.0)),
                       (0.1, -0.04, 0.008, -0.006, 0.002))
     rotated = raw.for_image_rotation(camera)

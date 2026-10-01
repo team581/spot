@@ -3,14 +3,14 @@ requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "buddy-vision"
+name = "spot-vision"
 version = "0.1.0"
 description = "Jetson AprilTag vision service for Team 581"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
-  "opencv-python-headless>=4.9",
+  "opencv-contrib-python-headless>=4.9",
   "protobuf>=7.35.1",
 ]
 
@@ -20,11 +20,11 @@ test = ["pytest>=8.2", "pytest-cov>=5.0"]
 systemd = ["sdnotify>=0.3.2"]
 
 [project.scripts]
-buddy-vision = "buddy_vision.cli:main"
+spot-vision = "spot_vision.cli:main"
 
 [tool.scikit-build]
 cmake.build-type = "Release"
-wheel.packages = ["src/buddy_vision"]
+wheel.packages = ["src/spot_vision"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -33,4 +33,4 @@ addopts = "-ra"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-exclude = ["src/buddy_vision/proto/vision_pb2.py"]
+exclude = ["src/spot_vision/proto/vision_pb2.py"]

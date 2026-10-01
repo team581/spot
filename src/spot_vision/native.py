@@ -59,9 +59,9 @@ class FallbackDetector:
 
 def create_detector(camera: CameraConfig, calibration: Calibration | None) -> Detector:
     try:
-        from . import _buddy_cuda as native
+        from . import _spot_cuda as native
     except ImportError as exc:
-        raise RuntimeError("_buddy_cuda is not installed; build this package on the Jetson") from exc
+        raise RuntimeError("_spot_cuda is not installed; build this package on the Jetson") from exc
     if not getattr(native, "CUDA_AVAILABLE", False):
         raise RuntimeError("this package was built without CUDA detector support")
 

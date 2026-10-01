@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
-from buddy_vision.logging_utils import JsonFormatter
+from spot_vision.logging_utils import JsonFormatter
 
 
 def test_json_formatter_preserves_explicit_prototype_payload():

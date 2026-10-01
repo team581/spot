@@ -6,40 +6,40 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-project_dir=${1:-/opt/buddy-vision}
+project_dir=${1:-/opt/spot-vision}
 if [[ ! -f "$project_dir/pyproject.toml" ]]; then
-  echo "Buddy source was not found at $project_dir" >&2
+  echo "Spot source was not found at $project_dir" >&2
   exit 1
 fi
 
-if ! id buddy-vision >/dev/null 2>&1; then
-  useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin buddy-vision
+if ! id spot-vision >/dev/null 2>&1; then
+  useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin spot-vision
 fi
-usermod -a -G video buddy-vision
+usermod -a -G video spot-vision
 
 python3 -m venv "$project_dir/.venv"
 "$project_dir/.venv/bin/pip" install --upgrade pip
-CMAKE_ARGS=-DBUDDY_CUDA_ARCHITECTURES=87 \
+CMAKE_ARGS=-DSPOT_CUDA_ARCHITECTURES=87 \
   "$project_dir/.venv/bin/pip" install "$project_dir[nt,systemd]"
 
-install -d -o root -g buddy-vision -m 0750 /etc/buddy-vision
-install -o root -g buddy-vision -m 0640 \
+install -d -o root -g spot-vision -m 0750 /etc/spot-vision
+install -o root -g spot-vision -m 0640 \
   "$project_dir/config/2026-rebuilt-welded.json" \
   "$project_dir/config/calibration-left.json" \
   "$project_dir/config/calibration-right.json" \
-  /etc/buddy-vision/
-if [[ ! -f /etc/buddy-vision/buddy.json ]]; then
-  install -o root -g buddy-vision -m 0640 "$project_dir/config/buddy.json" \
-    /etc/buddy-vision/buddy.json
+  /etc/spot-vision/
+if [[ ! -f /etc/spot-vision/spot.json ]]; then
+  install -o root -g spot-vision -m 0640 "$project_dir/config/spot.json" \
+    /etc/spot-vision/spot.json
 else
-  install -o root -g buddy-vision -m 0640 "$project_dir/config/buddy.json" \
-    /etc/buddy-vision/buddy.json.new
-  echo "Existing /etc/buddy-vision/buddy.json preserved."
-  echo "Review /etc/buddy-vision/buddy.json.new before replacing it."
+  install -o root -g spot-vision -m 0640 "$project_dir/config/spot.json" \
+    /etc/spot-vision/spot.json.new
+  echo "Existing /etc/spot-vision/spot.json preserved."
+  echo "Review /etc/spot-vision/spot.json.new before replacing it."
 fi
-install -o root -g root -m 0644 "$project_dir/deploy/buddy-vision.service" \
-  /etc/systemd/system/buddy-vision.service
+install -o root -g root -m 0644 "$project_dir/deploy/spot-vision.service" \
+  /etc/systemd/system/spot-vision.service
 systemctl daemon-reload
-systemctl enable buddy-vision.service
+systemctl enable spot-vision.service
 
-echo "Edit /etc/buddy-vision/buddy.json, then run: sudo systemctl start buddy-vision"
+echo "Edit /etc/spot-vision/spot.json, then run: sudo systemctl start spot-vision"

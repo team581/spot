@@ -4,14 +4,14 @@ import time
 
 import numpy as np
 
-from buddy_vision.config import (
+from spot_vision.config import (
     CameraConfig,
     CameraSelector,
     DetectorConfig,
     NtConfig,
     ServiceConfig,
 )
-from buddy_vision.models import (
+from spot_vision.models import (
     CameraCounters,
     DetectedFrame,
     Detection,
@@ -21,8 +21,8 @@ from buddy_vision.models import (
     PoseMethod,
     PoseSolution,
 )
-from buddy_vision.proto import VisionFrame
-from buddy_vision.transport import NtPublisher, make_vision_frame
+from spot_vision.proto import VisionFrame
+from spot_vision.transport import NtPublisher, make_vision_frame
 
 
 def fixtures(tmp_path):
@@ -60,14 +60,14 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
     config, camera, detected, solution = fixtures(tmp_path)
     publisher = NtPublisher(NtConfig(enabled=True, mode="server"), [camera.id])
     subscriber = publisher.instance.getRawTopic(
-        "/Buddy/front/output/observations").subscribe(
-            "proto:buddy.vision.v1.VisionFrame", b"",
+        "/Spot/front/output/observations").subscribe(
+            "proto:spot.vision.v1.VisionFrame", b"",
             ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
     pose_subscriber = publisher.instance.getStructTopic(
-        "/Buddy/front/output/robot_pose", Pose3d).subscribe(
+        "/Spot/front/output/robot_pose", Pose3d).subscribe(
             Pose3d(), ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
     valid_subscriber = publisher.instance.getBooleanTopic(
-        "/Buddy/front/output/robot_pose_valid").subscribe(
+        "/Spot/front/output/robot_pose_valid").subscribe(
             False, ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
     message = make_vision_frame(config, camera, detected, solution, 4.0)
     timestamp = detected.frame.capture_timestamp_us

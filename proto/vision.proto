@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package buddy.vision.v1;
+package spot.vision.v1;
 
 message VisionFrame {
   uint32 schema_version = 1;

@@ -245,8 +245,8 @@ class CpuDetector final : public DetectorState {
 
 }  // namespace
 
-PYBIND11_MODULE(_buddy_cuda, module) {
-  module.doc() = "Team 766 CUDA AprilTag detector bindings for Buddy Vision";
+PYBIND11_MODULE(_spot_cuda, module) {
+  module.doc() = "Team 766 CUDA AprilTag detector bindings for Spot Vision";
   module.attr("CUDA_AVAILABLE") = true;
 
   py::class_<CameraMatrix>(module, "CameraMatrix")

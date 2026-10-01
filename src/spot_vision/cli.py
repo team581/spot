@@ -25,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="buddy-vision")
+    parser = argparse.ArgumentParser(prog="spot-vision")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--json-logs", action="store_true")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -63,6 +63,22 @@ def _parser() -> argparse.ArgumentParser:
     calibration = subcommands.add_parser("validate-calibration")
     calibration.add_argument("--config", required=True)
     calibration.add_argument("--camera", required=True)
+
+    charuco = subcommands.add_parser("calibrate-charuco", help="calibrate one camera from ChArUco images")
+    charuco.add_argument("--input-dir", required=True)
+    charuco.add_argument("--output", help="calibration JSON; defaults to the camera config path")
+    charuco.add_argument("--config", help="camera service JSON (use with --camera)")
+    charuco.add_argument("--camera", help="camera ID from --config")
+    charuco.add_argument("--camera-id")
+    charuco.add_argument("--width", type=int, required=True)
+    charuco.add_argument("--height", type=int, required=True)
+    charuco.add_argument("--squares-x", type=int, default=7)
+    charuco.add_argument("--squares-y", type=int, default=5)
+    charuco.add_argument("--square-length-m", type=float, default=0.04)
+    charuco.add_argument("--marker-length-m", type=float, default=0.03)
+    charuco.add_argument("--dictionary", default="DICT_4X4_50")
+    charuco.add_argument("--model", choices=("plumb_bob", "rational"), default="plumb_bob")
+    charuco.add_argument("--min-frames", type=int, default=15)
     return parser
 
 
@@ -255,6 +271,48 @@ def _run_validate_calibration(args) -> int:
     return 0
 
 
+def _run_charuco(args) -> int:
+    import cv2
+    from .charuco import (CalibrationOptions, CharucoBoardConfig, calibrate,
+                          detect_frame, write_calibration)
+    if bool(args.config) != bool(args.camera):
+        raise ConfigError("--config and --camera must be provided together")
+    configured_camera = None
+    if args.config:
+        configured_camera = load_config(args.config).camera(args.camera)
+        if args.output is None:
+            if configured_camera.calibration is None:
+                raise ConfigError(f"camera {args.camera!r} has no calibration path")
+            args.output = str(configured_camera.calibration)
+    if args.output is None:
+        raise ConfigError("--output is required unless --config and --camera are used")
+    board = CharucoBoardConfig(args.squares_x, args.squares_y, args.square_length_m,
+                               args.marker_length_m, args.dictionary)
+    options = CalibrationOptions(model=args.model, min_frames=args.min_frames)
+    frames = []
+    for path in sorted(Path(args.input_dir).glob("*")):
+        if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}:
+            continue
+        image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+        if image is None or image.shape != (args.height, args.width):
+            continue
+        frame = detect_frame(image, board, options)
+        if frame is not None:
+            frames.append(frame)
+    result, report = calibrate(frames, board, options)
+    print(json.dumps({"accepted": report.accepted, "reason": report.reason,
+                      "frames_used": report.frames_used, "coverage": report.coverage,
+                      "diversity": report.diversity,
+                      "rms_reprojection_error_px": report.rms_reprojection_error_px,
+                      "rejected_frames": report.rejected_frames}, indent=2))
+    if result is None:
+        return 2
+    if args.camera_id:
+        result["camera_id"] = args.camera_id or args.camera
+    write_calibration(args.output, result)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -278,6 +336,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_benchmark(args)
         if args.command == "validate-calibration":
             return _run_validate_calibration(args)
+        if args.command == "calibrate-charuco":
+            return _run_charuco(args)
     except (ConfigError, RuntimeError) as exc:
         LOGGER.error("%s", exc)
         return 2

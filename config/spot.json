@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "field_layout": "2026-rebuilt-welded.json",
+  "field_revision": 0,
+  "tag_size_m": 0.1651,
+  "result_queue_capacity": 32,
+  "nt": {
+    "enabled": true,
+    "mode": "server",
+    "server": null,
+    "identity": "spot-vision"
+  },
+  "cameras": [
+    {
+      "id": "1",
+      "enabled": true,
+      "selector": {
+        "by_id": "usb-Arducam_Technology_Co.__Ltd._Arducam_OV2311_USB_Camera_UC621-video-index0"
+      },
+      "format": "MJPEG",
+      "image_rotation_deg": 180,
+      "width": 1280,
+      "height": 720,
+      "fps": 50,
+      "exposure_us": 1000,
+      "gain": 20,
+      "auto_exposure": false,
+      "calibration": "calibration-1.json",
+      "robot_from_camera": {
+        "translation_m": [0.0, 0.1, 0.0],
+        "rotation_rpy_deg": [0.0, -20.0, 0.0]
+      },
+      "timestamp_correction_us": 0,
+      "config_revision": 3,
+      "detector": {
+        "backend": "cuda",
+        "fallback_to_cpu": true,
+        "family": "tag36h11",
+        "decimate": 2.0,
+        "blur": 0.0,
+        "threads": 1,
+        "refine_edges": true,
+        "max_hamming": 2
+      }
+    },
+    {
+      "id": "2",
+      "enabled": true,
+      "selector": {
+        "by_path": "platform-3610000.usb-usb-0:2.3:1.0-video-index0"
+      },
+      "format": "MJPEG",
+      "width": 1280,
+      "height": 720,
+      "fps": 120,
+      "exposure_us": 1000,
+      "gain": 20,
+      "auto_exposure": false,
+      "calibration": "calibration-2.json",
+      "robot_from_camera": {
+        "translation_m": [0.0, -0.1, 0.0],
+        "rotation_rpy_deg": [0.0, -20.0, 0.0]
+      },
+      "timestamp_correction_us": 0,
+      "config_revision": 2,
+      "detector": {
+        "backend": "cuda",
+        "fallback_to_cpu": true,
+        "family": "tag36h11",
+        "decimate": 2.0,
+        "blur": 0.0,
+        "threads": 1,
+        "refine_edges": true,
+        "max_hamming": 2
+      }
+    },
+    {
+      "id": "3",
+      "enabled": true,
+      "selector": {
+        "by_path": "platform-3610000.usb-usb-0:2.1:1.0-video-index0"
+      },
+      "format": "MJPEG",
+      "width": 1280,
+      "height": 720,
+      "fps": 120,
+      "exposure_us": 1000,
+      "gain": 20,
+      "auto_exposure": false,
+      "calibration": "calibration-3.json",
+      "robot_from_camera": {
+        "translation_m": [0.0, -0.1, 0.0],
+        "rotation_rpy_deg": [0.0, -20.0, 0.0]
+      },
+      "timestamp_correction_us": 0,
+      "config_revision": 2,
+      "detector": {
+        "backend": "cuda",
+        "fallback_to_cpu": true,
+        "family": "tag36h11",
+        "decimate": 2.0,
+        "blur": 0.0,
+        "threads": 1,
+        "refine_edges": true,
+        "max_hamming": 2
+      }
+    },
+    {
+      "id": "4",
+      "enabled": true,
+      "selector": {
+        "by_path": "platform-3610000.usb-usb-0:2.2:1.0-video-index0"
+      },
+      "format": "MJPEG",
+      "width": 1280,
+      "height": 720,
+      "fps": 120,
+      "exposure_us": 1000,
+      "gain": 20,
+      "auto_exposure": false,
+      "calibration": "calibration-4.json",
+      "robot_from_camera": {
+        "translation_m": [0.0, -0.1, 0.0],
+        "rotation_rpy_deg": [0.0, -20.0, 0.0]
+      },
+      "timestamp_correction_us": 0,
+      "config_revision": 2,
+      "detector": {
+        "backend": "cuda",
+        "fallback_to_cpu": true,
+        "family": "tag36h11",
+        "decimate": 2.0,
+        "blur": 0.0,
+        "threads": 1,
+        "refine_edges": true,
+        "max_hamming": 2
+      }
+    }
+  ]
+}

@@ -1,30 +1,34 @@
 cmake_minimum_required(VERSION 3.24)
-project(BuddyVision LANGUAGES C CXX)
+project(SpotVision LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(BUDDY_BUILD_CUDA "Build the Team 766 CUDA detector" ON)
-option(BUDDY_BUILD_CUDA_TESTS "Build upstream CUDA detector tests" OFF)
-set(BUDDY_CUDA_ARCHITECTURES "87" CACHE STRING "CUDA architectures (Orin is 87)")
+option(SPOT_BUILD_CUDA "Build the Team 766 CUDA detector" ON)
+option(SPOT_BUILD_CUDA_TESTS "Build upstream CUDA detector tests" OFF)
+set(SPOT_CUDA_ARCHITECTURES "87" CACHE STRING "CUDA architectures (Orin is 87)")
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(pybind11 CONFIG REQUIRED)
 
-if(BUDDY_BUILD_CUDA)
+if(SPOT_BUILD_CUDA)
+  # CMake probes the default architecture while enabling CUDA, so configure
+  # Orin's architecture before compiler detection rather than afterward.
+  if(NOT CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES "${SPOT_CUDA_ARCHITECTURES}")
+  endif()
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 20)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-  set(CMAKE_CUDA_ARCHITECTURES "${BUDDY_CUDA_ARCHITECTURES}")
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --extended-lambda")
 
   find_package(CUDAToolkit REQUIRED)
   find_package(gflags REQUIRED)
   find_package(glog REQUIRED)
   find_package(Threads REQUIRED)
-  set(BUDDY_CCCL_ROOT "" CACHE PATH "Optional pre-downloaded NVIDIA CCCL 2.3.2 root")
-  if(NOT BUDDY_CCCL_ROOT)
+  set(SPOT_CCCL_ROOT "" CACHE PATH "Optional pre-downloaded NVIDIA CCCL 2.3.2 root")
+  if(NOT SPOT_CCCL_ROOT)
     include(FetchContent)
     FetchContent_Declare(cccl_upstream
       GIT_REPOSITORY https://github.com/NVIDIA/cccl.git
@@ -35,10 +39,13 @@ if(BUDDY_BUILD_CUDA)
     if(NOT cccl_upstream_POPULATED)
       FetchContent_Populate(cccl_upstream)
     endif()
-    set(BUDDY_CCCL_ROOT "${cccl_upstream_SOURCE_DIR}")
+    set(SPOT_CCCL_ROOT "${cccl_upstream_SOURCE_DIR}")
   endif()
-  file(GLOB APRILTAG_COMMON_SOURCES CONFIGURE_DEPENDS cpp/apriltag/common/*.c)
-  file(GLOB APRILTAG_FAMILY_SOURCES CONFIGURE_DEPENDS cpp/apriltag/tag*.c)
+  # These vendored source sets only change when the project is reconfigured.
+  # CONFIGURE_DEPENDS loops indefinitely when the Jetson checkout is reached
+  # through its compatibility symlink and Ninja compares the two paths.
+  file(GLOB APRILTAG_COMMON_SOURCES cpp/apriltag/common/*.c)
+  file(GLOB APRILTAG_FAMILY_SOURCES cpp/apriltag/tag*.c)
   # macOS archive tools can materialize AppleDouble metadata as `._*.c` files.
   # Never allow those sidecars to enter a Linux deployment build.
   list(FILTER APRILTAG_COMMON_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
@@ -75,39 +82,39 @@ if(BUDDY_BUILD_CUDA)
   )
   target_include_directories(team766_apriltags_cuda PUBLIC
     cpp/team766
-    ${BUDDY_CCCL_ROOT}/cub
-    ${BUDDY_CCCL_ROOT}/thrust
-    ${BUDDY_CCCL_ROOT}/libcudacxx/include
+    ${SPOT_CCCL_ROOT}/cub
+    ${SPOT_CCCL_ROOT}/thrust
+    ${SPOT_CCCL_ROOT}/libcudacxx/include
   )
   if(TARGET gflags::gflags)
-    set(BUDDY_GFLAGS_TARGET gflags::gflags)
+    set(SPOT_GFLAGS_TARGET gflags::gflags)
   else()
-    set(BUDDY_GFLAGS_TARGET gflags)
+    set(SPOT_GFLAGS_TARGET gflags)
   endif()
   target_link_libraries(team766_apriltags_cuda PUBLIC
     CUDA::cudart
     apriltag
-    ${BUDDY_GFLAGS_TARGET}
+    ${SPOT_GFLAGS_TARGET}
     glog::glog
   )
 
-  pybind11_add_module(_buddy_cuda MODULE cpp/bindings.cu)
-  target_link_libraries(_buddy_cuda PRIVATE team766_apriltags_cuda)
-  install(TARGETS _buddy_cuda LIBRARY DESTINATION buddy_vision)
+  pybind11_add_module(_spot_cuda MODULE cpp/bindings.cu)
+  target_link_libraries(_spot_cuda PRIVATE team766_apriltags_cuda)
+  install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
 
-  if(BUDDY_BUILD_CUDA_TESTS)
+  if(SPOT_BUILD_CUDA_TESTS)
     enable_testing()
     find_package(GTest REQUIRED)
     find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc)
     add_executable(gpu_detector_test cpp/tests/gpu_detector_test.cu)
     target_include_directories(gpu_detector_test PRIVATE cpp/team766)
     target_compile_definitions(gpu_detector_test PRIVATE
-      BUDDY_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+      SPOT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
     target_link_libraries(gpu_detector_test PRIVATE
       team766_apriltags_cuda GTest::gtest ${OpenCV_LIBS})
     add_test(NAME gpu_detector_test COMMAND gpu_detector_test)
   endif()
 else()
-  pybind11_add_module(_buddy_cuda MODULE cpp/stub_bindings.cpp)
-  install(TARGETS _buddy_cuda LIBRARY DESTINATION buddy_vision)
+  pybind11_add_module(_spot_cuda MODULE cpp/stub_bindings.cpp)
+  install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
 endif()
