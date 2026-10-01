@@ -1,27 +1,29 @@
-# Buddy Vision Project Status
+# Spot Vision Project Status
 
-Last updated: September 22, 2026
+Last updated: September 29, 2026
 
 Last target hardware verification: September 15, 2026
 
 Overall status: **The two-camera alpha service is deployed on the target Jetson, jointly solves multi-tag observations, and publishes independent typed robot poses over NT4. Both camera pipelines and the AdvantageScope connection are hardware-validated. A live field-relative pose has not yet been observed because no known tag was visible during the latest verification; measured calibration, physical extrinsics, pose accuracy, endurance, and robot integration remain pending.**
 
-The complete design requirements are in [Vision Solution (Buddy) Specs.md](./Vision%20Solution%20(Buddy)%20Specs.md). The current implementation intentionally overrides the original native-daemon recommendation: service orchestration is written in Python, while Team 766's detector remains in C++20/CUDA behind a pybind11 extension.
+The complete design requirements are in [Vision Solution (Spot) Specs.md](./Vision%20Solution%20(Spot)%20Specs.md). The current implementation intentionally overrides the original native-daemon recommendation: service orchestration is written in Python, while Team 766's detector remains in C++20/CUDA behind a pybind11 extension.
 
 ## Executive Summary
 
-The first-pass Buddy vision service has been implemented and deployed. It includes the imported Team 766 CUDA AprilTag detector, two-camera Python capture and scheduling, single- and joint multi-tag pose solving, protobuf diagnostics, typed WPILib `Pose3d` NT4 output, health reporting, replay and benchmark commands, and a persistent systemd service.
+The first-pass Spot vision service has been implemented and deployed. It includes the imported Team 766 CUDA AprilTag detector, multi-camera Python capture and scheduling, single- and joint multi-tag pose solving, protobuf diagnostics, typed WPILib `Pose3d` NT4 output, health reporting, replay and benchmark commands, and a persistent systemd service.
 
 The raw-detection hardware checkpoint passed earlier. On `orin-1`, the service captured frames from the attached Arducam OV2311 and repeatedly detected a visible 36h11 tag. One observed result reported tag ID 8, hamming distance 0, decision margin approximately 105.45, no frame overwritten before processing, and approximately 6.43 ms total processing time. Corners were also returned correctly.
 
-The alpha deployment checkpoint has now also passed. On the latest target verification, both renamed camera pipelines (`left` and `right`) captured and detected concurrently, the NT4 server announced all 44 `/Buddy` fields, AdvantageScope connected from the development Mac, and both per-camera `robot_pose` topics were recognized as `struct:Pose3d`. The built-in 2026 field loaded in both 2D and 3D views.
+The alpha deployment checkpoint has now also passed. On the latest target verification, both camera pipelines (now `1` and `2`) captured and detected concurrently, the NT4 server announced all 44 `/Spot` fields, AdvantageScope connected from the development Mac, and both per-camera `robot_pose` topics were recognized as `struct:Pose3d`. The built-in 2026 field loaded in both 2D and 3D views.
 
 No pose sample was expected during that verification: the left image contained wiring and the ceiling, while the right camera was facing a close obstructing surface. Neither image contained an AprilTag, so both cameras correctly published `robot_pose_valid=false` without replacing the last pose with an artificial origin.
 
 ```mermaid
 flowchart LR
-  L[Left camera] --> C[Independent per-camera frames]
-  R[Right camera] --> C
+  C1[Camera 1] --> C[Independent per-camera frames]
+  C2[Camera 2] --> C
+  C3[Camera 3] --> C
+  C4[Camera 4] --> C
   C --> D[CUDA detection]
   D --> K{Known tags}
   K -->|One| I[IPPE: retain two candidates]
@@ -40,20 +42,20 @@ This proves the deployed two-camera capture, processing, and NT4 visualization p
 | --- | --- |
 | Compute | NVIDIA Jetson Orin Nano 8 GB, device name `orin-1` |
 | Jetson software | L4T R36.4.3, CUDA 12.6 |
-| Python | 3.11.16 in `/home/team581/buddy-2026/.venv311` |
+| Python | 3.11.16 in `/home/team581/spot-2026/.venv311` |
 | OpenCV | 4.11.0 headless wheel; direct V4L2 fallback is active because this wheel has no GStreamer support |
-| Cameras | `left`: Arducam OV2311 UC621; `right`: Arducam OV9281 UC762; both validated concurrently |
-| Camera selectors | Stable `/dev/v4l/by-id` selectors configured |
-| Configured modes | Left MJPEG 1280×720 at 50 FPS; right MJPEG 1280×720 at 120 FPS |
+| Cameras | `1`: Arducam OV2311 UC621; `2`–`4`: Arducam OV9281 UC762. Cameras 1 and 2 were previously validated concurrently; all four are enumerated on the Jetson |
+| Camera selectors | Camera 1 uses `/dev/v4l/by-id`; cameras 2–4 use distinct stable `/dev/v4l/by-path` USB-port selectors |
+| Configured modes | Camera 1: MJPEG 1280×720 at 50 FPS; cameras 2–4: MJPEG 1280×720 at 120 FPS |
 | Observed capture/detect rates | Approximately 25 FPS left and 48–50 FPS right during the latest check |
 | Exposure | Manual, 1000 µs; correctly converted to UVC `exposure_time_absolute=10` |
 | Gain | 20 |
 | Tag family | 36h11 |
-| Calibration | Provisional 1280×720 intrinsics for both cameras; startup warning and NT status are active |
-| Camera extrinsics | Left `[0, +0.1, 0]`, right `[0, -0.1, 0]`, both with `[0, -20, 0]` degree RPY; provisional |
+| Calibration | Provisional 1280×720 intrinsics for all four cameras; startup warning and NT status are active |
+| Camera extrinsics | Camera 1 uses `[0, +0.1, 0]`; cameras 2–4 currently use `[0, -0.1, 0]`; all use `[0, -20, 0]` degree RPY and remain provisional |
 | Field layout | Vendored WPILib 2026.2.2 welded REBUILT layout |
 | NT4 | Enabled as a server on the Orin; NT4 port 5810 and NT3 port 1735 |
-| Deployment | At the latest target check, `buddy-vision.service` was enabled and active; checkout in `/home/team581/buddy-2026`; `/opt/buddy-vision` symlinks to it |
+| Deployment | At the latest target check, `spot-vision.service` was enabled and active; checkout in `/home/team581/spot-2026`; `/opt/spot-vision` symlinks to it |
 
 The camera mode and exposure values are working first-pass values, not final production tuning.
 
@@ -94,12 +96,12 @@ The camera mode and exposure values are working first-pass values, not final pro
 
 - CMake, pybind11, and scikit-build-core packaging.
 - Jetson-specific CUDA build adjustments.
-- NVIDIA CCCL is fetched at its pinned revision by CMake. An explicitly supplied `BUDDY_CCCL_ROOT` remains available for offline builds.
+- NVIDIA CCCL is fetched at its pinned revision by CMake. An explicitly supplied `SPOT_CCCL_ROOT` remains available for offline builds.
 - Local CCCL checkouts and Python wheelhouses are treated as regenerable build caches and excluded from source control.
 - Deployment uses the checked-in, credential-free `deploy/install.sh`; the temporary credential-bearing deployment helper has been removed.
 - The Orin has an offline-installed CPython 3.11.16 runtime and compatible 2026.2.2 RobotPy NT/wpimath packages.
 - The deployed service runs as the unprivileged `team581` user with access to the `video` group and restarts under systemd supervision.
-- `/opt/buddy-vision` is a stable symlink to the active checkout for operator convenience.
+- `/opt/spot-vision` is a stable symlink to the active checkout for operator convenience.
 
 ## Validated So Far
 
@@ -115,8 +117,8 @@ The camera mode and exposure values are working first-pass values, not final pro
 - A known 36h11 tag is detected with the expected ID, zero hamming errors, strong decision margin, and valid corners.
 - The observed live result showed no pending-frame overwrite before processing.
 - The production service operates headlessly without requiring an OpenCV window or browser. The optional prototype viewer is a LAN-only debug aid that reuses captured frames and has no authentication.
-- `buddy-vision.service` is installed, enabled, starts successfully, and has survived deliberate service stop/restart cycles.
-- The NT4 server listens on port 5810, and an external NT4 subscriber enumerated all 44 `/Buddy` topics.
+- `spot-vision.service` is installed, enabled, starts successfully, and has survived deliberate service stop/restart cycles.
+- The NT4 server listens on port 5810, and an external NT4 subscriber enumerated all 44 `/Spot` topics.
 - AdvantageScope connected to `192.168.69.170`, recognized both per-camera `robot_pose` topics as typed `Pose3d`, and loaded the 2026 2D/3D field.
 - Per-camera status, FPS, provisional calibration, pose validity, pose method, tag count, and reprojection-error values were read successfully from NT4.
 - With no visible tag, both cameras published invalid status and did not publish an artificial zero pose.
@@ -126,7 +128,7 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 
 ## Incomplete or Not Yet Validated
 
-- Neither camera has been intrinsically calibrated for its exact resolution, format, focus, and mounting configuration.
+- None of the four cameras has been intrinsically calibrated for its exact resolution, format, focus, and mounting configuration.
 - Provisional camera-to-robot transforms are configured but have not been physically measured and validated.
 - Known-field-tag pose accuracy has not been checked on the Jetson with measured camera and robot poses.
 - Single-tag IPPE dual candidates and joint multi-tag SQPnP/refinement have comprehensive synthetic tests but have not been validated with physical targets.
@@ -136,7 +138,7 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 - Camera disconnect/reconnect behavior has not been tested on the target.
 - Sustained capture FPS and p50/p95 latency have not been measured over a representative run.
 - Detection quality has not been characterized for range, angle, motion blur, exposure, partial occlusion, and field lighting.
-- The 30-minute thermal/reliability run and a formal two-camera fairness/endurance benchmark have not been completed.
+- The 30-minute thermal/reliability run and a formal four-camera fairness/endurance benchmark have not been completed.
 - Direct Ethernet and NT4 connectivity worked at `192.168.69.170`; the Orin has no Wi-Fi, so field networking and stable address assignment still need an explicit deployment plan.
 - RoboRIO integration, fusion, uncertainty tuning, Limelight fallback, and production rollout remain explicitly deferred.
 - Imported dependency licensing and distribution details should receive a final review before release.
@@ -158,9 +160,9 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 
 ### Priority 1: Establish trustworthy pose output
 
-- [ ] Calibrate both cameras in their final focus and exact operating modes.
+- [ ] Calibrate all four cameras in their final focus and exact operating modes.
 - [x] Validate the provisional calibration files with the CLI and confirm camera identity and dimensions.
-- [ ] Measure both camera mounts and replace the provisional camera-to-robot transforms.
+- [ ] Measure all four camera mounts and replace the provisional camera-to-robot transforms.
 - [x] Load WPILib 2026.2.2's official welded REBUILT layout and derive its revision hash.
 - [ ] Test a known tag at measured poses and compare translation, rotation, and reprojection error.
 - [x] Verify both single-tag IPPE candidates and joint multi-tag pose refinement synthetically.
@@ -169,7 +171,7 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 
 ### Priority 2: Validate transport and service operation
 
-- [x] Enable the Orin NT4 server and inspect every announced `/Buddy/...` topic from an external subscriber and AdvantageScope.
+- [x] Enable the Orin NT4 server and inspect every announced `/Spot/...` topic from an external subscriber and AdvantageScope.
 - [x] Verify revisions, latency fields, FPS, drops, state, errors, and invalid-pose behavior over NT4.
 - [ ] Measure capture timestamp accuracy and exercise ordered, duplicate, and empty-frame behavior with a robot-like queued subscriber.
 - [x] Install and restart the systemd service under the unprivileged account.
@@ -182,7 +184,7 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 - [ ] Freeze a repeatable camera mode and exposure profile based on field-like measurements.
 - [ ] Validate the physical camera mount and transform on the robot.
 - [ ] Publish observations in shadow mode without using them for control.
-- [ ] Compare Buddy output with the robot's existing vision and odometry logs.
+- [ ] Compare Spot output with the robot's existing vision and odometry logs.
 - [ ] Begin roboRIO integration and fusion only after the Jetson pose and transport gates pass.
 
 ## Milestone Gates
@@ -190,7 +192,7 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 | Milestone | Status | Completion evidence |
 | --- | --- | --- |
 | Build native extension on Jetson | Complete | CUDA detector loads and runs on `orin-1` |
-| Capture frames from both target cameras | Complete | Left OV2311 and right OV9281 frames concurrently reach their detection pipelines |
+| Capture frames from original two target cameras | Complete | Camera 1 OV2311 and camera 2 OV9281 frames concurrently reach their detection pipelines; cameras 3 and 4 still need capture validation |
 | Detect a known raw tag | Complete | Correct ID, zero hamming, strong margin, valid corners |
 | Reproduce and benchmark raw detection | In progress | Sustained probe log and latency distribution needed |
 | Produce calibrated camera pose | Software complete; hardware pending | Provisional intrinsics/extrinsics require measured replacements and live single/multi-tag pose tests |

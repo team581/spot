@@ -1,12 +1,12 @@
-# Buddy Vision
+# Spot Vision
 
-Buddy Vision is Team 581's Jetson Orin AprilTag service. Python owns camera
+Spot Vision is Team 581's Jetson Orin AprilTag service. Python owns camera
 capture, scheduling, pose solving, NetworkTables, health, and deployment. The
 CUDA detector is a direct, attributed import of Team 766's standalone Team 971
 implementation, exposed to Python through pybind11.
 
 The full design contract is in
-[`docs/Vision Solution (Buddy) Specs.md`](docs/Vision%20Solution%20(Buddy)%20Specs.md).
+[`docs/Vision Solution (Spot) Specs.md`](docs/Vision%20Solution%20(Spot)%20Specs.md).
 This first pass intentionally has no GUI and makes no roboRIO changes.
 
 ## Jetson prerequisites
@@ -31,58 +31,58 @@ Build and install into a virtual environment:
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
-CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[test,systemd]'
+CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[test,systemd]'
 ```
 
 NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
 Install it for the default alpha configuration:
 
 ```sh
-CMAKE_ARGS="-DBUDDY_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[nt,systemd]'
+CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[nt,systemd]'
 ```
 
 The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
-pre-clone that revision and add `-DBUDDY_CCCL_ROOT=/path/to/cccl` to
+pre-clone that revision and add `-DSPOT_CCCL_ROOT=/path/to/cccl` to
 `CMAKE_ARGS`.
 
 For a host-only Python installation that deliberately omits CUDA:
 
 ```sh
-CMAKE_ARGS="-DBUDDY_BUILD_CUDA=OFF" .venv/bin/pip install -e '.[test]'
+CMAKE_ARGS="-DSPOT_BUILD_CUDA=OFF" .venv/bin/pip install -e '.[test]'
 ```
 
 ## First camera test
 
-Edit `config/buddy.json` with the camera's persistent `/dev/v4l/by-id` name,
+Edit `config/spot.json` with the camera's persistent `/dev/v4l/by-id` name,
 then enumerate what the driver actually supports:
 
 ```sh
-.venv/bin/buddy-vision camera-modes --config config/buddy.json --camera left
+.venv/bin/spot-vision camera-modes --config config/spot.json --camera 1
 ```
 
 Run the headless proof. Each output line contains tag IDs, corners, hamming,
 decision margin, FPS, timing, and drops:
 
 ```sh
-.venv/bin/buddy-vision probe --config config/buddy.json --camera left
+.venv/bin/spot-vision probe --config config/spot.json --camera 1
 ```
 
 Run the service:
 
 ```sh
-.venv/bin/buddy-vision daemon --config config/buddy.json
+.venv/bin/spot-vision daemon --config config/spot.json
 ```
 
 The alpha configuration starts an NT4 server on the Jetson. For each camera,
-`/Buddy/left/output/robot_pose` and `/Buddy/right/output/robot_pose` are typed
-WPILib `Pose3d` topics. Add both topics to an AdvantageScope 3D Field tab and
+`/Spot/1/output/robot_pose` through `/Spot/4/output/robot_pose` are typed
+WPILib `Pose3d` topics. Add all four topics to an AdvantageScope 3D Field tab and
 select the 2026 REBUILT field. A frame with two or more known tags is solved
 jointly from all tag corners and emits one pose; single-tag IPPE ambiguity is
 retained in the protobuf diagnostics while the lowest-error candidate is used
 for the typed pose. The calibration files shipped in `config/` are explicitly
 provisional and should be replaced after camera calibration.
-Set each mount's `image_rotation_deg` to `0` or `180` in `config/buddy.json`.
-Buddy corrects capture frames before detection, pose solving, and preview,
+Set each mount's `image_rotation_deg` to `0` or `180` in `config/spot.json`.
+Spot corrects capture frames before detection, pose solving, and preview,
 and transforms raw-sensor calibration intrinsics into the corrected pixel frame.
 `robot_from_camera` describes that corrected camera frame. The bundled left mount
 uses `180`; the right mount uses `0`. Changing a USB port or replacing a camera
@@ -92,27 +92,48 @@ The tag geometry is copied from WPILib 2026.2.2's official
 [`2026-rebuilt-welded.json`](https://github.com/wpilibsuite/allwpilib/blob/v2026.2.2/apriltag/src/main/native/resources/edu/wpi/first/apriltag/2026-rebuilt-welded.json),
 which matches AdvantageScope's welded 2026 field model.
 
-For a step-by-step check of both camera feeds and their Pose3d outputs at the
+For a step-by-step check of all four camera feeds and their Pose3d outputs at the
 same time, see the [Pose3d test guide](docs/Pose3d%20Test%20Guide.md).
 
-For temporary two-camera alpha testing from the Mac checkout, run one command.
+For temporary four-camera alpha testing from the Mac checkout, run one command.
 It manages the installed Jetson service for the duration of the session, shows
-per-camera terminal telemetry, and opens a read-only LAN camera grid:
+per-camera terminal telemetry, and opens the camera and pose dashboard automatically:
 
 ```sh
 python3 tools/probe_dashboard.py --alpha
 ```
 
-This unauthenticated viewer is an alpha debugging tool, is never started by systemd,
-and must only be used on a trusted network. See [`tools/README.md`](tools/README.md).
+The normal pose publisher continues running while the wizard uses its shared camera
+frames, so no second process competes for the USB devices. The dashboard at `/`
+shows calibration status, live tag outlines and projected 3D orientation axes,
+and a field pose map. Its workspace controls save layout and overlay preferences
+in the browser. Open the wizard at `/calibration` or the simple grid at `/viewer`. This alpha web interface is never started by
+systemd and must only be used on a trusted network. See [`tools/README.md`](tools/README.md).
+
+## ChArUco calibration
+
+Install the contrib OpenCV dependency, serve the guided four-camera wizard,
+and capture a folder of sharp board views for each camera. The headless solver
+is also available for repeatable runs:
+
+```sh
+python3 tools/calibration_ui.py
+.venv/bin/spot-vision calibrate-charuco --input-dir captures/camera-1 \
+  --output config/calibration-1.json --camera-id 1 --width 1280 --height 720
+```
+
+Board dimensions, dictionary, distortion model, minimum frame count, and
+quality gates are adjustable in the wizard/CLI. See
+[`docs/Charuco Calibration Plan.md`](docs/Charuco%20Calibration%20Plan.md) for
+the objective, quality gates, JSON schema, and four-camera save behavior.
 
 ## Offline tools
 
 ```sh
-buddy-vision replay --config config/buddy.json --camera left --input recording.mp4
-buddy-vision compare --config config/buddy.json --camera left --input recording.mp4
-buddy-vision benchmark --config config/buddy.json --camera left --input recording.mp4
-buddy-vision validate-calibration --config config/buddy.json --camera left
+spot-vision replay --config config/spot.json --camera 1 --input recording.mp4
+spot-vision compare --config config/spot.json --camera 1 --input recording.mp4
+spot-vision benchmark --config config/spot.json --camera 1 --input recording.mp4
+spot-vision validate-calibration --config config/spot.json --camera 1
 ```
 
 Recordings must match the configured resolution and contain raw camera orientation.
@@ -132,4 +153,4 @@ required host-to-device CUDA transfer still occurs.
 The CUDA module and camera pipeline cannot be executed on a non-CUDA Mac.
 Before robot use, run the imported GPU tests, a live known-tag/no-tag probe,
 MJPEG/YUYV comparisons, reconnect tests, a 30-minute thermal run, and the
-two-camera fairness test on the target Orin.
+four-camera fairness test on the target Orin.

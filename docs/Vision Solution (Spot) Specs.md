@@ -1,15 +1,15 @@
-# Buddy Vision System Design Specification
+# Spot Vision System Design Specification
 
 Status: proposed implementation design  
-Primary target: Jetson Orin Nano 8GB with one or two prototype cameras  
+Primary target: Jetson Orin Nano 8GB with up to four prototype cameras  
 Primary function: FRC AprilTag localization  
 Design priority: reliability and observability before peak frame rate
 
 ## 1. Goal and scope
 
-Buddy will replace Limelight AprilTag localization with a team-owned coprocessor while retaining the existing robot localization architecture. Version 1 includes:
+Spot will replace Limelight AprilTag localization with a team-owned coprocessor while retaining the existing robot localization architecture. Version 1 includes:
 
-- capture from one or two global-shutter cameras, with support for adding more later;
+- capture from up to four global-shutter cameras;
 - AprilTag 36h11 detection on the Jetson GPU;
 - single-tag and multi-tag camera-pose estimation;
 - timestamped result transport over NetworkTables 4 (NT4);
@@ -20,13 +20,13 @@ Game-piece detection, visual odometry, stereo reconstruction, and neural inferen
 
 ## 2. Executive recommendation
 
-Build Buddy as a native C++20 service with five boundaries:
+Build Spot as a native C++20 service with five boundaries:
 
 1. V4L2/GStreamer camera capture.
 2. A replaceable fiducial detector interface.
 3. OpenCV pose estimation.
 4. A versioned NT4 protobuf interface.
-5. A generic Java `VisionCamera` interface that lets Buddy and Limelight run in parallel.
+5. A generic Java `VisionCamera` interface that lets Spot and Limelight run in parallel.
 
 Use the [Team 766 standalone fork of Team 971's CUDA detector](https://github.com/Team766/apriltags_cuda) as the first GPU backend, but do not adopt its full demo application or build graph. Its build currently pins old OpenCV and WPILib versions and builds several large dependencies from source. Extract or fork the detector behind a team-owned interface, pin the exact revision, and complete a license review before incorporating it. Keep [AprilTag 3](https://github.com/AprilRobotics/apriltag) as a CPU backend for golden-result comparison, development without CUDA, and degraded operation.
 
@@ -56,7 +56,7 @@ Northstar's current detector is Python/OpenCV ArUcoMax, so borrow its structure 
 - independent processing and NT output work;
 - setup-only image streaming rather than permanent competition streaming.
 
-GompeiVision uses process-per-camera isolation with CPU detection. Buddy should instead share one CUDA-owning daemon on the 8GB Orin Nano while isolating camera errors within the daemon.
+GompeiVision uses process-per-camera isolation with CPU detection. Spot should instead share one CUDA-owning daemon on the 8GB Orin Nano while isolating camera errors within the daemon.
 
 ### 3.2 Existing competition robot integration
 
@@ -70,7 +70,7 @@ The local `offseason-2026/comp-bot` code establishes the robot-side compatibilit
 - health distinguishes `GOOD`, `NO_TARGETS`, and `OFFLINE`;
 - DogLog records poses, timestamps, health, and filter events.
 
-Buddy should preserve `TagResult` after validation. The necessary change is cardinality: the current code exposes at most one optional result per camera per robot loop. Buddy must expose a drained list so 60–120 FPS sources can deliver multiple frames during a 20 ms loop.
+Spot should preserve `TagResult` after validation. The necessary change is cardinality: the current code exposes at most one optional result per camera per robot loop. Spot must expose a drained list so 60–120 FPS sources can deliver multiple frames during a 20 ms loop.
 
 ### 3.3 Current prototype camera
 
@@ -91,7 +91,7 @@ The likely production direction is a USB3 monochrome global-shutter camera suppl
 
 ```mermaid
 flowchart LR
-  subgraph Jetson[Jetson Orin Nano — buddy-vision service]
+  subgraph Jetson[Jetson Orin Nano — spot-vision service]
     C0[Capture 0] --> Q0[Latest-frame slot 0]
     C1[Capture 1] --> Q1[Latest-frame slot 1]
     Q0 --> S[Fair detector scheduler]
@@ -135,7 +135,7 @@ The capture timestamp approximates exposure time. Measure its fixed bias and ret
 
 ### 4.2 Scheduling and backpressure
 
-Service ready cameras round-robin. A continuously ready camera cannot take a second turn while another waits. Begin with one GPU operation in flight for deterministic behavior and to establish detector thread safety. Add CUDA streams only if profiling proves they improve two-camera latency without starvation.
+Service ready cameras round-robin. A continuously ready camera cannot take a second turn while another waits. Begin with one GPU operation in flight for deterministic behavior and to establish detector thread safety. Add CUDA streams only if profiling proves they improve four-camera latency without starvation.
 
 - Pending capture capacity: one frame per camera.
 - Processed-result capacity: 32 frames total.
@@ -166,7 +166,7 @@ Both backends must produce identical corner ordering. A known upright-tag test m
 
 ### 4.4 Pose estimation
 
-Use the WPILib field layout selected by robot code. The Jetson receives layout JSON plus a revision/hash and publishes the applied revision. Without a valid matching layout, Buddy may publish raw detections but must not publish field-relative poses.
+Use the WPILib field layout selected by robot code. The Jetson receives layout JSON plus a revision/hash and publishes the applied revision. Without a valid matching layout, Spot may publish raw detections but must not publish field-relative poses.
 
 For two or more known tags:
 
@@ -184,7 +184,7 @@ For one known tag:
 
 Publish raw detections even when pose solving fails. Unknown IDs are excluded from solving but retained with `UNKNOWN_TAG_ID` status.
 
-For the alpha AdvantageScope workflow only, Buddy also selects the lowest-reprojection
+For the alpha AdvantageScope workflow only, Spot also selects the lowest-reprojection
 single-tag candidate (or the sole joint multi-tag candidate), applies the configured
 static `robot_from_camera` transform, and publishes one field-relative robot pose.
 The protobuf candidates remain field-relative camera poses; production robot fusion
@@ -195,34 +195,34 @@ continues to own ambiguity resolution and final validation.
 ### 5.1 Topics
 
 ```text
-/Buddy/config/schema_version
-/Buddy/config/field_layout_json
-/Buddy/config/field_layout_revision
-/Buddy/config/enabled
+/Spot/config/schema_version
+/Spot/config/field_layout_json
+/Spot/config/field_layout_revision
+/Spot/config/enabled
 
-/Buddy/<camera>/config/revision
-/Buddy/<camera>/config/exposure_us
-/Buddy/<camera>/config/gain
-/Buddy/<camera>/config/fps_limit
-/Buddy/<camera>/config/setup_stream_enabled
+/Spot/<camera>/config/revision
+/Spot/<camera>/config/exposure_us
+/Spot/<camera>/config/gain
+/Spot/<camera>/config/fps_limit
+/Spot/<camera>/config/setup_stream_enabled
 
-/Buddy/<camera>/output/observations
-/Buddy/<camera>/output/robot_pose
-/Buddy/<camera>/output/robot_pose_valid
-/Buddy/<camera>/output/robot_pose_method
-/Buddy/<camera>/output/robot_pose_reprojection_error_px
-/Buddy/<camera>/output/robot_pose_tag_count
-/Buddy/<camera>/status/state
-/Buddy/<camera>/status/calibration_provisional
-/Buddy/<camera>/status/applied_config_revision
-/Buddy/<camera>/status/applied_field_revision
-/Buddy/<camera>/status/last_consumed_sequence
-/Buddy/<camera>/status/fps_capture
-/Buddy/<camera>/status/fps_detect
-/Buddy/<camera>/status/latency_ms
-/Buddy/<camera>/status/dropped_*
-/Buddy/<camera>/status/temperature_c
-/Buddy/<camera>/status/error
+/Spot/<camera>/output/observations
+/Spot/<camera>/output/robot_pose
+/Spot/<camera>/output/robot_pose_valid
+/Spot/<camera>/output/robot_pose_method
+/Spot/<camera>/output/robot_pose_reprojection_error_px
+/Spot/<camera>/output/robot_pose_tag_count
+/Spot/<camera>/status/state
+/Spot/<camera>/status/calibration_provisional
+/Spot/<camera>/status/applied_config_revision
+/Spot/<camera>/status/applied_field_revision
+/Spot/<camera>/status/last_consumed_sequence
+/Spot/<camera>/status/fps_capture
+/Spot/<camera>/status/fps_detect
+/Spot/<camera>/status/latency_ms
+/Spot/<camera>/status/dropped_*
+/Spot/<camera>/status/temperature_c
+/Spot/<camera>/status/error
 ```
 
 Configuration originates on the roboRIO. Deployment defaults allow capture/calibration before NT connects, but global pose output remains gated until the robot's field revision is applied.
@@ -292,7 +292,7 @@ Use these PubSub settings:
 
 The Java reader calls `readQueue()` once per loop. Sixteen updates hold over 100 ms at 120 FPS, while stale rejection prevents delayed fusion. [WPILib documents](https://docs.wpilib.org/en/stable/docs/software/networktables/publish-and-subscribe.html) the queue and bounded storage behavior.
 
-The roboRIO publishes `last_consumed_sequence` for dashboards and drop diagnosis. Buddy does not retain an acknowledgement-indexed result map: NT already supplies bounded queues, and another retention layer risks unbounded memory during disconnects.
+The roboRIO publishes `last_consumed_sequence` for dashboards and drop diagnosis. Spot does not retain an acknowledgement-indexed result map: NT already supplies bounded queues, and another retention layer risks unbounded memory during disconnects.
 
 ## 6. roboRIO integration
 
@@ -309,7 +309,7 @@ interface VisionCamera {
 }
 ```
 
-Wrap current code in `LimelightVisionCamera` and add `BuddyVisionCamera` around the protobuf subscriber. `Vision` owns a collection instead of named Limelight fields. This supports shadow comparison, per-camera fallback, staged rollout, simulation, and replay.
+Wrap current code in `LimelightVisionCamera` and add `SpotVisionCamera` around the protobuf subscriber. `Vision` owns a collection instead of named Limelight fields. This supports shadow comparison, per-camera fallback, staged rollout, simulation, and replay.
 
 Accepted candidates remain `TagResult(Pose2d, FPGA timestamp, standardDevs)`. Replace the `OptionalTagResult` boundary with a reusable drained collection so the robot loop does not discard camera frames.
 
@@ -453,9 +453,9 @@ Measure capture/processed FPS, stage latencies, end-to-end latency, drops by cau
 - P95 capture-to-NT-publish latency no greater than 25 ms.
 - No frame older than 50 ms reaches fusion.
 - No unbounded queue or memory growth.
-- A two-camera 30-minute run without daemon restart, capture lockup, or unexplained gap.
+- A four-camera 30-minute run without daemon restart, capture lockup, or unexplained gap.
 - Camera reconnect does not disrupt the other camera.
-- No accepted localization outlier above 25 cm in the representative Limelight/Buddy comparison.
+- No accepted localization outlier above 25 cm in the representative Limelight/Spot comparison.
 - Held-out calibration validation passes.
 - Every rejected pose has a logged reason.
 - Shadow/fused logs replay through the same Java validation path.
@@ -466,8 +466,8 @@ The B0332 full-resolution YUY2 mode is exempt from 60 FPS only as a prototype co
 
 1. **Offline detector prototype:** record B0332 video, compare CUDA/CPU, validate corner ordering, and measure MJPEG effects.
 2. **Single-camera bench:** exercise capture/detect/solve/NT, time sync, and reconnect.
-3. **Robot shadow mode:** mount Buddy beside Limelight and log without fusion.
-4. **Single-camera fusion:** enable Buddy behind a feature flag with Limelight fallback.
+3. **Robot shadow mode:** mount Spot beside Limelight and log without fusion.
+4. **Single-camera fusion:** enable Spot behind a feature flag with Limelight fallback.
 5. **Two-camera shadow/stress:** validate fairness, USB topology, thermals, and ingestion.
 6. **Two-camera fusion:** enable cameras independently and inspect all rejections.
 7. **Production camera decision:** retain B0332 only if its measured mode passes; otherwise test/calibrate a USB3 uncompressed camera.
@@ -514,5 +514,5 @@ The B0332 full-resolution YUY2 mode is exempt from 60 FPS only as a prototype co
 - Robot-owned field layout and camera transform with revision handshakes.
 - Versioned NT4 protobuf and NT value timestamps as capture time.
 - Queued chronological robot ingestion; acknowledgements are telemetry only.
-- Parallel Buddy/Limelight rollout through a generic camera interface.
+- Parallel Spot/Limelight rollout through a generic camera interface.
 - UC-844 Rev.B/B0332 remains prototype hardware pending measurement.
