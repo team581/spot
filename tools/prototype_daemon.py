@@ -44,7 +44,8 @@ def main(argv: list[str] | None = None) -> int:
                     "type": "viewer", "ready": False, "port": args.port, "error": str(exc),
                 }},
             )
-        service = VisionService(config, result_observer=hub.publish_result)
+        service = VisionService(config, result_observer=hub.publish_result,
+                                capture_observer=hub.publish_capture)
         hub.attach_service(service)
         service.run_forever()
     finally:
