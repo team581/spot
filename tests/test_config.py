@@ -66,12 +66,13 @@ def test_alpha_config_loads_welded_layout_mounts_and_provisional_calibrations():
     config = load_config(root / "config" / "spot.json")
     assert [camera.id for camera in config.cameras] == ["1", "2", "3", "4"]
     assert config.nt.enabled and config.nt.mode == "server"
-    assert "OV2311_USB_Camera_UC621" in config.camera("1").selector.by_id
+    assert config.camera("1").selector.by_id == "usb-Generic_USB_Camera_200901010001-video-index0"
     assert config.camera("2").selector.by_path.endswith("0:2.3:1.0-video-index0")
     assert config.camera("3").selector.by_path.endswith("0:2.1:1.0-video-index0")
     assert config.camera("4").selector.by_path.endswith("0:2.2:1.0-video-index0")
     assert config.camera("1").robot_from_camera_translation == (0.0, 0.1, 0.0)
-    assert config.camera("1").image_rotation_deg == 180
+    assert config.camera("1").image_rotation_deg == 0
+    assert config.camera("1").contrast == 16 and config.camera("1").sharpness == 0
     assert config.camera("2").robot_from_camera_translation == (0.0, -0.1, 0.0)
     assert config.camera("2").image_rotation_deg == 0
     for camera_id in ("3", "4"):
@@ -126,7 +127,8 @@ def test_rotated_calibration_projects_to_rotated_pixels():
     import numpy as np
 
     path = Path(__file__).resolve().parents[1] / "config" / "spot.json"
-    camera = load_config(path).camera("1")
+    camera = replace(load_config(path).camera("1"), width=1280, height=720,
+                     image_rotation_deg=180)
     raw = Calibration("1", 1280, 720, "MJPEG",
                       ((1001.0, 0.0, 630.2), (0.0, 997.0, 355.7), (0.0, 0.0, 1.0)),
                       (0.1, -0.04, 0.008, -0.006, 0.002))
@@ -158,3 +160,14 @@ def test_calibration_identity_validation(tmp_path):
     calibration_path.write_text(json.dumps(raw))
     with pytest.raises(ConfigError, match="calibration mismatch"):
         load_calibration(calibration_path).validate_for(camera)
+
+
+@pytest.mark.parametrize('name', ['contrast', 'sharpness'])
+@pytest.mark.parametrize('value', [-1, 101, True, '16', 1.5])
+def test_invalid_image_control_defaults_are_rejected(tmp_path, name, value):
+    path = valid_config(tmp_path)
+    raw = json.loads(path.read_text())
+    raw['cameras'][0][name] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ConfigError, match=name):
+        load_config(path)

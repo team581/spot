@@ -113,6 +113,7 @@ class VisionService:
     config: ServiceConfig
     frame_observer: Callable[[FramePacket], None] | None = None
     result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = None
+    capture_observer: Callable[[FramePacket], None] | None = None
 
     def __post_init__(self) -> None:
         self.stop_event = threading.Event()
@@ -166,7 +167,8 @@ class VisionService:
         self.result_queue: BoundedDropOldestQueue[DetectedFrame] = BoundedDropOldestQueue(
             self.config.result_queue_capacity)
         self.capture_workers = [CaptureWorker(
-            camera, self.slots[camera.id], self.counters[camera.id], self.stop_event)
+            camera, self.slots[camera.id], self.counters[camera.id], self.stop_event,
+            self.capture_observer)
             for camera in enabled]
         self.scheduler = FairDetectorScheduler(
             [camera.id for camera in enabled], self.slots, self.detectors, self.counters,

@@ -3,13 +3,16 @@ from __future__ import annotations
 import glob
 import logging
 import subprocess
+import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 
-from .clock import nt_now_us
+from .clock import FrameRateCounter, nt_now_us
+from .camera_controls import CameraControls
 from .config import CameraConfig, CameraSelector
 from .models import CameraCounters, CameraState, FramePacket
 from .queues import LatestFrameSlot
@@ -107,6 +110,10 @@ def configure_controls(camera: CameraConfig, device: str) -> None:
             raise CameraError("camera does not expose a supported manual exposure control")
     if camera.gain is not None and not _set_control(device, "gain", camera.gain):
         raise CameraError("camera does not expose a gain control")
+    for name in ("contrast", "sharpness"):
+        value = getattr(camera, name, None)
+        if value is not None and not _set_control(device, name, value):
+            raise CameraError(f"camera does not expose a supported {name} control")
 
 
 def validate_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:
@@ -146,7 +153,10 @@ def bgr_to_yuyv_frame(frame: np.ndarray, camera: CameraConfig, cv2) -> np.ndarra
 
 
 def open_capture(cv2, camera: CameraConfig, device: str):
-    """Prefer the zero-copy GStreamer path, with a portable V4L2 fallback."""
+    """Use bounded MJPEG reads on Linux; otherwise prefer GStreamer."""
+    if sys.platform.startswith("linux") and camera.format in {"MJPG", "MJPEG"}:
+        from .v4l2_capture import MjpegCapture
+        return MjpegCapture(cv2, camera, device), True
     pipeline = build_gstreamer_pipeline(camera, device)
     capture = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
     capture.set(cv2.CAP_PROP_CONVERT_RGB, 0)
@@ -174,12 +184,15 @@ def open_capture(cv2, camera: CameraConfig, device: str):
 
 class CaptureWorker(threading.Thread):
     def __init__(self, camera: CameraConfig, slot: LatestFrameSlot, counters: CameraCounters,
-                 stop_event: threading.Event) -> None:
+                 stop_event: threading.Event,
+                 frame_observer: Callable[[FramePacket], None] | None = None) -> None:
         super().__init__(name=f"capture-{camera.id}", daemon=True)
         self.camera = camera
         self.slot = slot
         self.counters = counters
         self.stop_event = stop_event
+        self.frame_observer = frame_observer
+        self.controls = CameraControls(camera)
 
     def run(self) -> None:
         if not self.camera.enabled:
@@ -208,11 +221,14 @@ class CaptureWorker(threading.Thread):
         self.counters.state = CameraState.DISCOVERING
         device = resolve_device(self.camera.selector)
         self.counters.state = CameraState.CONFIGURING
-        configure_controls(self.camera, device)
+        with self.controls.lock:
+            configure_controls(self.camera, device)
+            self.controls.reapply(device)
         capture, converts_from_bgr = open_capture(cv2, self.camera, device)
         sequence = 0
-        previous_capture = time.monotonic()
-        successful_since = previous_capture
+        frame_rate = FrameRateCounter()
+        self.counters.fps_capture = 0.0
+        successful_since = time.monotonic()
         try:
             while not self.stop_event.is_set():
                 ok, frame = capture.read()
@@ -228,12 +244,7 @@ class CaptureWorker(threading.Thread):
                     raise
                 sequence += 1
                 now = monotonic_ns / 1e9
-                interval = now - previous_capture
-                previous_capture = now
-                if interval > 0:
-                    instantaneous = 1.0 / interval
-                    self.counters.fps_capture = (instantaneous if self.counters.fps_capture == 0
-                                                 else 0.9 * self.counters.fps_capture + 0.1 * instantaneous)
+                self.counters.fps_capture = frame_rate.update(now)
                 packet = FramePacket(
                     camera_id=self.camera.id,
                     sequence=sequence,
@@ -244,6 +255,11 @@ class CaptureWorker(threading.Thread):
                 )
                 if self.slot.put(packet):
                     self.counters.overwritten_before_processing += 1
+                if self.frame_observer is not None:
+                    try:
+                        self.frame_observer(packet)
+                    except Exception:
+                        LOGGER.debug("capture observer failed for %s", self.camera.id, exc_info=True)
                 self.counters.captured += 1
                 self.counters.last_capture_monotonic = now
                 self.counters.state = (CameraState.CONFIG_MISMATCH

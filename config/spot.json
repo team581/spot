@@ -15,15 +15,17 @@
       "id": "1",
       "enabled": true,
       "selector": {
-        "by_id": "usb-Arducam_Technology_Co.__Ltd._Arducam_OV2311_USB_Camera_UC621-video-index0"
+        "by_id": "usb-Generic_USB_Camera_200901010001-video-index0"
       },
       "format": "MJPEG",
-      "image_rotation_deg": 180,
-      "width": 1280,
-      "height": 720,
-      "fps": 50,
-      "exposure_us": 1000,
+      "image_rotation_deg": 0,
+      "width": 640,
+      "height": 480,
+      "fps": 120,
+      "exposure_us": 5000,
       "gain": 20,
+      "contrast": 16,
+      "sharpness": 0,
       "auto_exposure": false,
       "calibration": "calibration-1.json",
       "robot_from_camera": {
@@ -31,7 +33,7 @@
         "rotation_rpy_deg": [0.0, -20.0, 0.0]
       },
       "timestamp_correction_us": 0,
-      "config_revision": 3,
+      "config_revision": 6,
       "detector": {
         "backend": "cuda",
         "fallback_to_cpu": true,

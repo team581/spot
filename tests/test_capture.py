@@ -63,6 +63,20 @@ def test_manual_exposure_converts_microseconds_to_uvc_units(monkeypatch):
     assert ("/dev/video4", "gain", 20) in calls
 
 
+def test_configured_image_controls_are_applied_on_capture_start(monkeypatch):
+    calls = []
+    monkeypatch.setattr(capture, "_set_control", lambda device, name, value:
+                        calls.append((name, value)) or True)
+    configure_controls(replace(camera(), contrast=16, sharpness=0), "/dev/video4")
+    assert ("contrast", 16) in calls and ("sharpness", 0) in calls
+
+
+def test_unsupported_configured_image_control_is_reported(monkeypatch):
+    monkeypatch.setattr(capture, "_set_control", lambda device, name, value: name != "contrast")
+    with pytest.raises(CameraError, match="contrast"):
+        configure_controls(replace(camera(), contrast=16), "/dev/video4")
+
+
 def test_frame_validation_rejects_shape_and_non_contiguous():
     config = replace(camera(), width=16, height=8)
     valid = np.zeros((8, 16, 2), dtype=np.uint8)
@@ -87,3 +101,82 @@ def test_180_degree_orientation_preserves_packed_yuyv_chroma_and_stride():
     assert validate_yuyv_frame(oriented, configured) is oriented
     assert np.array_equal(orient_yuyv_frame(oriented, configured), raw)
     assert orient_yuyv_frame(raw, replace(configured, image_rotation_deg=0)) is raw
+
+
+def test_capture_observer_receives_oriented_frames_without_detector_and_is_isolated(monkeypatch):
+    import threading
+    from spot_vision.models import CameraCounters
+    from spot_vision.queues import LatestFrameSlot
+
+    configured = replace(camera(), width=4, height=2, image_rotation_deg=180)
+    raw = np.arange(16, dtype=np.uint8).reshape(2, 4, 2)
+    stop = threading.Event()
+
+    class FakeCapture:
+        released = False
+
+        def read(self):
+            return True, raw.copy()
+
+        def release(self):
+            self.released = True
+
+    backend = FakeCapture()
+    monkeypatch.setattr(capture, "resolve_device", lambda _: "/dev/fake")
+    monkeypatch.setattr(capture, "configure_controls", lambda *_: None)
+    monkeypatch.setattr(capture, "open_capture", lambda *_: (backend, False))
+    received = []
+
+    def observer(packet):
+        received.append(packet)
+        if len(received) == 2:
+            stop.set()
+        raise RuntimeError("preview unavailable")
+
+    counters = CameraCounters()
+    worker = capture.CaptureWorker(configured, LatestFrameSlot(threading.Event()),
+                                   counters, stop, observer)
+    monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
+    worker._capture_until_failure()
+    assert [packet.sequence for packet in received] == [1, 2]
+    assert np.array_equal(received[0].image, orient_yuyv_frame(raw, configured))
+    assert counters.captured == 2 and counters.capture_failures == 0
+    assert backend.released
+
+
+def test_capture_fps_counts_bursts_and_resets_on_reconnect(monkeypatch):
+    import threading
+    from spot_vision.models import CameraCounters
+    from spot_vision.queues import LatestFrameSlot
+
+    configured = replace(camera(), width=4, height=2)
+    stop = threading.Event()
+    timestamps = [0] + [t for i in range(10) for t in (i * 100 + 1, (i + 1) * 100)]
+    clock = iter(t * 1_000_000 for t in timestamps)
+    monkeypatch.setattr(capture.time, "monotonic_ns", lambda: next(clock))
+    monkeypatch.setattr(capture, "nt_now_us", lambda: 0)
+    monkeypatch.setattr(capture, "resolve_device", lambda _: "/dev/fake")
+    monkeypatch.setattr(capture, "configure_controls", lambda *_: None)
+
+    class FakeCapture:
+        def read(self):
+            return True, np.zeros((2, 4, 2), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(capture, "open_capture", lambda *_: (FakeCapture(), False))
+    counters = CameraCounters(fps_capture=999)
+    observed_fps = []
+
+    def observer(packet):
+        observed_fps.append(counters.fps_capture)
+        if packet.sequence == len(timestamps):
+            stop.set()
+
+    worker = capture.CaptureWorker(configured, LatestFrameSlot(), counters, stop, observer)
+    monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
+    worker._capture_until_failure()
+    assert observed_fps[0] == 0
+    assert counters.captured == len(timestamps)
+    assert counters.fps_capture == pytest.approx(20)

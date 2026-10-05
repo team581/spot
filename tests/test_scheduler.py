@@ -4,7 +4,9 @@ import threading
 import time
 
 import numpy as np
+import pytest
 
+from spot_vision import scheduler as scheduler_module
 from spot_vision.models import CameraCounters, DetectionBatch, FramePacket
 from spot_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
 from spot_vision.scheduler import FairDetectorScheduler
@@ -47,3 +49,30 @@ def test_scheduler_services_ready_cameras_round_robin():
     wake.set()
     scheduler.join(1)
     assert calls[:2] == ["a", "b"]
+
+
+def test_detection_fps_counts_completed_frames_without_burst_inflation(monkeypatch):
+    stop, wake = threading.Event(), threading.Event()
+    slot = LatestFrameSlot(wake)
+    timestamps = [0] + [t for i in range(10) for t in (i * 100 + 1, (i + 1) * 100)]
+    clock = iter(t * 1_000_000 for t in timestamps)
+    image = np.zeros((8, 8, 2), dtype=np.uint8)
+    frames = iter(FramePacket("a", i, i, 0, 0, image) for i in range(len(timestamps)))
+    slot.put(next(frames))
+
+    class Detector:
+        def detect(self, image):
+            following = next(frames, None)
+            if following is None:
+                stop.set()
+            else:
+                slot.put(following)
+            return DetectionBatch((), 1.0, image.ctypes.data)
+
+    counters = {"a": CameraCounters()}
+    scheduler = FairDetectorScheduler(["a"], {"a": slot}, {"a": Detector()}, counters,
+                                      BoundedDropOldestQueue(32), wake, stop)
+    monkeypatch.setattr(scheduler_module.time, "monotonic_ns", lambda: next(clock))
+    scheduler.run()
+    assert counters["a"].detected == len(timestamps)
+    assert counters["a"].fps_detect == pytest.approx(20)

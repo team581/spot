@@ -57,6 +57,8 @@ class CameraConfig:
     # right-handed rotations (Rz(yaw) @ Ry(pitch) @ Rx(roll)).
     robot_from_camera_translation: tuple[float, float, float] = (0.0, 0.0, 0.0)
     robot_from_camera_rpy_deg: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    contrast: int | None = None
+    sharpness: int | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +227,8 @@ def load_config(path: str | Path) -> ServiceConfig:
             image_rotation_deg=rotation,
             robot_from_camera_translation=tuple(float(value) for value in translation),
             robot_from_camera_rpy_deg=tuple(float(value) for value in rpy),
+            contrast=_image_control(item, "contrast", where),
+            sharpness=_image_control(item, "sharpness", where),
         ))
 
     nt_raw = raw.get("nt", {})
@@ -247,6 +251,13 @@ def load_config(path: str | Path) -> ServiceConfig:
         cameras=tuple(cameras),
         source_path=source,
     )
+
+
+def _image_control(item: dict, name: str, where: str) -> int | None:
+    value = item.get(name)
+    if value is not None and (type(value) is not int or not 0 <= value <= 100):
+        raise ConfigError(f"{where}.{name} must be an integer between 0 and 100")
+    return value
 
 
 def load_calibration(path: str | Path) -> Calibration:

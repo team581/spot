@@ -1,9 +1,10 @@
 {
   "camera_id": "1",
-  "width": 1280,
-  "height": 720,
+  "camera_model": "Swift USB camera",
+  "width": 640,
+  "height": 480,
   "pixel_format": "MJPEG",
-  "camera_matrix": [[1280.0, 0.0, 640.0], [0.0, 1280.0, 360.0], [0.0, 0.0, 1.0]],
+  "camera_matrix": [[640.0, 0.0, 320.0], [0.0, 640.0, 240.0], [0.0, 0.0, 1.0]],
   "distortion_coefficients": [0.0, 0.0, 0.0, 0.0, 0.0],
   "provisional": true
 }

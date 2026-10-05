@@ -44,14 +44,14 @@ This proves the deployed two-camera capture, processing, and NT4 visualization p
 | Jetson software | L4T R36.4.3, CUDA 12.6 |
 | Python | 3.11.16 in `/home/team581/spot-2026/.venv311` |
 | OpenCV | 4.11.0 headless wheel; direct V4L2 fallback is active because this wheel has no GStreamer support |
-| Cameras | `1`: Arducam OV2311 UC621; `2`–`4`: Arducam OV9281 UC762. Cameras 1 and 2 were previously validated concurrently; all four are enumerated on the Jetson |
+| Cameras | `1`: Swift USB camera (enumerates as `Generic USB Camera`, serial `200901010001`); `2`–`4`: Arducam OV9281 UC762. All four are enumerated on the Jetson |
 | Camera selectors | Camera 1 uses `/dev/v4l/by-id`; cameras 2–4 use distinct stable `/dev/v4l/by-path` USB-port selectors |
-| Configured modes | Camera 1: MJPEG 1280×720 at 50 FPS; cameras 2–4: MJPEG 1280×720 at 120 FPS |
+| Configured modes | Camera 1: MJPEG 640×480 at 120 FPS (advertised 1280×720 and 1280×800 modes timed out in direct capture tests); cameras 2–4: MJPEG 1280×720 at 120 FPS |
 | Observed capture/detect rates | Approximately 25 FPS left and 48–50 FPS right during the latest check |
-| Exposure | Manual, 1000 µs; correctly converted to UVC `exposure_time_absolute=10` |
+| Exposure | Manual: camera 1 uses 5000 µs (the Swift minimum, UVC `exposure_time_absolute=50`); cameras 2–4 use 1000 µs (`exposure_time_absolute=10`) |
 | Gain | 20 |
 | Tag family | 36h11 |
-| Calibration | Provisional 1280×720 intrinsics for all four cameras; startup warning and NT status are active |
+| Calibration | Camera 1 has provisional 640×480 intrinsics and needs a new calibration after replacement; cameras 2–4 retain their existing calibration files on the Jetson |
 | Camera extrinsics | Camera 1 uses `[0, +0.1, 0]`; cameras 2–4 currently use `[0, -0.1, 0]`; all use `[0, -20, 0]` degree RPY and remain provisional |
 | Field layout | Vendored WPILib 2026.2.2 welded REBUILT layout |
 | NT4 | Enabled as a server on the Orin; NT4 port 5810 and NT3 port 1735 |

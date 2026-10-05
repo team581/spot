@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 
+from .clock import FrameRateCounter
 from .models import CameraCounters, CameraState, DetectedFrame
 from .native import Detector
 from .queues import BoundedDropOldestQueue, LatestFrameSlot
@@ -25,6 +26,7 @@ class FairDetectorScheduler(threading.Thread):
         self.wake_event = wake_event
         self.stop_event = stop_event
         self._cursor = 0
+        self._frame_rates = {camera_id: FrameRateCounter() for camera_id in camera_ids}
 
     def run(self) -> None:
         while not self.stop_event.is_set():
@@ -47,12 +49,7 @@ class FairDetectorScheduler(threading.Thread):
                     )
                     camera_counters = self.counters[camera_id]
                     now = completed_ns / 1e9
-                    if camera_counters.last_detection_monotonic:
-                        interval = now - camera_counters.last_detection_monotonic
-                        if interval > 0:
-                            instant = 1.0 / interval
-                            camera_counters.fps_detect = (instant if camera_counters.fps_detect == 0
-                                                          else 0.9 * camera_counters.fps_detect + 0.1 * instant)
+                    camera_counters.fps_detect = self._frame_rates[camera_id].update(now)
                     camera_counters.last_detection_monotonic = now
                     camera_counters.detected += 1
                     if camera_counters.configuration_error:
