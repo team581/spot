@@ -27,8 +27,12 @@ cmake.build-type = "Release"
 wheel.packages = ["src/spot_vision"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "tools/tests"]
 addopts = "-ra"
+
+[tool.coverage.run]
+branch = true
+omit = ["*/tests/*", "*/proto/vision_pb2.py"]
 
 [tool.ruff]
 line-length = 100
