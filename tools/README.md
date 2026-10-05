@@ -69,10 +69,56 @@ available at `/viewer`. Use **Customize workspace** for side-by-side, stacked, o
 feed-focused layouts, feed proportions and height, tile size, optional overview and
 summary panels, and axis/candidate overlays. Preferences persist in this browser.
 Freeze inspection holds the selected image and its matching pose while capture continues.
+**Camera tuning** edits the selected camera's live V4L2 image controls. Refresh
+reads supported controls, current values, ranges, steps, and menu options from the
+device. Adjust a slider or numeric field and press its **Apply** button; the server
+validates the request and reads the value back before reporting success. Exposure
+is shown in microseconds (UVC absolute exposure uses 100 µs units). Manual exposure
+and white balance are disabled while their automatic mode is enabled. Tuning is
+disabled while inspection is frozen or the dashboard is disconnected.
+
+The camera firmware determines which controls appear. The alpha Jetson reported
+these differences on October 3, 2026:
+
+| Control | Swift USB (camera 1) | Arducam OV9281 UC762 (cameras 2–4) |
+| --- | --- | --- |
+| Manual exposure | 5,000–1,000,000 µs, step 100 µs | 100–500,000 µs, step 100 µs |
+| Gain | 1–128 | 0–100 |
+| Black level / brightness | −64–64 | −64–64 |
+| Contrast | 0–100 | 0–64 |
+| Gamma | 100–500 | 72–500 |
+| Sharpness | 0–100 | 0–6 |
+
+All four advertise manual/automatic exposure, 50/60 Hz anti-flicker, backlight
+compensation, saturation, hue, and automatic/manual white balance. Color controls
+may have no effect on monochrome cameras. Values are firmware units unless labeled.
+Brightness is the standard V4L2 black-level control; it is not sensor exposure.
+The dashboard intentionally excludes trigger/dynamic-framerate and geometric
+controls that could stop streaming or invalidate calibration. Arducam documents
+`exposure_dynamic_framerate` as the OV9281 external-trigger switch.
+
+Changes affect capture and detection immediately, use the existing capture owner,
+and are replayed after camera reconnects for this process. They do not edit
+`config/spot.json`: restarting alpha restores configured exposure and gain; other
+controls can retain values in camera firmware. Refresh after another tool changes
+camera settings. The per-process camera token guards writes against cross-origin
+browser requests; this remains a trusted-LAN alpha interface.
+
+Control references:
+[Arducam OV9281 UVC operations](https://docs.arducam.com/UVC-Camera/Appilcation-Note/External-Trigger-Mode/OV9281-Global-Shutter/),
+[Linux V4L2 image-control definitions](https://docs.kernel.org/userspace-api/media/v4l/control.html),
+and [Linux V4L2 exposure units and modes](https://docs.kernel.org/userspace-api/media/v4l/ext-ctrls-camera.html).
+
 Red X points right, green Y points up, and blue Z points out of each tag. These
 per-tag orientation estimates use active camera intrinsics even without a field layout.
-The field map shows the published robot estimate and alternate camera candidates,
-with position, heading, height, and reprojection error for manual pose verification.
+Pose verification uses a lightweight, offline 3D Canvas viewer of the 2026 REBUILT
+field perimeter and simplified hubs. Drag or use arrow keys to orbit, scroll or use
++/− to zoom, and Reset view to restore the overview. The selected camera body and
+view direction use its full field quaternion; observed tags are highlighted at their
+configured positions and orientations. Tag markers are enlarged for visibility.
+Camera and observed-tag X/Y/Z coordinates (meters) and yaw (degrees) appear below,
+in the WPILib blue-origin frame: +X toward red, +Y left, +Z up. Robot X/Y and yaw
+remain separate from the camera estimate. Stale estimates are hidden unless frozen.
 Provisional calibration is clearly marked; saving new calibration requires an alpha
 restart before pose output uses it. Disabled, waiting, and stale cameras stay visible. If an SSH alias is
 not also browser-resolvable, pass

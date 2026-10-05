@@ -45,7 +45,8 @@ The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
 pre-clone that revision and add `-DSPOT_CCCL_ROOT=/path/to/cccl` to
 `CMAKE_ARGS`.
 
-For a host-only Python installation that deliberately omits CUDA:
+For a host-only Python installation with the production CPU detector and shared
+edge-geometry diagnostics, but without CUDA:
 
 ```sh
 CMAKE_ARGS="-DSPOT_BUILD_CUDA=OFF" .venv/bin/pip install -e '.[test]'
@@ -140,6 +141,56 @@ Recordings must match the configured resolution and contain raw camera orientati
 Replay converts decoded BGR frames to packed YUYV and applies the configured
 orientation before invoking the same detector boundary.
 
+## Image regression and distortion diagnostics
+
+Run fixed images through orientation correction, the native detector, pose
+solving, mount conversion, and protobuf serialization:
+
+```sh
+PYTHONPATH=src .venv/bin/python -m pytest tests
+.venv/bin/python -m spot_vision image-regression \
+  --manifest tests/data/regression/manifest.json --backend cpu \
+  --repeats 20 --output /tmp/spot-regression.json
+```
+
+On the Orin, repeat with `--backend cuda`. CUDA regression disables CPU fallback
+so a failed GPU cannot masquerade as a passing GPU test. The checked-in synthetic
+PNG fixtures cover central/peripheral distortion, multiple tags, rotated sensor
+capture, and no tags. Their independent OpenCV projection oracle and generator
+are in `tests/data/regression/`. Reports contain corner, translation, rotation and
+reprojection errors plus mean/p95 pipeline timings and detector/solver timings.
+Accuracy uses explicit per-case gates; timings are measurements, not brittle
+cross-machine pass/fail thresholds. Add real camera images with measured ground
+truth to the manifest as they become available.
+
+`TagObservation.distortion_factor_px` is the mean raw-to-undistorted corner
+pixel displacement; it is absent without calibration. Pose candidates include
+mean distortion and camera-to-tag distance. The alpha NT outputs expose the same
+candidate metrics alongside Pose3d. The roboRIO retains responsibility for tuning
+standard deviations and resolving heading; the reference inflation formula is
+in `spot_vision.uncertainty.standard_deviations` and the design contract.
+Refinement fits edges in ideal coordinates and returns raw corners so decoding,
+previews and solvePnP continue using the same pixel frame. Nonzero calibration
+coefficients beyond the CUDA refiner's five-coefficient model cause an explicit
+CPU fallback (or an error when fallback is disabled).
+
+The CUDA decode refinement follows this coordinate path:
+
+```mermaid
+flowchart LR
+  A[Raw gradient samples] --> B[Undistort samples]
+  B --> C[Fit lines and intersect]
+  C --> D[Redistort corners]
+  D --> E[Decode tag]
+  E --> F[Solve pose with lens model]
+```
+
+The Slack thread's deferred optimizations are tracked in
+[direct V4L2 capture](https://github.com/team581/buddy-2026/issues/1) and
+[cached field-zone exposure](https://github.com/team581/buddy-2026/issues/2).
+Use the field rig to tune exposure with the official layout; generating custom
+FMAPs is not a prerequisite.
+
 ## Important buffer behavior
 
 Live GStreamer capture yields a packed `uint8` NumPy array with shape
@@ -149,6 +200,11 @@ and releasing the GIL. This removes a Python-to-C++ copy. The detector's
 required host-to-device CUDA transfer still occurs.
 
 ## Hardware validation still required
+
+The expanded test suite, repeatable live verifier, latest alpha results, and
+remaining checks are documented in [Alpha Verification](docs/Alpha%20Verification.md).
+`PYTHONPATH=src .venv/bin/python -m pytest` runs both the core and alpha-tool
+tests. Run `node --test tools/tests/*.cjs` for the dashboard JavaScript tests.
 
 The CUDA module and camera pipeline cannot be executed on a non-CUDA Mac.
 Before robot use, run the imported GPU tests, a live known-tag/no-tag probe,
