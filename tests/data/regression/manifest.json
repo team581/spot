@@ -1,0 +1,228 @@
+{
+  "config": "config.json",
+  "camera": "front",
+  "cases": [
+    {
+      "name": "center",
+      "image": "center.png",
+      "tags": [
+        {
+          "id": 1,
+          "corners": [
+            [
+              587.4327959712402,
+              452.55145402875985
+            ],
+            [
+              692.3152040287597,
+              452.4254540287598
+            ],
+            [
+              692.2207040287597,
+              347.76354597124026
+            ],
+            [
+              587.5272959712402,
+              347.6375459712403
+            ]
+          ]
+        }
+      ],
+      "robot_translation_m": [
+        2.0,
+        0.0,
+        0.6
+      ],
+      "robot_quaternion_wxyz": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "max_rotation_error_deg": 10.0,
+      "max_corner_error_px": 2.0,
+      "max_translation_error_m": 0.15,
+      "max_reprojection_error_px": 1.0
+    },
+    {
+      "name": "periphery",
+      "image": "periphery.png",
+      "tags": [
+        {
+          "id": 2,
+          "corners": [
+            [
+              1028.688691015625,
+              368.9626090820311
+            ],
+            [
+              1109.47912615625,
+              370.8634582562498
+            ],
+            [
+              1105.9011153945312,
+              277.3904692281248
+            ],
+            [
+              1025.4368,
+              272.45439999999985
+            ]
+          ]
+        }
+      ],
+      "robot_translation_m": [
+        2.0,
+        0.0,
+        0.6
+      ],
+      "robot_quaternion_wxyz": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "max_rotation_error_deg": 10.0,
+      "max_corner_error_px": 2.0,
+      "max_translation_error_m": 0.15,
+      "max_reprojection_error_px": 1.0
+    },
+    {
+      "name": "multi",
+      "image": "multi.png",
+      "tags": [
+        {
+          "id": 1,
+          "corners": [
+            [
+              587.4327959712402,
+              452.55145402875985
+            ],
+            [
+              692.3152040287597,
+              452.4254540287598
+            ],
+            [
+              692.2207040287597,
+              347.76354597124026
+            ],
+            [
+              587.5272959712402,
+              347.6375459712403
+            ]
+          ]
+        },
+        {
+          "id": 2,
+          "corners": [
+            [
+              1028.688691015625,
+              368.9626090820311
+            ],
+            [
+              1109.47912615625,
+              370.8634582562498
+            ],
+            [
+              1105.9011153945312,
+              277.3904692281248
+            ],
+            [
+              1025.4368,
+              272.45439999999985
+            ]
+          ]
+        }
+      ],
+      "robot_translation_m": [
+        2.0,
+        0.0,
+        0.6
+      ],
+      "robot_quaternion_wxyz": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "max_rotation_error_deg": 10.0,
+      "max_corner_error_px": 2.0,
+      "max_translation_error_m": 0.15,
+      "max_reprojection_error_px": 1.0
+    },
+    {
+      "name": "blank",
+      "image": "blank.png",
+      "tags": [],
+      "robot_translation_m": null,
+      "robot_quaternion_wxyz": null,
+      "max_rotation_error_deg": 10.0,
+      "max_corner_error_px": 2.0,
+      "max_translation_error_m": 0.15,
+      "max_reprojection_error_px": 1.0
+    },
+    {
+      "name": "rotated",
+      "image": "rotated.png",
+      "tags": [
+        {
+          "id": 1,
+          "corners": [
+            [
+              587.4327959712402,
+              452.55145402875985
+            ],
+            [
+              692.3152040287597,
+              452.4254540287598
+            ],
+            [
+              692.2207040287597,
+              347.76354597124026
+            ],
+            [
+              587.5272959712402,
+              347.6375459712403
+            ]
+          ]
+        },
+        {
+          "id": 2,
+          "corners": [
+            [
+              1028.688691015625,
+              368.9626090820311
+            ],
+            [
+              1109.47912615625,
+              370.8634582562498
+            ],
+            [
+              1105.9011153945312,
+              277.3904692281248
+            ],
+            [
+              1025.4368,
+              272.45439999999985
+            ]
+          ]
+        }
+      ],
+      "robot_translation_m": [
+        2.0,
+        0.0,
+        0.6
+      ],
+      "robot_quaternion_wxyz": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "max_rotation_error_deg": 10.0,
+      "max_corner_error_px": 2.0,
+      "max_translation_error_m": 0.15,
+      "max_reprojection_error_px": 1.0,
+      "config": "config_rotated.json"
+    }
+  ]
+}

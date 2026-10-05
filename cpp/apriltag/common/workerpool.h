@@ -27,6 +27,7 @@ either expressed or implied, of the Regents of The University of Michigan.
 
 #pragma once
 
+#include "pthreads_cross.h"
 #include "zarray.h"
 
 typedef struct workerpool workerpool_t;

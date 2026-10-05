@@ -35,3 +35,19 @@ license is retained in that directory.
 As in Team 766's build, NVIDIA CCCL 2.3.2 is required. CMake pins commit
 `64d3a5f0c1c83ed83be8c0a9a1f0cdb31f913e81`; an existing checkout can be
 supplied with `SPOT_CCCL_ROOT` to make builds network-independent.
+
+## Distortion regression corrections
+
+Spot extracted the host edge geometry from `apriltag_detect.cu` into
+`camera_geometry.h`, shared by the CUDA decoder and host diagnostics. Gradient
+samples are undistorted before line fitting; line intersections are redistorted
+before decoding and publication. The imported inverse's p2 term was corrected
+from `rSq + k3*rSq^3` to `rSq + 2*x^2`, matching the forward Brown-Conrady model.
+Inversion now checks convergence in pixels and preserves input on failure.
+Refinement skips unusable samples and retains the original quad when an edge
+cannot be fitted. Tests compare the shared code against OpenCV projections and
+fixed images. These are intentional local changes to the pinned import.
+
+The host build uses the same CPU AprilTag bindings as the Jetson build, and the
+family lifecycle utility no longer needs glog. The vendored workerpool header now
+includes its pthread declarations explicitly so it builds on macOS as well.

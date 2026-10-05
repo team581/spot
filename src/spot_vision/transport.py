@@ -34,12 +34,16 @@ def make_vision_frame(config: ServiceConfig, camera: CameraConfig, detected: Det
             float(value) for value in candidate.quaternion_wxyz)
         pose.reprojection_error_px = candidate.reprojection_error_px
         pose.tag_ids.extend(candidate.tag_ids)
+        pose.average_tag_distance_m = candidate.average_tag_distance_m
+        pose.distortion_factor_px = candidate.distortion_factor_px
     for detection in detected.batch.detections:
         observation = message.tags.add()
         observation.id = detection.id
         observation.corners_xy_px.extend(float(value) for value in detection.corners.reshape(-1))
         observation.hamming = detection.hamming
         observation.decision_margin = detection.decision_margin
+        if detection.distortion_factor_px is not None:
+            observation.distortion_factor_px = detection.distortion_factor_px
         observation.used_for_pose = detection.id in solution.used_tag_ids
         observation.rejection_reason = solution.rejection_reasons.get(detection.id, "")
     message.timing.capture_to_detect_ms = detected.capture_to_detect_ms
@@ -57,6 +61,8 @@ class CameraPublishers:
     robot_pose_method: Any
     robot_pose_reprojection_error_px: Any
     robot_pose_tag_count: Any
+    robot_pose_average_tag_distance_m: Any
+    robot_pose_distortion_factor_px: Any
     calibration_provisional: Any
     state: Any
     applied_config_revision: Any
@@ -119,6 +125,10 @@ class NtPublisher:
                     f"{root}/output/robot_pose_reprojection_error_px").publish(options),
                 robot_pose_tag_count=instance.getIntegerTopic(
                     f"{root}/output/robot_pose_tag_count").publish(options),
+                robot_pose_average_tag_distance_m=instance.getDoubleTopic(
+                    f"{root}/output/robot_pose_average_tag_distance_m").publish(options),
+                robot_pose_distortion_factor_px=instance.getDoubleTopic(
+                    f"{root}/output/robot_pose_distortion_factor_px").publish(options),
                 calibration_provisional=instance.getBooleanTopic(
                     f"{root}/status/calibration_provisional").publish(options),
                 state=instance.getStringTopic(f"{root}/status/state").publish(options),
@@ -181,6 +191,12 @@ class NtPublisher:
                 publishers.robot_pose_method.set("METHOD_UNKNOWN", capture_timestamp_us)
                 publishers.robot_pose_reprojection_error_px.set(0.0, capture_timestamp_us)
                 publishers.robot_pose_tag_count.set(0, capture_timestamp_us)
+        publishers.robot_pose_average_tag_distance_m.set(
+            robot_pose.average_tag_distance_m if robot_pose is not None else 0.0,
+            capture_timestamp_us)
+        publishers.robot_pose_distortion_factor_px.set(
+            robot_pose.distortion_factor_px if robot_pose is not None else 0.0,
+            capture_timestamp_us)
         publishers.state.set(counters.state.value)
         publishers.applied_config_revision.set(camera.config_revision)
         publishers.applied_field_revision.set(field_revision)

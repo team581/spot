@@ -340,9 +340,23 @@ Log raw candidates, chosen/rejected candidates, corners and IDs, terminal status
 Begin with an explicitly tunable model:
 
 ```text
-xyStdDev = cameraFactor × xyCoefficient × averageTagDistance² / tagCount²
-thetaStdDev = cameraFactor × thetaCoefficient × averageTagDistance² / tagCount²
+effectiveDistance = averageTagDistance × (1 + distortionScalar × distortionFactorPx)
+xyStdDev = cameraFactor × xyCoefficient × effectiveDistance² / tagCount²
+thetaStdDev = cameraFactor × thetaCoefficient × effectiveDistance² / tagCount²
 ```
+
+`distortionFactorPx` is the mean Euclidean displacement between the four raw
+corners of each used tag and its undistorted pixel corners, averaged across the
+candidate's used tags. `distortionScalar` is a nonnegative tunable in inverse
+pixels; zero recovers the original distance-only model. Spot publishes the
+per-tag metric and each candidate's mean distortion and camera-to-tag distance
+in the protobuf. The alpha NT Pose3d output also publishes
+`robot_pose_average_tag_distance_m` and `robot_pose_distortion_factor_px` at the
+capture timestamp. These metrics retain camera distance after mount conversion.
+The consumer owns coefficients and heading resolution; the executable reference
+formula is `spot_vision.uncertainty.standard_deviations`. It requires explicit
+coefficients rather than assuming another team's tuning. An absent per-tag
+metric means calibration was unavailable, not that the lens has zero distortion.
 
 Use infinite `thetaStdDev` for unresolved single-tag rotation. Use finite heading uncertainty only for well-constrained multi-tag or decisive close-range single-tag results. Fit coefficients from recorded trials rather than copying another team.
 

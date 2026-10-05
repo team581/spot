@@ -60,6 +60,12 @@ def _parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--input", required=True)
     benchmark.add_argument("--frames", type=int, default=300)
 
+    regression = subcommands.add_parser("image-regression", help="measure fixed-image pipeline accuracy")
+    regression.add_argument("--manifest", required=True)
+    regression.add_argument("--backend", choices=("cpu", "cuda"), default="cpu")
+    regression.add_argument("--repeats", type=int, default=5)
+    regression.add_argument("--output", help="write the JSON metric report")
+
     calibration = subcommands.add_parser("validate-calibration")
     calibration.add_argument("--config", required=True)
     calibration.add_argument("--camera", required=True)
@@ -99,6 +105,7 @@ def _batch_json(sequence: int, batch: DetectionBatch, total_ms: float,
             "corners": detection.corners.tolist(),
             "hamming": detection.hamming,
             "decision_margin": detection.decision_margin,
+            "distortion_factor_px": detection.distortion_factor_px,
         } for detection in batch.detections],
         "capture_fps": capture_fps,
         "detect_ms": batch.detect_ms,
@@ -273,8 +280,14 @@ def _run_validate_calibration(args) -> int:
 
 def _run_charuco(args) -> int:
     import cv2
-    from .charuco import (CalibrationOptions, CharucoBoardConfig, calibrate,
-                          detect_frame, write_calibration)
+
+    from .charuco import (
+        CalibrationOptions,
+        CharucoBoardConfig,
+        calibrate,
+        detect_frame,
+        write_calibration,
+    )
     if bool(args.config) != bool(args.camera):
         raise ConfigError("--config and --camera must be provided together")
     configured_camera = None
@@ -334,6 +347,16 @@ def main(argv: list[str] | None = None) -> int:
             return _run_compare(args)
         if args.command == "benchmark":
             return _run_benchmark(args)
+        if args.command == "image-regression":
+            from .regression import run_image_regression
+            if args.repeats < 1:
+                raise ConfigError("--repeats must be positive")
+            report = run_image_regression(args.manifest, backend=args.backend, repeats=args.repeats)
+            serialized = json.dumps(report, indent=2, allow_nan=False)
+            if args.output:
+                Path(args.output).write_text(serialized + "\n")
+            print(serialized)
+            return 0 if report["passed"] else 1
         if args.command == "validate-calibration":
             return _run_validate_calibration(args)
         if args.command == "calibrate-charuco":

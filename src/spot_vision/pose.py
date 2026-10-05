@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
 
 from .config import Calibration, ConfigError, file_revision
 from .models import Detection, PoseCandidate, PoseMethod, PoseSolution
+from .uncertainty import distortion_factors
 
 # OpenCV's camera basis is +X right, +Y down, +Z forward.  WPILib's camera
 # pose convention is NWU: +X forward, +Y left, +Z up.  This matrix converts a
@@ -186,6 +187,17 @@ class PoseSolver:
                 candidates = self._solve_single(known[0])
             else:
                 candidates = self._solve_multi(known)
+            factors = (np.asarray([d.distortion_factor_px for d in known], dtype=np.float64)
+                       if all(d.distortion_factor_px is not None for d in known) else
+                       distortion_factors(np.asarray([d.corners for d in known]), self.calibration))
+            by_id = {d.id: float(factor) for d, factor in zip(known, factors)}
+            candidates = tuple(replace(
+                candidate,
+                average_tag_distance_m=float(np.mean([
+                    np.linalg.norm(self.layout.tags[tag_id].field_from_tag[:3, 3] -
+                                   candidate.translation) for tag_id in candidate.tag_ids])),
+                distortion_factor_px=float(np.mean([by_id[tag_id] for tag_id in candidate.tag_ids])),
+            ) for candidate in candidates)
         except Exception as exc:  # noqa: BLE001 - OpenCV exposes backend-specific exceptions
             for detection in known:
                 reasons[detection.id] = f"POSE_SOLVE_FAILED:{type(exc).__name__}"
@@ -296,4 +308,6 @@ def select_robot_pose(solution: PoseSolution,
         quaternion_wxyz=matrix_to_quaternion(field_from_robot[:3, :3]),
         reprojection_error_px=candidate.reprojection_error_px,
         tag_ids=candidate.tag_ids,
+        average_tag_distance_m=candidate.average_tag_distance_m,
+        distortion_factor_px=candidate.distortion_factor_px,
     )

@@ -29,6 +29,7 @@ class Detection:
     corners: np.ndarray
     hamming: int = 0
     decision_margin: float = 0.0
+    distortion_factor_px: float | None = None
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,8 @@ class PoseCandidate:
     quaternion_wxyz: np.ndarray
     reprojection_error_px: float
     tag_ids: tuple[int, ...]
+    average_tag_distance_m: float = 0.0
+    distortion_factor_px: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@
 #include <cub/iterator/transform_input_iterator.cuh>
 
 #include "apriltag.h"
+#include "camera_geometry.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -56,21 +57,6 @@ struct QuadCorners {
   float corners[4][2];
   bool reversed_border;
   uint32_t blob_index;
-};
-
-struct CameraMatrix {
-  double fx;
-  double cx;
-  double fy;
-  double cy;
-};
-
-struct DistCoeffs {
-  double k1;
-  double k2;
-  double p1;
-  double p2;
-  double k3;
 };
 
 // GPU based april tag detector.

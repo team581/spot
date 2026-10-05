@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "field_layout": "layout.json",
+  "tag_size_m": 0.3,
+  "nt": {
+    "enabled": false
+  },
+  "cameras": [
+    {
+      "id": "front",
+      "selector": {
+        "device": "/dev/null"
+      },
+      "width": 1280,
+      "height": 800,
+      "fps": 60,
+      "calibration": "calibration_rotated.json",
+      "detector": {
+        "backend": "cpu",
+        "decimate": 1.0,
+        "fallback_to_cpu": false
+      },
+      "image_rotation_deg": 180
+    }
+  ]
+}

@@ -30,6 +30,10 @@ message PoseCandidate {
   double qz = 8;
   double reprojection_error_px = 9;
   repeated uint32 tag_ids = 10;
+  // Camera-to-tag distance; preserve this when converting to robot coordinates.
+  double average_tag_distance_m = 11;
+  // Mean per-tag raw-to-undistorted corner displacement, in pixels.
+  double distortion_factor_px = 12;
 }
 
 message TagObservation {
@@ -39,6 +43,8 @@ message TagObservation {
   double decision_margin = 4;
   bool used_for_pose = 5;
   string rejection_reason = 6;
+  // Absent when calibration is unavailable; zero means a calibrated ideal lens.
+  optional double distortion_factor_px = 7;
 }
 
 message ProcessingTiming {

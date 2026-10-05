@@ -69,6 +69,15 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
     valid_subscriber = publisher.instance.getBooleanTopic(
         "/Spot/front/output/robot_pose_valid").subscribe(
             False, ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
+    from dataclasses import replace
+    solution = replace(solution, candidates=(replace(solution.candidates[0],
+        average_tag_distance_m=3.25, distortion_factor_px=12.5),))
+    distance_subscriber = publisher.instance.getDoubleTopic(
+        "/Spot/front/output/robot_pose_average_tag_distance_m").subscribe(
+            -1, ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
+    distortion_subscriber = publisher.instance.getDoubleTopic(
+        "/Spot/front/output/robot_pose_distortion_factor_px").subscribe(
+            -1, ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16))
     message = make_vision_frame(config, camera, detected, solution, 4.0)
     timestamp = detected.frame.capture_timestamp_us
     counters = CameraCounters()
@@ -84,10 +93,38 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
         time.sleep(0.005)
     pose_updates = pose_subscriber.readQueue()
     valid_updates = valid_subscriber.readQueue()
+    distance_updates = distance_subscriber.readQueue()
+    distortion_updates = distortion_subscriber.readQueue()
     publisher.close()
+    assert [update.value for update in distance_updates[-3:]] == [3.25, 3.25, 0.]
+    assert [update.value for update in distortion_updates[-3:]] == [12.5, 12.5, 0.]
+    assert [update.time for update in distance_updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]
     assert [update.time for update in updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]
     assert all(VisionFrame.FromString(update.value).sequence == 4 for update in updates[-3:])
     assert [update.time for update in pose_updates[-2:]] == [timestamp, timestamp + 1]
     assert all(np.isclose(update.value.X(), 1.0) for update in pose_updates[-2:])
     assert [update.value for update in valid_updates[-3:]] == [True, True, False]
     assert [update.time for update in valid_updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]
+
+
+def test_distortion_transport_distinguishes_missing_calibration_and_preserves_metrics(tmp_path):
+    from dataclasses import replace
+
+    config, camera, detected, solution = fixtures(tmp_path)
+    message = make_vision_frame(config, camera, detected, solution, 4.0)
+    assert not message.tags[0].HasField('distortion_factor_px')
+    observed = replace(detected.batch.detections[0], distortion_factor_px=12.5)
+    detected = replace(detected, batch=replace(detected.batch, detections=(observed,)))
+    candidate = replace(solution.candidates[0], average_tag_distance_m=3.25,
+                        distortion_factor_px=12.5)
+    solution = replace(solution, candidates=(candidate,))
+    message = VisionFrame.FromString(make_vision_frame(
+        config, camera, detected, solution, 4.0).SerializeToString())
+    assert message.tags[0].HasField('distortion_factor_px')
+    assert message.tags[0].distortion_factor_px == 12.5
+    assert message.candidates[0].distortion_factor_px == 12.5
+    assert message.candidates[0].average_tag_distance_m == 3.25
+    from spot_vision.pose import robot_from_camera_transform, select_robot_pose
+    robot = select_robot_pose(solution, robot_from_camera_transform((0.5, 0.1, 0)))
+    assert robot.average_tag_distance_m == 3.25
+    assert robot.distortion_factor_px == 12.5

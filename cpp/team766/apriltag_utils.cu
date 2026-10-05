@@ -1,7 +1,7 @@
 #include <cstring>
 
 #include "apriltag_utils.h"
-#include "glog/logging.h"
+#include <cstdio>
 
 bool setup_tag_family(apriltag_family_t **tf, const char *famname) {
   if (!strcmp(famname, "tag36h11")) {
@@ -21,7 +21,7 @@ bool setup_tag_family(apriltag_family_t **tf, const char *famname) {
   } else if (!strcmp(famname, "tagCustom48h12")) {
     *tf = tagCustom48h12_create();
   } else {
-    LOG(ERROR) << "Unknown tag family: " << famname;
+    std::fprintf(stderr, "Unknown tag family: %s\n", famname);
     return (false);
   }
   return (true);

@@ -11,7 +11,10 @@
 #include <string>
 #include <vector>
 
+#ifdef SPOT_WITH_CUDA
 #include "apriltag_gpu.h"
+#endif
+#include "camera_geometry.h"
 #include "apriltag_utils.h"
 
 extern "C" {
@@ -158,6 +161,7 @@ class DetectorState {
   DetectorMetrics metrics_;
 };
 
+#ifdef SPOT_WITH_CUDA
 class CudaDetector final : public DetectorState {
  public:
   CudaDetector(int width, int height, const CameraMatrix &camera,
@@ -165,6 +169,9 @@ class CudaDetector final : public DetectorState {
       : DetectorState(options), width_(width), height_(height) {
     if (width <= 0 || height <= 0 || width % 8 != 0 || height % 8 != 0) {
       throw py::value_error("CUDA detector dimensions must be positive multiples of 8");
+    }
+    if (options.decimate != 2.0) {
+      throw py::value_error("CUDA detector requires decimate=2");
     }
     int device_count = 0;
     const cudaError_t device_status = cudaGetDeviceCount(&device_count);
@@ -204,6 +211,8 @@ class CudaDetector final : public DetectorState {
   int height_;
   std::unique_ptr<frc971::apriltag::GpuDetector> gpu_detector_;
 };
+
+#endif
 
 class CpuDetector final : public DetectorState {
  public:
@@ -247,7 +256,50 @@ class CpuDetector final : public DetectorState {
 
 PYBIND11_MODULE(_spot_cuda, module) {
   module.doc() = "Team 766 CUDA AprilTag detector bindings for Spot Vision";
+#ifdef SPOT_WITH_CUDA
   module.attr("CUDA_AVAILABLE") = true;
+#else
+  module.attr("CUDA_AVAILABLE") = false;
+#endif
+
+  module.def("undistort_points", [](const std::vector<std::array<double, 2>> &points,
+                                     const CameraMatrix &camera,
+                                     const DistortionCoefficients &distortion) {
+    frc971::apriltag::CameraMatrix k{camera.fx, camera.cx, camera.fy, camera.cy};
+    frc971::apriltag::DistCoeffs d{distortion.k1, distortion.k2, distortion.p1,
+                                distortion.p2, distortion.k3};
+    auto result = points;
+    for (auto &point : result) {
+      if (!frc971::apriltag::UnDistort(&point[0], &point[1], &k, &d))
+        throw py::value_error("point undistortion did not converge");
+    }
+    return result;
+  });
+  module.def("refine_corners", [](const py::array &frame,
+                                   const std::array<std::array<float, 2>, 4> &corners,
+                                   const CameraMatrix &camera,
+                                   const DistortionCoefficients &distortion,
+                                   double decimate) {
+    const auto info = frame.request();
+    if (info.ndim != 3) throw py::value_error("expected packed YUYV frame");
+    const int height = info.shape[0], width = info.shape[1];
+    const auto view = ValidateFrame(frame, width, height);
+    std::vector<std::uint8_t> gray(width * height);
+    for (size_t i = 0; i < gray.size(); ++i) gray[i] = view.data[i * 2];
+    image_u8_t image{width, height, width, gray.data()};
+    struct quad q{};
+    for (int i = 0; i < 4; ++i) for (int j = 0; j < 2; ++j) q.p[i][j] = corners[i][j];
+    apriltag_detector_t detector{};
+    detector.quad_decimate = decimate;
+    frc971::apriltag::CameraMatrix k{camera.fx, camera.cx, camera.fy, camera.cy};
+    frc971::apriltag::DistCoeffs d{distortion.k1, distortion.k2, distortion.p1,
+                                distortion.p2, distortion.k3};
+    frc971::apriltag::RefineEdges(&detector, &image, &q, &k, &d);
+    std::array<std::array<float, 2>, 4> result{};
+    for (int i = 0; i < 4; ++i) for (int j = 0; j < 2; ++j) result[i][j] = q.p[i][j];
+    return result;
+  }, py::arg("frame"), py::arg("corners"), py::arg("camera"),
+     py::arg("distortion"), py::arg("decimate") = 2.0);
 
   py::class_<CameraMatrix>(module, "CameraMatrix")
       .def(py::init<>()).def_readwrite("fx", &CameraMatrix::fx)
@@ -279,11 +331,13 @@ PYBIND11_MODULE(_spot_cuda, module) {
       .def_readonly("last_detect_ms", &DetectorMetrics::last_detect_ms)
       .def_readonly("total_detect_ms", &DetectorMetrics::total_detect_ms)
       .def_readonly("last_input_address", &DetectorMetrics::last_input_address);
+#ifdef SPOT_WITH_CUDA
   py::class_<CudaDetector>(module, "CudaDetector")
       .def(py::init<int, int, const CameraMatrix &, const DistortionCoefficients &,
                     const DetectorOptions &>())
       .def("detect", &CudaDetector::Detect).def("metrics", &CudaDetector::Metrics)
       .def("reset", &CudaDetector::Reset);
+#endif
   py::class_<CpuDetector>(module, "CpuDetector")
       .def(py::init<int, int, const DetectorOptions &>())
       .def("detect", &CpuDetector::Detect).def("metrics", &CpuDetector::Metrics)
