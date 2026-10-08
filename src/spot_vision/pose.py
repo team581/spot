@@ -160,11 +160,12 @@ def robot_from_camera_transform(
 
 class PoseSolver:
     def __init__(self, calibration: Calibration | None, layout: FieldLayout | None,
-                 tag_size_m: float) -> None:
+                 tag_size_m: float, *, tag_sizes: dict[int, float] | None = None) -> None:
         self.calibration = calibration
         self.layout = layout
         self.tag_size_m = tag_size_m
         self.local_corners = _tag_corners(tag_size_m)
+        self.tag_sizes = tag_sizes or {}
         self.camera_matrix = (None if calibration is None else
                               np.asarray(calibration.camera_matrix, dtype=np.float64))
         self.distortion = (None if calibration is None else
@@ -202,8 +203,23 @@ class PoseSolver:
             for detection in known:
                 reasons[detection.id] = f"POSE_SOLVE_FAILED:{type(exc).__name__}"
             candidates = ()
+        diagnostics = {}
+        if candidates:
+            import cv2
+
+            best = min(candidates, key=lambda c: c.reprojection_error_px)
+            field_from_camera = _transform(quaternion_to_matrix(best.quaternion_wxyz), best.translation)
+            camera_cv_from_field = np.linalg.inv(field_from_camera @ _transform(NWU_FROM_OPENCV, np.zeros(3)))
+            rvec = cv2.Rodrigues(camera_cv_from_field[:3, :3])[0]
+            for detection in known:
+                field_tag = self.layout.tags[detection.id].field_from_tag
+                corners = _tag_plane_to_field(field_tag, _tag_corners(self.tag_sizes.get(detection.id, self.tag_size_m)))
+                diagnostics[detection.id] = {
+                    "distance_m": float(np.linalg.norm(field_tag[:3, 3] - best.translation)),
+                    "error_px": self._reprojection_error(corners, detection.corners, rvec, camera_cv_from_field[:3, 3]),
+                }
         used = frozenset(detection.id for detection in known) if candidates else frozenset()
-        return PoseSolution(candidates=candidates, used_tag_ids=used,
+        return PoseSolution(candidates=candidates, used_tag_ids=used, tag_diagnostics=diagnostics,
                             rejection_reasons=reasons,
                             solve_ms=(time.perf_counter_ns() - started) / 1e6)
 
@@ -214,8 +230,9 @@ class PoseSolver:
     def _solve_single(self, detection: Detection) -> tuple[PoseCandidate, ...]:
         import cv2
 
+        local_corners = _tag_corners(self.tag_sizes.get(detection.id, self.tag_size_m))
         result = cv2.solvePnPGeneric(
-            self.local_corners, detection.corners, self.camera_matrix, self.distortion,
+            local_corners, detection.corners, self.camera_matrix, self.distortion,
             flags=cv2.SOLVEPNP_IPPE_SQUARE,
         )
         if not result[0]:
@@ -228,7 +245,7 @@ class PoseSolver:
             field_from_camera_cv = field_from_tag @ tag_from_plane @ np.linalg.inv(camera_from_plane)
             field_from_camera = field_from_camera_cv @ np.linalg.inv(
                 _transform(NWU_FROM_OPENCV, np.zeros(3)))
-            error = self._reprojection_error(self.local_corners, detection.corners, rvec, tvec)
+            error = self._reprojection_error(local_corners, detection.corners, rvec, tvec)
             candidates.append(PoseCandidate(
                 method=PoseMethod.SINGLE_TAG_IPPE_SQUARE,
                 translation=field_from_camera[:3, 3].copy(),
@@ -245,7 +262,7 @@ class PoseSolver:
         image_points: list[np.ndarray] = []
         for detection in detections:
             field_from_tag = self.layout.tags[detection.id].field_from_tag
-            field_corners = _tag_plane_to_field(field_from_tag, self.local_corners)
+            field_corners = _tag_plane_to_field(field_from_tag, _tag_corners(self.tag_sizes.get(detection.id, self.tag_size_m)))
             object_points.append(field_corners)
             image_points.append(detection.corners)
         objects = np.concatenate(object_points).astype(np.float64)

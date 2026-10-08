@@ -161,8 +161,8 @@ def load_config(path: str | Path) -> ServiceConfig:
         raise ConfigError("configuration root must be an object")
 
     camera_items = _required(raw, "cameras", "config")
-    if not isinstance(camera_items, list) or not camera_items:
-        raise ConfigError("config.cameras must be a non-empty array")
+    if not isinstance(camera_items, list):
+        raise ConfigError("config.cameras must be an array")
 
     cameras: list[CameraConfig] = []
     ids: set[str] = set()

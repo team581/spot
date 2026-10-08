@@ -5,9 +5,33 @@ capture, scheduling, pose solving, NetworkTables, health, and deployment. The
 CUDA detector is a direct, attributed import of Team 766's standalone Team 971
 implementation, exposed to Python through pybind11.
 
-The full design contract is in
-[`docs/Vision Solution (Spot) Specs.md`](docs/Vision%20Solution%20(Spot)%20Specs.md).
-This first pass intentionally has no GUI and makes no roboRIO changes.
+The current contract is the
+[Spot beta robot integration plan](docs/Spot%20Beta%20Robot%20Integration%20Plan.md).
+See [implementation and qualification status](docs/Beta%20Implementation%20Status.md)
+for completed software checks and remaining work. Beta uses a distinct v2
+protocol, durable robot profiles, and reusable Java integration in
+`offseason-2026/shared`. Robot fusion defaults off and no Spot mounts are invented.
+The [original design](docs/Vision%20Solution%20(Spot)%20Specs.md) and
+[alpha verification](docs/Alpha%20Verification.md) provide historical context.
+
+The camera commands and Jetson NT server configuration below describe alpha
+development. They do not certify beta robot operation; beta robot mode uses the
+roboRIO as NT server and Jetson as client. See [v2 schema/API notes](proto/README.md).
+
+## Beta setup and review
+
+The installed beta runs with `spot-vision beta --installation
+/etc/spot-vision/beta.json` and serves its offline GUI on port 5808. Use the
+[operator guide](docs/operator/01-connect.md) for connection, code-defined camera
+names, calibration and verification; [deployment and rollback](docs/operator/09-deployment.md)
+describes immutable CUDA releases and explicit activation. Offline setup can use
+a cached robot profile, while current robot session/disabled eligibility gates
+mutations and valid output. Supply measured mounts in robot code before rollout.
+
+The [software verification report](docs/beta-verification/Software%20Verification.md)
+contains the installed CPU host checks and light/dark GUI comparisons. Follow the
+[remaining hardware trials](docs/beta-verification/Hardware%20Qualification.md)
+before declaring beta robot-ready or enabling fusion, heading or revised trust.
 
 ## Jetson prerequisites
 
@@ -85,8 +109,8 @@ provisional and should be replaced after camera calibration.
 Set each mount's `image_rotation_deg` to `0` or `180` in `config/spot.json`.
 Spot corrects capture frames before detection, pose solving, and preview,
 and transforms raw-sensor calibration intrinsics into the corrected pixel frame.
-`robot_from_camera` describes that corrected camera frame. The bundled left mount
-uses `180`; the right mount uses `0`. Changing a USB port or replacing a camera
+`robot_from_camera` describes that corrected camera frame. Use the actual
+code-provided mount orientation. Changing a USB port or replacing a camera
 on the same mount does not change this setting. Recheck it if the physical mount
 changes.
 The tag geometry is copied from WPILib 2026.2.2's official
@@ -206,7 +230,8 @@ remaining checks are documented in [Alpha Verification](docs/Alpha%20Verificatio
 `PYTHONPATH=src .venv/bin/python -m pytest` runs both the core and alpha-tool
 tests. Run `node --test tools/tests/*.cjs` for the dashboard JavaScript tests.
 
-The CUDA module and camera pipeline cannot be executed on a non-CUDA Mac.
+CUDA execution and Linux UVC qualification require the target Orin. CPU detector,
+pose, fixture and local NT4/HTTP tests run on the development Mac.
 Before robot use, run the imported GPU tests, a live known-tag/no-tag probe,
 MJPEG/YUYV comparisons, reconnect tests, a 30-minute thermal run, and the
 four-camera fairness test on the target Orin.

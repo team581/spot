@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Spot</title>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/app.css" />
+    <script defer src="/ui-state.js"></script>
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <aside id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#overview"
+        ><img src="/blazing-bulldogs.svg" alt="Blazing Bulldogs" /><strong
+          >Spot</strong
+        ></a
+      >
+      <nav id="nav"></nav>
+      <footer>
+        <div class="theme-area">
+          <button
+            id="theme-trigger"
+            class="icon-button"
+            aria-label="Theme: Auto"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          ></button>
+          <div id="theme-menu" role="menu" hidden></div>
+        </div>
+        <div id="updated">Time unavailable</div>
+        <small id="release-id">Release unavailable</small>
+      </footer>
+    </aside>
+    <main id="main" tabindex="-1"><div id="page"></div></main>
+    <div
+      id="announcement"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+    ></div>
+  </body>
+</html>

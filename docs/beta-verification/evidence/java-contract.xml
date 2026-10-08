@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.team581.vision.BetaContractTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-08T17:03:18.783Z" hostname="Simons-MacBook-Air.local" time="0.634">
+  <properties/>
+  <testcase name="mutableLimelightStorageCannotChangeQueuedOwnedMeasurement()" classname="com.team581.vision.BetaContractTest" time="0.111"/>
+  <testcase name="olderQueuedFusionCannotMarkANewerRejectedFrameAsFused()" classname="com.team581.vision.BetaContractTest" time="0.145"/>
+  <testcase name="timestampDomainsHandleSentinelsAndRejectUnverifiedClientEpoch()" classname="com.team581.vision.BetaContractTest" time="0.002"/>
+  <testcase name="transformedCameraMountUsesNwuAndInverseComposition()" classname="com.team581.vision.BetaContractTest" time="0.022"/>
+  <testcase name="correlatedMeasurementsInflateUncertaintyAndCannotImproveTrustByCameraCount()" classname="com.team581.vision.BetaContractTest" time="0.007"/>
+  <testcase name="documentationExampleCreatesIndependentProfilesForTwoRobots()" classname="com.team581.vision.BetaContractTest" time="0.257"/>
+  <testcase name="pythonAndJavaAgreeOnPacketsHashesAndCoordinateUnits()" classname="com.team581.vision.BetaContractTest" time="0.034"/>
+  <testcase name="ippeSelectionUsesCaptureHeadingAndRejectsUndecidableTranslation()" classname="com.team581.vision.BetaContractTest" time="0.003"/>
+  <testcase name="sourceCountFloorCoversCorrelatedCamerasSplitAcrossReleaseBatches()" classname="com.team581.vision.BetaContractTest" time="0.001"/>
+  <testcase name="missingHistoryNeverSubstitutesCurrentPoseOrJointAngle()" classname="com.team581.vision.BetaContractTest" time="0.004"/>
+  <testcase name="reorderWindowSpansLoopsAndDoesNotWaitForOfflineCamera()" classname="com.team581.vision.BetaContractTest" time="0.003"/>
+  <testcase name="staleFutureMalformedGenerationDuplicateAndResetPacketsFailClosed()" classname="com.team581.vision.BetaContractTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

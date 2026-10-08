@@ -1,0 +1,25 @@
+✔ numeric text stays exact through deletion, typing and theme-independent preview (3.199292ms)
+✔ intermediate and invalid text never writes; Escape restores acknowledged value (0.264875ms)
+✔ failed Enter followed by blur makes only one request until edit changes (0.717958ms)
+✔ external revision preserves focused buffer and blocks stale commit (0.429667ms)
+✔ translation and angle steppers obey exact modifier increments (0.392583ms)
+✔ history changes stacks only after successful acknowledged transaction (0.759041ms)
+✔ one slider drag serializes, coalesces final value and creates one history entry (344.366625ms)
+✔ conflicted live write leaves no misleading undo transaction (31.705042ms)
+✔ Auto theme follows OS changes; manual preference survives reload (1.932459ms)
+✔ exposure inputs and defaults are rendered in microseconds using device bounds (4.144542ms)
+✔ manual input sends raw UVC units and the selected camera token (2.341166ms)
+✔ late camera response cannot overwrite the newly selected camera (1.070167ms)
+✔ frozen and disconnected inspection prevent writes (1.655583ms)
+✔ control descriptions and menu labels escape device text (2.427667ms)
+✔ WPILib quaternion preserves up and rotates forward counterclockwise (3.501916ms)
+✔ positive WPILib pitch points forward down and reports pitch, not roll (0.865083ms)
+✔ camera coordinates use lowest-error camera candidate and stale data clears (14.332667ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 480.104084

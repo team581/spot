@@ -1,0 +1,76 @@
+Building wheel...
+*** scikit-build-core 1.0.3 using CMake 4.4.3 (wheel)
+*** Configuring CMake...
+loading initial cache file /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build/CMakeInit.txt
+-- The C compiler identification is AppleClang 17.0.0.17000319
+-- The CXX compiler identification is AppleClang 17.0.0.17000319
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/clang - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/clang++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found Python: /Users/simonparker/Documents/GitHub/spot-2026/.venv/bin/python (found version "3.11.3") found components: Interpreter Development.Module
+-- Performing Test HAS_FLTO_THIN
+-- Performing Test HAS_FLTO_THIN - Success
+-- Performing Test HAS_FLTO
+-- Performing Test HAS_FLTO - Success
+-- Found pybind11: /Users/simonparker/Documents/GitHub/spot-2026/.venv/lib/python3.11/site-packages/pybind11/include (found version "3.1.0")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Configuring done (1.8s)
+-- Generating done (0.0s)
+-- Build files have been written to: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build
+*** Building project with Ninja...
+[1/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/getopt.c.o
+[2/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/homography.c.o
+[3/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/image_u8x4.c.o
+[4/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/apriltag_pose.c.o
+[5/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/g2d.c.o
+[6/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/image_u8x3.c.o
+[7/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/pam.c.o
+[8/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/pnm.c.o
+[9/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/svd22.c.o
+[10/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/pjpeg-idct.c.o
+[11/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/unionfind.c.o
+[12/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/time_util.c.o
+[13/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/workerpool.c.o
+[14/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/zarray.c.o
+[15/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/string_util.c.o
+[16/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tag16h5.c.o
+[17/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/image_u8.c.o
+[18/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/zmaxheap.c.o
+[19/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/zhash.c.o
+[20/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tag25h9.c.o
+[21/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tag36h10.c.o
+[22/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tag36h11.c.o
+[23/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tagCircle21h7.c.o
+[24/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tagStandard41h12.c.o
+[25/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/apriltag.c.o
+[26/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/pjpeg.c.o
+[27/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tagCustom48h12.c.o
+[28/36] Building CXX object CMakeFiles/_spot_cuda.dir/cpp/host_apriltag_utils.cpp.o
+[29/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tagCircle49h12.c.o
+[30/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/tagStandard52h13.c.o
+[31/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/apriltag_quad_thresh.c.o
+[32/36] Building C object CMakeFiles/apriltag.dir/cpp/apriltag/common/matd.c.o
+[33/36] Linking C static library libapriltag.a
+[34/36] Building CXX object CMakeFiles/_spot_cuda.dir/cpp/host_bindings.cpp.o
+[35/36] Linking CXX shared module _spot_cuda.cpython-311-darwin.so
+[36/36] cd /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build && /Users/simonparker/Documents/GitHub/spot-2026/.venv/bin/python /Users/simonparker/Documents/GitHub/spot-2026/tools/build_docs.py --source /Users/simonparker/Documents/GitHub/spot-2026/docs/operator --output /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build/docs.json && /Users/simonparker/Documents/GitHub/spot-2026/.venv/bin/python /Users/simonparker/Documents/GitHub/spot-2026/tools/build_manifest.py --root /Users/simonparker/Documents/GitHub/spot-2026 --native /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build/_spot_cuda.cpython-311-darwin.so --cuda OFF --docs /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build/docs.json --output /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/build/build-manifest.json
+*** Installing project into wheel...
+-- Install configuration: "Release"
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/schemas/vision.proto
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/schemas/vision_v2.proto
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/schemas/README.md
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/_spot_cuda.cpython-311-darwin.so
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/build-manifest.json
+-- Installing: /var/folders/qv/vvy_fdnn5gvbbbxhqr089sdc0000gn/T/tmpx3g55v0b/wheel/platlib/spot_vision/web/docs.json
+*** Making wheel...
+*** Created spot_vision-0.2.0-cp311-cp311-macosx_27_0_arm64.whl
+Successfully built /private/tmp/spot-beta-wheels/spot_vision-0.2.0-cp311-cp311-macosx_27_0_arm64.whl

@@ -1,9 +1,16 @@
 # Spot Vision System Design Specification
 
-Status: proposed implementation design  
+Status: historical design; superseded by the [reviewed beta contract](Spot%20Beta%20Robot%20Integration%20Plan.md)
 Primary target: Jetson Orin Nano 8GB with up to four prototype cameras  
 Primary function: FRC AprilTag localization  
 Design priority: reliability and observability before peak frame rate
+
+Use [beta implementation status](Beta%20Implementation%20Status.md) for current
+software and qualification evidence. The native-service recommendation, four-camera
+scope, first-generation transport and experimental uncertainty formulas below
+record original intent; they are not current beta operational requirements.
+Beta preserves Python orchestration/C++ detection, supports configured camera counts
+within a measured resource budget, and assigns timing/quality ownership to robot code.
 
 ## 1. Goal and scope
 

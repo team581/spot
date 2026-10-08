@@ -1,0 +1,103 @@
+{
+  "fileId": "fd558256-f8c8-8184-8008-c139acc14eb0",
+  "pageId": "fd558256-f8c8-8184-8008-c139acc14eb1",
+  "revision": 3,
+  "boards": [
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13a598e0a8b",
+      "name": "01 Overview"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13a8ffae0f4",
+      "name": "02 Camera detail"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13a9248e73a",
+      "name": "03 Camera name"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13a94792fb3",
+      "name": "04 Calibration capture"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13a9b19fb3f",
+      "name": "05 Calibration results and history"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13aae24562e",
+      "name": "06 Network"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13ab0db9704",
+      "name": "07 Docs"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13ab4eb57d8",
+      "name": "08 Compact camera"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13ab8dbbb2f",
+      "name": "09 Camera geometry"
+    },
+    {
+      "id": "4c4fbdcb-0121-801d-8008-c13abe21fc2c",
+      "name": "10 System"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1ba6a6d24c5",
+      "name": "11 States"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1bdeec53e49",
+      "name": "Dark / 01 Overview"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1bdf86a7b0b",
+      "name": "Dark / 02 Camera detail"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be06a0c372",
+      "name": "Dark / 03 Camera name"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be09edca5f",
+      "name": "Dark / 04 Calibration capture"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be336c3850",
+      "name": "Dark / 05 Calibration results and history"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be5e386a62",
+      "name": "Dark / 06 Network"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be5ee998a1",
+      "name": "Dark / 07 Docs"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be60223e67",
+      "name": "Dark / 08 Compact camera"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be6a14a101",
+      "name": "Dark / 09 Camera geometry"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be6c3793f2",
+      "name": "Dark / 10 System"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1be6d911e05",
+      "name": "Dark / 11 States"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1bece757194",
+      "name": "12 Theme menu · Auto"
+    },
+    {
+      "id": "c33bbb28-4f6e-8044-8008-c1becf3344b1",
+      "name": "Dark / 12 Theme menu · Auto"
+    }
+  ]
+}

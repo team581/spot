@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -225,6 +226,7 @@ class CaptureWorker(threading.Thread):
             configure_controls(self.camera, device)
             self.controls.reapply(device)
         capture, converts_from_bgr = open_capture(cv2, self.camera, device)
+        capture_epoch = uuid.uuid4().hex
         sequence = 0
         frame_rate = FrameRateCounter()
         self.counters.fps_capture = 0.0
@@ -252,6 +254,7 @@ class CaptureWorker(threading.Thread):
                     capture_timestamp_us=nt_now_us() + self.camera.timestamp_correction_us,
                     captured_monotonic_ns=monotonic_ns,
                     image=image,
+                    capture_epoch=capture_epoch,
                 )
                 if self.slot.put(packet):
                     self.counters.overwritten_before_processing += 1

@@ -98,3 +98,15 @@ def test_linux_64_bit_ioctl_layouts_match_videodev2_header():
     assert ct.sizeof(module._Parameters) == 204
     assert ct.sizeof(module._RequestBuffers) == 20
     assert module._request(17, module._Buffer) == 0xc0585611
+
+
+def test_bounded_yuyv_capture_removes_driver_padding_and_owns_snapshot(monkeypatch):
+    import numpy as np
+    source, operations = capture(monkeypatch, [(0,0)])
+    source.pixel_format,source.width,source.height,source.bytes_per_line = "YUYV",2,2,6
+    source.buffers[0] = bytes([1,2,3,4,99,99,5,6,7,8,99,99])
+    ok, image = source.read()
+    assert ok and image.flags.c_contiguous and image.flags.owndata
+    assert image.shape == (2,2,2)
+    assert np.array_equal(image.reshape(-1),[1,2,3,4,5,6,7,8])
+    assert operations == [("dequeue",0),("requeue",0)]

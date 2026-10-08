@@ -30,6 +30,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--json-logs", action="store_true")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
+    beta = subcommands.add_parser("beta", help="run the installed robot-integrated beta and GUI")
+    beta.add_argument("--installation", default="/etc/spot-vision/beta.json")
+    beta.add_argument("--state-root", default="/var/lib/spot-vision")
+
+    verify = subcommands.add_parser("verify-release", help="verify installed Python/native identity")
+    verify.add_argument("--backend", choices=("cpu", "cuda"), default="cuda")
+
     daemon = subcommands.add_parser("daemon", help="run the complete vision service")
     daemon.add_argument("--config", required=True)
 
@@ -331,6 +338,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     configure_logging(args.verbose, args.json_logs)
     try:
+        if args.command == "beta":
+            from .beta_app import run_beta
+            return run_beta(args)
+        if args.command == "verify-release":
+            from .release import installed_identity
+            print(json.dumps(installed_identity(backend=args.backend), indent=2))
+            return 0
         if args.command == "daemon":
             service = VisionService(load_config(args.config))
             service.run_forever()

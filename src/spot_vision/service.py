@@ -12,7 +12,7 @@ from .health import Watchdog, jetson_temperature_c
 from .models import CameraCounters, DetectedFrame, FramePacket, PoseCandidate, PoseSolution
 from .native import Detector, create_detector
 from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_robot_pose
-from .queues import BoundedDropOldestQueue, LatestFrameSlot
+from .queues import BoundedDropOldestQueue, FairResultQueue, LatestFrameSlot
 from .scheduler import FairDetectorScheduler
 from .transport import NtPublisher, make_vision_frame
 
@@ -36,6 +36,7 @@ class OutputWorker(threading.Thread):
         self.field_revision = field_revision
         self.frame_observer = frame_observer
         self.result_observer = result_observer
+        self.last_progress_monotonic = time.monotonic()
         self.robot_from_cameras = {
             camera_id: robot_from_camera_transform(
                 camera.robot_from_camera_translation,
@@ -46,11 +47,17 @@ class OutputWorker(threading.Thread):
 
     def run(self) -> None:
         while not self.stop_event.is_set():
+            self.last_progress_monotonic = time.monotonic()
             detected = self.queue.get(timeout=0.1)
             if detected is None:
                 continue
             camera_id = detected.frame.camera_id
-            solution = self.solvers[camera_id].solve(detected.batch.detections)
+            try:
+                solution = self.solvers[camera_id].solve(detected.batch.detections)
+            except Exception as exc:
+                self.counters[camera_id].error = f"Pose solver: {exc}"
+                LOGGER.warning("camera %s pose solve failed: %s", camera_id, exc)
+                continue
             if self.frame_observer is not None:
                 try:
                     self.frame_observer(detected.frame)
@@ -120,8 +127,6 @@ class VisionService:
         self._closed = False
         self.wake_event = threading.Event()
         enabled = [camera for camera in self.config.cameras if camera.enabled]
-        if not enabled:
-            raise ConfigError("at least one camera must be enabled")
         self.cameras = {camera.id: camera for camera in enabled}
         self.counters = {camera.id: CameraCounters() for camera in enabled}
         self.calibrations: dict[str, Calibration | None] = {}
@@ -155,23 +160,30 @@ class VisionService:
                     counter.configuration_error = str(exc)
                     counter.error = str(exc)
         self.field_revision = self.layout.revision if self.layout else self.config.field_revision
-        self.detectors: dict[str, Detector] = {
-            camera.id: create_detector(camera, self.calibrations[camera.id]) for camera in enabled
-        }
+        self.detectors: dict[str, Detector] = {}
+        usable = []
+        for camera in enabled:
+            try:
+                self.detectors[camera.id] = create_detector(camera, self.calibrations[camera.id])
+                usable.append(camera)
+            except Exception as exc:
+                self.counters[camera.id].configuration_error = f"Detector initialization: {exc}"
+                self.counters[camera.id].error = self.counters[camera.id].configuration_error
+                LOGGER.warning("camera %s detector unavailable: %s", camera.id, exc)
         self.solvers = {
             camera.id: PoseSolver(self.calibrations[camera.id], self.layout,
                                   self.config.tag_size_m)
             for camera in enabled
         }
         self.slots = {camera.id: LatestFrameSlot(self.wake_event) for camera in enabled}
-        self.result_queue: BoundedDropOldestQueue[DetectedFrame] = BoundedDropOldestQueue(
-            self.config.result_queue_capacity)
+        per_camera_capacity = max(1, self.config.result_queue_capacity // max(1, len(enabled)))
+        self.result_queue = FairResultQueue([camera.id for camera in enabled], per_camera_capacity)
         self.capture_workers = [CaptureWorker(
             camera, self.slots[camera.id], self.counters[camera.id], self.stop_event,
             self.capture_observer)
             for camera in enabled]
         self.scheduler = FairDetectorScheduler(
-            [camera.id for camera in enabled], self.slots, self.detectors, self.counters,
+            [camera.id for camera in usable], self.slots, self.detectors, self.counters,
             self.result_queue, self.wake_event, self.stop_event,
         )
         self.publisher = NtPublisher(self.config.nt, [camera.id for camera in enabled])
@@ -212,6 +224,11 @@ class VisionService:
                         },
                     }},
                 )
+                now = time.monotonic()
+                failed = [worker.name for worker in (self.scheduler,self.output_worker)
+                          if not worker.is_alive() or now-worker.last_progress_monotonic > 2.]
+                if failed:
+                    raise RuntimeError("pipeline workers stalled: " + ", ".join(failed))
                 self.watchdog.ping(summary)
         finally:
             self.stop()

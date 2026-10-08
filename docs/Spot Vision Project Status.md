@@ -1,14 +1,30 @@
 # Spot Vision Project Status
 
-Last updated: September 29, 2026
+Last updated: October 8, 2026
 
-Last target hardware verification: September 15, 2026
+Hardware evidence: [October 4 alpha verification](Alpha%20Verification.md).
 
-Overall status: **The two-camera alpha service is deployed on the target Jetson, jointly solves multi-tag observations, and publishes independent typed robot poses over NT4. Both camera pipelines and the AdvantageScope connection are hardware-validated. A live field-relative pose has not yet been observed because no known tag was visible during the latest verification; measured calibration, physical extrinsics, pose accuracy, endurance, and robot integration remain pending.**
+Overall status: **Beta software implementation is complete in Spot and the shared
+robot integration. The installed GUI/calibration workflow, durable configuration,
+v2 transport/time gates, owned robot consumer, diagnostics and release/rollback
+tools are implemented and software-tested. Hardware qualification and fusion
+activation are deferred; no beta release has been deployed.**
 
-The complete design requirements are in [Vision Solution (Spot) Specs.md](./Vision%20Solution%20(Spot)%20Specs.md). The current implementation intentionally overrides the original native-daemon recommendation: service orchestration is written in Python, while Team 766's detector remains in C++20/CUDA behind a pybind11 extension.
+The current requirements are in the [beta plan](Spot%20Beta%20Robot%20Integration%20Plan.md).
+[Implementation status](Beta%20Implementation%20Status.md) records current evidence.
+The [October 8 software verification](beta-verification/Software%20Verification.md)
+records 421 Python, 17 JavaScript, 12 Java contract and 24 offseason regression
+tests, three robot-project compiles, the installed CPU Mac artifact and GUI comparison evidence. The
+[hardware checklist](beta-verification/Hardware%20Qualification.md) retains every
+unperformed target-hardware gate; the offseason Spot profile awaits measured
+mounts, and fusion/heading/revised trust are off.
+The October 4 report supersedes the September hardware notes below, recording
+four-camera operation, live image verification, and 349 Python/eight JavaScript
+cases at that checkpoint. Those historical results do not establish beta timing,
+physical accuracy, endurance or power-loss acceptance. Keep Python orchestration
+and the existing C++/CUDA detector; no language rewrite is planned.
 
-## Executive Summary
+## September alpha summary (historical)
 
 The first-pass Spot vision service has been implemented and deployed. It includes the imported Team 766 CUDA AprilTag detector, multi-camera Python capture and scheduling, single- and joint multi-tag pose solving, protobuf diagnostics, typed WPILib `Pose3d` NT4 output, health reporting, replay and benchmark commands, and a persistent systemd service.
 
@@ -36,7 +52,7 @@ flowchart LR
 
 This proves the deployed two-camera capture, processing, and NT4 visualization path. It does not yet prove live field-relative pose accuracy or production reliability.
 
-## Current Target Configuration
+## Alpha target configuration notes (historical)
 
 | Item | Current state |
 | --- | --- |

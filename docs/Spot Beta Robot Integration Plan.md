@@ -2,9 +2,9 @@
 
 **Review draft — October 4, 2026**
 
-**Updated October 7, 2026:** explicit startup, boot-time, Ethernet/power recovery and roboRIO–Jetson timestamp-sync requirements added.
+**Updated October 7, 2026:** explicit startup, boot-time, Ethernet/power recovery and roboRIO–Jetson timestamp-sync requirements; approved Penpot revision 3 UI/UX, detailed control behavior and design-to-code handoff added.
 
-**Goal:** deploy Spot on the 2026 offseason robot, with reusable support for every Team 581 2026 robot. Students should configure camera roles and mounts in robot code, assign physical cameras through the GUI, calibrate them, and receive reliable vision measurements through the existing localization system.
+**Goal:** deploy Spot on the 2026 offseason robot, with reusable support for every Team 581 2026 robot. Students should configure camera names and mounts in robot code, name physical cameras through the GUI to match those definitions, calibrate them, and receive reliable vision measurements through the existing localization system.
 
 This is an implementation specification for review. Proposed thresholds and behavior changes are called out so the team can edit them before handing this plan to an implementation agent.
 
@@ -77,7 +77,7 @@ Separate a **logical camera role**, such as `front-left`, from a **physical came
 
 | Setting | Authority | Persistence and GUI behavior |
 | --- | --- | --- |
-| Robot ID/profile, camera roles, required/optional cameras | Robot code | Jetson caches the last accepted complete profile; GUI shows code ownership |
+| Robot ID/profile, camera roles, required/optional cameras | Robot code | Jetson caches the last accepted complete profile; GUI uses compact locked controls where required, with Reset to code defaults where allowed |
 | Mount transform, image orientation, field layout and origin | Robot code | Cached for GUI visualization; robot applies mount transforms for fusion |
 | Required capture mode or allowed operating modes; required controls | Robot code | Jetson negotiates only within declared constraints |
 | Physical device assigned to a role | Jetson GUI | Stored by robot profile; independent of USB enumeration order |
@@ -98,16 +98,16 @@ Store writable state under `/var/lib/spot-vision/`, outside release/source direc
 
 Configuration mutations happen while the robot is disabled, or during an explicit standalone setup session with no robot connected. Losing NT while enabled must not automatically unlock setup: require a confirmed disabled state or an explicit standalone-session transition after the connection is known lost. Reject writes server-side when state is unknown. Recheck eligibility at commit time. Read-only viewing stays available while enabled.
 
-## 4. Plug-and-play cameras and assignment
+## 4. Plug-and-play cameras and persistent naming
 
 On connection, enumerate UVC/V4L2 capabilities, capture nodes, USB topology, vendor/product identifiers, serial if available, supported pixel formats/modes and controls. Group metadata/alternate nodes belonging to the same physical camera. Give unassigned devices short persistent display IDs, such as `USB-A3`, and previews through the same device manager used by the runtime.
 
-Assignment workflow:
+GUI naming workflow (the persistent device binding is an internal assignment):
 
-1. Plug in a camera; its preview appears under **Unassigned**.
-2. Click **Assign**. The GUI offers unfilled roles from the current robot manifest, or clearly marked cached roles if the robot is offline.
-3. Select the role and preview-confirm it. GUI displays the code-provided mount/orientation and resulting calibration status.
-4. Save once; assignment survives application restart and Jetson power cycle.
+1. Plug in a camera; its preview and persistent short name appear directly in the Cameras sidebar with a warning if its name is not configured in robot code.
+2. Open that camera. The **Camera name** panel offers available names from the current robot manifest, or clearly marked cached names if the robot is offline.
+3. Select the matching code-defined name and preview-confirm the physical camera. Use **Rename**, not Assign. Display the corresponding code-provided mount/orientation and calibration state on the camera's pages.
+4. Complete one acknowledged rename; the binding survives service restart and Jetson power cycle. Preserve compatible physical-camera calibration. Renaming does not create a definition in robot code.
 
 Use unique physical serial identity when trustworthy. Duplicate/missing serials require persistent USB-port bindings and visible identification by preview. Never match identical cameras by discovery order or assign a new device merely because it is the only unfilled role. A unique-serial device can follow its role across ports; an indistinguishable device moved between port bindings requires reassignment.
 
@@ -119,7 +119,7 @@ Probe modes with bounded timeouts and verify actual dimensions, format and deliv
 
 A new device can automatically choose a working preview mode. Production may automatically select only an allowed mode with matching validated calibration. Never quietly resize a calibrated pipeline or reuse intrinsics after crop, lens/focus, resolution, or relevant sensor-mode changes. Record timestamp quality and actual FPS when the driver supplies less than requested. Excessive USB contention must appear as a system problem, not be hidden by infinite retries.
 
-Health distinguishes **Missing**, **Unassigned**, **Calibration needed**, **Configuration mismatch**, **Ready**, **No tags**, **Recovering** and **Disabled**. Required missing/unready roles fault on the robot; extra unassigned devices produce a setup notice, not a persistent match error. “No tags” is normal operation.
+Internal health distinguishes **Missing**, **Unassigned**, **Calibration needed**, **Configuration mismatch**, **Ready**, **No tags**, **Recovering** and **Disabled**. Required missing/unready roles fault on the robot; extra unassigned devices produce a setup notice, not a persistent match error. “No tags” is normal operation. These are backend state names; Section 8 defines concise GUI presentation and replaces user-facing Unassigned/Ready labels.
 
 ## 5. Observation contract and time
 
@@ -239,31 +239,147 @@ Measure OS boot, service start, state load, camera enumeration, first processed 
 | Both computers lose power, or Ethernet and power return in any order | Saved settings remain intact; no assumption about which device starts first | Each component retries its own dependency asynchronously and converges to the same ready/degraded state; no manual ordering or estimator reset is required |
 | Camera/USB-hub power interrupted independently | Existing per-device recovery applies; unaffected cameras continue, and frames from the old capture epoch become ineligible | Rediscover the same persistent bindings, verify mode/control/calibration compatibility, create new capture epochs and recover only verified roles |
 
-Short cable interruptions, extended outages and repeated flapping follow these same rules. Recovery may run while the robot is enabled using its already authorized profile; this does not unlock GUI configuration changes. Uncommitted drafts may be lost after power removal, but the last committed settings must survive. The plan guarantees application-state recovery on a healthy filesystem; test sudden-power-loss boot reliability and report hardware/filesystem failures explicitly. Reconnect events never silently reseed the estimator or clear accumulated trust degradation. Active faults clear only after verified pipeline/connection recovery.
+Short cable interruptions, extended outages and repeated flapping follow these same rules. Recovery may run while the robot is enabled using its already authorized profile; this does not unlock GUI configuration changes. In-progress local edits or unacknowledged live-control requests may be lost after power removal, but the last committed settings must survive; camera tuning has no saved-draft feature. The plan guarantees application-state recovery on a healthy filesystem; test sudden-power-loss boot reliability and report hardware/filesystem failures explicitly. Reconnect events never silently reseed the estimator or clear accumulated trust degradation. Active faults clear only after verified pipeline/connection recovery.
 
-## 8. Production GUI
+## 8. Production GUI and approved UI/UX
 
-Persistent left sidebar:
+The approved visual reference is **Spot Beta — GUI Reference**, revision 3, October 7, 2026, page **GUI reference · Beta**: [open Penpot](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1). The companion [GUI handoff](gui-beta-design/README.md) and [board ID manifest](gui-beta-design/penpot-reference.json) are stored alongside this plan in the repository workspace. Section 14 gives the required design-reference workflow for the implementation agent.
 
-- **Overview**
-- **Cameras**, with one entry per configured role and an **Unassigned** entry when needed
-- **Calibration**
-- **Network & System**
-- **Docs**
+This section replaces the earlier GUI proposal. Follow the approved composition, terminology and interactions; preserve the configuration, timing, calibration and robot-safety contracts elsewhere in this plan. Penpot is a visual reference with illustrative data and navigation hotspots, not evidence that controls or backend behavior already work. Never copy its sample modes, ranges, mounts, network values, release hashes, rates or calibration results into production defaults.
 
-Use Team 581/Blazing Bulldogs identity, approved logo assets and flat team-color accents over neutral surfaces. If exact brand assets are unavailable, use a simple `581 / Spot` wordmark and isolated theme tokens for later replacement. No gradients, glow, decorative animation, marketing text or tutorial paragraphs. Use short labels, units and meaningful status text; deeper instructions live in Docs. Status must be readable without relying on color. Support keyboard interaction, laptop screens and a collapsed sidebar on smaller screens.
+### 8.1 Application shell, navigation and visual language
 
-**Overview:** all role previews, including missing-camera placeholders; name, capture/detection FPS, tag count, calibration/readiness and latest measurement age. A compact system strip shows robot/NT connection, clock validity, ready/required count and active release. Clicking a tile opens that camera. Hide stale overlays; label frozen/stale frames visibly. Detailed counters live on deeper pages.
+- Persistent left sidebar, in this order: **Overview**, **Cameras** and individual camera entries, **Calibration**, **Network**, **System**, **Docs**. Network and System are separate pages. Individual cameras are navigation entries even when unnamed, uncalibrated or disconnected; there is no separate Unassigned page/group.
+- Add a consistent outline icon to each main navigation entry. Individual cameras have text names without decorative camera icons. Show a warning symbol beside a camera needing a code-defined name or calibration. Tooltip and accessible description identify the reason; multiple warnings must remain distinguishable. Preserve entries for configured missing cameras and show missing state rather than dropping them from navigation.
+- Selected navigation uses a burgundy rounded background and white foreground. Use the actual [Blazing Bulldogs vector logo](https://logos.frc.sh/logos/581.svg), preserving its proportions/colors, with the Spot name. Package the SVG locally; do not fetch it during offline operation. Remove the old square containing 581.
+- No GUI-wide top bar, top-right Docs button, Offseason label, Robot disabled pill or Overview quick-status strip. Page titles and page-specific tabs remain. Mutation eligibility/locks appear beside affected controls; connection, clock and deployment diagnostics live in Network/System. Removing a global pill does not remove server-side mutation eligibility checks.
+- Use **Source Sans Pro** throughout, packaged locally for offline use. Use Fetch's restrained visual language: neutral backgrounds, white/light or dark surfaces, burgundy selection/primary actions, thin borders, modest rounding. No gradients, glow, decorative animation, marketing copy, welcome paragraphs or vague status cards. Copy should identify data, an action or a concrete fault; longer explanations belong in Docs or contextual help.
+- The full reference boards are 1440×900: 216 px sidebar, content beginning at x=248, 32 px outer content gutter, 28 px page title, typically 18 px panel titles, 14–16 px body/control text, 12–13 px secondary data. Surfaces use roughly 8 px corners; controls roughly 5–6 px; main navigation 36 px rows. These are baseline measurements to inspect in Penpot, not a reason to absolutely position an entire app.
+- The 1024×900 compact Camera board uses a 72 px icon sidebar, content at x=96, a 246 px Config panel and a 638 px feed. Use flexible grid/flex layouts and intrinsic sizing, retaining the left Config/feed relationship while space permits. Below that width, stack panels and provide a usable camera selector/navigation drawer. Avoid horizontal page overflow, clipped units and tiny controls. Do not hide required data or actions solely to imitate a screenshot.
+- Use tabular numerals for changing telemetry and numeric controls. Keep unit suffixes visible. Keyboard navigation, visible focus, semantic buttons/inputs, accessible labels and meaningful text states are required. Icon glyphs can be visually small while their hit targets remain practical. Color cannot be the only indication of faults, selection or disabled state.
 
-**Camera page:** large stream; toggle tag/corner/axis overlays; freeze inspection; observed and used IDs; solver alternatives; reprojection metrics; field/camera/robot visualization with correctly named coordinate frames. Display robot-reported acceptance/rejection and selected candidate separately from Jetson solver/display output; if no robot is connected, show that state. Add physical identity/binding, requested/applied mode, calibration history and code-owned mount view. Expose supported exposure/gain first, advanced controls in an expandable section. Draft edits have Apply/Reset; live preview tuning must never masquerade as saved state.
+### 8.2 Light, dark and Auto theme
 
-**Calibration:** select one, several or all configured cameras in one session; use live tiles, board detection, coverage grid, view count, quality and progress. Operators can move one board between camera views; simultaneous visibility is not required. Start/pause/retry per camera or all. Background compute must leave UI and other cameras responsive. Show concise actionable failure reasons and reviewable metrics.
+Default to **Auto** on a new browser. Auto follows `prefers-color-scheme` and reacts to OS preference changes without reloading. Persist Auto/Light/Dark in browser storage only; theme is not a robot or Jetson configuration setting. Apply the resolved theme at startup without a visible wrong-theme flash where feasible.
 
-**Network & System:** configured/discovered robot endpoint, link and NT status, clock state, USB topology, CPU/GPU/thermal state, drop counters and active faults. Include startup stage/timings, time-sync status/update age, reconnect history, deployment/build information and support-bundle export. Beta's networking page is primarily diagnostics; changing OS addresses from the GUI is out of scope unless added explicitly. Keep the static Jetson setup procedure and expected power/Ethernet recovery behavior in Docs.
+Use an icon-only trigger near the bottom of the sidebar: monitor for Auto, sun for Light, moon for Dark. Its compact popup has those three icons with selected styling, tooltips and accessible names; no visible text labels are needed. Support keyboard opening, radio-style selection, focus return and Escape dismissal. Changing theme preserves the current route, camera, scroll position, unsent local number edit and preview pause state. The Penpot popup links to Overview as a demonstration; do not reproduce that navigation side effect.
 
-**Docs:** packaged locally, searchable and reachable from every page, with contextual deep links. Cover new/replacement cameras, role assignment, duplicate serials, ChArUco setup, calibration quality, measuring mounts/coordinate axes, GUI controls, Java integration, quality/fault meanings, logs, networking, deployment and rollback. Provide a student quick start and one complete offseason robot example. No internet dependency or second manually maintained copy of the same guide. Package documentation and GUI assets in installation tests.
+Use semantic CSS tokens instead of ad hoc per-page colors. Baseline tokens:
 
-API mutations use validated structured requests, a session/CSRF control, same-origin checks and optimistic revision checking; two browsers must not silently overwrite each other. Bound stream resolution/rate/client count and stop hidden-tab work. Local network operation needs no cloud service. Do not expose an unauthenticated shell or arbitrary filesystem paths through the GUI.
+| Purpose | Light | Dark |
+| --- | --- | --- |
+| App background | `#F4F5F7` | `#10151C` |
+| Panel/sidebar surface | `#FFFFFF` | `#171E27` |
+| Main text | `#202226` | `#E6EDF3` |
+| Secondary text | `#66696E` | `#A2ADB9` |
+| Border/divider | `#DEE3E8` | `#303947` |
+| Selected navigation/primary action | `#591616` | `#8C3D46` |
+| Soft accent surface | `#F6EEEE` | `#342229` |
+| Positive data | `#226844` | `#79D6A5` |
+| Warning data | `#825A16` | `#E5BA72` |
+| Visualization blue | `#255A86` | `#88B9ED` |
+| Unavailable history icon | `#BFC5CC` | `#505B69` |
+
+Dark contextual accent text uses the lighter `#E9ABB3`; selected navigation/primary actions retain white foreground. [Light tokens](gui-beta-design/tokens.json) and [dark mappings](gui-beta-design/dark-tokens.json) include additional surfaces. Preserve camera pixels and logo colors; theme only the surrounding UI and vector visualization. Verify text/control contrast, hover/focus and disabled states in both themes rather than blindly mapping every white pixel to a dark color.
+
+### 8.3 Overview: glanceable camera tiles
+
+Reference **01 Overview** and its dark counterpart. Use a two-column grid at the full desktop size; adapt the column count to available width. Each tile contains camera name, small calibration indication, feed and one prominent row of metrics. Clicking its main area opens that camera, with accessible keyboard activation.
+
+- Show detection throughput, current-frame tag count and time since the latest frame as **18 FPS**, **2 tags**, **48 ms**. Number and unit/label use the same size and weight, approximately 23 px semibold in the reference; do not put FPS/ms/tags in tiny labels or split them onto a second line. Define FPS as usable detector/solver output cadence, not browser stream cadence. Capture FPS belongs in deeper pipeline diagnostics. Use compact seconds when appropriate, e.g. **2.4 s**.
+- Use **— FPS** and **— tags** for unavailable metrics, not zero masquerading as data. Zero tags on a current processed frame is normal, not a fault. Bind metrics/overlays to coherent frame data; keep last-frame age advancing during disconnect or stall.
+- Calibration success is a tiny nonintrusive **✓ calibrated** marker, approximately 12 px. It means an active calibration compatible with this physical camera and optical mode. An incompatible/missing calibration produces a warning with a concrete reason. Connectivity and calibration are separate: a disconnected camera can still have a valid saved calibration.
+- No Ready badges, LIVE feed overlays, global quick-status cards or duplicate counters. Missing/disconnected cameras keep a placeholder and name, with **Disconnected** and last-frame age. Stale/frozen frames are explicitly marked and stale detection overlays are removed. A retained last image must not appear current.
+
+### 8.4 Camera page: live Config, feed, detections and 3D
+
+Reference **02 Camera detail**, **08 Compact camera** and dark counterparts. Page title is the camera name; **Camera / Geometry** tabs sit below it. Config is on the **left** of the feed. At full width the reference has a 292 px Config panel and an 840 px feed region. Below the feed place a compact **Detections** table and a small 3D view. Remove the earlier three generic summary boxes and explanatory prose.
+
+**Config** is the panel title, replacing Operating settings. Place exposure, gain and brightness first when supported, with live sliders and adjacent readable numeric readouts. Range, step, units, availability and readback come from device capabilities and robot policy. Capture resolution/rate are compact selectors; advanced supported controls expand on demand. Do not show fabricated universal controls or ranges. Make unsupported/pinned settings unavailable with a concise reason/lock indication. Retain **Reset to code defaults** where meaningful; put **Copy settings as code** in Advanced rather than adding another prominent Overview action.
+
+Tuning has **no Save draft or Apply button**. Validate and send eligible changes at a bounded rate during slider manipulation; guarantee delivery of the final value when a gesture finishes. Track the local requested value, pending request and actual device readback separately. Show concise applied/readback data and inline clipping/rejection feedback. Persist acknowledged values automatically through the configuration service. Never indicate applied/saved success from optimistic browser state alone. Rejected requests preserve the previous acknowledged setting; the field shows the attempted value and actionable reason where appropriate. Capability changes during a drag require reconciliation.
+
+Use **Show detection outlines** for the image overlay toggle: tag boundaries and IDs. Use **Pause image** for display-only freeze; processing and robot publication continue. A paused image shows paused state and the age/identity of the held frame. Resume uses a fresh image, not a backlog. Do not expose unexplained Tags, Corners, Axis or Freeze buttons; extra corner/axis diagnostics may live in Advanced with clear names. Hide overlays that do not belong to the shown frame.
+
+The Detections table uses real IDs, range, reprojection error with units, and whether each tag was used. Show the robot's reported accepted/rejected state and fusion flag separately from Jetson solve/display selection. A valid Jetson pose is not proof of robot acceptance. With no robot, display unavailable robot decision, retaining useful local inspection. Candidate alternatives and detailed solver diagnostics can be expanded rather than filling the main page with cards.
+
+Reuse the alpha orthographic 3D viewer's projection, orbit/zoom/reset, candidate colors and frame-validity handling from `tools/alpha_dashboard.html`. The small viewer shows robot/camera geometry and observed tags; it links to Geometry. Use actual accepted field layouts and manifest transforms, correctly label coordinate frames, and distinguish candidates/selected poses. Penpot wireframes are illustrations, not a new solver or measured mount source. Load heavier visualization lazily and keep preview/3D work within the throughput budget.
+
+### 8.5 Geometry: compact number editing and mount visualization
+
+Reference **09 Camera geometry** and its dark counterpart. Reach it from the selected camera's **Geometry** tab or its small 3D view. Retain the camera context and sidebar selection. There is no separate unexplained Geometry item in the global sidebar.
+
+Use a compact left panel with **X, Y, Z** in meters and **Yaw, Pitch, Roll** in degrees, and **Reset to code defaults**. No position/angle sliders. At desktop size the reference has a 292×485 px panel, 42 px high number fields and a large adjacent viewer. The view is an isometric outline drivebase with a clear **Front** arrow and a camera body with a **Lens** direction arrow. Orbit/zoom/reset must work. Preview finite edits immediately in 3D and keep a concise transform readout. Calibration history is exclusively on Calibration.
+
+Runtime transforms follow WPILib +X forward, +Y left, +Z up and the established rotation convention. Convert degree display to backend angle units explicitly, with known-transform tests; never infer angle order from drawing labels. Defaults come from robot code. The renderer must use actual camera transforms, not Penpot's sample coordinates. Geometry editing cannot silently change transform authority: if robot policy does not explicitly support overrides, production controls/history are locked and show the current code values. A permitted inspection-only preview must be labeled as such and cannot be presented as applied robot geometry.
+
+**Number-field interaction contract:**
+
+1. Keep a local string edit buffer (text input with decimal input mode), separate from parsed preview and acknowledged configuration. Normal click places the caret where clicked. **Never automatically select all on focus.** Do not remount the input on each update.
+2. Preserve caret/selection and ordinary Backspace/Delete behavior, especially removal/replacement of final digits. Do not append zeros, normalize decimals, clamp or reformat on every input event. Background polling must not replace the focused edit buffer.
+3. Accept intermediate empty text, a minus sign, trailing decimal and partial decimal while editing. A finite syntactically valid value updates the preview; incomplete or invalid text keeps the last valid visualization. Do not turn empty input into zero.
+4. Enter or blur attempts one validated commit. Escape cancels the edit and restores the last acknowledged value. Invalid/out-of-range values retain their entered text with nearby feedback; do not silently fix them. Deduplicate Enter followed by blur. After acknowledgement, reconcile the committed value without moving an active caret unexpectedly.
+5. Units are fixed suffixes outside the editable text. Subtle up/down steppers and ArrowUp/ArrowDown support deterministic adjustment. Initial UX steps: 0.01 m / 1°; Shift is coarse 0.1 m / 10°; Alt is fine 0.001 m / 0.1°. Validate against supported limits, document shortcuts and make keyboard/stepper changes follow the same acknowledged commit/history path. Wheel scrolling must not change numeric values accidentally.
+6. Preserve native text undo/redo while editing. Toolbar history operates on acknowledged configuration changes, not partial keystrokes. Concurrency changes while focused are surfaced without discarding the buffer; a revision conflict requires reconciling current server values before committing or undoing.
+
+### 8.6 Compact undo/redo and configuration state
+
+Undo/redo are **borderless, icon-only buttons on the same row as the Config/Geometry panel heading**. The reference uses roughly 20 px icons spaced 32 px apart. No text labels or permanent outlines. Give them accessible names/tooltips and practical hit targets; use quiet hover treatment and a focus ring for keyboard users.
+
+Grey and disable actions when their history stack is empty, the relevant operation is pending, policy pins the setting, or mutation eligibility is unavailable. The Camera reference shows Undo available and Redo unavailable; Geometry/locked compact references show both unavailable. These are sample states, not hard-coded initial availability. Tooltip/accessibility text explains why an action is unavailable.
+
+A complete slider gesture is one history item; each acknowledged number-field commit is one item. Do not add entries for every drag sample or failed writes. Reset to code defaults is an acknowledged transaction that can participate in history when policy allows. Clear redo after a new acknowledged change. Undo/redo use the same server validation, revision, eligibility and acknowledgement path as ordinary edits; never update only the visible widget. History may be browser-session-local but must be reconciled/invalidate when another browser, a new manifest or a new runtime generation changes its base. Do not overwrite another client's configuration by replaying stale snapshots.
+
+Mutations remain disabled-only or allowed in an explicit standalone setup session, rechecked on the server at commit. Unknown enabled/connection state does not unlock controls. Show **Robot enabled · locked**, no robot/cached configuration, pending, rejected and conflict states locally where they matter. Read-only viewing remains usable. Pending changes must not falsely enable history or imply durable persistence.
+
+### 8.7 Cameras without a code-defined name
+
+Reference **03 Camera name**. Do not use **role**, **assignment**, **Assign**, or **Unassigned** as GUI terminology. The user-facing action is changing the camera's **name** to match a camera configured in robot code. Internal stable bindings and logical identities remain unchanged in meaning.
+
+An extra device appears directly in the sidebar under its persistent short name, e.g. USB-A5, with a warning. Its page shows a large identifying preview, a compact **Camera name** panel, **Not configured in code**, a **Name** picker and one primary **Rename** action. List available matching code-defined names; distinguish cached names if offline, reject duplicates and unavailable names. If none are available, say what is missing in robot code and provide a contextual Docs link. Do not invent production identities from arbitrary text or discovery order.
+
+After acknowledged rename, preserve the physical-device calibration if still compatible, update the sidebar/route without losing camera identity, and show any remaining calibration warning. Rename binds this physical camera to the selected logical name; it does not create a robot camera definition or calibrate the camera. Retain preview confirmation, duplicate/missing serial handling, persistent USB-port bindings and the explicit Replace camera invalidation procedure from Section 4, with replacement tools kept out of the ordinary naming flow.
+
+### 8.8 Calibration: compact alpha workflow with beta transactions
+
+Reference **04 Calibration capture** and **05 Calibration results and history**. Follow alpha's **Board → Capture → Review → Save/apply** sequence with improved formatting. Reuse coverage particles, automatic diversity/duplicate rejection, board detection, responsive background solve and per-camera actions from `tools/calibration_ui.html`. Preserve beta's independent validation and atomic group apply in Section 9; do not copy alpha's sequential file saves/restart limitations.
+
+Capture page uses a compact grid of selected camera cards and a narrow Board panel. Each card has name/selection, feed with registered coverage dots, concise view count/coverage/board-detection data, and Start/Pause, Capture and Calibrate actions. Allow one board to move between cameras; simultaneous visibility is not required. Global Pause all and Reset session are compact actions. Board controls include dictionary, square dimensions/count, marker size, lens model and minimum views; values come from validated persisted configuration. Clearly separate fitting captures and validation captures. Coverage percentage alone is not quality approval.
+
+Results uses a compact table: camera, fit RMS, independent validation RMS, fit/validation view counts and pass/retry reason. **Apply selected** stays unavailable until the selected group passes validation and mutation eligibility. Offer explicit **Select passing** / retry to choose a smaller passing group; never silently drop failed members. During activation show pending generation and current active generation; **Applied** appears only after acknowledgement. Failure leaves the complete previous generation active.
+
+History stays on this page and lists generation, camera group, optical mode, saved time and active state. **Restore** follows the same eligibility, compatibility and atomic activation rules as a new apply. If wall time is unavailable, retain identity/order and show unavailable time rather than inventing a date. Background activity and per-camera failure must not freeze other cards or navigation.
+
+### 8.9 Network and System
+
+**Network**, reference **06 Network**, is a small configuration/link page: configured/discovered robot endpoint, NT server, supported connection/discovery mode and Reset to code defaults where applicable. Show a few link facts: Ethernet/NT connection, actual local address, synchronization summary and reconnect count. Endpoint settings must respect robot authority and acknowledgement. Changing operating-system addresses from the GUI is outside beta scope. Detailed CPU/camera/USB/release diagnostics do not belong here.
+
+**System**, reference **10 System**, owns compact diagnostic data: CPU/GPU/memory/temperature/uptime; per-camera capture and detection FPS, drop counters and frame age; running/deployed/source/native build identity; start/deployment time; startup stages and dependency wait; USB topology; faults; synchronization state/offset/update age/epoch/discontinuities; reconnect history. Use compact tables/panels rather than explanatory cards. Retain support-bundle export and bounded debug recording. Unknown telemetry is **—**/unavailable, not fabricated zero/green success. See Section 10 for accurate running-versus-deployed identity and unreliable wall time.
+
+### 8.10 Docs: concrete, chronological and offline
+
+Reference **07 Docs**. Take the grouped topic navigation, article column, **On this page** outline and previous/next pattern from [DogLog Docs](https://doglog.dev/getting-started/installation). The heading is **Docs**, never Student Docs or student-facing. Search and article navigation live inside Docs; the persistent sidebar keeps it reachable from every page, with contextual deep links where useful.
+
+Getting started is chronological: **1. Connect to Spot → 2. Name cameras → 3. Set camera geometry → 4. Calibrate → 5. Verify detections**. Each topic states prerequisites, exact actions and observable results, using current GUI labels. For naming: plug camera into the powered hub, open its warning entry, identify the feed, choose the matching code-defined name, click Rename, confirm the sidebar name, then address the calibration warning. Explain how to configure missing names in robot code rather than suggesting Rename creates them.
+
+Connection instructions must use the actual packaged installation/setup procedure. Include measuring mounts and coordinate frames, new/replacement cameras and duplicate serials, ChArUco dimensions/capture/quality/restore, control units/history/locks, Java integration with a compiling offseason example, robot rejection/fault meanings, logs, network/power recovery, deployment and rollback. Guides and Reference follow Getting started. Package one maintained documentation source with offline search and local assets; no internet dependency or second hand-edited guide. External reference links are supplemental, never necessary to complete setup.
+
+```mermaid
+flowchart LR
+  O[Overview] --> C[Camera]
+  C --> G[Geometry]
+  O --> N[Warning camera]
+  N --> R[Rename]
+  R --> C
+  C --> K[Calibration]
+  K --> H[Results and history]
+```
+
+### 8.11 Runtime, API and failure presentation
+
+Use validated structured requests, session/CSRF control, same-origin checks and optimistic revision checking. Two browsers cannot silently overwrite each other. Bound live-control request rates, stream encoding/resolution/rate/client count and telemetry updates. Suspend unnecessary hidden-tab rendering/streams; on return fetch current state and fresh frames. GUI failure, a slow browser or a disconnected client must not stop detection. Do not expose an unauthenticated shell or arbitrary filesystem paths.
+
+Use **11 States** and its dark counterpart as visual guidance: live requested/readback data, inline control rejection, no robot/cached geometry, stale image with overlays hidden, calibration awaiting acknowledgement, configuration conflict, missing calibration and unavailable wall time. Also cover empty discovery, unsupported capabilities, disconnect/recovery and service/stream reconnect. Keep meaningful data visible during a local failure and offer the specific next action. Backend Ready/Unassigned enums may remain in diagnostics/contracts, but do not render them as vague main-page badges or ordinary camera names.
 
 ## 9. Calibration save and apply
 
@@ -332,11 +448,11 @@ Implement in reviewable stages, each with targeted tests and a working installed
 | --- | --- | --- |
 | 1. Contract and fixtures | Profile ownership/schema, v2 protobuf, clock/session policy, Java API and golden packets | Python/Java agree on candidates, transforms, IDs, hashes and timestamps; numerical/frame semantics documented |
 | 2. Device and persistent state | Discovery, role assignment, capability profiles, cached manifest, transactional generations and automatic startup | Swyft + Arducam startup/reconnect/reboot, duplicate identity and missing-role tests; measured cold/warm startup; no selector edits required for ordinary setup |
-| 3. Production web/calibration | Installed sidebar GUI/API/docs and shared-frame multi-camera calibration | GUI usable offline; concurrent-client conflicts handled; group apply/rollback and calibrated mode checks pass |
+| 3. Production web/calibration | Installed GUI matching Penpot revision 3 in light/dark/Auto, API/docs and shared-frame multi-camera calibration | Section 14 visual/interaction checklist passes; GUI usable offline; concurrent-client conflicts handled; group apply/rollback and calibrated mode checks pass |
 | 4. Shared robot integration | Spot IO/processor, Limelight adapter, owned queue, CTRE boundary and DogLog | Offseason tests plus all affected robot projects compile; malformed, stale, ambiguous, reset and reorder fixtures pass |
 | 5. Robot shadow runs | Spot connected to real roboRIO; fusion disabled; robot-reported decisions visible in GUI | Ground-truth accuracy, timestamp conversion/sync recovery, load/thermal and Ethernet/power-cycle evidence meets targets |
 | 6. Controlled fusion | One fixed camera, then multiple; reviewed trust policy and flags | Driving/no-tag/fault recovery tests pass; readiness behavior reviewed; rollback exercised |
-| 7. Student handoff | Final documentation, support/deploy tools and second robot profile example | A student configures/assigns/calibrates a replacement camera and explains its robot integration without source spelunking |
+| 7. Student handoff | Final documentation, support/deploy tools and second robot profile example | A student configures/names/calibrates a replacement camera and explains its robot integration without source spelunking |
 
 **Proposed initial targets — engineering goals, not claims established by alpha:**
 
@@ -365,10 +481,77 @@ For each stage, deliver changes in both relevant repositories, tests/results, sc
 
 Jetson validation uses the repository's dedicated SSH key and deployment procedure. Hardware deployment/fusion activation happens during the authorized implementation session with a disabled robot and measured mounts. This planning task performs no deployment or robot changes.
 
-**Beta is complete when:** students can plug in supported cameras, assign code-defined roles, calibrate multiple cameras, inspect streams/health, identify the running update, and obtain correctly timed, quality-controlled measurements in the offseason robot's estimator and reviewed trust system—with reusable configuration for the other 2026 robots.
+**Beta is complete when:** students can plug in supported cameras, name them to match code-defined cameras, calibrate multiple cameras, inspect streams/health, identify the running update, and obtain correctly timed, quality-controlled measurements in the offseason robot's estimator and reviewed trust system—with reusable configuration for the other 2026 robots.
+
+### 14.1 How the implementation agent must reference the design
+
+**Read before GUI coding:** this plan, especially Sections 3–4, 8–10; [GUI handoff](gui-beta-design/README.md); [Penpot board manifest](gui-beta-design/penpot-reference.json); [light tokens](gui-beta-design/tokens.json); and [dark token mappings](gui-beta-design/dark-tokens.json). Open **Spot Beta — GUI Reference**, page **GUI reference · Beta**, using the Section 8 link. Record the inspected design revision, file/page IDs and any newer manual design changes in the implementation PR. Do not ask an agent to implement from a single preview image or the old Section 8 proposal.
+
+Reference identity:
+
+- Penpot file ID: `fd558256-f8c8-8184-8008-c139acc14eb0`.
+- Page ID: `fd558256-f8c8-8184-8008-c139acc14eb1`.
+- Baseline: revision 3, October 7, 2026; eleven light boards, eleven dark counterparts, two theme-popup boards.
+- Complete native shape IDs are in `gui-beta-design/penpot-reference.json`; resolve by board name, not canvas order or a transient current selection.
+
+| Implementation area | Required Penpot boards | Reuse and interpretation |
+| --- | --- | --- |
+| Shell and Overview | 01 Overview; Dark / 01 Overview | Inline metric typography, sidebar/logo/warnings; data from real camera state |
+| Live camera tuning and inspection | 02 Camera detail; 08 Compact camera; dark equivalents | Reuse `tools/alpha_dashboard.html` controls/viewer concepts; replace draft tuning with acknowledged live mutations |
+| Naming | 03 Camera name; dark equivalent | Preserve stable physical binding service; user action is Rename |
+| Calibration | 04 Calibration capture; 05 Calibration results and history; dark equivalents | Reuse `tools/calibration_ui.html` capture/coverage behavior; implement Section 9's stronger validation/transaction guarantees |
+| Network | 06 Network; dark equivalent | Config and a few link facts; actual endpoint values |
+| Docs | 07 Docs; dark equivalent | Concrete ordered articles, local search and contextual links |
+| Geometry | 09 Camera geometry; dark equivalent | Caret-friendly six-field editing, actual code transforms, alpha orthographic 3D |
+| System | 10 System; dark equivalent | Compact runtime telemetry, faults and deployed/running identity |
+| Failure/control states | 11 States; dark equivalent | Implement state transitions; sample text is not fixed telemetry |
+| Theme popup | 12 Theme menu · Auto; Dark / 12 Theme menu · Auto | Three icon choices; preserve current route rather than following the prototype's Overview link |
+
+**Use the existing Penpot bridge on the development Mac.** MCP endpoint: `http://localhost:4401/mcp`; plugin manifest: `http://127.0.0.1:4400/manifest.json`. Setup/start/stop reference: `/Users/simonparker/Documents/Codex/2026-10-05/referenced-chatgpt-conversation-this-is-an/outputs/penpot-local/SETUP.md`. Check the existing server and that the browser plugin says **Connected**. If the Codex MCP entry is missing, register `codex mcp add penpot --url http://localhost:4401/mcp`, then reload MCP tools or start a new chat as required by the client. Reuse the installed bridge; do not install a second server. A remote implementation environment may not reach this Mac's localhost: state that limitation and use the repository-local reference assets rather than treating localhost as a public endpoint. Include the referenced design assets with the implementation handoff so another checkout can resolve these links.
+
+For agents with MCP access:
+
+1. Read `high_level_overview` before using Penpot tools in a fresh context; use `penpot_api_info` for the exact currently available APIs. Do not guess plugin method signatures.
+2. Inspect the named file/page and board nodes through `execute_code`; examine text, dimensions, spacing, fills, strokes, icon vectors and hierarchy for the page being implemented. Do not depend on persistent `storage` from the design session or the user's current selection.
+3. Export the relevant board with `export_shape` using its shape ID and PNG format. For example, light Camera detail is `4c4fbdcb-0121-801d-8008-c13a8ffae0f4`, dark Camera detail is `c33bbb28-4f6e-8044-8008-c1bdf86a7b0b`; get all other IDs from the manifest. Inspect the export alongside the matching light/dark state and compact board, rather than reconstructing a page from prose alone.
+4. Repeat for each page at the time it is built, including relevant states. Read-only inspection/export is sufficient; implementing the app does not authorize overwriting the approved Penpot reference. Propose any intentional design deviations in the PR with a reason and screenshot.
+
+**Fallback reference assets:** numbered light/dark/theme SVGs, `boards.json`, `dark-boards.json`, `theme-boards.json`, tokens and native PNG exports in `docs/gui-beta-design/`. The primitive JSON captures position, dimensions, text/font size/weight, colors and vectors; it is reference data, not a production rendering framework. Current revision 3 PNGs include Overview, Camera and Geometry plus dark Overview/Geometry and the dark theme popup. Some older Calibration/Docs PNGs predate the theme trigger; prefer the revision 3 SVG/JSON for complete structure if live Penpot is unavailable. Do not regenerate/import boards over Penpot manual edits: `build_design.py` creates portable references and can overwrite local generated assets, while Penpot is authoritative for later visual edits.
+
+**Resolve sources deliberately:** Section 8 is the interaction/terminology contract; live Penpot is the visual composition reference; the rest of this plan controls data ownership, safety, timing and calibration activation. Backend gates take precedence over a mock enabled button or sample green state. Preserve approved interactions even if a static board cannot demonstrate them. If a later manual design conflicts with this plan, record the conflict and resolve it before shipping the conflicting behavior; do not silently invent a new precedence rule. Illustrative images/tag drawings are not valid AprilTags, pose fixtures or measured geometry.
+
+### 14.2 Design-to-code sequence and review evidence
+
+Build reusable application components rather than separate hard-coded screenshots: semantic theme tokens, Source Sans Pro/local logo, sidebar/main layout, navigation and theme popup, camera tile, Config panel, number field, history actions, stream/overlay presentation, 3D viewer, compact data table, calibration card/results/history and Docs layout. Reuse working alpha algorithms and visualization behavior while adapting presentation. Keep service ownership outside UI components. The number editor needs explicit local edit/pending/acknowledged/conflict states; a generic slider/number-input library is acceptable only if it satisfies Section 8's exact editing contract.
+
+Implement shell/theme first, then Overview and Camera/Geometry/naming, Calibration, Network/System and Docs. Build deterministic UI fixtures for actual empty/pending/failure states so screenshot review does not rely on having every camera connected. Fixture data stays in development/test paths and must never supply production health values or acceptance gates. Integrate each page with real APIs before declaring it complete.
+
+For each page, capture the running app at the reference viewport in light and dark, compare alongside the corresponding Penpot export, and fix material differences in hierarchy, alignment, panel placement, metric typography, icon style, spacing, wrapping and density. Include compact Camera at 1024×900 and a narrower stacked layout. Allow content-driven height/scroll differences for real data; match the visual hierarchy rather than crop away extra rows. Check keyboard/focus/hover/error/pending/disabled states as well as the idle screen. Document any intentional differences with their practical reason.
+
+The GUI implementation PR must link the Penpot file/page, identify reference revision and board names, list the reused alpha files, summarize ownership/API behavior and include representative side-by-side screenshots or equivalent local comparison artifacts. Include all pages in the visual checklist, with detailed screenshots for Overview, Camera, Geometry, Calibration, theme popup and compact layout. Report functional checks separately from visual review; Penpot hotspots do not prove runtime behavior. Keep UI screenshots free of credentials and use deterministic fixture values when sharing externally.
+
+### 14.3 GUI acceptance checklist
+
+Section 13's web stage cannot pass until these checks have evidence:
+
+- **Shell:** all routes and camera entries are reachable; logo and Source Sans Pro load without internet; main sidebar icons and camera warning reasons are correct; no old global bar, Unassigned group, combined Network & System item, Ready badge, LIVE overlay, Assign terminology or draft tuning controls remain. Locks/faults are still clear where relevant.
+- **Themes:** a fresh browser defaults to Auto; changing OS preference updates Auto; manual Light/Dark survives reload; popup works by keyboard and pointer, has accessible selected state, and keeps current page/camera/edit context. Camera pixels/logo retain colors; active icons, text and focus remain legible in both themes.
+- **Overview/data:** units share metric typography; detection FPS/tag count/age have defined sources and unavailable values; zero tags is normal; disconnect/stale/pause is obvious; age advances without new frames and overlays never attach to the wrong image.
+- **Live Config:** supported ranges/readbacks are used; a drag sends bounded updates and its final value; successful values persist across restart; rejection/clipping is inline; pinned/unsupported/unknown/enabled states prevent writes server-side. No success appears before acknowledgement. Ordinary preview load stays within the headless throughput budget.
+- **Number editing:** click at a specific digit without select-all; delete/replace final digits; enter empty/minus/trailing-decimal text; paste a valid/invalid number; receive polling while focused; commit on Enter/blur without duplicate requests; cancel with Escape; use fine/coarse steppers; scroll without modifying values; preserve local text undo. Invalid text stays repairable and does not corrupt visualization/configuration.
+- **History/concurrency:** header icons have no visible labels/outline; empty/locked/pending stacks grey out; one drag/committed field makes one item; undo/redo/reset apply and acknowledge real configuration; new edits clear redo; another browser or manifest update cannot be overwritten with stale history.
+- **Geometry/3D:** Camera/Geometry navigation and viewer link work; number edits preview with correct units/axes/angle convention; Front/Lens directions match known-transform fixtures; orbit/zoom/reset work; code authority/policy locks remain explicit; no placeholder mount reaches robot fusion.
+- **Naming:** extra device warning opens its preview/name page; available code names and cached state are accurate; Rename persists stable physical binding across restart/re-enumeration and preserves compatible calibration; duplicate names, unavailable definitions and replacement identity are handled.
+- **Calibration:** automatic/per-camera/multi-camera actions remain responsive; fit and validation sets are independent; failed groups cannot apply; explicit smaller passing selection works; Applied waits for acknowledgement; failed activation keeps the old generation; history restore is compatible/atomic/eligible. Hardware/power-loss qualification remains a separate gate.
+- **Network/System:** pages contain their specified data rather than duplicates/fluff; clocks, connection/recovery and unavailable values are accurate; running/deployed/native identities are truthful; support export/debug recording are bounded.
+- **Docs:** offline search/local assets work, topics are chronological, actions match current labels, previous/next/context links work, and a new operator can complete naming/calibration/verification using the guide and real results. Java example compiles.
+- **Responsive/accessibility:** full and compact layouts avoid overlap/overflow; narrow screens retain required actions; keyboard, tooltips/accessibility names, focus return, units and color-independent faults work; hidden-tab and slow-client work is bounded and vision continues through browser failure.
+
+Use focused interaction/integration tests for the stateful input, API, concurrency and calibration behaviors, plus manual screenshot review for layout. Do not substitute static image matching for these behavior checks. List any missing hardware checks explicitly; a polished GUI is not robot qualification.
 
 ### Review references
 
 - Robot source: [team581/offseason-2026](https://github.com/team581/offseason-2026). Key reviewed paths: `offseason-bot/src/main/java/frc/robot/{Hardware.java,vision/,localization/Localization.java}`, `shared/src/main/java/com/team581/{localization/TrustFactor.java,config/CameraConfig.java,vision/}`.
+- GUI design: [Spot Beta — GUI Reference, revision 3](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1); local [handoff](gui-beta-design/README.md), [board IDs](gui-beta-design/penpot-reference.json) and reference assets under `docs/gui-beta-design/`.
 - Current Spot remote: [team581/buddy-2026](https://github.com/team581/buddy-2026). Key reviewed paths: `src/spot_vision/`, `proto/vision.proto`, `tools/{prototype_daemon.py,prototype_stream.py,alpha_calibration.py}`, `deploy/`, and `docs/Alpha Verification.md`.
 - The existing specifications, calibration plan and project-status document provide historical intent; observed implementation and the October 4 verification report take precedence when those documents disagree.

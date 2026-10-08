@@ -1,0 +1,70 @@
+{
+  "profile": {
+    "schemaVersion": 2,
+    "robotId": "test-robot",
+    "cameras": [
+      {
+        "name": "front",
+        "required": true,
+        "enabled": true,
+        "robotToCamera": {
+          "xM": 0.2,
+          "zM": 0.5,
+          "qw": 1.0
+        },
+        "allowedModes": [
+          {
+            "id": "640x480",
+            "width": 640,
+            "height": 480,
+            "pixelFormat": "MJPG",
+            "fps": 30,
+            "opticalSignature": "fixed-lens-1"
+          }
+        ],
+        "controls": [
+          {
+            "name": "gain",
+            "defaultValue": 1.0,
+            "allowOverride": true
+          },
+          {
+            "name": "contrast",
+            "defaultValue": 16.0
+          }
+        ]
+      }
+    ],
+    "field": {
+      "origin": "blue-wall-right",
+      "lengthM": 16.0,
+      "widthM": 8.0,
+      "tags": [
+        {
+          "id": 1,
+          "fieldToTag": {
+            "xM": 4.0,
+            "zM": 1.0,
+            "qw": 1.0
+          },
+          "sizeM": 0.1651
+        },
+        {
+          "id": 2,
+          "fieldToTag": {
+            "xM": 5.0,
+            "yM": 1.0,
+            "zM": 1.0,
+            "qw": 1.0
+          },
+          "sizeM": 0.1651
+        }
+      ]
+    },
+    "maxAgeS": 0.25,
+    "futureToleranceS": 0.005,
+    "reorderWindowS": 0.02
+  },
+  "robotSession": "robot-1",
+  "manifestHash": "cae7b69346ac2877ab1bb84a82cad925e935d19b6c970d1177a80bc68844e54d"
+}

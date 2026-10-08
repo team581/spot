@@ -1,0 +1,100 @@
+> Task :refaster-rules:processResources NO-SOURCE
+> Task :refaster-rules:downloadDepsPreemptively
+> Task :shared:compileJava UP-TO-DATE
+> Task :shared:processResources NO-SOURCE
+> Task :shared:classes UP-TO-DATE
+> Task :shared:downloadDepsPreemptively
+> Task :shared:jar UP-TO-DATE
+> Task :refaster-rules:compileJava UP-TO-DATE
+> Task :refaster-rules:classes UP-TO-DATE
+> Task :refaster-rules:jar UP-TO-DATE
+
+> Task :offseason-bot:createVersionFile
+createVersionFile called. Path /Users/simonparker/Documents/GitHub/offseason-2026/offseason-bot/src/main/java/frc/robot/generated
+
+> Task :offseason-bot:compileJava
+> Task :offseason-bot:processResources NO-SOURCE
+> Task :offseason-bot:classes
+
+> Task :offseason-bot:compileTestJava
+/Users/simonparker/Documents/GitHub/offseason-2026/offseason-bot/src/test/java/frc/robot/util/AimParameterUtilTest.java:89: Note: [LexicographicalAnnotationListing] Sort annotations lexicographically where possible
+  @ParameterizedTest
+  ^
+    (see https://error-prone.picnic.tech/bugpatterns/LexicographicalAnnotationListing)
+  Did you mean '@CsvSource({'?
+/Users/simonparker/Documents/GitHub/offseason-2026/offseason-bot/src/test/java/frc/robot/util/AimParameterUtilTest.java:90: Note: [LexicographicalAnnotationAttributeListing] Where possible, sort annotation array attributes lexicographically
+  @CsvSource({
+  ^
+    (see https://error-prone.picnic.tech/bugpatterns/LexicographicalAnnotationAttributeListing)
+  Did you mean '@CsvSource({"0, 0, 3, 0, 0", "180, -3, 3, 0, 0", "25, 0.6, -1.2, -0.4, 1.5", "45, 3, 0, 0, 0", "90, 3, -3, 0, 0"})'?
+
+> Task :offseason-bot:extractReleaseNative UP-TO-DATE
+> Task :offseason-bot:processTestResources NO-SOURCE
+> Task :offseason-bot:testClasses
+HAL Extensions: No extensions found
+DataLog: Logging to '/Users/simonparker/Documents/GitHub/offseason-2026/offseason-bot/logs/FRC_TBD_ab1b2180014627c6.wpilog' (4.0 GiB free space)
+
+> Task :offseason-bot:test
+
+DeployKinematicsTest > clampsTravelAtTheHomingEndpointsRatherThanTheOperatingLimits() PASSED
+
+DeployKinematicsTest > matchesBothExportedCarriageEndpointsAndKeepsItLevel() PASSED
+
+DeployKinematicsTest > carriageAndBothArmsRemainConnectedThroughoutTheArc() PASSED
+
+MechanismVisualizerTest > onlyScoreAndFeedUseGreenComponents() PASSED
+
+MechanismVisualizerTest > hoodIsFlatAtItsHorizontalAngleAndRaisesItsRearForPositiveExtension() PASSED
+
+MechanismVisualizerTest > deployArmsRemainVisibleAndFollowTheSameMotionAcrossRobotStates() PASSED
+
+MechanismVisualizerTest > placesTurretAndHoodHingeAtConfiguredOffsets() PASSED
+
+TurretTest > unhomedAndStuckTurretNeverReportReady() PASSED
+
+TurretTest > normalToleranceControlsReadiness() PASSED
+
+TurretTest > upcomingAngleMustUseCompatibleUnwrap() PASSED
+
+AimParameterUtilTest > matchingCommandsPreserveTurretVelocityAtDifferentHeadings(double) > [1] 0.0 STANDARD_OUT
+    [DogLog] LogThread started
+
+AimParameterUtilTest > matchingCommandsPreserveTurretVelocityAtDifferentHeadings(double) > [1] 0.0 PASSED
+
+AimParameterUtilTest > matchingCommandsPreserveTurretVelocityAtDifferentHeadings(double) > [2] 45.0 PASSED
+
+AimParameterUtilTest > matchingCommandsPreserveTurretVelocityAtDifferentHeadings(double) > [3] 90.0 PASSED
+
+AimParameterUtilTest > matchingCommandsPreserveTurretVelocityAtDifferentHeadings(double) > [4] 180.0 PASSED
+
+AimParameterUtilTest > zeroDistanceProducesFiniteParameters() PASSED
+
+AimParameterUtilTest > staticFeedingUsesFortyInchTolerance() PASSED
+
+AimParameterUtilTest > staticScoringUsesCornerTurretPoseAndTenInchTolerance() PASSED
+
+AimParameterUtilTest > lagPredictionIncludesRotationAndTurretOffset(double, double, double, double, double) > [1] "0", "0", "3", "0", "0" PASSED
+
+AimParameterUtilTest > lagPredictionIncludesRotationAndTurretOffset(double, double, double, double, double) > [2] "45", "3", "0", "0", "0" PASSED
+
+AimParameterUtilTest > lagPredictionIncludesRotationAndTurretOffset(double, double, double, double, double) > [3] "90", "3", "-3", "0", "0" PASSED
+
+AimParameterUtilTest > lagPredictionIncludesRotationAndTurretOffset(double, double, double, double, double) > [4] "180", "-3", "3", "0", "0" PASSED
+
+AimParameterUtilTest > lagPredictionIncludesRotationAndTurretOffset(double, double, double, double, double) > [5] "25", "0.6", "-1.2", "-0.4", "1.5" PASSED
+
+AimParameterUtilTest > dynamicSolutionAndLookaheadUseProjectedRobotPose() PASSED
+
+AimParameterUtilTest > fallbackAnglesAreRobotRelativeAndStableForLookahead() PASSED
+
+[Incubating] Problems report is available at: file:///Users/simonparker/Documents/GitHub/offseason-2026/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 13s
+11 actionable tasks: 6 executed, 5 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.0/userguide/configuration_cache_enabling.html

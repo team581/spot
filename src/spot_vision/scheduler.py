@@ -26,10 +26,12 @@ class FairDetectorScheduler(threading.Thread):
         self.wake_event = wake_event
         self.stop_event = stop_event
         self._cursor = 0
+        self.last_progress_monotonic = time.monotonic()
         self._frame_rates = {camera_id: FrameRateCounter() for camera_id in camera_ids}
 
     def run(self) -> None:
         while not self.stop_event.is_set():
+            self.last_progress_monotonic = time.monotonic()
             handled = False
             for offset in range(len(self.camera_ids)):
                 index = (self._cursor + offset) % len(self.camera_ids)

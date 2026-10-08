@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#F4F5F7"/>
+<text x="40" y="58" font-family="Source Sans Pro, Arial, sans-serif" font-size="28" font-weight="600" fill="#202226">UI states</text>
+<rect x="40" y="98" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="56" y="130" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Live Config</text>
+<text x="56" y="175" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#226844">Exposure 5.0 ms · applied 5.0 ms</text>
+<rect x="736" y="98" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="752" y="130" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Control rejected</text>
+<text x="752" y="175" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#825A16">Exposure 0.1 ms · minimum 0.5 ms</text>
+<rect x="40" y="278" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="56" y="310" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">No robot</text>
+<text x="56" y="355" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#66696E">Robot decision — · cached geometry</text>
+<rect x="736" y="278" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="752" y="310" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Stale image</text>
+<text x="752" y="355" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#825A16">Last frame 1.2 s ago · overlays hidden</text>
+<rect x="40" y="458" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="56" y="490" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Calibration apply</text>
+<text x="56" y="535" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#255A86">Awaiting acknowledgement · gen-07 active</text>
+<rect x="736" y="458" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="752" y="490" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Other browser changed config</text>
+<text x="752" y="535" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#825A16">Read current values before undoing</text>
+<rect x="40" y="638" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="56" y="670" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Uncalibrated camera</text>
+<text x="56" y="715" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#825A16">⚠ front-left · calibration required</text>
+<rect x="736" y="638" width="664" height="146" rx="8" fill="#FFFFFF" stroke="#DEE3E8"/>
+<text x="752" y="670" font-family="Source Sans Pro, Arial, sans-serif" font-size="18" font-weight="600" fill="#202226">Time unavailable</text>
+<text x="752" y="715" font-family="Source Sans Pro, Arial, sans-serif" font-size="15" font-weight="400" fill="#66696E">beta.01 · abc1234 · uptime 12 min</text>
+</svg>

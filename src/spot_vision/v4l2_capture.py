@@ -1,4 +1,4 @@
-"""Bounded, latest-only Linux MJPEG capture with promptly requeued USB buffers."""
+"""Bounded, latest-only Linux UVC capture with promptly requeued USB buffers."""
 from __future__ import annotations
 
 import ctypes as ct
@@ -76,6 +76,16 @@ class MjpegCapture:
     def __init__(self, cv2, camera, device: str, timeout: float = 1.0) -> None:
         self.cv2 = cv2
         self.timeout = timeout
+        self.width, self.height = camera.width, camera.height
+        requested_format = getattr(camera,"format","MJPG").upper()
+        self.pixel_format = "MJPG" if requested_format in ("MJPG","MJPEG") else "YUYV"
+        if requested_format not in ("MJPG","MJPEG","YUYV","YUY2"):
+            raise ValueError("bounded capture supports MJPEG and YUYV")
+        self.bytes_per_line = self.width*2
+        self.negotiated_fps = None
+        self.last_sequence = None
+        self.last_driver_timestamp_us = None
+        self.last_driver_flags = None
         self.fd = -1
         self.buffers = []
         self.streaming = False
@@ -83,14 +93,23 @@ class MjpegCapture:
             self.fd = os.open(device, os.O_RDWR | os.O_NONBLOCK | os.O_CLOEXEC)
             fmt = _Format(type=1)
             fmt.data.raw[0:4] = (camera.width, camera.height,
-                                 int.from_bytes(b"MJPG", "little"), 0)
+                                 int.from_bytes(self.pixel_format.encode(), "little"), 0)
             _ioctl(self.fd, 5, fmt)  # S_FMT
             if tuple(fmt.data.raw[:3]) != (camera.width, camera.height,
-                                           int.from_bytes(b"MJPG", "little")):
-                raise RuntimeError("camera did not accept the configured MJPEG image mode")
+                                           int.from_bytes(self.pixel_format.encode(), "little")):
+                raise RuntimeError("camera did not accept the configured image mode")
+            if self.pixel_format == "YUYV":
+                self.bytes_per_line = int(fmt.data.raw[4]) or self.width*2
+                if self.bytes_per_line < self.width*2:
+                    raise RuntimeError("driver returned a truncated packed YUYV row")
             params = _Parameters(type=1)
             params.data[2:4] = (1, camera.fps)  # timeperframe numerator/denominator
             _ioctl(self.fd, 22, params)  # S_PARM
+            actual_params = _Parameters(type=1)
+            _ioctl(self.fd, 21, actual_params)  # G_PARM; requested S_PARM is not readback
+            params = actual_params
+            if params.data[2] and params.data[3]:
+                self.negotiated_fps = float(params.data[3])/float(params.data[2])
             request = _RequestBuffers(count=4, type=1, memory=1)
             _ioctl(self.fd, 8, request)  # REQBUFS
             if request.count < 2:
@@ -119,6 +138,7 @@ class MjpegCapture:
             if not ready:
                 return False, None
             latest = None
+            metadata = None
             # Bounded draining keeps latency low without chasing arriving frames
             # forever. Requeue before decoding so USB never waits on image work.
             for _ in range(len(self.buffers)):
@@ -135,14 +155,26 @@ class MjpegCapture:
                     storage = self.buffers[buffer.index]
                     if not buffer.flags & 0x40 and 0 < buffer.bytesused <= len(storage):
                         data = storage[:buffer.bytesused]
-                        if data.startswith(b"\xff\xd8") and data.endswith(b"\xff\xd9"):
+                        if ((getattr(self,"pixel_format","MJPG") == "MJPG"
+                             and data.startswith(b"\xff\xd8") and data.endswith(b"\xff\xd9"))
+                                or (getattr(self,"pixel_format","MJPG") == "YUYV"
+                                    and len(data) >= self.bytes_per_line*self.height)):
                             latest = data
+                            metadata = (buffer.sequence,
+                                buffer.timestamp.seconds*1_000_000+buffer.timestamp.microseconds,
+                                buffer.flags)
                 finally:
                     _ioctl(self.fd, 15, buffer)  # QBUF, including damaged frames
             if latest is not None:
-                image = self.cv2.imdecode(np.frombuffer(latest, dtype=np.uint8),
-                                          self.cv2.IMREAD_COLOR)
+                if getattr(self,"pixel_format","MJPG") == "YUYV":
+                    image = np.frombuffer(latest,dtype=np.uint8,
+                        count=self.bytes_per_line*self.height).reshape(self.height,self.bytes_per_line)
+                    image = image[:,:self.width*2].reshape(self.height,self.width,2).copy()
+                else:
+                    image = self.cv2.imdecode(np.frombuffer(latest, dtype=np.uint8),
+                                              self.cv2.IMREAD_COLOR)
                 if image is not None:
+                    self.last_sequence,self.last_driver_timestamp_us,self.last_driver_flags = metadata
                     return True, image
         return False, None
 
@@ -162,3 +194,7 @@ class MjpegCapture:
             os.close(self.fd)
             self.fd = -1
             self.streaming = False
+
+
+# Name used by the installed beta runtime; the alpha class name stays compatible.
+V4l2Capture = MjpegCapture

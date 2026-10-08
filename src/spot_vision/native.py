@@ -63,6 +63,8 @@ class FallbackDetector:
 
 
 def create_detector(camera: CameraConfig, calibration: Calibration | None) -> Detector:
+    if camera.detector.backend == "cuda" and (camera.width % 8 or camera.height % 8):
+        raise RuntimeError("CUDA detector dimensions must be multiples of 8")
     try:
         from . import _spot_cuda as native
     except ImportError as exc:

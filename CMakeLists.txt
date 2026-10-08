@@ -36,6 +36,11 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(apriltag PUBLIC m)
 endif()
 
+# Both schemas accompany every installed artifact. v1 remains an alpha client
+# compatibility contract; production robot integration uses the distinct v2.
+install(FILES proto/vision.proto proto/vision_v2.proto proto/README.md
+  DESTINATION spot_vision/schemas)
+
 
 if(SPOT_BUILD_CUDA)
   # CMake probes the default architecture while enabling CUDA, so configure
@@ -123,3 +128,17 @@ else()
   target_link_libraries(_spot_cuda PRIVATE apriltag)
   install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
 endif()
+
+# Hash the exact module loaded by the installed Python process. Build identity
+# stays in the build directory and is never inferred from a runtime checkout.
+add_custom_target(spot_build_manifest ALL
+  COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_docs.py"
+    --source "${CMAKE_CURRENT_SOURCE_DIR}/docs/operator" --output "${CMAKE_CURRENT_BINARY_DIR}/docs.json"
+  COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_manifest.py"
+    --root "${CMAKE_CURRENT_SOURCE_DIR}" --native "$<TARGET_FILE:_spot_cuda>"
+    --cuda "${SPOT_BUILD_CUDA}" --docs "${CMAKE_CURRENT_BINARY_DIR}/docs.json" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
+  DEPENDS _spot_cuda
+  VERBATIM)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json" DESTINATION spot_vision)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/docs.json" DESTINATION spot_vision/web)

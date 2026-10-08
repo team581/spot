@@ -135,10 +135,13 @@ def test_bad_pose_configuration_retains_raw_detection_output(environment, tmp_pa
         service.stop()
 
 
-def test_service_rejects_all_disabled_cameras_before_opening_resources(environment):
+def test_service_starts_with_no_enabled_cameras_for_discovery(environment):
     config = load_config(DATA / "config.json")
-    with pytest.raises(ConfigError, match="at least one"):
-        module.VisionService(replace(config, cameras=(replace(config.cameras[0], enabled=False),)))
+    service = module.VisionService(replace(config, cameras=(replace(config.cameras[0], enabled=False),)))
+    service.start()
+    assert not service.capture_workers and not service.cameras
+    assert service.output_worker.is_alive()
+    service.stop()
 
 
 def test_stop_before_start_is_safe_and_idempotent(environment):

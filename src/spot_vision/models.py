@@ -47,6 +47,10 @@ class FramePacket:
     capture_timestamp_us: int
     captured_monotonic_ns: int
     image: np.ndarray
+    capture_epoch: str = ""
+    runtime_generation: str = ""
+    timestamp_source: str = "read-completion-local-nt"
+    timestamp_uncertainty_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -73,12 +77,16 @@ class PoseSolution:
     used_tag_ids: frozenset[int] = frozenset()
     rejection_reasons: dict[int, str] = field(default_factory=dict)
     solve_ms: float = 0.0
+    tag_diagnostics: dict[int, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
 class CameraCounters:
     captured: int = 0
     detected: int = 0
+    published: int = 0
+    withheld: int = 0
+    last_publish_monotonic: float = 0.0
     capture_failures: int = 0
     decode_failures: int = 0
     overwritten_before_processing: int = 0
@@ -98,6 +106,8 @@ class CameraCounters:
         return {
             "captured": self.captured,
             "detected": self.detected,
+            "published": self.published,
+            "withheld": self.withheld,
             "capture_failures": self.capture_failures,
             "decode_failures": self.decode_failures,
             "overwritten_before_processing": self.overwritten_before_processing,
