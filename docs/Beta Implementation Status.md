@@ -1,11 +1,8 @@
 # Beta implementation and qualification
 
-Contract: [Spot Beta Robot Integration Plan](Spot%20Beta%20Robot%20Integration%20Plan.md),
-October 7, 2026. This file tracks evidence; it does not change the contract.
+Current robot architecture: [Offseason Spot Integration Simplification Plan](Offseason%20Spot%20Integration%20Simplification%20Plan.md), October 11, 2026. It supersedes the shared/hybrid portions of the [original beta plan](Spot%20Beta%20Robot%20Integration%20Plan.md); transport and hardware qualification gates still apply.
 
-Updated October 8, 2026. The user authorized **software implementation now;
-defer hardware qualification**. Software implementation is complete within that
-scope. This is not a robot-ready or hardware acceptance declaration.
+Updated October 11, 2026. The offseason software refactor is integrated locally in both checkouts. [Integration results](Offseason%20Spot%20Integration%20Results.md) record the migration, tests, baseline scheduler prerequisite and remaining measured configuration gates. Fusion remains off. Nothing was deployed.
 
 [Software verification](beta-verification/Software%20Verification.md) contains
 test results, installed-artifact identity, GUI comparisons and review evidence.
@@ -19,12 +16,20 @@ lists the remaining measured trials without changing their budgets.
 | Protocol, configuration and clock fixtures | Software verified | Separate v2 topics/schema; Python/Java serialized fixtures, bounded packets, capture/connection/sync epochs and current-exchange clock gates |
 | Device discovery and durable state | Software verified; physical trials deferred | Stable serial/topology identity, capability/readback checks, immutable transactional generations, last-known-good recovery, cached code profiles and replacement binding |
 | Installed web and calibration | Software verified; hardware load trials deferred | All routes and local assets; Penpot revision 3 light/dark/Auto comparisons; live acknowledged tuning/concurrency; shared-frame independent fit/holdout calibration and atomic group activation/restore |
-| Shared robot integration | Software verified | Reusable `shared` IO/processor/owned queue/diagnostics and Limelight adapter; 12 Java contract tests; offseason, competition and new-member robot projects compile |
+| Offseason robot integration | Software verified locally; commissioning open | One local Vision owner, immutable ingestion, capture-time trust and pre-solve hub policy; 30 vision tests; all three robot projects compile |
 | Robot shadow qualification | Not performed | Actual roboRIO timing, measured mounts and surveyed trials required |
 | Controlled fusion | Not performed | Requires disabled robot, measured mounts and passing shadow evidence |
-| Operator handoff | Software delivered; student hardware trial deferred | Offline ordered guide, compiled two-robot Java example, immutable release verification, activation/rollback tools and explicit qualification checklist |
+| Operator handoff | Software delivered; student hardware trial deferred | Offline ordered guide, compiled offseason Java example, immutable release verification, activation/rollback tools and explicit qualification checklist |
 
-## Verification checkpoint
+## October 11 software verification
+
+Python: **429 passed**. Shared JUnit: **90 passed**. Offseason JUnit: **46 passed**
+(including **30 vision tests**). All three robot modules compile; formatting and
+whitespace checks pass. A fresh process verified production input/action order
+using the accepted scheduler implementations. Legacy binary fixtures remain
+unchanged; policy fixtures pin additive bytes/hashes in both languages.
+
+## October 8 verification checkpoint (previous implementation)
 
 - Source Python suite: **421 passed**. Final isolated installed wheel: **421 passed**.
 - JavaScript state/theme and retained alpha tuning/viewer suites: **17 passed**.
@@ -36,14 +41,16 @@ lists the remaining measured trials without changing their budgets.
 - Actual CUDA, USB modes/cadence, independent FPGA timing, accuracy, endurance,
   physical recovery, power-loss trials and student hardware handoff remain
   unperformed. Offseason camera definitions are deliberately empty until measured
-  mounts are supplied. Fusion, heading and revised trust remain off.
+  mounts are supplied. The earlier checkpoint kept fusion, heading and revised trust off.
+  The current offseason implementation installs one local capture-time trust model;
+  fusion and heading remain off.
 
 ## Qualification restrictions
 
 Beta is not robot-ready until the hardware gates in Section 13 pass. CPU tests do
 not certify CUDA, NT simulation does not certify FPGA timing, and preview liveness
 does not certify four-camera throughput or pose accuracy. Do not invent offseason
-mounts, alter placeholder Limelights, lower acceptance budgets, or activate fusion
+mounts, lower acceptance budgets, or activate fusion
 to make these gates appear complete.
 
 Existing local changes in both checkouts are retained. The alpha verification

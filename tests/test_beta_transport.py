@@ -84,7 +84,14 @@ def handshake(link):
 
     def step():
         publisher.set(manifest().SerializeToString())
-        state.set(wire.RobotState(robot_session="robot-1", sequence=1).SerializeToString())
+        state.set(
+            wire.RobotState(
+                robot_session="robot-1",
+                sequence=1,
+                tag_selection_generation=1,
+                allowed_tag_ids=[1, 2],
+            ).SerializeToString()
+        )
         transport.poll()
 
     wait_for(lambda: config.fresh and transport._ack is not None, step)
@@ -110,7 +117,9 @@ def test_nt_exchange_handshake_withhold_and_no_tag_server_timestamp(link):
         capture_epoch="capture-1",
     )
     detected = DetectedFrame(frame, DetectionBatch((), 0), 0)
-    message = make_observation(detected, PoseSolution(), context, 1)
+    message = make_observation(
+        detected, PoseSolution(), context, 1, selection=_config.tag_selection()
+    )
     assert not message.candidates and transport.publish(message, captured_ns)
     wait_for(lambda: bool(subscriber.get()))
     packet = subscriber.getAtomic()
@@ -214,3 +223,47 @@ def test_robot_decision_diagnostics_are_bounded_current_and_cleared_on_apply(lin
         assert transport.robot_decisions == {}
     finally:
         publisher.close()
+
+
+def test_policy_change_rejects_inflight_solve_and_expiry_without_reapplying_manifest(link):
+    _, _, transport, config, applications, _, state_publisher, _ = link
+    handshake(link)
+    wait_for(lambda: config.tag_selection() is not None, transport.poll)
+    assert transport._ack.tag_selection_supported
+    first = config.tag_selection()
+    captured = time.monotonic_ns()
+    context = transport.context("front", captured, None)
+    frame = FramePacket(
+        "front",
+        1,
+        1,
+        nt_now_us(),
+        captured,
+        np.zeros((480, 640, 2), dtype=np.uint8),
+        capture_epoch="capture-policy",
+    )
+    detected = DetectedFrame(frame, DetectionBatch((), 0), 0)
+    old = make_observation(detected, PoseSolution(), context, 1, selection=first)
+    generation = config.acknowledged_generation
+    state_publisher.set(
+        wire.RobotState(
+            robot_session="robot-1",
+            enabled=True,
+            sequence=2,
+            tag_selection_generation=2,
+            allowed_tag_ids=[2],
+        ).SerializeToString()
+    )
+    wait_for(
+        lambda: config.tag_selection() is not None and config.tag_selection().generation == 2,
+        transport.poll,
+    )
+    assert len(applications) == 1 and config.acknowledged_generation == generation
+    assert not transport.publish(old, captured)
+    current = make_observation(
+        detected, PoseSolution(), context, 1, selection=config.tag_selection()
+    )
+    assert current.tag_selection_generation == 2 and transport.publish(current, captured)
+    config._robot_updated -= 3  # deterministic expiry; no waiting for time to pass
+    assert config.tag_selection() is None
+    assert not transport.publish(current, captured)

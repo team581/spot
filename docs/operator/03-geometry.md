@@ -7,7 +7,7 @@ Group: Getting started
 
 Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees. A camera looking forward has its NWU +X axis along the lens direction.
 
-Do not reuse the offseason placeholder Limelights or the visual reference's sample coordinates. The drivebase outline in the viewer is schematic, while the camera transform comes from the actual manifest.
+Do not use the visual reference's sample coordinates as measured mounts. The drivebase outline in the viewer is schematic, while the camera transform comes from the actual manifest.
 
 ## Inspect the transform
 

@@ -6,11 +6,14 @@ CUDA detector is a direct, attributed import of Team 766's standalone Team 971
 implementation, exposed to Python through pybind11.
 
 The current contract is the
-[Spot beta robot integration plan](docs/Spot%20Beta%20Robot%20Integration%20Plan.md).
+[offseason integration plan](docs/Offseason%20Spot%20Integration%20Simplification%20Plan.md).
 See [implementation and qualification status](docs/Beta%20Implementation%20Status.md)
 for completed software checks and remaining work. Beta uses a distinct v2
-protocol, durable robot profiles, and reusable Java integration in
-`offseason-2026/shared`. Robot fusion defaults off and no Spot mounts are invented.
+protocol, durable robot profiles, and local Java integration in
+`offseason-2026/offseason-bot/src/main/java/frc/robot/vision`. One Vision subsystem
+owns four fixed camera roles and alliance-hub selection; Localization owns fusion
+and capture-time trust. Fusion defaults off; measured mounts and modes remain a
+commissioning gate. The service advertises runtime tag-policy support.
 The [original design](docs/Vision%20Solution%20(Spot)%20Specs.md) and
 [alpha verification](docs/Alpha%20Verification.md) provide historical context.
 

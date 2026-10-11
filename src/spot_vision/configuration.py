@@ -9,6 +9,7 @@ import math
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from .beta_contract import content_hash, parse_manifest, validate_manifest
 from .config import ConfigError
@@ -29,6 +30,12 @@ def optical_controls(values: dict) -> dict:
             word in name for word in ("focus", "zoom", "crop", "rotate", "flip", "pan_", "tilt_")
         )
     }
+
+
+@dataclass(frozen=True)
+class TagSelection:
+    generation: int
+    allowed_tag_ids: tuple[int, ...]
 
 
 class ConfigurationService:
@@ -52,6 +59,7 @@ class ConfigurationService:
         self.fresh = False
         self.connected = False
         self.standalone = False
+        self._selection: TagSelection | None = None
         self._robot_state: wire.RobotState | None = None
         self._robot_updated = float("-inf")
         self._state_expiry = state_expiry_s
@@ -76,6 +84,8 @@ class ConfigurationService:
             self.connected = connected
             self.fresh = False
             self.acknowledged_generation = ""
+            self._selection = None
+            self._selection_valid = False
             self._robot_state = None
             self._robot_updated = float("-inf")
             if connected:
@@ -84,7 +94,8 @@ class ConfigurationService:
     def robot_state(self, state: wire.RobotState, now: float | None = None) -> None:
         with self._eligibility_lock:
             if (
-                not self.connected
+                state.sequence == 0
+                or not self.connected
                 or not self.fresh
                 or self.manifest is None
                 or state.robot_session != self.manifest.robot_session
@@ -92,9 +103,47 @@ class ConfigurationService:
                 return
             if self._robot_state is not None and state.sequence <= self._robot_state.sequence:
                 return
+            ids = tuple(state.allowed_tag_ids)
+            known = {tag.id for tag in self.manifest.profile.field.tags}
+            previous = self._selection
+            # Invalid processing requests still convey enabled state for the
+            # disabled-only mutation lock, but cannot qualify pose publication.
+            valid = (
+                state.tag_selection_generation > 0
+                and ids == tuple(sorted(set(ids)))
+                and set(ids) <= known
+                and (
+                    previous is None
+                    or state.tag_selection_generation > previous.generation
+                    or (
+                        state.tag_selection_generation == previous.generation
+                        and ids == previous.allowed_tag_ids
+                    )
+                )
+            )
+            self._selection_valid = valid
+            if valid:
+                self._selection = TagSelection(state.tag_selection_generation, ids)
             self._robot_state = wire.RobotState()
             self._robot_state.CopyFrom(state)
             self._robot_updated = time.monotonic() if now is None else now
+
+    def tag_selection(self, now: float | None = None) -> TagSelection | None:
+        """Atomic processing-boundary snapshot; never relaxes mutation eligibility."""
+        with self._eligibility_lock:
+            now = time.monotonic() if now is None else now
+            state = self._robot_state
+            if (
+                not self.connected
+                or not self.fresh
+                or state is None
+                or self.manifest is None
+                or state.robot_session != self.manifest.robot_session
+                or not getattr(self, "_selection_valid", False)
+                or not 0 <= now - self._robot_updated <= self._state_expiry
+            ):
+                return None
+            return TagSelection(state.tag_selection_generation, tuple(state.allowed_tag_ids))
 
     def require_eligible(self, now: float | None = None) -> None:
         with self._eligibility_lock:
@@ -176,6 +225,8 @@ class ConfigurationService:
             data["active_robot"] = target.profile.robot_id
             state = self._commit(data, self.state.generation, code=True, manifest=target)
             self.fresh = True
+            self._selection = None
+            self._selection_valid = False
             self._robot_state = None
             self._robot_updated = float("-inf")
             return state

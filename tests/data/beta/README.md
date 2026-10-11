@@ -6,3 +6,8 @@ at (2.2, 0, 0.5) therefore gives robot (2, 0, 0) m.
 Transport fixture capture time is 10.05 FPGA seconds.
 The diagnostic local clock value inside the packet is a different epoch.
 IPPE alternatives are 0 and 0.7 rad; ambiguous alternatives are ±0.1 rad.
+Policy fixtures add support=true to ack and generation=3 to multi.
+policy-state: robot-1, enabled, sequence=7, generation=3, IDs=[1,2].
+Its bytes are 0a07726f626f742d311001180720032a020102.
+Ack suffix is 6801; observation suffix is c80103. SHA-256 values are
+pinned independently in the generator and policy-expectations.json.

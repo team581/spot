@@ -16,7 +16,7 @@ import numpy as np
 from .beta_capture import BetaCapture
 from .beta_contract import content_hash
 from .beta_frames import FrameHub
-from .beta_processing import BetaDetector, ProcessingBudget, ProcessingPolicy
+from .beta_processing import BetaDetector, ProcessingBudget, ProcessingPolicy, solve_tag_selection
 from .beta_transport import BetaNtTransport, make_observation
 from .calibration_record import validate_record
 from .clock import FrameRateCounter
@@ -591,7 +591,12 @@ class BetaRuntime:
                     detected = DetectedFrame(
                         frame, batch, (time.monotonic_ns() - frame.captured_monotonic_ns) / 1e6
                     )
-                    solution = self.solvers[identity].solve(batch.detections)
+                    selection = self.configuration.tag_selection()
+                    # Detect once. Retain every detection for diagnostics while
+                    # solving only the selected rays; never relabel a broad solve.
+                    solution = solve_tag_selection(
+                        self.solvers[identity], batch.detections, selection
+                    )
                     worker.counters.detected += 1
                     worker.counters.last_detection_monotonic = time.monotonic()
                     worker.counters.fps_detect = rates.setdefault(
@@ -619,6 +624,7 @@ class BetaRuntime:
                                     solution,
                                     context,
                                     (time.monotonic_ns() - frame.captured_monotonic_ns) / 1e6,
+                                    selection=selection,
                                 ),
                                 frame.captured_monotonic_ns,
                             )

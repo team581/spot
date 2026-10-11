@@ -8,6 +8,8 @@ import uuid
 from dataclasses import dataclass, replace
 
 from .config import ConfigError
+from .configuration import TagSelection
+from .models import PoseSolution
 
 
 @dataclass(frozen=True)
@@ -182,3 +184,12 @@ class ProcessingBudget:
     def completed(self, identity, started, duration):
         self.last[identity] = started
         self.costs[identity] = self.costs.get(identity, duration) * 0.8 + duration * 0.2
+
+
+def solve_tag_selection(solver, detections, selection: TagSelection | None) -> PoseSolution:
+    """Only selected detections reach geometry; exclusions remain diagnostics."""
+    allowed = set(selection.allowed_tag_ids) if selection else set()
+    selected = tuple(tag for tag in detections if tag.id in allowed)
+    solution = solver.solve(selected) if selected else PoseSolution()
+    excluded = {tag.id: "tag-policy-excluded" for tag in detections if tag.id not in allowed}
+    return replace(solution, rejection_reasons={**solution.rejection_reasons, **excluded})

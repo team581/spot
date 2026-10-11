@@ -16,7 +16,7 @@ import numpy as np
 from .beta_contract import MAX_TAGS, content_hash, parse_manifest, validate_observation
 from .clock import ClockGate, nt_now_us
 from .config import ConfigError, NtConfig
-from .configuration import ConfigurationService
+from .configuration import ConfigurationService, TagSelection
 from .models import DetectedFrame, PoseSolution
 from .proto import vision_v2_pb2 as wire
 
@@ -33,11 +33,17 @@ class ObservationContext:
 
 
 def make_observation(
-    detected: DetectedFrame, solution: PoseSolution, context: ObservationContext, total_ms: float
+    detected: DetectedFrame,
+    solution: PoseSolution,
+    context: ObservationContext,
+    total_ms: float,
+    *,
+    selection: TagSelection | None = None,
 ) -> wire.Observation:
     ack, camera, frame = context.acknowledgement, context.camera, detected.frame
     message = wire.Observation(
         schema_version=2,
+        tag_selection_generation=selection.generation if selection else 0,
         robot_id=ack.robot_id,
         robot_session=ack.robot_session,
         service_session=ack.service_session,
@@ -105,7 +111,11 @@ def make_observation(
             hamming=detection.hamming,
             decision_margin=detection.decision_margin,
             used_for_pose=detection.id in solution.used_tag_ids,
-            rejection_reason=solution.rejection_reasons.get(detection.id, ""),
+            rejection_reason=(
+                "tag-policy-excluded"
+                if selection and detection.id not in selection.allowed_tag_ids
+                else solution.rejection_reasons.get(detection.id, "")
+            ),
         )
         if detection.distortion_factor_px is not None:
             tag.distortion_displacement_px = detection.distortion_factor_px
@@ -377,6 +387,7 @@ class BetaNtTransport:
                 field_hash=content_hash(manifest.profile.field),
                 cameras=self._cameras(),
                 applied=True,
+                tag_selection_supported=True,
             )
             if self._ack is None or self._ack != ack:
                 self._ack = ack
@@ -445,6 +456,18 @@ class BetaNtTransport:
                 or observation.calibration_hash != context.camera.calibration_hash
                 or observation.calibration_valid != context.camera.calibration_valid
                 or observation.service_session != self.session
+            ):
+                self.withheld += 1
+                return False
+            selection = self.configuration.tag_selection()
+            if (
+                selection is None
+                or observation.tag_selection_generation != selection.generation
+                or any(
+                    tag not in selection.allowed_tag_ids
+                    for candidate in observation.candidates
+                    for tag in candidate.tag_ids
+                )
             ):
                 self.withheld += 1
                 return False

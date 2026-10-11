@@ -1,51 +1,36 @@
-package com.team581.vision;
+package frc.robot.vision;
 
-import com.team581.vision.proto.SpotProtos;
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import frc.robot.vision.generated.SpotProtos;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.DoubleFunction;
+import java.util.function.BooleanSupplier;
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
-/** Compiled documentation example; mounts/modes are supplied from real measurements. */
+/** Compiled offseason construction seam; configuration contains measured mounts and modes. */
 final class SpotBetaRobotExample {
-  record Integration(VisionPipeline vision, CaptureHistory history, SpotProtos.Profile profile) {}
-
-  static Integration create(
-      String robotId,
-      AprilTagFieldLayout blueOriginField,
-      double measuredTagSizeM,
-      Transform3d measuredMount,
-      SpotProtos.OpticalMode verifiedMode,
-      DoubleFunction<Optional<Pose2d>> capturePoseAt,
-      NetworkTableInstance robotNtServer) {
-    var profile =
-        VisionProfiles.profile(robotId, blueOriginField, measuredTagSizeM)
-            .addCameras(
-                VisionProfiles.camera("front", measuredMount)
-                    .setRequired(true)
-                    .addAllowedModes(verifiedMode))
-            .setFusionEnabled(false)
-            .setHeadingEnabled(false)
-            .setRevisedTrustEnabled(false)
-            .build();
-    var history = new CaptureHistory(capturePoseAt);
-    // Add current FPGA-time pose/motion/tilt to history each robot loop before collect().
-    var processor =
-        new VisionProcessor(
-            profile,
-            List.of(VisionCamera.fixed("front", measuredMount)),
-            history,
-            VisionProcessor.Policy.conservative());
-    var vision =
-        new VisionPipeline(
-            new SpotVisionIO(robotNtServer, profile),
-            profile,
-            processor,
-            List.of(),
-            new VisionDiagnostics());
-    return new Integration(vision, history, profile);
+  static Vision create(
+      NetworkTableInstance nt,
+      String session,
+      SpotProtos.Profile profile,
+      List<SpotCameraProfiles.Camera> mounts,
+      Vision.CaptureSource capture,
+      DoubleSupplier clock,
+      BooleanSupplier enabled,
+      BooleanSupplier operatorVision,
+      Supplier<Optional<Alliance>> alliance) {
+    return new Vision(
+        new SpotVisionIO(nt, profile, session),
+        profile,
+        mounts,
+        capture,
+        clock,
+        enabled,
+        operatorVision,
+        alliance);
   }
+
+  private SpotBetaRobotExample() {}
 }

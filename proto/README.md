@@ -8,18 +8,26 @@ Generate both languages with the same official protoc 33.2 compiler:
 
 ```sh
 protoc -I proto --python_out=src/spot_vision/proto proto/vision_v2.proto
+mkdir -p /tmp/spot-java
 protoc -I proto --java_out=/tmp/spot-java proto/vision_v2.proto
-# Copy /tmp/spot-java/com/team581/vision/proto/SpotProtos.java to
-# offseason-2026/shared/src/main/java/com/team581/vision/generated/SpotProtos.java
+# Preserve the extraction marker on every generation/copy:
+python3 - <<'PYTHON'
+from pathlib import Path
+source = Path('/tmp/spot-java/frc/robot/vision/generated/SpotProtos.java')
+target = Path('../offseason-2026/offseason-bot/src/main/java/frc/robot/vision/generated/SpotProtos.java')
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text('// Move to shared folder after offseason\n' + source.read_text())
+PYTHON
 PYTHONPATH=src:tests .venv/bin/python tools/generate_beta_fixtures.py
+cp tests/data/beta/* ../offseason-2026/offseason-bot/src/test/resources/spot-beta/
 ```
 
-The Java file retains package `com.team581.vision.proto`; the generated directory
-excludes it from hand-edited formatting. Java runtime is protobuf 4.33.2. Python
-requires the package's declared runtime (also supporting the existing v1 file).
-Copy golden packets to shared test resources under `spot-beta`; both languages
-assert serialization, hash, transforms, candidates and timestamps. Include both
-schemas in releases.
+The Java namespace is `frc.robot.vision.generated`; generated code is excluded
+from formatting. Java runtime protobuf 4.33.2 belongs to offseason-bot as an
+implementation dependency. Shared and other robot modules do not depend on Spot.
+Python requires the declared runtime (also supporting the existing v1 file).
+Legacy fixtures remain byte-identical; policy fixtures separately pin bytes and
+SHA-256 hashes. Include both schemas in releases.
 
 Profile hashing is SHA-256 of serialized `Profile` bytes; no map fields occur.
 Preserve explicit repeated-field order. Manifest sessions are deliberately
@@ -59,3 +67,28 @@ continues. Max packets are 64 KiB / 2 candidates / 64 tags; profiles are 256 KiB
 Sources: [WPILib timestamp domains](https://docs.wpilib.org/en/stable/docs/software/networktables/networktables-intro.html#timestamps),
 [TimestampedRaw sentinels](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/networktables/TimestampedRaw.html),
 [NTCore 2026.2.2 source](https://github.com/wpilibsuite/allwpilib/blob/v2026.2.2/ntcore/src/main/native/cpp/net/ClientImpl.cpp).
+
+
+## Runtime tag selection (service 0.2.1 / offseason local integration)
+
+Schema v2 and existing topics/field numbers remain unchanged. New fields are
+RobotState `tag_selection_generation=4`, `allowed_tag_ids=5`, Acknowledgement
+`tag_selection_supported=13`, and Observation `tag_selection_generation=25`.
+The namespace option changes generated Java paths only, never packet bytes or
+profile hashes. `revised_trust_enabled` advertises the installed local trust
+model; it no longer selects between two offseason implementations.
+
+A positive generation scopes sorted, unique field IDs to the current robot
+session. Only increasing fresh robot-state sequences can refresh it. Equal
+selection generations must keep identical IDs; lower generations cannot replace
+a newer selection. Enabled-time selection never unlocks calibration, bindings,
+mounts or controls. Disconnect, manifest/session replacement or freshness expiry
+withholds policy-qualified observations until a fresh matching request arrives.
+The robot requires advertised support and rejects older applied generations and
+candidate IDs outside its selection independently.
+
+Detection runs once. The frame processing snapshot filters detections before
+pose solving, preserves excluded diagnostics (`tag-policy-excluded`), and emits
+an advancing no-pose observation for an empty selected set. Publication rechecks
+the current policy so in-flight solves cannot be relabeled after a change.
+There is no capture/detector restart or manifest mutation for tag selection.

@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package spot.vision.v2;
-option java_package = "com.team581.vision.proto";
+option java_package = "frc.robot.vision.generated";
 option java_outer_classname = "SpotProtos";
 
 // Coordinates: WPILib NWU, metres, quaternion WXYZ. Poses are field-to-camera;
@@ -73,6 +73,9 @@ message RobotState {
   string robot_session = 1;
   bool enabled = 2;
   uint64 sequence = 3;
+  // Global enabled-time processing policy, scoped to robot_session.
+  uint64 tag_selection_generation = 4;
+  repeated uint32 allowed_tag_ids = 5;
 }
 message CameraGeneration {
   string camera_name = 1;
@@ -96,6 +99,7 @@ message Acknowledgement {
   repeated CameraGeneration cameras = 10;
   bool applied = 11;
   string error = 12;
+  bool tag_selection_supported = 13;
 }
 message PoseCandidate {
   enum Method { UNKNOWN = 0; MULTI_TAG_SQPNP = 1; SINGLE_TAG_IPPE_SQUARE = 2; }
@@ -152,6 +156,7 @@ message Observation {
   repeated PoseCandidate candidates = 22;
   repeated TagObservation tags = 23;
   ProcessingTiming timing = 24;
+  uint64 tag_selection_generation = 25;
 }
 message Health {
   uint32 schema_version = 1;

@@ -3,14 +3,80 @@ Group: Reference
 
 # API and Java integration
 
-## Shared implementation
+## Offseason implementation
 
-The offseason checkout uses `shared/.../vision` for SpotVisionIO, VisionProcessor, CaptureHistory, MeasurementQueue, VisionPipeline, diagnostics and reviewed trust. Robot-specific measured mounts, required names, allowed modes, controls and flags live in SpotCameraProfiles. The actual offseason profile deliberately contains no invented Spot mounts. Limelight policy stays in its adapter, and all released immutable measurements share chronological ordering.
+Production Spot code lives in `offseason-bot/src/main/java/frc/robot/vision/`.
+`Vision` is the sole scheduled owner of transport, processing, capture history,
+ordering, tag-selection states and cached camera status. `Localization` drains
+immutable `results/VisionMeasurement` values once, checks history and age, inserts
+each pose with one FPGA-to-CTRE time conversion, and acknowledges actual fusion.
+Only fused evidence updates the local `TrustFactor`. Simulation uses the same
+health and trust rules as hardware.
 
-The compiling example below accepts measured mounts and verified modes as arguments. Use the robot's real blue-wall-right field layout and NWU transforms. `poseAt` must return empty outside available FPGA-time history; CTRE callers convert FPGA to CTRE time exactly once at history lookup and ingestion.
+Four chassis-fixed roles are `left`, `right`, `front`, `back`. The production
+profile remains empty until their NWU mounts, optical modes and controls are
+measured. No placeholder transforms or turret camera are published. Set the
+single `SpotCameraProfiles.FUSION_ENABLED` only after qualification; its default
+is false and heading fusion remains suppressed. The DS `UseVision` option and
+pit mode can suppress fusion while preserving shadow diagnostics.
+
+```mermaid
+flowchart LR
+  Spot[Spot IO] --> Vision[Vision]
+  History[Capture history] --> Vision
+  Vision --> Localization[Localization]
+  Localization --> Estimator[Drive estimator]
+  Localization --> Trust[TrustFactor]
+  Localization --> Ack[Fusion acknowledgement]
+  Ack --> Vision
+```
+
+The compiled offseason example supplies one NT instance/session, a capture
+source, a clock and explicit capabilities. `poseAt` returns empty outside
+available FPGA-time history. Robot construction is drivetrain → IMU → Vision →
+HealthManager → Swerve → Localization; helpers do not schedule themselves.
 
 ```java-example
 ```
+
+## Alliance-hub selection and release compatibility
+
+Use Spot service **0.2.1 or later with `tag_selection_supported=true`** and the
+matching offseason local integration (namespace `frc.robot.vision.generated`).
+An older service is reported as unsupported rather than silently applying a
+broad-tag solve. Deploy both sides together after review; this refactor does not
+deploy either side automatically. Transport remains schema v2.
+
+`tagsRequest()` selects all configured field IDs. `hubTagsRequest()` first
+acquires broadly, then selects red `2,3,4,5,8,9,10,11` or blue
+`18,19,20,21,24,25,26,27` after fresh accepted own-hub evidence from any camera.
+Unknown alliance or incomplete hub layout stays broad. Loss for 0.5 seconds
+restores broad acquisition. Repeated requests do not restart timers. Each
+selection change invalidates queued old-policy output; service filtering occurs
+before pose solving, and applied generations are independently checked on robot.
+
+Inputs run IMU 10 → Vision 11 → Localization 12 → Health 28 → managers 29.
+The accepted sorted-list scheduler implementations from main are required;
+priority-queue iteration cannot enforce this order. State actions use descending
+priority, so Vision publishes decisions after Localization's acknowledgements.
+
+Camera health and pose evidence are separate. Valid zero-tag frames can keep a
+camera healthy while trust ages. Required-camera failure faults the camera while
+other usable cameras continue localization. With no configured cameras,
+localization camera capability is unavailable; Spot has no fuel-detection capability.
+
+## Commissioning and future simulation
+
+Measure all four mounts/modes/controls; qualify USB/compute throughput, simultaneous
+visibility, correlation, partial outages, FPGA timestamps and provisional trust
+coefficients. Fusion and heading remain off pending robot trials. Historical
+verification reports describe the earlier shared/hybrid implementation.
+
+The future headless runner can compose this subsystem using scripted `VisionIO`
+raw samples and health, a manual clock, capture-source history and public cached
+status. This change adds no scenario runner, Gradle tasks, diagnostic entrypoint,
+CI changes or registry reset/unregister mechanism. Full scoring simulation must
+account for the existing TestManager idling normal managers each loop.
 
 ## Timestamp and observation contract
 
