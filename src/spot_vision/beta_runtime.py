@@ -19,6 +19,7 @@ from .beta_frames import FrameHub
 from .beta_processing import BetaDetector, ProcessingBudget, ProcessingPolicy, solve_tag_selection
 from .beta_transport import BetaNtTransport, make_observation
 from .calibration_record import validate_record
+from .camera_controls import EXPOSURE_NAMES, frame_limited_exposure
 from .clock import FrameRateCounter
 from .config import Calibration, CameraConfig, CameraSelector, ConfigError, DetectorConfig, NtConfig
 from .configuration import ConfigurationService, mode_signature, optical_controls
@@ -71,6 +72,25 @@ def record_calibration(record: dict, camera: CameraConfig) -> Calibration:
     )
     calibration.validate_for(camera)
     return calibration
+
+
+def preview_modes(device):
+    return [
+        mode for mode in device.modes
+        if mode["pixel_format"] in {"MJPG", "YUYV"}
+        and 16 <= mode["width"] <= 1920
+        and 16 <= mode["height"] <= 1080
+        and mode["width"] % 8 == 0 and mode["height"] % 8 == 0
+        and 0 < mode["fps"] <= 240
+        and mode["width"] * mode["height"] * mode["fps"] <= 640 * 480 * 240
+    ]
+
+
+def preview_mode(mode):
+    return wire.OpticalMode(
+        id="preview", fps=round(mode["fps"]),
+        **{key: mode[key] for key in ("width", "height", "pixel_format")},
+    )
 
 
 class BetaRuntime:
@@ -204,11 +224,44 @@ class BetaRuntime:
                     elif operation == "standalone":
                         self.configuration.begin_standalone()
                         result = None
+                    elif operation == "device/setup":
+                        identity = payload["identity"]
+                        worker, mode = self.workers.get(identity), self.modes.get(identity)
+                        if not worker or not worker.verified or mode is None:
+                            raise ConfigError("Wait for a verified camera preview")
+                        device = self.devices.get(identity)
+                        defaults = {
+                            c["name"]: c["value"] * c["factor"] for c in device.controls
+                        }
+                        result = self.configuration.setup_device(
+                            identity, {key: getattr(mode, key) for key in
+                            ("width", "height", "pixel_format", "fps")},
+                            defaults, payload["revision"],
+                        )
+                    elif operation == "device/tune":
+                        self._validate_exposure(payload["identity"], payload.get("values", {}))
+                        result = self.configuration.tune_device(
+                            payload["identity"], payload.get("values", {}), payload["revision"],
+                            reset=payload.get("reset", False),
+                        )
+                    elif operation == "device/mode":
+                        identity = payload["identity"]
+                        device = self.devices.get(identity)
+                        mode = next((m for m in preview_modes(device)
+                            if mode_signature(preview_mode(m)) == payload["mode_id"]), None) if device else None
+                        if mode is None:
+                            raise ConfigError("Selected mode is not supported by this camera")
+                        result = self.configuration.set_device_mode(
+                            identity, mode, payload["revision"],
+                        )
                     elif operation == "rename":
                         result = self.configuration.rename(
                             payload["identity"], payload["name"], payload["revision"]
                         )
                     elif operation == "tune":
+                        identity = next((key for key, name in self.roles.items()
+                                         if name == payload["name"]), None)
+                        self._validate_exposure(identity, payload.get("values", {}))
                         result = self.configuration.tune(
                             payload["name"],
                             payload.get("values", {}),
@@ -257,7 +310,9 @@ class BetaRuntime:
                         "revision": self.configuration.state.generation,
                         "applied_generation": self.configuration.acknowledged_generation,
                         "result": result if isinstance(result, dict) else None,
-                        "controls": self._readback_for_name(payload.get("name")),
+                        "controls": dict(self.workers[payload["identity"]].readback)
+                        if operation.startswith("device/") and payload.get("identity") in self.workers
+                        else self._readback_for_name(payload.get("name")),
                     }
                 )
                 self.faults.pop("configuration", None)
@@ -376,16 +431,14 @@ class BetaRuntime:
             else:
                 # Probe only bounded advertised modes. Never infer a logical
                 # camera name, optical signature or production calibration.
-                candidates = [
-                    m
-                    for m in physical.modes
-                    if m["pixel_format"] in {"MJPG", "YUYV"}
-                    and m["width"] <= 1280
-                    and m["height"] <= 720
-                    and m["width"] % 8 == 0
-                    and m["height"] % 8 == 0
-                    and m["fps"] <= 30
-                ]
+                # High-speed UVC devices may advertise only 120/210 FPS. Use
+                # their actual cadence within a pixel-rate budget; processing
+                # and browser previews retain their separate rate limits.
+                candidates = preview_modes(physical)
+                setup = state.data.get("standalone_cameras", {}).get(identity)
+                if setup:
+                    candidates = [m for m in candidates
+                        if mode_signature(preview_mode(m)) == mode_signature(preview_mode(setup["mode"]))]
                 failed = self._preview_failed.setdefault(identity, set())
                 previous = self.workers.get(identity)
                 if (
@@ -422,18 +475,18 @@ class BetaRuntime:
                     ]
                 selected = min(
                     untried,
-                    key=lambda m: (abs(m["width"] - 640) + abs(m["height"] - 480), -m["fps"]),
+                    key=lambda m: (
+                        m["fps"] > 30,
+                        abs(m["width"] - 640) + abs(m["height"] - 480),
+                        abs(m["fps"] - 30),
+                    ),
                     default=None,
                 )
                 if selected is None:
                     faults[identity] = "No bounded supported preview mode advertised"
                     continue
-                mode = wire.OpticalMode(
-                    id="preview",
-                    fps=round(selected["fps"]),
-                    **{k: selected[k] for k in ("width", "height", "pixel_format")},
-                )
-                controls[identity] = {}
+                mode = preview_mode(selected)
+                controls[identity] = setup["settings"] if setup else {}
             modes[identity] = mode
             desired[identity] = self._camera_config(identity, mode, definition)
             record = state.data.get("calibrations", {}).get(identity + ":" + mode_signature(mode))
@@ -535,7 +588,7 @@ class BetaRuntime:
                 worker.ready.wait(max(0, deadline - time.monotonic()))
                 if not worker.verified:
                     faults[identity] = worker.counters.error or "Camera initialization pending"
-                    if profile.get("settings", {}).get(roles.get(identity)):
+                    if controls[identity]:
                         raise ConfigError(
                             f"Camera settings verification failed: {faults[identity]}"
                         )
@@ -767,7 +820,29 @@ class BetaRuntime:
             raise ConfigError("Calibration lens/control state mismatch")
         record_calibration(record, worker.camera)
 
+    def _validate_exposure(self, identity, values):
+        device, mode = self.devices.get(identity), self.modes.get(identity)
+        if not device or mode is None:
+            return
+        for control in device.controls:
+            name = control["name"]
+            if name not in EXPOSURE_NAMES or name not in values:
+                continue
+            limited = frame_limited_exposure({
+                **control, **{key: control[key] * control["factor"]
+                             for key in ("min", "max", "step")},
+            }, mode.fps)
+            value = values[name]
+            if not limited["exposure_limit_available"] or (
+                type(value) in (int, float) and value > limited["max"]
+            ):
+                raise ConfigError(f"Exposure must fit one {mode.fps:g} FPS frame "
+                                  f"(maximum {limited['max']:g} µs)")
+
     def _supported_controls(self, name):
+        device = self.devices.get(name)
+        if device:
+            return {control["name"] for control in device.controls}
         binding = self.configuration.profile_data().get("bindings", {}).get(name, {})
         device = self.devices.get(binding.get("identity"))
         return {control["name"] for control in device.controls} if device else set()
@@ -801,6 +876,7 @@ class BetaRuntime:
             identity = device["identity"]
             name = by_identity.get(identity)
             definition = next((c for c in definitions if c.name == name), None)
+            standalone_setup = not name and identity in config.state.data.get("standalone_cameras", {})
             worker = self.workers.get(identity)
             record = self.calibrations.get(identity)
             capabilities = []
@@ -823,20 +899,26 @@ class BetaRuntime:
                         "value": worker.readback.get(control["name"], control["value"] * factor)
                         if worker
                         else control["value"] * factor,
-                        "allowed": bool(policy and policy.allow_override and control["writable"]),
+                        "allowed": bool(control["writable"] and (
+                            (policy and policy.allow_override) or standalone_setup)),
                         "default": policy.default_value if policy else None,
                         "required": bool(policy and policy.required),
                         "reason": ""
-                        if policy and policy.allow_override
+                        if (policy and policy.allow_override) or standalone_setup
                         else "Pinned by robot code"
                         if policy
                         else "Not allowed by robot code",
                     }
                 )
+                if identity in self.modes:
+                    capabilities[-1] = frame_limited_exposure(
+                        capabilities[-1], self.modes[identity].fps,
+                    )
             camera = {
                 **device,
                 "name": name or device["display_id"],
                 "logical_name": name,
+                "standalone_setup": standalone_setup,
                 "required": bool(definition and definition.required),
                 "timing_signature": timing_signature(self.modes[identity], worker.readback)
                 if worker and identity in self.modes
@@ -844,6 +926,7 @@ class BetaRuntime:
                 "timestamp_qualified": bool(
                     worker and getattr(worker, "timestamp_uncertainty_s", None)
                 ),
+                "present": True,
                 "connected": bool(worker and worker.verified),
                 "controls": capabilities,
                 "calibrated": bool(record),
@@ -882,7 +965,8 @@ class BetaRuntime:
                 "age_s": None
                 if worker is None or worker.frame is None
                 else (time.monotonic_ns() - worker.frame.captured_monotonic_ns) / 1e9,
-                "mode_id": self.modes[identity].id if identity in self.modes else None,
+                "mode_id": (mode_signature(self.modes[identity]) if not name else self.modes[identity].id)
+                if identity in self.modes else None,
                 "mode_signature": mode_signature(self.modes[identity])
                 if identity in self.modes
                 else None,
@@ -898,7 +982,8 @@ class BetaRuntime:
                     for m in definition.allowed_modes
                 ]
                 if definition
-                else [],
+                else [{"id": mode_signature(preview_mode(m)), **m, "supported": True}
+                      for m in preview_modes(self.devices.get(identity))],
                 "geometry": {
                     "translation": [
                         definition.robot_to_camera.x_m,
@@ -913,7 +998,8 @@ class BetaRuntime:
                     ],
                 }
                 if definition
-                else None,
+                else {"translation": [0, 0, 0], "quaternion": [1, 0, 0, 0], "placeholder": True}
+                if standalone_setup else None,
             }
             processed = self.frames.results.get(identity)
             camera["health"] = (
@@ -960,6 +1046,7 @@ class BetaRuntime:
                         "required": definition.required,
                         "health": "Missing" if definition.enabled else "Disabled",
                         "timestamp_qualified": False,
+                        "present": False,
                         "connected": False,
                         "calibrated": bool(record),
                         "calibration_hash": record.get("hash", "") if record else "",

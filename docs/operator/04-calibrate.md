@@ -5,13 +5,13 @@ Group: Getting started
 
 ## Board and prerequisites
 
-Name and verify each camera first. Use the measured printed board: 15 × 15 squares, 30 mm square length, 22 mm marker length, DICT_4X4_250. Confirm the actual print scale; changing print settings can change these dimensions. Intrinsic calibration does not determine the robot mount.
+Verify a live preview first. A robot profile or camera name is not required: open the camera and choose **Open standalone camera setup**, or add the connected camera directly on Calibration. Standalone setup saves tuning and intrinsics against the physical device and optical mode. Its displayed origin is only an inspection reference, not a robot mount. Use the measured printed board: 15 × 15 squares, 30 mm square length, 22 mm marker length, DICT_4X4_250. Confirm the actual print scale; changing print settings can change these dimensions. Intrinsic calibration does not determine the robot mount.
 
 Open Calibration and enter the explicit board values, lens model and minimum fit views. Defaults are persisted through the configuration service. The fitting baseline is at least 15 sharp views with sufficient coverage and diversity. The production CUDA edge-refinement implementation supports the five-coefficient model; incompatible higher-order models cannot be silently truncated.
 
 ## Fitting captures
 
-1. Add the named cameras to Calibration. One board can move between cameras; simultaneous visibility is unnecessary.
+1. Add the connected cameras to Calibration. Unconfigured cameras use their persistent USB labels. One board can move between cameras; simultaneous visibility is unnecessary.
 2. Choose **Fitting captures**, then **Start**. Automatic capture rejects duplicate views and guides you toward unobserved coverage regions. **Capture** explicitly accepts the current new board frame; **Pause** affects calibration capture.
    To start the entire selected group, choose **Group capture set** in Board and click **Start automatic capture**. The backend checks every selected camera before starting any of them. Use **Pause all** to stop the group.
 3. Move, tilt and change the board distance. Registered coverage particles are guidance, not a quality certificate. Keep the image sharp and vary scale and tilt as well as position.

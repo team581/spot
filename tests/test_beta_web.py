@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
+import time
 from concurrent.futures import Future
 from types import SimpleNamespace
 
@@ -122,6 +123,21 @@ def test_live_control_rate_and_asset_paths_are_bounded(web):
     assert request("GET", "/%2e%2e/%2e%2e/etc/passwd")[0] == 404
     response = request("GET", "/")
     assert response[0] == 200 and "default-src" in response[1]["Content-Security-Policy"]
+
+
+def test_preview_allows_twenty_fps_but_rejects_request_bursts(web, monkeypatch):
+    from spot_vision import beta_web
+
+    request, headers, _, server = web
+    now = [time.monotonic()]
+    monkeypatch.setattr(beta_web, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    server.runtime.frames = SimpleNamespace(preview=lambda *args: {"sequence": 1})
+    path = "/api/frame/" + "a" * 64
+    assert request("GET", path, headers=headers)[0] == 200
+    now[0] += 0.05
+    assert request("GET", path, headers=headers)[0] == 200
+    now[0] += 0.001
+    assert request("GET", path, headers=headers)[0] == 429
 
 
 def test_offline_json_asset_and_pending_rejected_job(web):

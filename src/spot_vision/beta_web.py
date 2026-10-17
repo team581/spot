@@ -19,6 +19,9 @@ from .config import ConfigError
 
 MAX_BODY = 64 * 1024
 OPERATIONS = {
+    "device/setup": {"identity", "revision"},
+    "device/tune": {"identity", "values", "revision", "reset"},
+    "device/mode": {"identity", "mode_id", "revision"},
     "standalone": set(),
     "debug": {"seconds", "revision"},
     "import": {"document", "revision"},
@@ -40,6 +43,9 @@ OPERATIONS = {
     },
 }
 REQUIRED = {
+    "device/setup": {"identity", "revision"},
+    "device/tune": {"identity", "revision"},
+    "device/mode": {"identity", "mode_id", "revision"},
     "debug": {"seconds", "revision"},
     "import": {"document", "revision"},
     "qualify-timing": {"record", "revision"},
@@ -278,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ConfigError("Invalid physical camera identity")
                 now = time.monotonic()
                 with self.server._lock:
-                    if now - session.previews.get(identity, 0) < 0.1:
+                    if now - session.previews.get(identity, 0) < 1 / 25:
                         self._reply(429, {"error": "Preview rate exceeded"})
                         return
                     session.previews[identity] = now

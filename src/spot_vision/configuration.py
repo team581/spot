@@ -166,6 +166,68 @@ class ConfigurationService:
                 raise ConfigError("standalone setup requires a known disconnected robot link")
             self.standalone = True
 
+    def _unbound_device(self, identity: str) -> None:
+        if not self._device_exists(identity):
+            raise ConfigError("camera is disconnected")
+        if self.manifest and any(
+            binding["identity"] == identity
+            for binding in self.profile_data().get("bindings", {}).values()
+        ):
+            raise ConfigError("Use robot camera settings for a configured camera")
+
+    def setup_device(self, identity: str, mode: dict, defaults: dict, expected: str):
+        with self._lock:
+            self._unbound_device(identity)
+            if not self.connected:
+                self.begin_standalone()
+            self.require_eligible()
+            data = copy.deepcopy(self.state.data)
+            devices = data.setdefault("standalone_cameras", {})
+            if identity not in devices and len(devices) >= 128:
+                raise ConfigError("Standalone camera setup limit reached")
+            devices.setdefault(identity, {
+                "mode": copy.deepcopy(mode), "settings": dict(defaults), "defaults": dict(defaults),
+            })
+            return self._commit(data, expected)
+
+    def tune_device(self, identity: str, values: dict, expected: str, *, reset=False):
+        with self._lock:
+            self.require_eligible()
+            self._unbound_device(identity)
+            data = copy.deepcopy(self.state.data)
+            entry = data.get("standalone_cameras", {}).get(identity)
+            if entry is None:
+                raise ConfigError("Open standalone camera setup first")
+            if reset:
+                values = entry["defaults"]
+            supported = self._supported_controls(identity)
+            if not isinstance(values, dict) or not values or len(values) > 64:
+                raise ConfigError("empty or oversized tuning request")
+            for key, value in values.items():
+                if supported is not None and key not in supported:
+                    raise ConfigError(f"{key}: unavailable on the connected device")
+                if type(value) not in (int, float) or not math.isfinite(value):
+                    raise ConfigError(f"{key}: numeric value required")
+            previous = optical_controls(entry["settings"])
+            entry["settings"].update(values)
+            if optical_controls(entry["settings"]) != previous:
+                data["calibrations"] = {
+                    key: record for key, record in data.get("calibrations", {}).items()
+                    if record["identity"] != identity
+                }
+            return self._commit(data, expected)
+
+    def set_device_mode(self, identity: str, mode: dict, expected: str):
+        with self._lock:
+            self.require_eligible()
+            self._unbound_device(identity)
+            data = copy.deepcopy(self.state.data)
+            entry = data.get("standalone_cameras", {}).get(identity)
+            if entry is None:
+                raise ConfigError("Open standalone camera setup first")
+            entry["mode"] = mode
+            return self._commit(data, expected)
+
     def _commit(
         self,
         data: dict,
@@ -372,6 +434,7 @@ class ConfigurationService:
                 "calibrations",
                 "calibration_options",
                 "timestamp_qualifications",
+                "standalone_cameras",
             }:
                 raise ConfigError("Unknown imported state fields")
             data = copy.deepcopy(self.state.data)

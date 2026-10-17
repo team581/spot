@@ -173,7 +173,7 @@ def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(r
     assert old_worker.stopped
     assert app.status()["cameras"][0]["name"] == "front"
     assert app.status()["cameras"][0]["fault"] == "Disconnected"
-    nodes.append(DeviceNode("/dev/video7", "usb-b", "1", "2", "serial", "camera", True))
+    nodes.append(DeviceNode("/dev/video7", "usb-a", "1", "2", "serial", "camera", True))
     app.devices.refresh()
     app.apply(app.configuration.state, app.configuration.manifest)
     assert app.workers[identity] is not old_worker
@@ -281,3 +281,135 @@ def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
     second.counters.capture_failures = 1
     app.apply(state, app.configuration.manifest)
     assert app.workers[identity] is second  # exhausted list keeps one bounded recovering owner
+
+
+@pytest.mark.parametrize("width,height,fps", [(640, 480, 120), (640, 400, 210), (1920, 1080, 30)])
+def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(runtime, width, height, fps):
+    import copy
+
+    from spot_vision.persistence import StateSnapshot
+
+    app, identity, _, _ = runtime
+    app.devices._devices[identity] = replace(
+        app.devices.get(identity),
+        modes=({"width": width, "height": height, "fps": fps, "pixel_format": "MJPG"},),
+    )
+    data = copy.deepcopy(app.configuration.state.data)
+    data["profiles"]["test-robot"]["bindings"] = {}
+    app.apply(StateSnapshot(app.configuration.state.generation, data), app.configuration.manifest)
+    worker = app.workers[identity]
+    assert (worker.camera.width, worker.camera.height, worker.camera.fps) == (width, height, fps)
+    camera = app.status()["cameras"][0]
+    assert identity not in app.roles
+    assert camera["present"] and camera["connected"]
+
+
+def test_preview_prefers_low_bandwidth_modes_and_rejects_excessive_capture_load(runtime):
+    import copy
+
+    from spot_vision.persistence import StateSnapshot
+
+    app, identity, _, _ = runtime
+    app.devices._devices[identity] = replace(
+        app.devices.get(identity),
+        modes=(
+            {"width": 640, "height": 480, "fps": 120, "pixel_format": "MJPG"},
+            {"width": 320, "height": 240, "fps": 30, "pixel_format": "MJPG"},
+            {"width": 1920, "height": 1080, "fps": 240, "pixel_format": "MJPG"},
+        ),
+    )
+    data = copy.deepcopy(app.configuration.state.data)
+    data["profiles"]["test-robot"]["bindings"] = {}
+    state = StateSnapshot(app.configuration.state.generation, data)
+    app.apply(state, app.configuration.manifest)
+    assert app.workers[identity].camera.width == 320
+    app.devices._devices[identity] = replace(
+        app.devices.get(identity), modes=(app.devices.get(identity).modes[-1],)
+    )
+    app.apply(state, app.configuration.manifest)
+    camera = app.status()["cameras"][0]
+    assert camera["present"] and not camera["connected"]
+    assert "No bounded supported preview mode" in camera["fault"]
+
+
+def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runtime):
+    from spot_vision.beta_calibration import BetaCalibration
+
+    app, identity, _, _ = runtime
+    config = app.configuration
+    config.connection_changed(False)
+    config.manifest = None
+    config.begin_standalone()
+    config._commit({}, config.state.generation)
+    config.setup_device(identity, {"width": 640, "height": 480, "fps": 30, "pixel_format": "MJPG"},
+                        {"gain": 1, "contrast": 16}, config.state.generation)
+    worker = app.workers[identity]
+    config.tune_device(identity, {"gain": 2}, config.state.generation)
+    assert app.workers[identity] is worker and worker.readback["gain"] == 2
+    status = app.status()["cameras"][0]
+    assert not status["logical_name"] and status["standalone_setup"]
+    assert status["geometry"]["translation"] == [0, 0, 0]
+    assert status["geometry"]["quaternion"] == [1, 0, 0, 0]
+    assert next(c for c in status["controls"] if c["name"] == "gain")["allowed"]
+    app.calibration = BetaCalibration(app)
+    app.calibration.command("select", {"identities": [identity], "revision": config.state.generation})
+    assert identity in app.calibration.cameras
+    assert not app.roles and app.camera_generations() == []
+    record = {
+        "identity": identity, "mode_signature": mode_signature(app.modes[identity]),
+        "fit": {"accepted": True, "frames_used": 15, "rms_reprojection_error_px": 0.1,
+                "coverage": 0.5, "diversity": 0.75},
+        "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
+        "algorithm": "charuco-fit-holdout-v2", "model": "plumb_bob",
+        "board": {"squares_x": 15, "squares_y": 15, "square_length_m": 0.03,
+                  "marker_length_m": 0.022, "dictionary": "DICT_4X4_250"},
+        "image_rotation_deg": 0,
+        "intrinsics": {"width": 640, "height": 480,
+                       "camera_matrix": [[500, 0, 320], [0, 500, 240], [0, 0, 1]],
+                       "distortion_coefficients": [0] * 5, "reprojection_error_px": 0.1},
+    }
+    config.calibration_group([record], config.state.generation, app.validate_calibration)
+    assert app.status()["cameras"][0]["calibrated"]
+    assert app.store.load().data["calibrations"]
+    assert config.manifest is None and not config.state.data.get("profiles")
+    config.connection_changed(True)
+    with pytest.raises(ConfigError, match="locked"):
+        config.tune_device(identity, {"gain": 3}, config.state.generation)
+
+
+def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(runtime):
+    app, identity, _, _ = runtime
+    device = app.devices.get(identity)
+    exposure = {"name": "exposure_time_absolute", "type": "int", "label": "Exposure",
+                "min": 50, "max": 10000, "step": 1, "default": 50, "value": 50,
+                "factor": 100, "unit": "µs", "writable": True, "options": [], "flags": ""}
+    app.devices._devices[identity] = replace(device, controls=(*device.controls, exposure))
+    app.modes[identity].fps = 120
+    control = next(c for c in app.status()["cameras"][0]["controls"]
+                   if c["name"] == "exposure_time_absolute")
+    assert control["max"] == 8300 and control["hardware_max"] == 1_000_000
+    app._validate_exposure(identity, {"exposure_time_absolute": 8300})
+    with pytest.raises(ConfigError, match="maximum 8300"):
+        app._validate_exposure(identity, {"exposure_time_absolute": 8400})
+
+
+def test_moving_usb_port_does_not_move_robot_name_and_return_restores_saved_tuning(runtime):
+    app, identity, nodes, _ = runtime
+    config = app.configuration
+    config.tune("front", {"gain": 2}, config.state.generation)
+    saved = config.state
+    original = nodes[0]
+    nodes[0] = replace(original, path="/dev/video8", topology="different-port")
+    app.devices.refresh()
+    app.apply(config.state, config.manifest)
+    connected = next(c for c in app.status()["cameras"] if c["connected"])
+    missing = next(c for c in app.status()["cameras"] if c["logical_name"] == "front")
+    assert connected["identity"] != identity and connected["logical_name"] is None
+    assert not missing["connected"] and missing["identity"] == identity
+    nodes[0] = replace(original, path="/dev/video10")
+    app.devices.refresh()
+    app.apply(config.state, config.manifest)
+    returned = next(c for c in app.status()["cameras"] if c["logical_name"] == "front")
+    assert returned["connected"] and returned["identity"] == identity
+    assert app.workers[identity].readback["gain"] == 2
+    assert config.state == saved

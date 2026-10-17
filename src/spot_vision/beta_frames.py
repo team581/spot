@@ -10,7 +10,7 @@ from collections import deque
 
 
 class FrameHub:
-    def __init__(self, *, max_clients: int = 8, width: int = 960, fps: float = 8) -> None:
+    def __init__(self, *, max_clients: int = 8, width: int = 960, fps: float = 20) -> None:
         self._lock = threading.RLock()
         self.latest, self.results, self.encoded = {}, {}, {}
         self.interests = {}
@@ -76,7 +76,7 @@ class FrameHub:
             order.extend(sorted(interested - set(order)))
             if not order:
                 continue
-            if time.monotonic() - last_encode < 1 / 16:
+            if time.monotonic() - last_encode < 1 / 30:
                 continue
             identity = order.popleft()
             order.append(identity)
