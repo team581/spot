@@ -15,6 +15,9 @@ if ! id spot-vision >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin spot-vision
 fi
 usermod -a -G video spot-vision
+if getent group render >/dev/null; then
+  usermod -a -G render spot-vision
+fi
 install -d -o root -g spot-vision -m 0750 /etc/spot-vision
 install -d -o spot-vision -g spot-vision -m 0750 /var/lib/spot-vision
 install -d -o root -g root -m 0755 /opt/spot-vision/releases
