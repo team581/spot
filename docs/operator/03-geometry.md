@@ -5,14 +5,14 @@ Group: Getting started
 
 ## Measure the mount
 
-Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees. A camera looking forward has its NWU +X axis along the lens direction.
+Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees, with positive Pitch pointing the lens up. Displayed Pitch is the negative of WPILib pitch; Yaw and Roll retain their WPILib signs. A camera looking forward has its NWU +X axis along the lens direction.
 
 Do not use the visual reference's sample coordinates as measured mounts. The drivebase outline in the viewer is schematic, while the camera transform comes from the actual manifest.
 
 ## Inspect the transform
 
 1. Open the named camera's **Geometry** tab.
-2. Compare X/Y/Z and Yaw/Pitch/Roll with the measured code values. Use the Front and Lens arrows to check signs and direction.
+2. Compare X/Y/Z and Yaw/Pitch/Roll with the measured code values, reversing the sign of code pitch for the displayed Pitch. Use the Front and Lens arrows to check signs and direction.
 3. Orbit by pointer drag or Arrow keys. Use wheel or +/− for zoom and **Reset view** to return to the initial view.
 4. Enable **Inspection preview** to explore finite edits. This is labelled inspection and does not alter robot geometry. Production transforms remain pinned by robot code; update measured code values and deploy a new robot profile to change them.
 

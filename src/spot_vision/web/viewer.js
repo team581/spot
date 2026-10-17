@@ -43,6 +43,14 @@
       sz * cy * cx - cz * sy * sx,
     ];
   }
+  // Camera controls use positive-up pitch; stored quaternions remain WPILib NWU.
+  function cameraAngles(q) {
+    const [yaw, pitch, roll] = angles(q);
+    return [yaw, pitch === 0 ? 0 : -pitch, roll];
+  }
+  function cameraQuaternion(yaw, pitch, roll) {
+    return quaternion(yaw, -pitch, roll);
+  }
   function multiply(a, b) {
     const [w, x, y, z] = a,
       [v, i, j, k] = b;
@@ -334,8 +342,8 @@
       ctx.fillStyle = ink;
     }
   }
-  Object.assign(SpotViewer, { rotate, angles, quaternion, robotPose });
+  Object.assign(SpotViewer, { rotate, angles, quaternion, cameraAngles, cameraQuaternion, robotPose });
   root.SpotViewer = SpotViewer;
   if (typeof module !== "undefined")
-    module.exports = { rotate, angles, quaternion, robotPose };
+    module.exports = { rotate, angles, quaternion, cameraAngles, cameraQuaternion, robotPose };
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -757,21 +757,21 @@ function geometryPreview(c) {
         )
       : [
           ...c.geometry.translation,
-          ...SpotViewer.angles(c.geometry.quaternion),
+          ...SpotViewer.cameraAngles(c.geometry.quaternion),
         ];
   return {
     translation: values.slice(0, 3),
-    quaternion: SpotViewer.quaternion(values[3], values[4], values[5]),
+    quaternion: SpotViewer.cameraQuaternion(values[3], values[4], values[5]),
   };
 }
 function geometryPage(c) {
   $("#page").innerHTML =
-    `<h1>${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}${tabs(c.identity, "geometry")}<div class="camera-layout"><section class="panel geometry-panel"><div class="panel-heading"><h2>Geometry</h2>${historyMarkup()}</div><p class="lock">${c.logical_name ? "Transform pinned by robot code" : "Not configured with the robot · local origin only"}</p><label class="inspection"><input id="inspection-preview" type="checkbox"> Inspection preview</label><div id="geometry-fields"></div><button id="geometry-reset" class="reset">Reset to code defaults</button><p class="feedback" id="page-feedback"></p><small>0.01 m / 1°. Shift: coarse. Alt: fine.</small><p><a href="#docs/geometry">Measuring camera geometry</a></p></section><div><div class="viewer geometry-view"><canvas id="geometry-canvas" width="1000" height="720" tabindex="0" aria-label="Robot geometry in WPILib NWU. Arrow keys orbit; plus/minus zoom"></canvas><button id="reset-view" class="reset-view">Reset view</button><span class="frame-label">Inspection · production geometry from robot code</span></div><div class="transform-readout" id="transform-readout"></div></div></div>`;
+    `<h1>${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}${tabs(c.identity, "geometry")}<div class="camera-layout"><section class="panel geometry-panel"><div class="panel-heading"><h2>Geometry</h2>${historyMarkup()}</div><p class="lock">${c.logical_name ? "Transform pinned by robot code" : "Not configured with the robot · local origin only"}</p><label class="inspection"><input id="inspection-preview" type="checkbox"> Inspection preview</label><div id="geometry-fields"></div><button id="geometry-reset" class="reset">Reset to code defaults</button><p class="feedback" id="page-feedback"></p><small>0.01 m / 1°. Shift: coarse. Alt: fine. Pitch: positive points up.</small><p><a href="#docs/geometry">Measuring camera geometry</a></p></section><div><div class="viewer geometry-view"><canvas id="geometry-canvas" width="1000" height="720" tabindex="0" aria-label="Robot geometry in WPILib NWU. Arrow keys orbit; plus/minus zoom"></canvas><button id="reset-view" class="reset-view">Reset view</button><span class="frame-label">Inspection · production geometry from robot code</span></div><div class="transform-readout" id="transform-readout"></div></div></div>`;
   geometryNumbers = [];
   lazyViewer(c.identity, true).then(() => {
     if (!$("#geometry-fields")) return;
     const angles = c.geometry
-        ? SpotViewer.angles(c.geometry.quaternion)
+        ? SpotViewer.cameraAngles(c.geometry.quaternion)
         : [null, null, null],
       values = c.geometry
         ? [...c.geometry.translation, ...angles]
@@ -856,7 +856,7 @@ function geometryPage(c) {
     if (!c.geometry || !window.SpotViewer) return;
     const values = [
       ...c.geometry.translation,
-      ...SpotViewer.angles(c.geometry.quaternion),
+      ...SpotViewer.cameraAngles(c.geometry.quaternion),
     ];
     geometryNumbers.forEach((edit, index) => {
       edit.ack = values[index];
@@ -872,7 +872,7 @@ function geometryPage(c) {
     if (latest?.geometry && window.SpotViewer && geometryNumbers.length) {
       const values = [
         ...latest.geometry.translation,
-        ...SpotViewer.angles(latest.geometry.quaternion),
+        ...SpotViewer.cameraAngles(latest.geometry.quaternion),
       ];
       geometryNumbers.forEach((edit, index) => {
         if (
