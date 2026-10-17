@@ -11,12 +11,16 @@ def node(path="/dev/video0", port="usb-1", serial="unique", capture=True):
     return DeviceNode(path, port, "1234", "5678", serial, "Generic USB Camera", capture)
 
 
-def test_unique_serial_follows_port_and_display_id_survives_restart(tmp_path):
+def test_camera_slot_survives_restart_and_stays_with_physical_port(tmp_path):
     registry = DeviceRegistry(tmp_path)
     first = registry.identify([node()])[0]
+    rebooted = DeviceRegistry(tmp_path).identify([node(path="/dev/video6")])[0]
+    assert rebooted.identity == first.identity and rebooted.display_id == first.display_id
     moved = DeviceRegistry(tmp_path).identify([node(path="/dev/video8", port="usb-8")])[0]
-    assert first.identity == moved.identity and first.display_id == moved.display_id
+    assert first.identity != moved.identity and first.display_id != moved.display_id
     assert moved.capture_node == "/dev/video8" and moved.unique_serial
+    returned = DeviceRegistry(tmp_path).identify([node(path="/dev/video10")])[0]
+    assert returned.identity == first.identity and returned.display_id == first.display_id
 
 
 def test_duplicate_or_missing_serial_uses_port_not_enumeration_and_remembers_duplicates(tmp_path):
@@ -38,6 +42,39 @@ def test_metadata_nodes_group_with_physical_device_and_replacement_identity_chan
     assert first.nodes == ("/dev/video0", "/dev/video1") and first.capture_node == "/dev/video0"
     replacement = registry.identify([node(serial="new")])[0]
     assert replacement.identity != first.identity
+    assert replacement.display_id == first.display_id
+
+
+def test_ports_do_not_swap_labels_or_device_identity_when_cameras_are_swapped(tmp_path):
+    registry = DeviceRegistry(tmp_path)
+    a, b = registry.identify([node(port="a", serial="first"),
+                              node(port="b", serial="second", path="/dev/video2")])
+    swapped = DeviceRegistry(tmp_path).identify([
+        node(port="b", serial="first"), node(port="a", serial="second", path="/dev/video2"),
+    ])
+    by_port = {device.topology: device for device in swapped}
+    assert by_port["a"].display_id == a.display_id and by_port["b"].display_id == b.display_id
+    assert by_port["a"].identity not in {a.identity, b.identity}
+    assert by_port["b"].identity not in {a.identity, b.identity}
+    restored = DeviceRegistry(tmp_path).identify([
+        node(port="b", serial="second"), node(port="a", serial="first", path="/dev/video4"),
+    ])
+    assert {d.identity for d in restored} == {a.identity, b.identity}
+
+
+def test_legacy_registry_adopts_current_port_without_losing_saved_identity(tmp_path):
+    import hashlib
+    import json
+
+    identity = hashlib.sha256(b"serial:1234:5678:unique").hexdigest()
+    (tmp_path / "devices.json").write_text(json.dumps({
+        "schema_version": 1, "display_ids": {identity: "USB-03"},
+        "duplicate_serials": [], "next_id": 4,
+    }))
+    current = DeviceRegistry(tmp_path).identify([node()])[0]
+    assert current.identity == identity and current.display_id == "USB-03"
+    persisted = json.loads((tmp_path / "devices.json").read_text())
+    assert persisted["port_slots"]["usb-1"]["display_id"] == "USB-03"
 
 
 def test_capabilities_use_advertised_units_menus_flags_and_modes():

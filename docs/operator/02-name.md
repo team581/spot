@@ -17,6 +17,8 @@ Robot code supplies the available names, modes, field layout, transforms and con
 
 ## Missing or duplicate identities
 
-Unique serials follow the device between USB ports. Missing or duplicate serials bind to USB topology and keep their persistent display ID. Keep those cameras in their labelled ports. If a duplicate serial is discovered later, the identity becomes port based and requires explicit confirmation; the service never silently moves a production name.
+USB labels and camera slots are saved against the physical USB path, including hub ports. The same port keeps its slot through service restarts and Jetson reboots, even if Linux assigns a different `/dev/videoN`. Moving a camera to another port uses that port's slot; returning it restores its original saved configuration. Keep the hub connected to the same upstream Jetson port to retain the same paths.
+
+Serial numbers still distinguish physical devices within each slot, preventing a replacement with a different serial from silently inheriting a calibration. Missing or duplicate serials cannot distinguish otherwise identical replacements; confirm those replacements explicitly. When upgrading from a serial-based registry, the currently connected camera is pinned to its current port while retaining its existing identity and settings.
 
 A name already bound to another device is unavailable. Use the replacement guide for a deliberate physical replacement. Names absent from robot code cannot be created by typing arbitrary text in the GUI.

@@ -160,7 +160,7 @@ def enumerate_nodes(progress=lambda: None) -> list[DeviceNode]:
 
 
 class DeviceRegistry:
-    """Persistent display IDs and sticky duplicate-serial knowledge.
+    """Persistent USB port slots, device identities and duplicate-serial knowledge.
 
     Inventory bookkeeping is separate from optical runtime generations; finding
     a new unused USB camera does not invalidate healthy production measurements.
@@ -185,6 +185,30 @@ class DeviceRegistry:
                     or raw["next_id"] < 1
                 ):
                     raise ValueError("invalid registry schema")
+                slots = raw.get("port_slots", {})
+                if not isinstance(slots, dict) or len(slots) > 4096:
+                    raise ValueError("invalid port registry")
+                labels = set()
+                identities = set()
+                for topology, slot in slots.items():
+                    if (
+                        not isinstance(topology, str) or not topology
+                        or not isinstance(slot, dict)
+                        or set(slot) != {"display_id", "identities"}
+                        or not isinstance(slot["display_id"], str)
+                        or slot["display_id"] in labels
+                        or not isinstance(slot["identities"], dict)
+                        or len(slot["identities"]) > 4096
+                        or any(not isinstance(key, str) or not isinstance(value, str)
+                               or not re.fullmatch(r"[a-f0-9]{64}", value)
+                               for key, value in slot["identities"].items())
+                    ):
+                        raise ValueError("invalid saved USB port slot")
+                    values = set(slot["identities"].values())
+                    if len(values) != len(slot["identities"]) or values & identities:
+                        raise ValueError("camera identity belongs to multiple USB slots")
+                    identities.update(values)
+                    labels.add(slot["display_id"])
                 self.data = raw
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 self.fault = f"Device registry corrupt: {exc}"
@@ -203,6 +227,7 @@ class DeviceRegistry:
             duplicates = set(self.data["duplicate_serials"])
             duplicates.update(":".join(key) for key, count in serials.items() if count > 1)
             self.data["duplicate_serials"] = sorted(duplicates)
+            slots = self.data.setdefault("port_slots", {})
             devices = []
             for topology, group in grouped.items():
                 node = group[0]
@@ -213,17 +238,34 @@ class DeviceRegistry:
                     if unique
                     else f"port:{node.vendor}:{node.product}:{topology}"
                 )
-                identity = hashlib.sha256(observable.encode()).hexdigest()
-                if identity not in self.data["display_ids"]:
+                legacy_identity = hashlib.sha256(observable.encode()).hexdigest()
+                used_identities = {identity for slot in slots.values()
+                                   for identity in slot["identities"].values()}
+                if topology not in slots:
+                    if len(slots) >= 4096:
+                        raise ConfigError("USB port inventory limit reached")
+                    # Adopt an existing installation's identity at its current
+                    # port, preserving saved tuning, bindings and calibration.
+                    label = self.data["display_ids"].get(legacy_identity)
+                    if label is None or label in {slot["display_id"] for slot in slots.values()}:
+                        label = f"USB-{self.data['next_id']:02X}"
+                        self.data["next_id"] += 1
+                    slots[topology] = {"display_id": label, "identities": {}}
+                slot = slots[topology]
+                identity = slot["identities"].get(observable)
+                if identity is None:
                     if len(self.data["display_ids"]) >= 4096:
                         raise ConfigError("device inventory limit reached")
-                    self.data["display_ids"][identity] = f"USB-{self.data['next_id']:02X}"
-                    self.data["next_id"] += 1
+                    identity = legacy_identity if legacy_identity not in used_identities else (
+                        hashlib.sha256(f"slot:{topology}:{observable}".encode()).hexdigest()
+                    )
+                    slot["identities"][observable] = identity
+                    self.data["display_ids"][identity] = slot["display_id"]
                 capture = sorted(item.path for item in group if item.capture)
                 devices.append(
                     PhysicalDevice(
                         identity,
-                        self.data["display_ids"][identity],
+                        slot["display_id"],
                         topology,
                         node.vendor,
                         node.product,
