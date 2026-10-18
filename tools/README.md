@@ -194,3 +194,11 @@ With the repository's existing test environment:
 Dashboard tests use synthetic observations, a fake local SSH executable, and a
 local pseudo-terminal. They never contact a host. Authentication, live remote
 Ctrl-C cleanup, camera access, and performance remain Jetson acceptance checks.
+
+### Hosted operator documentation
+
+`python3 tools/build_docs_site.py` builds `dist/docs` and a Netlify upload ZIP.
+The build reuses the Jetson UI's docs renderer, HTML shell, CSS, fonts, images,
+and theme controls. Only the Docs route is available on the hosted site; it
+makes no requests to robot or camera services. Edit `docs/operator/*.md` to
+update both versions. `netlify.toml` defines the hosted build and publish folder.

@@ -1,0 +1,9 @@
+[build]
+  command = "python3 tools/build_docs_site.py"
+  publish = "dist/docs"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
