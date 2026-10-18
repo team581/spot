@@ -3,22 +3,48 @@ Group: Getting started
 
 # Connect to Spot
 
-## Prerequisites
+Open the dashboard, check the robot link, and find your cameras. Start here when Spot is already installed on the Jetson.
 
-Use the installed beta release on the Spot Jetson, a powered USB hub and an Ethernet connection to the robot network. The roboRIO runs the NT4 server; Spot connects as an NT4 client. Fusion stays off until the hardware qualification record passes. Alpha commands are development tools and do not start this GUI.
+## Open the dashboard
 
-## Install and connect
+1. Make sure the Jetson is on, then connect to the robot.
+2. Open [spot.local:5800](http://spot.local:5800). If the hostname does not resolve, use the Jetson's local IP address and port.
+3. Select **Network** to check the connection, then **Cameras** to find the physical feeds.
 
-1. On the Jetson, install build prerequisites described in the repository README, then run `sudo deploy/install.sh /home/team581/spot-2026` from the source checkout. The installer builds a CUDA wheel, verifies its native module, and prints its immutable release ID.
-2. Review `/etc/spot-vision/beta.json`. The packaged default uses team 581 discovery and HTTP port 5800. Set an explicit `nt.server` instead of `nt.team` when a different endpoint is required. Endpoint changes are administrator installation settings. The GUI does not change operating-system addresses.
-3. For initial setup with hardware qualification pending, run `sudo /opt/spot-vision/activate.py RELEASE_ID --setup-only`. For a qualified disabled robot, omit `--setup-only` to require robot/profile/camera/timing readiness. The installer preserves `/var/lib/spot-vision` during activation and rollback.
-4. Open `http://spot.local:5800` or the Jetson's actual local address and port. Network lists the local addresses. The GUI starts independently of camera or robot availability.
-5. Open Network. Confirm the robot endpoint, NT connection, synchronized clock and current robot profile. Connect the USB cameras. Their physical feeds appear under Cameras.
+![Spot Network page with Connection and Link panels](../../src/spot_vision/web/docs-images/network.png)
 
-The repository's dedicated maintenance connection is `ssh -i ~/.ssh/spot_jetson_ed25519 team581@192.168.69.170`. For direct Ethernet, the development Mac uses 192.168.69.171/24 on the connected adapter. These maintenance addresses are not a claim about the robot NT endpoint.
+*Network shows the robot endpoint, local addresses, clock and profile. This example is disconnected; screenshots in these guides use demonstration data.*
 
-## Observable results
+## Check you are ready
 
-A disconnected robot still allows previews and saved calibration inspection. Configuration controls stay locked until a fresh disabled RobotState arrives, or you explicitly click **Begin standalone setup** on Network while the link is known disconnected. Connecting a robot ends standalone setup. Unknown enabled state never unlocks controls automatically.
+| Check | What to look for |
+| --- | --- |
+| Robot endpoint | Team 581 discovery, or the explicit server configured for this installation |
+| NetworkTables | Connected to the roboRIO, which runs the NT4 server |
+| Synchronization | A current synchronized clock |
+| Profile | The current robot profile |
+| Cameras | A live feed for each connected USB camera |
 
-Proceed to **2. Name cameras** after matching physical feeds to the intended robot camera definitions.
+> **Editing locked?** Disable the connected robot. For bench work with the link known disconnected, click **Begin standalone setup** on Network. Unknown robot state never unlocks edits automatically; connecting a robot ends standalone setup.
+
+## Choose your next task
+
+- [Name cameras](#docs/name) to bind physical feeds to robot-code names.
+- [Tune a standalone camera](#docs/tuning) or [calibrate](#docs/calibrate) without a robot profile.
+- [Deploy Spot](#docs/deployment) if the Jetson has no installed beta service.
+- [Recover a connection](#docs/recovery) if a camera or robot link disappears.
+
+<details>
+<summary>Maintenance connection and endpoint settings</summary>
+
+For the dedicated Jetson maintenance link:
+
+```sh
+ssh -i ~/.ssh/spot_jetson_ed25519 team581@192.168.69.170
+```
+
+For direct Ethernet, the development Mac uses `192.168.69.171/24` on its connected adapter. These maintenance addresses are separate from the robot NT endpoint.
+
+Installation settings live in `/etc/spot-vision/beta.json`. Defaults use team 581 discovery and HTTP port 5800. Set `nt.server` instead of `nt.team` for an explicit robot endpoint. The GUI does not change operating-system addresses. The UI and saved calibration remain accessible without cameras or a robot; alpha development commands do not start this GUI.
+
+</details>

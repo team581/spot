@@ -3,98 +3,91 @@ Group: Reference
 
 # API and Java integration
 
-## Camera settings in code
+Use this reference for subsystem ownership, transport and HTTP contracts. For day-to-day configuration, start with [Cameras in Java](#docs/camera-configuration).
 
-Open [Cameras in Java](#docs/camera-configuration) for the SWYFT/Arducam hardware
-summary, complete VisionConfig.java example, all setting options and camera-control
-values. Define camera settings in VisionConfig.java; transport messages are built
-automatically.
-
-## Offseason implementation
-
-Production Spot code lives in `offseason-bot/src/main/java/frc/robot/vision/`.
-`Vision` is the sole scheduled owner of transport, processing, capture history,
-ordering, tag-selection states and cached camera status. `Localization` drains
-immutable `results/VisionMeasurement` values once, checks history and age, inserts
-each pose with one FPGA-to-CTRE time conversion, and acknowledges actual fusion.
-Only fused evidence updates the local `TrustFactor`. Simulation uses the same
-health and trust rules as hardware.
-
-Four chassis-fixed roles are `left`, `right`, `front`, `back`. The production
-profile remains empty until their NWU mounts, optical modes and controls are
-measured. No placeholder transforms or turret camera are published. Set the
-single `VisionConfig.FUSION_ENABLED` only after qualification; its default
-is false and heading fusion remains suppressed. The DS `UseVision` option and
-pit mode can suppress fusion while preserving shadow diagnostics.
+## Robot data flow
 
 ```mermaid
 flowchart LR
   Spot[Spot IO] --> Vision[Vision]
-  History[Capture history] --> Vision
   Vision --> Localization[Localization]
   Localization --> Estimator[Drive estimator]
-  Localization --> Trust[TrustFactor]
-  Localization --> Ack[Fusion acknowledgement]
-  Ack --> Vision
 ```
 
-The compiled offseason example supplies one NT instance/session, a capture
-source, a clock and explicit capabilities. `poseAt` returns empty outside
-available FPGA-time history. Robot construction is drivetrain → IMU → Vision →
-HealthManager → Swerve → Localization; helpers do not schedule themselves.
+| Owner | Responsibility |
+| --- | --- |
+| `Vision` | Sole scheduled owner of transport, capture history, ordering, selection state and cached camera status |
+| `Localization` | Drain immutable `VisionMeasurement` values once, check age/history, convert FPGA to CTRE time once, insert pose, acknowledge actual fusion |
+| `TrustFactor` | Update from fused evidence; simulation follows the same health/trust rules |
+
+The offseason implementation lives in `offseason-bot/src/main/java/frc/robot/vision/`. Construction order is drivetrain → IMU → Vision → HealthManager → Swerve → Localization; helpers do not schedule themselves. Localization returns fusion acknowledgements to Vision and updates local trust only after fusion.
+
+> **Commissioning gate:** measured `left`, `right`, `front`, `back` mounts, modes and controls are required. The production profile starts empty. `VisionConfig.FUSION_ENABLED` defaults false; heading stays suppressed. DS `UseVision` and pit mode can suppress fusion while retaining shadow diagnostics.
+
+<details>
+<summary>Compiled construction example</summary>
+
+This seam provides one NT instance/session, capture source, clock and explicit capabilities. `poseAt` returns empty outside available FPGA-time history.
 
 ```java-example
 ```
 
-## Alliance-hub selection and release compatibility
+</details>
 
-Use Spot service **0.2.1 or later with `tag_selection_supported=true`** and the
-matching offseason local integration (namespace `frc.robot.vision.generated`).
-An older service is reported as unsupported rather than silently applying a
-broad-tag solve. Deploy both sides together after review; this refactor does not
-deploy either side automatically. Transport remains schema v2.
+## Tag selection
 
-`tagsRequest()` selects all configured field IDs. `hubTagsRequest()` first
-acquires broadly, then selects red `2,3,4,5,8,9,10,11` or blue
-`18,19,20,21,24,25,26,27` after fresh accepted own-hub evidence from any camera.
-Unknown alliance or incomplete hub layout stays broad. Loss for 0.5 seconds
-restores broad acquisition. Repeated requests do not restart timers. Each
-selection change invalidates queued old-policy output; service filtering occurs
-before pose solving, and applied generations are independently checked on robot.
+| Request | Behavior |
+| --- | --- |
+| `tagsRequest()` | All configured field IDs |
+| `hubTagsRequest()` | Acquire broadly, then use own-alliance hub IDs after fresh accepted evidence from any camera |
+| Red hub | 2, 3, 4, 5, 8, 9, 10, 11 |
+| Blue hub | 18, 19, 20, 21, 24, 25, 26, 27 |
+| Unknown alliance / incomplete layout | Keep broad acquisition |
+| Hub evidence lost for 0.5 s | Return to broad acquisition |
 
-Inputs run IMU 10 → Vision 11 → Localization 12 → Health 28 → managers 29.
-The accepted sorted-list scheduler implementations from main are required;
-priority-queue iteration cannot enforce this order. State actions use descending
-priority, so Vision publishes decisions after Localization's acknowledgements.
+Requires Spot **0.2.1+** with `tag_selection_supported=true` and matching offseason integration (`frc.robot.vision.generated`, schema v2). Older services report unsupported. Repeated requests do not reset timers. Selection changes invalidate queued old-policy output; filtering happens before solving and the robot checks applied generations.
 
-Camera health and pose evidence are separate. Valid zero-tag frames can keep a
-camera healthy while trust ages. Required-camera failure faults the camera while
-other usable cameras continue localization. With no configured cameras,
-localization camera capability is unavailable; Spot has no fuel-detection capability.
+<details>
+<summary>Scheduling, health and simulation</summary>
 
-## Commissioning and future simulation
+Inputs run IMU 10 → Vision 11 → Localization 12 → Health 28 → managers 29 using the sorted-list scheduler. Priority-queue iteration does not enforce this order. State actions descend in priority so Vision publishes after Localization acknowledges.
 
-Measure all four mounts/modes/controls; qualify USB/compute throughput, simultaneous
-visibility, correlation, partial outages, FPGA timestamps and provisional trust
-coefficients. Fusion and heading remain off pending robot trials. Historical
-verification reports describe the earlier shared/hybrid implementation.
+Camera health and pose evidence are separate. Fresh zero-tag frames can maintain camera health while trust ages. Other cameras can continue when a required camera faults. An empty profile has no localization camera capability. Spot has no fuel-detection capability.
 
-The future headless runner can compose this subsystem using scripted `VisionIO`
-raw samples and health, a manual clock, capture-source history and public cached
-status. This change adds no scenario runner, Gradle tasks, diagnostic entrypoint,
-CI changes or registry reset/unregister mechanism. Full scoring simulation must
-account for the existing TestManager idling normal managers each loop.
+Qualify USB/compute throughput, visibility, correlation, partial outages, FPGA timestamps and provisional trust coefficients before enabling production fusion. A future headless runner can use scripted `VisionIO`, a manual clock and capture history; no scenario runner or registry reset API is supplied. Full scoring simulation must account for TestManager idling normal managers.
 
-## Timestamp and observation contract
+</details>
 
-Production topics use `/Spot/v2` with `proto:spot.vision.v2.*` raw packets. The schema is installed under `spot_vision/schemas` and checked in as `proto/vision_v2.proto`. Coherent observations carry session, generation, binding, calibration, mode, sequence and capture epoch. The NT sample timestamp is robot-facing FPGA time after built-in translation; the internal Jetson local-NT timestamp is diagnostic and is never treated as an FPGA timestamp.
+## Observation contract
 
-The receiver rejects stale, future, conflicting-domain, pre-reset, duplicate, old-epoch or mismatched packets. Bounds are 64 KiB per observation, 32 cameras, 64 tags and two candidates. Timestamp sentinels 0/1 are handled only on a verified NT server; actual roboRIO timing remains a hardware qualification gate. Max age starts at 250 ms, future tolerance 5 ms and reorder watermark 20 ms; no timestamp clamping is allowed.
+| Field / limit | Contract |
+| --- | --- |
+| Topics / type | `/Spot/v2` · `proto:spot.vision.v2.*` raw packets |
+| Schema | `proto/vision_v2.proto`, installed under `spot_vision/schemas` |
+| Frame identity | Session, generation, binding, calibration, mode, sequence and capture epoch |
+| Robot timestamp | NT sample time translated to FPGA time; local Jetson NT time is diagnostic only |
+| Bounds | 64 KiB per observation · 32 cameras · 64 tags · 2 candidates |
+| Initial time gates | 250 ms max age · 5 ms future tolerance · 20 ms reorder watermark |
 
-## HTTP boundary
+Reject stale, future, conflicting-domain, pre-reset, duplicate, old-epoch and mismatched packets. Do not clamp timestamps. Sentinels 0/1 require a verified NT server; actual roboRIO timing needs hardware qualification.
 
-Get `/api/session` to establish the HttpOnly SameSite browser cookie and CSRF token. Mutations POST JSON to `/api/operations` with matching Origin, X-Spot-CSRF, `operation`, `payload`, and a unique bounded `request_id`. The response is a job ID; poll `/api/jobs/ID` for applied/rejected acknowledgement. Handlers enqueue work and never open cameras, solve calibration or write state.
+## HTTP operations
 
-Ordinary bodies are bounded to 64 KiB, imports to 2 MiB, sessions to eight, HTTP workers to sixteen and live mutations to five per second with a burst of two. Revisions prevent concurrent overwrite. Theme is browser storage and never goes through this API.
+1. GET `/api/session` for the HttpOnly SameSite cookie and CSRF token.
+2. POST JSON to `/api/operations` with matching Origin, `X-Spot-CSRF`, `operation`, `payload` and a unique bounded `request_id`.
+3. Poll `/api/jobs/ID` for applied/rejected acknowledgement.
 
-A measured `qualify-timing` payload contains revision and record: identity, System timing signature, timestamp_source `read-completion-local-nt`, nonpositive correction_us, positive uncertainty_s at most 0.02, measured_cycles at least 100, and explicit evidence/conditions. Synthetic unit-test timing records are not qualification evidence.
+Handlers enqueue work; they never open cameras, solve calibration or write state. Revisions prevent concurrent overwrite. Theme stays in browser storage.
+
+<details>
+<summary>HTTP limits and measured timing records</summary>
+
+| Limit | Value |
+| --- | --- |
+| Ordinary body / import | 64 KiB / 2 MiB |
+| Sessions / HTTP workers | 8 / 16 |
+| Live mutations | 5 per second; burst 2 |
+
+A `qualify-timing` payload carries revision and a record with physical identity, System timing signature, `timestamp_source` = `read-completion-local-nt`, nonpositive `correction_us`, positive `uncertainty_s` ≤ 0.02, `measured_cycles` ≥ 100, and explicit evidence/conditions. Submit while disabled. Synthetic test records are not qualification evidence.
+
+</details>

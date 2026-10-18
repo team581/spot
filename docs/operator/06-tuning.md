@@ -3,29 +3,49 @@ Group: Guides
 
 # Camera tuning
 
-For robot-code settings, hardware pixel counts and the meaning of each control,
-see [Cameras in Java](#docs/camera-configuration).
+Adjust the live image and check what the camera actually accepted. Eligible slider changes apply immediately.
 
-## Standalone camera setup
+## Open a camera
 
-A camera does not need a robot profile for tuning or calibration. Open its camera page and choose **Open standalone camera setup**. The normal feed, live controls, undo/redo, mode selection and calibration become available. A warning identifies the unconfigured camera; its 3D inspection model starts at (0, 0, 0) with zero rotation. Settings persist by physical identity. **Reset setup values** restores the device values captured when standalone setup was first opened.
+For a configured camera, disable the connected robot. Without a profile, open the USB feed and click **Open standalone camera setup**. After a service restart, use **Enable standalone setup** to authorize edits again.
 
-After a service restart, the feed remains accessible; click **Enable standalone setup** to authorize edits again. Connecting a robot ends standalone authorization. Robot-defined camera bindings, mount transforms and control policies retain authority for configured cameras. A connected robot must be freshly disabled before edits are allowed.
+![Camera Config panel with live exposure, gain and brightness controls](../../src/spot_vision/web/docs-images/camera.png)
 
-## Live requested and readback values
+*Config shows the available controls beside the feed. Demonstration values are examples, not recommended presets.*
 
-Config displays actual advertised controls, units, ranges, steps, menus and policy locks. Exposure time controls use microseconds in robot policy and API, converting native UVC 100 µs units explicitly. Gain units are shown only when advertised; no universal dB range is assumed.
+## Tune and confirm
 
-The exposure slider is limited to one configured capture interval, rounded down to the driver's supported step. At 120 FPS with 100 µs steps its maximum is 8,300 µs. The driver-advertised maximum remains in the tooltip; the limit changes with capture mode and is independent of detection or preview FPS. A direct tuning request above the frame limit is rejected rather than silently clipped. If the camera's minimum exposure exceeds the interval, choose a lower capture rate.
+1. Check **Capture resolution / rate** matches the intended optical mode.
+2. Adjust an eligible slider while watching the image.
+3. Wait for the pending request to finish and check the actual device readback.
+4. Use undo/redo to compare changes, or **Reset to code defaults** to restore the robot policy.
 
-Drag an eligible slider. Requests are bounded and the final gesture value is delivered after pending samples. The requested value, pending state and actual device readback are distinct. A clipped or rejected write retains the previously acknowledged configuration and shows the attempted value and reason. There is no tuning Save or Apply action.
+| Setting | Useful first check |
+| --- | --- |
+| Exposure | Shorter reduces motion blur; longer collects more light. Values are in µs. |
+| Gain | Brightens the image but can increase noise. Use the device's advertised scale. |
+| Automatic controls | Disable the relevant automatic mode before setting manual values. |
+| Policy lock | Robot code decides which controls can be overridden. |
+| Rejected or clipped request | Read the reason; the previous acknowledged setting stays active. |
 
-## History and concurrency
+There is no tuning **Save** or **Apply** button. For exact control names and values, see [Cameras in Java](#docs/camera-configuration).
 
-A complete acknowledged slider gesture is one undo entry. Reset to code defaults is one acknowledged transaction. Failed writes do not add entries; redo clears after a new change. Undo/redo use the same backend validation, revision and eligibility checks.
+> **Optical changes affect calibration.** Focus, zoom, crop, rotation and flip can invalidate intrinsics. Capture mode and control readback also affect measured timing. Revalidate the applicable evidence before robot use.
 
-Another browser's revision invalidates local history. **Reconcile current values** reloads current acknowledged settings before another edit; it never replays stale snapshots silently. Robot enable, unknown enabled state or link changes can reject a pending mutation at commit. Read-only previews remain available.
+<details>
+<summary>Exposure limits</summary>
 
-## Optical and timing effects
+Exposure must fit one configured capture interval and the driver's supported range and step. At 120 FPS with 100 µs steps, the maximum is 8,300 µs. The driver maximum remains in the tooltip. This limit follows capture FPS, not detection or preview FPS. Requests above it are rejected; if the minimum is too long, choose a lower supported rate.
 
-Focus, zoom, crop, rotation, flip and similar optical controls invalidate intrinsic compatibility when changed. Measured capture timing also depends on exact mode and control readback. Requalify the applicable calibration and timing before robot use. Advanced **Copy settings as code** outputs the current policy helpers for robot code review; it does not create camera definitions.
+</details>
+
+<details>
+<summary>History, standalone settings and other browsers</summary>
+
+One acknowledged slider gesture is one undo entry; reset is one transaction. Failed writes add no history, and a new change clears redo. Another browser's revision invalidates local history: click **Reconcile current values** before editing again.
+
+Standalone settings persist by physical identity. **Reset setup values** returns to the values captured when setup first opened. Its 3D origin is an inspection reference. Connecting a robot ends standalone authorization; robot bindings, transforms and policy remain authoritative. Enable, unknown state or link changes can reject a pending write.
+
+Advanced **Copy settings as code** produces policy helpers for review; it does not create camera definitions.
+
+</details>

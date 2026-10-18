@@ -3,22 +3,39 @@ Group: Getting started
 
 # Name cameras
 
-## Before renaming
+Bind each physical USB feed to its matching name in robot code. A rename keeps the camera's compatible calibration.
 
-Robot code supplies the available names, modes, field layout, transforms and control policy. Naming binds a physical camera to one of these definitions. The offseason example initially has no Spot cameras because measured mounts have not been supplied. Add measured definitions in robot code, deploy the robot program, and confirm its current profile in Network.
+## Identify the feed
 
-## Identify and rename
+1. Connect one camera to the powered hub and open its USB entry in the sidebar.
+2. Cover the lens briefly or point it at a distinct object. Confirm you are looking at the intended physical camera.
+3. Under **Camera name**, choose its code-defined **Name** and check **This preview matches the physical camera**.
+4. Click **Rename**. Wait for the sidebar name to change and confirm the same feed stays selected.
 
-1. Plug one camera into the powered hub. Open its warning entry, such as USB-01, in the sidebar.
-2. Identify the physical camera from its preview. Cover its lens briefly or point it toward a distinguishable object. Do not use `/dev/videoN` order to identify a production camera.
-3. In **Camera name**, choose the matching available code-defined **Name**. Cached names are explicitly identified when the robot is disconnected.
-4. Click **Rename**. Wait for the backend acknowledgement. Confirm the sidebar name changes while the same physical feed remains selected.
-5. Address the calibration warning using **4. Calibrate**. A compatible saved calibration follows the physical camera; renaming does not calibrate it.
+![USB camera preview beside the Camera name selector and Rename button](../../src/spot_vision/web/docs-images/naming.png)
 
-## Missing or duplicate identities
+*Match the preview first, then choose the name. The names in this demonstration come from its example profile.*
 
-USB labels and camera slots are saved against the physical USB path, including hub ports. The same port keeps its slot through service restarts and Jetson reboots, even if Linux assigns a different `/dev/videoN`. Moving a camera to another port uses that port's slot; returning it restores its original saved configuration. Keep the hub connected to the same upstream Jetson port to retain the same paths.
+## If a name is missing
 
-Serial numbers still distinguish physical devices within each slot, preventing a replacement with a different serial from silently inheriting a calibration. Missing or duplicate serials cannot distinguish otherwise identical replacements; confirm those replacements explicitly. When upgrading from a serial-based registry, the currently connected camera is pinned to its current port while retaining its existing identity and settings.
+| Symptom | What to do |
+| --- | --- |
+| No names available | Add measured camera definitions to robot code, deploy, and check the profile on Network. |
+| Name already in use | Use [Replace a camera](#docs/replacement) for a deliberate replacement. |
+| Cached names shown | Reconnect the robot to confirm the current profile. |
+| Calibration warning remains | Continue to [Calibrate](#docs/calibrate); naming does not calibrate a camera. |
 
-A name already bound to another device is unavailable. Use the replacement guide for a deliberate physical replacement. Names absent from robot code cannot be created by typing arbitrary text in the GUI.
+> **Use stable ports.** Keep the hub on the same Jetson port and each camera on its labelled hub port. Linux `/dev/videoN` order is not a camera identity.
+
+<details>
+<summary>How USB identity is saved</summary>
+
+USB labels and slots follow the physical USB path across restarts and reboots. Moving to another port selects that port's slot; returning restores the original saved configuration.
+
+Serial numbers distinguish devices within a slot so a replacement cannot silently inherit calibration. Confirm replacements explicitly when serials are missing or duplicated. An upgrade from the older serial registry pins each connected camera to its current port while retaining its saved identity and settings.
+
+Robot code supplies names, modes, transforms, field layout and control policy. You cannot create arbitrary names in the GUI. The offseason profile intentionally starts empty until mounts are measured.
+
+</details>
+
+Next: [check camera geometry](#docs/geometry).

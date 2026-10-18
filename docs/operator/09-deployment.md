@@ -3,18 +3,63 @@ Group: Guides
 
 # Deployment and rollback
 
-## Immutable releases
+Build an immutable release, activate its ID, then verify the software actually running.
 
-`deploy/install.sh SOURCE_DIRECTORY` builds a CUDA wheel, installs it under `/opt/spot-vision/releases/RELEASE_ID`, verifies the loaded native module and application assets, records dependency versions and makes application files read-only. It does not switch the running service automatically. State is writable only under `/var/lib/spot-vision`; `/etc/spot-vision` remains read-only to the service.
+## Install a release
 
-Activate with `sudo /opt/spot-vision/activate.py RELEASE_ID`. The script atomically switches `current`, restarts systemd, waits up to 120 s for installed HTTP/native identity and required robot readiness, and records the attempt separately from successful deployment. Use `--setup-only` explicitly for initial offline GUI setup; it records hardware qualification as pending.
+On the Jetson, prepare the build prerequisites in the repository README, then run:
 
-## Rollback
+```sh
+sudo deploy/install.sh /home/team581/spot-2026
+```
 
-If verification fails, activation restores the previous release link and restarts it. To deliberately restore an earlier compatible beta release, activate its existing ID with the same procedure. Assignments, calibrations and installation configuration stay outside release directories. Preserve the historical alpha installation before the first migration; an alpha wheel is not a beta release rollback target.
+The installer builds and verifies the CUDA wheel and prints a **release ID**. It does not switch the running service.
 
-System distinguishes **Last successful deployment**, **Running release**, **Started**, latest attempt and rollback state. It reports the module actually loaded by the process. If wall time has not been verified by systemd timesync, calendar timestamps say **Time unavailable** while identity and monotonic uptime remain visible.
+## Activate and verify
 
-## Troubleshooting and support
+For a qualified, disabled robot, replace `RELEASE_ID` with the printed ID:
 
-Use `systemctl status spot-vision` and `journalctl -u spot-vision`. Default logs retain meaningful faults and transitions, avoiding per-frame arrays. System can export a support bundle and configuration or record 10–30 s of bounded diagnostic snapshots. A debug recording does not change camera ownership. Import checks the current code profile, physical identities, policy, mode and calibration before an atomic disabled-only acknowledgement.
+```sh
+sudo /opt/spot-vision/activate.py RELEASE_ID
+```
+
+For initial offline GUI setup while hardware qualification is pending:
+
+```sh
+sudo /opt/spot-vision/activate.py RELEASE_ID --setup-only
+```
+
+Activation restarts the service and waits up to 120 seconds for HTTP/native identity and the required readiness checks. Open **System** to verify the result.
+
+![System page showing the running release, source commit, native build and deployment status](../../src/spot_vision/web/docs-images/system.png)
+
+*Use the Software panel to check the running identity and latest attempt. This demonstration has no installed native build.*
+
+| System field | Check |
+| --- | --- |
+| Running release | The intended release ID and actually loaded module |
+| Last successful deployment | The latest verified activation |
+| Last attempt / rollback | Whether the latest switch failed or restored a previous release |
+| Started | Process start time; calendar time may be unavailable until clock verification |
+
+## Roll back
+
+Activate an existing compatible beta release ID using the same command. Failed verification automatically restores the previous release link and restarts it. Saved assignments, calibrations and installation settings stay outside release directories.
+
+## Get diagnostic evidence
+
+```sh
+systemctl status spot-vision
+journalctl -u spot-vision
+```
+
+From System, export a support bundle/configuration or record 10–30 seconds of bounded diagnostics. Recording does not take camera ownership.
+
+<details>
+<summary>Release layout and migration details</summary>
+
+Application files live read-only under `/opt/spot-vision/releases/RELEASE_ID`; activation atomically switches `current`. Writable state lives under `/var/lib/spot-vision`, and `/etc/spot-vision` is read-only to the service. Installation records dependency versions and verifies native/application assets.
+
+Preserve the historical alpha installation before a first migration. An alpha wheel is not a beta rollback target. Configuration imports check the current profile, identity, policy, mode and calibration before atomic disabled-only acknowledgement. Without verified wall time, System shows **Time unavailable** while release identity and monotonic uptime remain available.
+
+</details>

@@ -202,3 +202,27 @@ The build reuses the Jetson UI's docs renderer, HTML shell, CSS, fonts, images,
 and theme controls. Only the Docs route is available on the hosted site; it
 makes no requests to robot or camera services. Edit `docs/operator/*.md` to
 update both versions. `netlify.toml` defines the hosted build and publish folder.
+
+For a local preview (no upload):
+
+```sh
+python3 tools/build_docs_site.py
+python3 -m http.server 5814 --bind 127.0.0.1 --directory dist/docs
+```
+
+Open `http://127.0.0.1:5814/#docs/connect`. Rebuild after source edits and reload.
+
+The shared Markdown compiler supports tables, `> **Label:**` callouts,
+`<details>` / `<summary>` disclosures, and PNG screenshots in
+`src/spot_vision/web/docs-images`. Put a single italic caption immediately after
+a screenshot; the site adds an enlarge button. Use measured/demo captions as
+appropriate, keeping illustrative values distinct from physical measurements.
+Section headings and disclosure summaries are indexed for search and deep links.
+
+Diagrams use a deliberately small offline Mermaid subset: `flowchart LR` with
+one connected chain, one `A[Label] --> B[Label]` edge per line (later source
+labels may be omitted). The compiler emits accessible inline SVG and rejects
+unsupported syntax. It needs no external scripts or network connection.
+
+Check the compiler and all maintained pages with
+`python3 -m unittest discover -s tools/tests -p test_build_docs.py`.

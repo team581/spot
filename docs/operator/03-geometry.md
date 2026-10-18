@@ -3,23 +3,53 @@ Group: Getting started
 
 # Set camera geometry
 
-## Measure the mount
+Compare the measured mount in robot code with the 3D view. Production geometry comes from the robot profile.
 
-Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees, with positive Pitch pointing the lens down and negative Pitch pointing it up. All displayed angles retain their native WPILib signs. A camera looking forward has its NWU +X axis along the lens direction.
+## Measure in the robot frame
 
-Do not use the visual reference's sample coordinates as measured mounts. The drivebase outline in the viewer is schematic, while the camera transform comes from the actual manifest.
+| Value | Convention |
+| --- | --- |
+| X / Y / Z | Metres from the robot origin to the camera optical origin |
+| Positive axes | X forward · Y left · Z up (WPILib NWU) |
+| Roll / pitch / yaw | Right-handed rotation; Java `Rotation3d` takes radians |
+| Pitch | Positive points the forward lens down; negative points it up |
 
-## Inspect the transform
+> **Keep the pitch sign.** Java and the Jetson use the same WPILib sign. A Java pitch of −20° also displays as −20° on the Jetson and points the lens up.
+
+## Inspect the mount
 
 1. Open the named camera's **Geometry** tab.
-2. Compare X/Y/Z and Yaw/Pitch/Roll with the measured code values, reversing the sign of code pitch for the displayed Pitch. Use the Front and Lens arrows to check signs and direction.
-3. Orbit by pointer drag or Arrow keys. Use wheel or +/− for zoom and **Reset view** to return to the initial view.
-4. Enable **Inspection preview** to explore finite edits. This is labelled inspection and does not alter robot geometry. Production transforms remain pinned by robot code; update measured code values and deploy a new robot profile to change them.
+2. Compare X/Y/Z and Yaw/Pitch/Roll with the measured code values. Use the **Front** and **Lens** arrows to check direction.
+3. Drag to orbit and scroll to zoom. **Reset view** restores the starting view.
+4. To try an adjustment, enable **Inspection preview**. To change the production mount, edit robot code and deploy the new profile.
 
-## Number editing
+![Geometry tab showing measured position fields and the 3D camera mount](../../src/spot_vision/web/docs-images/geometry.png)
 
-Click where the caret should go. Empty text, minus signs and partial decimals remain editable without becoming zero. Finite text updates the preview. Enter or blur validates one commit; Escape restores the acknowledged value. A conflict preserves the edit buffer. Values are not reformatted on each keystroke, and scrolling does not change them.
+*The camera transform follows the profile. The drivebase outline is schematic; these example coordinates are not production measurements.*
 
-ArrowUp/ArrowDown and the steppers use 0.01 m or 1°. Shift uses 0.1 m or 10°; Alt uses 0.001 m or 0.1°. Native text undo/redo remains available during typing. The borderless history buttons represent acknowledged production configuration; they remain disabled for pinned geometry.
+## Inspect before deploying
 
-Fixed cameras use measured constant mounts. Moving cameras require capture-time joint history and full moving-mount qualification. Never substitute the current joint angle for a capture-time transform.
+Use the [VS Code camera preview](#docs/vscode-camera-preview) to view saved Java camera definitions beside the code, without a Jetson connection.
+
+<details>
+<summary>Viewer shortcuts and number editing</summary>
+
+| Action | Shortcut |
+| --- | --- |
+| Orbit / zoom | Arrow keys / + and − |
+| Step a value | Up/Down or steppers: 0.01 m or 1° |
+| Coarse / fine step | Shift: 0.1 m or 10° · Alt: 0.001 m or 0.1° |
+| Commit / cancel | Enter or blur / Escape |
+
+Partial text stays editable. Finite values update the inspection preview; invalid text does not become zero. A conflict keeps the edit buffer. Scrolling does not change numbers, and native text undo remains available. Production history buttons stay disabled for code-pinned geometry.
+
+</details>
+
+<details>
+<summary>Moving cameras</summary>
+
+Fixed cameras use measured constant mounts. A moving camera requires capture-time joint history and full moving-mount qualification. Never substitute the current joint angle for the transform at capture time.
+
+</details>
+
+Next: [calibrate the lens](#docs/calibrate).

@@ -3,22 +3,46 @@ Group: Getting started
 
 # Verify detections
 
-## Inspect local output
+Check the camera image, then the robot's decision. Seeing a local pose is only the first check.
 
-Open Overview. Detection FPS means usable detector/solver output cadence; it is separate from browser preview rate and capture FPS. Zero tags on a current frame is normal. Missing metrics use —. Frame age continues advancing after a stall, and stale images lose detection outlines.
+## Check the image
 
-Open a camera. **Show detection outlines** shows boundaries and IDs for the displayed frame. **Pause image** freezes only that inspection image; processing and publication continue. Resume requests fresh frames. The Detections table and expandable candidates refer to the same shown frame.
+1. Open **Overview** and check detection FPS and frame age.
+2. Open a camera and enable **Show detection outlines**. Confirm tag boundaries and IDs align with the displayed image.
+3. Inspect **Detections** and **Solver candidates** for that frame.
+4. Use **Pause image** for a closer look; resume to request fresh frames. Processing and publication continue while the image is paused.
 
-The blue 3D candidate is the local lowest-image-error selection; amber shows alternatives. The robot independently validates candidates using capture-time pose/mount history, tag geometry, field bounds, timestamp quality and innovation. A local solved pose does not prove robot acceptance.
+![Camera page with detection outlines, detection table and local 3D pose candidates](../../src/spot_vision/web/docs-images/camera.png)
 
-## Check robot decisions
+*Image, table and candidates describe the same displayed frame. The example feed is synthetic.*
 
-The camera page shows robot validation and fusion separately. Decisions identify their frame and capture epoch; unavailable robot feedback is explicit. Translation-only behavior, fusion off and revised trust off are the defaults. IPPE ambiguity requires a decisive capture-time heading advantage; no arbitrary minimum-image-error choice is fused.
+## Read the status correctly
 
-## Qualify hardware before fusion
+| Indicator | Meaning |
+| --- | --- |
+| Detection FPS | Usable detector/solver cadence; separate from capture and browser preview FPS |
+| Zero tags | Normal for a fresh frame without visible tags |
+| — | Metric unavailable |
+| Increasing frame age | The last frame is getting older; stale images lose their outlines |
+| Blue / amber candidate | Local lowest-image-error solution / alternative solutions |
+| Robot validation / fusion | Separate robot decisions for the identified frame and capture epoch |
 
-Record the beta plan's real Jetson/roboRIO acceptance evidence: FPGA timestamp domains and sentinels, sensor-to-read delay and uncertainty, four-camera throughput and age, image/pose accuracy, USB/Ethernet outages, independent boot orders, abrupt power loss, recovery and rollback. CPU simulation and fixture screenshots are software evidence only.
+## Confirm robot acceptance
 
-Capture timing stays unqualified until a measured record matches the physical identity, exact mode and current control readback. System's support bundle includes the signature. Submit an explicitly measured timing record through the API while disabled; changing mode or controls invalidates it. Never enter zero uncertainty or adjust timestamps to hide a clock error.
+Check **Robot validation** and **Fusion** on the camera page. If feedback is unavailable, local detections do not establish robot acceptance. For a rejection, use the [fault lookup](#docs/faults).
 
-Fusion and revised trust remain off in offseason FeatureFlags and in the profile until the team approves the review gates and the hardware trials pass.
+The robot checks capture-time pose and mount history, tag geometry, field bounds, timestamps and innovation. IPPE alternatives need a decisive capture-time heading advantage.
+
+> **Before enabling fusion:** complete the real Jetson/roboRIO hardware trials and team review. Fusion and revised trust default off; heading fusion remains disabled. Fixture screenshots and CPU simulation do not qualify hardware.
+
+<details>
+<summary>Hardware qualification checklist</summary>
+
+- Match measured capture timing to the physical identity, exact mode and control readback.
+- Verify FPGA timestamp domains and sentinels, sensor-to-read delay and uncertainty.
+- Measure four-camera throughput, frame age and image/pose accuracy.
+- Test USB/Ethernet outages, independent boot orders, abrupt power loss, recovery and rollback.
+
+Export the timing signature in the System support bundle. Submit measured timing evidence through the API while disabled. Mode/control changes invalidate that evidence. Never use zero uncertainty or adjust timestamps to hide clock errors. See [API and Java integration](#docs/java) for the timing-record contract.
+
+</details>

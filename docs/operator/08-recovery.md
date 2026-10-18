@@ -3,28 +3,60 @@ Group: Guides
 
 # Network and power recovery
 
-## Ethernet or robot interruption
+Find the interrupted component, restore it, then check fresh status before returning to robot use.
 
-Spot keeps camera processing, previews and saved settings while the robot link is down. Observations are withheld and unsent backlog is discarded. Reconnect establishes new connection/time-sync epochs, refreshes the profile handshake, and releases only post-sync/post-acknowledgement frames. No component silently reseeds the estimator or clears accumulated trust degradation.
+## Find the interruption
 
-A new robot program has a new session and FPGA epoch. Cached profile equality is not a handshake. Unknown enabled state stays locked. Disconnect does not automatically enter standalone setup.
+| Symptom | First action | Expected recovery |
+| --- | --- | --- |
+| Robot link down | Check Ethernet and roboRIO; open Network. | A new handshake and time sync before observations resume |
+| One feed missing | Check that camera's cable and labelled hub port. | Rediscovery verifies its mode and controls; other cameras continue |
+| All feeds missing | Check powered hub and upstream USB. | Cameras rediscover using persistent identities |
+| Jetson restarted | Open the dashboard, then Network and System. | UI starts before USB/robot dependencies are ready |
+| Degraded processing | Open System for backend, temperature and target cadence. | The reported reason identifies reduced capacity |
 
-## Camera and hub interruption
+![Network page showing the connection and synchronization status used during recovery](../../src/spot_vision/web/docs-images/network.png)
 
-Each capture owner uses bounded reads and retries its authorized profile. Rediscovery uses persistent serial/port identity, re-verifies mode and controls, and creates a new capture epoch. Unaffected cameras continue. Required missing cameras remain visible and produce robot faults; an optional absent camera degrades independently.
+*Check the live link and clock after reconnecting. This example shows a disconnected bench setup.*
 
-## Power and state corruption
+## Confirm recovery
 
-Application state uses checksummed immutable generations with fsynced atomic pointers. An interrupted staged write cannot activate a partial group. Corrupt active state falls back to the previous complete generation with an explicit fault. Bad identity inventory disables production identity confidence rather than silently guessing.
+1. Check Network for the current robot profile and synchronized clock.
+2. Check live camera images, applied controls and frame age.
+3. Check robot feedback for fresh accepted observations.
+4. If a fault persists, [look up the rejection](#docs/faults) or export a support bundle from System.
 
-Hardware sudden-power-loss boot reliability and filesystem health require physical tests. Review the plan's 1 s, 30 s and 5 min outages, repeated flapping, each startup order, USB/hub power loss and write interruption trials. The installed service starts the UI before waiting for USB or robot dependencies.
+> **A disconnect does not authorize edits.** Unknown robot state stays locked. Standalone setup requires an explicit action while the link is known disconnected.
 
-## Clock behavior
+<details>
+<summary>What happens to observations and saved state?</summary>
 
-The NT4 client uses actual built-in NT synchronization events. Local monotonic time alone is not synchronization. NTCore 2026.2.2 only processes the initial offset exchange, so the engineering 30 s expiry requests a new built-in exchange by reconnecting. Hardware drift and latency trials must qualify this interval. Polling an unchanged offset never refreshes its validity.
+Robot interruptions leave local processing, previews and saved settings available. Spot withholds observations and discards unsent backlog. Reconnection creates fresh connection/time-sync epochs and a profile handshake; only post-sync, post-acknowledgement frames can resume. A new robot program has a new session/FPGA epoch. Cached profile equality is insufficient. Recovery does not silently reseed the estimator or clear trust degradation.
 
-## Detector recovery and processing load
+Camera rediscovery verifies persistent identity, mode and controls and starts a new capture epoch. A missing required camera faults; optional cameras degrade independently.
 
-Installation `processing.fallback_to_cpu` defaults to false. Strict CUDA verification always requires a CUDA build. When CPU fallback is explicitly enabled, a recoverable GPU error switches that camera to CPU once and records a new backend generation. At most three recovery probes run, 30 s apart; a successful probe supplies that exposure's single result and restores CUDA. A recurring failure exhausts the same retry budget until reconfiguration or service restart. Native crashes remain supervised service failures.
+State uses checksummed immutable generations and atomic pointers. An interrupted staged write cannot activate a partial group. Corrupt active state falls back to the previous complete generation with a fault. Corrupt identity inventory disables production identity confidence instead of guessing.
 
-Fallback limits processing to 5 FPS per affected camera and reports degraded capacity. Thermal reduction enters at 80 °C, exits at 75 °C, and caps processing at 10 FPS. A shared processing budget scales all camera targets proportionally when measured detector/solver demand exceeds 80% of the single processing worker. Latest-frame slots stay bounded; capture and optical settings remain unchanged. System shows backend generation, target cadence and degradation reasons. These are explicit engineering defaults, not qualified Jetson performance. Hardware trials must validate or review them without weakening robot age gates.
+</details>
+
+<details>
+<summary>Clock and processing recovery defaults</summary>
+
+| Mechanism | Engineering default |
+| --- | --- |
+| NT clock exchange | Reconnect at 30 s expiry to request a fresh built-in exchange; unchanged offsets do not renew validity |
+| CPU fallback | Off by default; explicit fallback limits affected cameras to 5 FPS |
+| GPU recovery | Up to 3 probes, 30 s apart; recurring failure shares the same budget until reconfiguration/restart |
+| Thermal reduction | Enter at 80 °C, exit at 75 °C; processing capped at 10 FPS |
+| Shared worker budget | Scale camera targets proportionally above 80% measured demand |
+
+Capture and optical settings stay unchanged. Native crashes remain supervised service failures. System reports backend generations and degradation reasons. These defaults need hardware qualification; do not relax robot age gates to mask reduced throughput. NTCore 2026.2.2 processes only the initial offset exchange, which motivates the engineering expiry.
+
+</details>
+
+<details>
+<summary>Power-loss trials</summary>
+
+Qualify physical boot reliability and filesystem health with 1 s, 30 s and 5 min outages, repeated flapping, each startup order, hub/USB power loss and write interruptions. Software recovery behavior alone does not establish hardware reliability.
+
+</details>

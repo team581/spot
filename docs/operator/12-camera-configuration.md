@@ -3,128 +3,162 @@ Group: Reference
 
 # Configure cameras in Java
 
-## Quick hardware reference
+Define measured mounts, capture requests and control policies in `VisionConfig.java`. Robot builds publish the profile; Spot stores physical USB bindings and intrinsic calibration.
 
-- **SWYFT USB AprilTag Camera:** 1280 × 800 = **1,024,000 pixels (1.024 MP)**; monochrome global shutter; USB 2.0; **MJPEG only**. Advertised MJPEG maxima: 210 FPS at 160×120, 320×240, 352×288, 640×400; 120 FPS at 640×480, 800×600, 1024×768, 1280×720, 1280×800. See the [SWYFT specifications](https://shop.swyftrobotics.com/products/swyft-usb-camera).
-- **Arducam UC-844 Rev.B / B0332:** OV9281 monochrome global shutter; 1280 × 800 = **1,024,000 pixels (1.024 MP)**; 3 µm sensor pixels; USB 2.0. Its [manufacturer datasheet](https://uctronics.com/download/Amazon/B0332_OV9281_Global_Shutter_UVC_Camera_Datasheet.pdf) lists MJPEG at 100 FPS for 1280×800, 800×600, 640×480, 320×240; YUY2 at 10 FPS for 1280×800 and 1280×720. Older documentation lists different MJPEG rates: inspect your firmware's actual descriptors.
-- **Recorded team results:** the camera called Swift/Generic USB Camera in older notes used MJPEG 640×480 at requested 120 FPS; higher advertised resolutions timed out. Attached Arducams were recorded as UC762, with MJPEG 1280×720 at requested 120 FPS. Those identities/rates are historical records, not proof of UC-844 Rev.B capabilities. Confirm the board label and enumerated device before copying settings.
+## Add a camera
 
-Advertised/requested FPS is not measured delivered FPS or detection FPS. Test all cameras simultaneously on their actual USB topology. YUYV is uncompressed USB traffic; MJPEG is compressed USB traffic. Spot can convert decoded MJPEG into YUYV in Jetson memory without sending YUYV over USB. A monochrome sensor can still expose color controls that have little or no image effect.
-
-This reference was checked on October 18, 2026. The Jetson was unreachable during this documentation update, so current per-device firmware ranges and menu subsets have not been re-enumerated. Product specifications, historical observations, and generic control meanings below are deliberately distinguished.
-
-## Define a camera in VisionConfig.java
-
-Edit `offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java` in offseason-2026, or `src/main/java/frc/robot/vision/VisionConfig.java` in basic-robot-tester. Settings compile with robot code and are sent to Spot automatically. USB-to-name bindings and intrinsic calibration remain on the Jetson.
-
-The example below is a template: replace the mount and verify the capture request and control names against the real device. Exposure and gain values are starting examples, not a calibrated preset. Import `SpotCameraConfig.Control` and `java.util.List` when using the short names below.
+Edit `offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java` in offseason-2026, or `src/main/java/frc/robot/vision/VisionConfig.java` in basic-robot-tester.
 
 ```java
 public static final SpotCameraConfig FRONT = new SpotCameraConfig(
     "front",
-    true, // required for all-required-cameras health
+    true, // required camera
     mount(.10, 0, .30, 0, 0, 0), // x/y/z metres; roll/pitch/yaw degrees
-    0, // image rotation: 0 or 180 degrees
+    0, // image rotation: 0 or 180
     new CaptureSettings(640, 480, 30, PixelFormat.MJPEG),
     List.of(
         Control.pinned("auto_exposure", 1),
-        Control.pinned("exposure_time_absolute", 5000), // 5000 µs = 5 ms
+        Control.pinned("exposure_time_absolute", 5000), // µs
         Control.tunable("gain", 20)));
 
 public static final List<SpotCameraConfig> CAMERAS = List.of(FRONT);
 ```
 
-Use the exact exposure-mode name your camera reports: `auto_exposure` and `exposure_auto` are alternative spellings, not two controls to add indiscriminately. Verify that menu value `1` is Manual Mode. Keep the actual robot's roles `left`, `right`, `front`, `back` chassis-fixed and required, in that order. Add each named constant to `CAMERAS`; a constant alone does not register a camera. Defaults remain empty until measurements are available.
+Import `SpotCameraConfig.Control` and `java.util.List` for the short names. Replace the example mount with measurements and verify the requested capture combination and control values on the actual device.
 
-```mermaid
-flowchart LR
-  Config[VisionConfig.java] --> Profile[Robot profile]
-  Profile --> Spot[Jetson applies and verifies]
-  Spot --> Calibration[Matching calibration and timing]
-  Calibration --> Observations[Robot observations]
-```
+> **Register the camera.** A named constant alone is not enough: add it to `CAMERAS`. The production profile intentionally stays empty until measurements exist. The offseason roles are `left`, `right`, `front`, `back`, chassis-fixed and required, in that order.
 
-## Every SpotCameraConfig option
+Inspect saved mounts with the [VS Code preview](#docs/vscode-camera-preview), then build/deploy robot code and [bind physical feeds](#docs/name) in Spot.
 
-- **`name` — String:** logical role, for example `front`. Must be unique in the profile and match `[A-Za-z0-9][A-Za-z0-9_.-]{0,63}`. Bind the physical USB device to this name in Spot. Changing the string is not a USB-device selector.
-- **`required` — boolean:** `true` makes a missing/unusable camera fail the all-required-cameras health check. Other valid cameras can continue contributing; this does not turn a partial outage into a global fusion switch. `false` marks an optional camera. The actual offseason commissioning configuration calls for all four required.
-- **`robotToCamera` — Transform3d:** measured camera origin/orientation in the robot frame. All six values must be finite. `mount(xM, yM, zM, rollDeg, pitchDeg, yawDeg)` converts degrees to WPILib radians. +X is forward, +Y left, +Z up. Positive rotations follow the right-hand rule; rotations compose as yaw × pitch × roll. There are no moving-mount/joint-history settings in this fixed-camera helper.
-- **`imageRotationDeg` — int:** exactly `0` or `180`. Rotates the delivered image; it is separate from the physical mount rotation. Changing it requires matching calibration and changes image orientation for detection and previews.
-- **`capture` — CaptureSettings:** exactly one explicit camera capture request; cannot be null. See the next section. Students do not enter a protocol mode ID, mode list, or optical-signature string.
-- **`controls` — List of Control:** zero to 64 policies; `List.of()` declares no control policies. Names must be unique. Omitted controls are not pinned to a robot-code value, so a device's existing/default behavior may remain active. Explicitly declare automatic/manual settings when you need repeatable behavior.
+## Camera settings
 
-## Every CaptureSettings option
+| `SpotCameraConfig` field | Meaning |
+| --- | --- |
+| `name` | Unique logical role, such as `front`; bind the physical USB feed to it in Spot |
+| `required` | Missing/unusable camera fails all-required-camera health; other valid cameras can still contribute |
+| `robotToCamera` | Measured `Transform3d` in WPILib NWU: X forward, Y left, Z up |
+| `imageRotationDeg` | Exactly 0 or 180; image orientation is separate from mount rotation |
+| `capture` | One explicit, non-null `CaptureSettings` request |
+| `controls` | Up to 64 unique control policies; `List.of()` leaves controls unpinned |
 
-The constructor is `new CaptureSettings(width, height, fps, pixelFormat)`.
+`mount(xM, yM, zM, rollDeg, pitchDeg, yawDeg)` converts degrees to WPILib radians. All six values must be finite. Positive pitch points the forward lens down. Rotations compose as yaw × pitch × roll. This helper supports fixed mounts; it supplies no joint-history configuration.
 
-- **`width` — int pixels:** greater than zero, at most 4096, and even. The actual camera must advertise that width together with the selected height/format/FPS.
-- **`height` — int pixels:** greater than zero and at most 4096; must be part of an advertised combination.
-- **`fps` — int frames/second:** 1–240. This is requested acquisition cadence, not detector throughput. Do not assume that every lower integer FPS is supported: a device advertising 120 FPS may reject a 30 FPS request at the same resolution.
-- **`PixelFormat.MJPEG`:** compressed camera-to-Jetson USB stream. Use for the SWYFT camera and verified compressed Arducam configurations. The service normalizes the UVC spelling to MJPG internally.
-- **`PixelFormat.YUYV`:** uncompressed, two bytes/pixel over USB; also called YUY2 by some camera documentation. Requires a supported mode and enough shared USB bandwidth. It is not a way to obtain SWYFT raw output, and it is not selected merely because the detector uses YUYV internally.
+Names use `[A-Za-z0-9][A-Za-z0-9_.-]{0,63}`. Renaming a role is not a USB-device selector.
 
-Those are the two enum values currently supported by the Java helper. RGB, GRAY8 and H.264 are not options in this helper. Dimension/FPS validation expresses software bounds, not a claim that a camera can deliver every combination. Pixel count is width × height: 640×480 is 307,200 pixels; 1280×720 is 921,600; 1280×800 is 1,024,000.
+## Capture settings
 
-The implementation generates stable mode IDs and signatures from capture settings. Changing any capture field changes that identity. Saved mode selections from the previous hand-named mode API may need updating, and calibration/timing evidence must match the resulting mode. Changing physical optics/focus still requires recalibration even when capture values stay the same.
+Use `new CaptureSettings(width, height, fps, pixelFormat)` with a combination the camera actually advertises.
 
-## Every Control policy option
+| Option | Bounds / meaning |
+| --- | --- |
+| `width` | Even integer, 1–4096 pixels |
+| `height` | Integer, 1–4096 pixels |
+| `fps` | Integer, 1–240; requested acquisition cadence, not detection FPS |
+| `PixelFormat.MJPEG` | Compressed USB stream; normalized to MJPG internally |
+| `PixelFormat.YUYV` | Uncompressed USB, 2 bytes/pixel; also called YUY2 |
 
-The full constructor is `new Control(name, value, required, allowOverride)`.
+Only MJPEG and YUYV are supported by this Java helper. Software bounds do not establish device support: even a lower FPS may be unsupported for a particular size/format. MJPEG can be decoded to YUYV in Jetson memory without sending raw YUYV over USB.
 
-- **`name` — String:** exact V4L2 control name reported by the device; same bounded identifier syntax as camera names. Labels such as Exposure or Auto exposure are not necessarily the driver key. No `CAP_PROP_` prefix is used.
-- **`value` — double:** robot-code default. Must be finite. Exposure-time values use **microseconds**; other controls use driver units/menu indices. A Java double does not permit fractional hardware steps: Spot converts units and rejects values outside the driver range, step or menu.
-- **`required` — boolean:** `true` blocks that camera's ready configuration when the control is absent. `false` allows an absent control to be skipped. Optional does not mean an invalid value is accepted when the control exists.
-- **`allowOverride` — boolean:** `false` enforces the robot default; `true` allows a saved Spot GUI override while edits are eligible. A saved override can remain effective across restart; changing a Java default does not necessarily replace it. Use Reset to code defaults when you want that default restored.
-- **`Control.pinned(name, value)`:** shorthand for `required=true, allowOverride=false`.
-- **`Control.tunable(name, value)`:** shorthand for `required=true, allowOverride=true`.
+Changing capture settings changes the generated mode ID/signature. Calibration and timing must match. Changing focus or physical optics still requires recalibration even if capture settings stay the same.
 
-For an optional tunable control use, for example, `new Control("sharpness", 0, false, true)`. This is useful only if zero is in the actual device's advertised range. Configuration changes/tuning require the current disabled robot or explicitly authorized disconnected standalone setup. Writes are checked by readback; unsupported, clipped or rejected settings do not count as applied.
+## Control policy
 
-## Exposure and automatic-control values
+| Helper / field | Effect |
+| --- | --- |
+| `Control.pinned(name, value)` | Required control; enforce robot default |
+| `Control.tunable(name, value)` | Required control; permit saved GUI override |
+| `new Control(name, value, required, allowOverride)` | Explicit required/optional and pinned/tunable policy |
+| `name` | Exact advertised V4L2 key, using the same bounded identifier syntax as camera names |
+| `value` | Finite double; exposure uses µs, other controls use driver units/menu indices |
+| `required=false` | Skip an absent control; an invalid value on a present control is still rejected |
+| `allowOverride=true` | Permit a saved GUI value while editing is eligible |
 
-The standard V4L2 exposure-mode menu has the meanings below. A camera may expose only some entries; select only values printed by its own menu. See the [Linux camera-control reference](https://docs.kernel.org/userspace-api/media/v4l/ext-ctrls-camera.html).
+A saved override can survive a new Java default; use **Reset to code defaults** to restore that default. Values must satisfy the device's range, step and menu. Optional tunable example: `new Control("sharpness", 0, false, true)` only if that camera allows zero.
 
-- **`auto_exposure` or `exposure_auto`:** `0` = automatic exposure and iris; `1` = manual exposure and iris; `2` = manual exposure with automatic iris; `3` = automatic exposure with manual iris. Fixed-lens USB cameras commonly expose only `1` (manual) and `3` (automatic). Do not use OpenCV's unrelated fractional auto-exposure values such as 0.25/0.75 here.
-- **`exposure_time_absolute` or `exposure_absolute`:** integration duration. In Java/Spot use µs: `1000` = 1 ms; `5000` = 5 ms. Raw V4L2 uses 100 µs ticks, so those become native `10` and `50`. Set manual exposure mode first; Spot orders automatic-control writes ahead of dependent manual writes.
-- **`autogain`:** `0` = manual gain; `1` = automatic gain. If supported, disable it before pinning `gain`.
-- **`white_balance_automatic` or `white_balance_temperature_auto`:** `0` = manual white balance; `1` = automatic. Disable it before writing a temperature. A monochrome camera may advertise these controls without useful color effects.
-- **`power_line_frequency`:** `0` = disabled; `1` = 50 Hz; `2` = 60 Hz; `3` = automatic. Only advertised entries are legal. This is an anti-flicker lighting setting, not capture FPS. See the [Linux user-control reference](https://docs.kernel.org/userspace-api/media/v4l/control.html).
+![Camera Config panel with live controls and applied device values](../../src/spot_vision/web/docs-images/camera.png)
 
-Exposure must fit the capture interval and the device's own range/step. At 100 µs steps the interval limits are 33,300 µs at 30 FPS, 16,600 µs at 60 FPS, and 8,300 µs at 120 FPS. Shorter exposure generally reduces motion blur and collects less light; longer exposure collects more light but can smear tags. Historical team readings found a 5,000 µs minimum for the SWYFT/Generic camera and used 1,000 µs on the attached Arducams. These are firmware observations, not universal minimums for every camera sold under those names.
+*Use Config / Advanced for your device's actual names, units, menus, limits, readback and locks. This screenshot uses demonstration values.*
 
-## Every image control Spot labels explicitly
+## Exposure quick reference
 
-The following list covers every name/alias in Spot's current image-control descriptions. It explains meaning; it does not claim every control exists on either camera. For each integer, use the actual `min`, `max`, `step` and menu, not an assumed 0–100 scale. Standard semantics are described by the [Linux user-control reference](https://docs.kernel.org/userspace-api/media/v4l/control.html); units and availability come from the device.
+| Control | Values / units |
+| --- | --- |
+| `auto_exposure` or `exposure_auto` | Common fixed-lens menu: 1 manual, 3 automatic; verify the advertised menu |
+| `exposure_time_absolute` or `exposure_absolute` | Spot/Java use µs: 1000 = 1 ms; 5000 = 5 ms |
+| Raw V4L2 exposure | 100 µs ticks: native 10 = 1000 µs |
+| `autogain` | 0 manual, 1 automatic, if advertised |
+| `white_balance_automatic` or `white_balance_temperature_auto` | 0 manual, 1 automatic |
+| `power_line_frequency` | 0 disabled, 1 = 50 Hz, 2 = 60 Hz, 3 automatic; use advertised entries |
 
-- **`auto_exposure`, `exposure_auto`:** exposure mode menu; values above.
-- **`exposure_time_absolute`, `exposure_absolute`:** exposure duration in µs in robot code; values above.
-- **`autogain`:** automatic/manual gain switch; values above.
-- **`gain`:** image amplification. Higher generally brightens the image and increases noise. It is not exposure duration and has no universal dB conversion or range.
-- **`brightness`:** black-level/luminance offset. Raising it can lift dark pixels without collecting more light. Zero is not necessarily the default or midpoint.
-- **`black_level`:** a separately named black-level control on devices exposing it. It is not an interchangeable spelling to invent when only brightness is advertised.
-- **`contrast`:** separation of bright and dark intensities. Excess can clip tag edges/highlights; device scale is arbitrary.
-- **`gamma`:** midtone response. The number may use a firmware-specific scale; do not assume the value 1 means linear gamma.
-- **`sharpness`:** edge enhancement. The advertised minimum disables the standard sharpness filter; larger values strengthen it and can create halos. Use the actual minimum rather than assuming zero is allowed.
-- **`backlight_compensation`:** processing to brighten subjects against a bright background. The standard minimum disables it; larger values increase the device's compensation. Not a substitute for exposure tuning.
-- **`power_line_frequency`:** anti-flicker menu; values above.
-- **`white_balance_automatic`, `white_balance_temperature_auto`:** automatic/manual white balance switch; values above.
-- **`white_balance_temperature`:** manual color temperature in kelvin, within device limits. Lower values represent warmer illumination; higher values represent cooler illumination. Automatic white balance must be off. May have no meaningful effect on a monochrome image.
-- **`saturation`:** color intensity. The standard zero setting removes chroma when zero is available; higher values increase color strength. Usually unhelpful for a monochrome AprilTag camera.
-- **`hue`:** color-balance adjustment on the advertised scale. It does not rotate the image or change camera heading; usually unhelpful on monochrome sensors.
+Use the exact alias the device reports. Set manual mode before manual exposure, gain or white balance. Spot orders automatic controls before dependent writes. OpenCV fractional auto-exposure values such as 0.25/0.75 do not apply here.
 
-## Other controls, limits and unsupported options
+| Capture rate | Maximum exposure with 100 µs steps |
+| --- | --- |
+| 30 FPS | 33,300 µs |
+| 60 FPS | 16,600 µs |
+| 120 FPS | 8,300 µs |
 
-The Java policy accepts other valid control names, and beta discovery reads advertised scalar `int`, `bool`, `menu`, and `intmenu` controls. There is no fixed universal list across all UVC cameras. A boolean normally uses 0/1; a menu uses the exact listed integer, which can have gaps. Device flags such as inactive, read-only, disabled and grabbed can prevent changes. Button, string, array and write-only action controls are not supported by this policy path.
+Exposure must also meet the driver range and step. Shorter reduces blur; longer collects more light. See [Camera tuning](#docs/tuning) for live adjustment and history.
 
-Examples you might see on other devices include `exposure_dynamic_framerate`/`exposure_auto_priority` (0 keeps auto exposure from varying FPS; 1 permits it), `focus_automatic_continuous`/`focus_auto` (0 manual, 1 autofocus), `focus_absolute` (driver-specific position), `zoom_absolute` (driver-specific zoom), and pan/tilt/iris controls. Treat those spellings as examples: use your device's actual enumeration. Do not infer unsupported motorized focus, zoom or iris from the presence of an M12 lens. SWYFT's manufacturer lists focus/zoom/pan/tilt/iris as unsupported. Focus/zoom/crop/flip changes can invalidate calibration; change them only with a matching optical configuration and fresh validation.
+## Hardware reference
 
-`convert_rgb`/`CAP_PROP_CONVERT_RGB` is a host OpenCV property, not a portable UVC camera policy. It is not an extra `PixelFormat` or a control to add unless the device actually advertises an applicable scalar control. Detector backend, decimation, camera preview encoding and detector FPS are also not `Control` entries.
+| Camera | Sensor / connection | Documented formats |
+| --- | --- | --- |
+| SWYFT USB AprilTag Camera | 1280 × 800, mono global shutter, USB 2.0 | MJPEG only |
+| Arducam UC-844 Rev.B / B0332 | OV9281, 1280 × 800, 3 µm pixels, mono global shutter, USB 2.0 | MJPEG; limited-rate YUY2 |
 
-## Get the exact options for your physical camera
+Both full-resolution images have 1,024,000 pixels (1.024 MP). Advertised or requested FPS is separate from delivered FPS and detector cadence. Test all cameras together on their actual USB topology.
 
-The complete current per-device list is in the camera's Spot Config/Advanced panel: names, labels, menus, units, min/max/step, requested values, actual readback and policy locks. Exposure values there are already in µs. Use the discovered list to decide what is supported; manufacturer lists and this reference explain it but cannot supply universal firmware ranges.
+<details>
+<summary>Published modes and historical team observations</summary>
 
-For raw capability inspection on the Jetson, these commands only read descriptors/controls and do not start another capture stream. Select the image-capture node, not a metadata node. `/dev/video0` is an example for inspection only; save physical bindings using stable identity/USB paths.
+The [SWYFT specifications](https://shop.swyftrobotics.com/products/swyft-usb-camera) advertise MJPEG up to 210 FPS at 160×120, 320×240, 352×288 and 640×400; up to 120 FPS at 640×480, 800×600, 1024×768, 1280×720 and 1280×800.
+
+The [Arducam B0332 datasheet](https://uctronics.com/download/Amazon/B0332_OV9281_Global_Shutter_UVC_Camera_Datasheet.pdf) lists MJPEG at 100 FPS for 1280×800, 800×600, 640×480 and 320×240; YUY2 at 10 FPS for 1280×800 and 1280×720. Older documentation differs: inspect your firmware's descriptors.
+
+Historical team logs used MJPEG 640×480 at requested 120 FPS for a Swift/Generic USB camera; higher advertised resolutions timed out. Attached Arducams were logged as UC762 at MJPEG 1280×720, requested 120 FPS. These are not UC-844 capability evidence. Historical exposure readings found a 5,000 µs minimum on the Generic camera and used 1,000 µs on attached Arducams; neither is a universal preset.
+
+The earlier hardware reference was checked October 18, 2026, without access to the Jetson. Current firmware ranges and menu subsets still need per-device enumeration.
+
+</details>
+
+<details>
+<summary>Image-control glossary</summary>
+
+Use actual advertised ranges, steps and units, not an assumed 0–100 scale. Standard meanings come from the [Linux user controls](https://docs.kernel.org/userspace-api/media/v4l/control.html) and [camera controls](https://docs.kernel.org/userspace-api/media/v4l/ext-ctrls-camera.html).
+
+| Control | Meaning |
+| --- | --- |
+| `gain` | Amplification; higher usually brightens and adds noise. No universal dB scale. |
+| `brightness` | Black-level/luminance offset; does not collect more light. Zero need not be the midpoint. |
+| `black_level` | Separate control if advertised; do not invent it as an alias for brightness. |
+| `contrast` | Bright/dark separation; excess can clip tag edges and highlights. |
+| `gamma` | Midtone response on a firmware-specific scale; 1 need not mean linear. |
+| `sharpness` | Edge enhancement; standard minimum disables the filter. Excess creates halos. |
+| `backlight_compensation` | Brighten subjects against bright backgrounds; standard minimum disables it. |
+| `white_balance_temperature` | Kelvin, with automatic white balance off; may not affect mono output. |
+| `saturation` | Color intensity; standard zero removes chroma if available. Usually unhelpful on mono. |
+| `hue` | Color adjustment, not image rotation or camera heading; usually unhelpful on mono. |
+
+Standard exposure-mode menu entries are 0 automatic exposure/iris, 1 manual exposure/iris, 2 manual exposure with automatic iris, 3 automatic exposure with manual iris. Select only advertised entries. Power-line frequency is anti-flicker control, not capture FPS.
+
+</details>
+
+<details>
+<summary>Other controls and unsupported settings</summary>
+
+Discovery supports advertised scalar `int`, `bool`, `menu` and `intmenu` controls. Booleans usually use 0/1; menus use exact listed integers, possibly with gaps. Inactive, read-only, disabled or grabbed flags can block edits. Button, string, array and write-only action controls are unsupported here.
+
+Other cameras may advertise `exposure_dynamic_framerate` / `exposure_auto_priority` (0 holds FPS, 1 permits variation), `focus_automatic_continuous` / `focus_auto` (0 manual, 1 automatic), driver-specific `focus_absolute`, `zoom_absolute`, pan, tilt or iris. Use actual enumeration, not these example spellings. An M12 lens does not establish motorized control; SWYFT lists focus/zoom/pan/tilt/iris as unsupported.
+
+`convert_rgb` / `CAP_PROP_CONVERT_RGB` is a host OpenCV property, not a portable UVC policy. Detector backend, decimation, preview encoding and detector FPS are not `Control` entries. RGB, GRAY8 and H.264 are not additional `PixelFormat` choices in this helper.
+
+</details>
+
+<details>
+<summary>Read raw device capabilities on the Jetson</summary>
+
+These read descriptors and controls without starting another capture stream. Choose an image-capture node, not a metadata node; `/dev/video0` is only an inspection example.
 
 ```sh
 v4l2-ctl --list-devices
@@ -132,20 +166,25 @@ v4l2-ctl --device=/dev/video0 --list-formats-ext
 v4l2-ctl --device=/dev/video0 --list-ctrls-menus
 ```
 
-A hypothetical line `min=50 max=10000 step=1 default=166 value=50` for `exposure_time_absolute` means native ticks: 5,000–1,000,000 µs, 100 µs increments, 16,600 µs device default, 5,000 µs current. The capture interval can impose a lower usable maximum. For non-exposure integer controls use the listed units directly. Legal values satisfy min ≤ value ≤ max and `(value - min) % step == 0`; menu values must also appear in the menu. Raw `default` is the device default, not necessarily the robot-code default or saved GUI override.
+For exposure, `min=50 max=10000 step=1 default=166 value=50` means 5,000–1,000,000 µs, 100 µs steps, 16,600 µs device default and 5,000 µs current. The capture interval can impose a smaller maximum. Other integer controls retain advertised units. Legal values satisfy `min ≤ value ≤ max` and `(value - min) % step == 0`; menu values must also be listed. Device default, robot default and saved GUI override are distinct.
 
-## Profile settings and commissioning
+</details>
 
-- **`ROBOT_ID`:** bounded identifier for the robot profile; offseason uses `offseason-2026`, the tester uses `basic-robot-tester`. Keep bench and robot identities distinct.
-- **`CAMERAS`:** registered camera constants; at most 32 is the protocol/software bound, not a Jetson capacity claim. An empty list intentionally gives no camera-based localization.
-- **`CAMERA_NAMES`:** offseason's planned role names/order (`left`, `right`, `front`, `back`); this list does not register cameras by itself.
-- **`FIELD_LAYOUT`:** WPILib AprilTag layout, defaulting to the team's 2026 welded layout. For home prints, supply surveyed tag poses in a consistent blue-wall-right field frame instead of assuming the official positions. A layout asset may be JSON; camera settings remain Java.
-- **`TAG_SIZE_M`:** finite, greater than zero and at most one metre; default 0.1651 m. Measure the printed tag's black square, excluding surrounding white margin.
-- **`FUSION_ENABLED`:** defaults false. True allows eligible measurements to reach the estimator, still subject to validation and DS suppression. In the tester this is only its stationary bench estimator. Production robot fusion requires qualification; heading fusion remains disabled by the current builder.
-- **Bench-only `BenchConfig.STATIONARY_POSE`:** initial/reset pose for a stationary test rig. The actual robot instead supplies drivetrain pose/IMU history.
+<details>
+<summary>Profile settings and commissioning</summary>
 
-Bind devices, confirm actual capture/readback, calibrate with independent validation, and qualify measured timing before enabling robot fusion. Mode/orientation/optical-control changes can invalidate calibration; timing also depends on control readback. Rebuild/redeploy robot code after configuration edits. The docs and examples do not commission or deploy any camera.
+| Setting | Purpose |
+| --- | --- |
+| `ROBOT_ID` | Bounded profile ID; keep `offseason-2026` and `basic-robot-tester` distinct |
+| `CAMERAS` | Registered constants; 32-camera software/protocol bound is not a Jetson capacity claim |
+| `CAMERA_NAMES` | Planned role names/order; does not register cameras |
+| `FIELD_LAYOUT` | WPILib AprilTag layout, default team 2026 welded; use surveyed poses for home prints |
+| `TAG_SIZE_M` | Black-square size excluding white margin; >0 and ≤1 m, default 0.1651 m |
+| `FUSION_ENABLED` | Default false; still subject to validation/DS suppression when enabled |
+| `BenchConfig.STATIONARY_POSE` | Bench tester initial/reset pose only; robot supplies drivetrain/IMU history |
 
-## Offline camera preview
+Field layout assets can be JSON; camera settings remain Java. Keep the blue-wall-right field frame consistent. The tester fuses only into its stationary bench estimator; production fusion needs hardware qualification and heading remains disabled.
 
-See the [VS Code camera preview guide](#docs/vscode-camera-preview) for split-screen mount inspection, private installation, and automatic updates during robot builds.
+Bind feeds, verify delivered capture/readback, calibrate with independent validation and qualify timing before robot fusion. Mode, orientation and optical controls can invalidate calibration; timing also depends on control readback. Rebuild/redeploy after code edits. These examples do not commission a physical camera.
+
+</details>

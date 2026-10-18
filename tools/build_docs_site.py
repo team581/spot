@@ -49,12 +49,12 @@ addEventListener("hashchange", renderDocs);
 renderDocs();
 '''
     page = (web / 'index.html').read_text()
-    page = page.replace('<title>Spot</title>', '<title>Spot documentation · Team 581</title>')
+    page = page.replace('<title>Spot</title>', '<title>Spot documentation</title>')
     page = page.replace('    <script defer src="/ui-state.js"></script>\n', '')
     page = page.replace('src="/app.js"', 'src="/docs-site.js"')
     page = page.replace('href="#overview"', 'href="#docs/connect"')
-    page = page.replace('Time unavailable', 'Team 581 documentation')
-    page = page.replace('Release unavailable', 'Operator guide')
+    page = page.replace('        <div id="updated">Time unavailable</div>\n', '')
+    page = page.replace('        <small id="release-id">Release unavailable</small>\n', '')
     (args.output / 'index.html').write_text(page)
     (args.output / 'docs-site.js').write_text(javascript)
     (args.output / 'docs.json').write_text(json.dumps(documentation, ensure_ascii=False))

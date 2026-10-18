@@ -3,16 +3,53 @@ Group: Reference
 
 # Faults and coordinates
 
-## Coordinate conventions
+Match the robot's rejection code to the next check, or look up coordinate and trust conventions.
 
-Wire translations are metres in WPILib NWU, quaternions are W/X/Y/Z, and poses are field-to-camera. The robot uses `fieldToCamera * inverse(robotToCamera)` to recover field-to-robot. OpenCV camera +X right, +Y down, +Z forward and tag-plane coordinates are converted explicitly by the existing pose solver. Blue-wall-right field origin stays fixed across alliance changes.
+## Rejection lookup
 
-## Robot rejection meanings
+| Code | Check next |
+| --- | --- |
+| `SCHEMA` / `MALFORMED` | Packet version, shape and bounds |
+| `CONFIGURATION` / `CALIBRATION` | Session, field, binding, active intrinsics and mode |
+| `TIMESTAMP` / `STALE` / `FUTURE` | Capture clock domain, timing quality and frame age |
+| `DUPLICATE` / `OLD_EPOCH` / `RESET` | Frame identity and reset boundary |
+| `HISTORY` / `MOUNT_HISTORY` | Available robot or moving-mount history at capture time |
+| `UNKNOWN_TAG` / `FIELD_BOUNDS` / `ROBOT_TILT` | Field layout, measured mount and pose geometry |
+| `AMBIGUOUS` | Whether capture-time heading decisively resolves IPPE alternatives |
+| `RESIDUAL` / `INNOVATION` | Image residual or disagreement with the pre-fusion estimate |
+| `NO_TAGS` | Normal when a fresh valid frame contains no tags |
 
-SCHEMA/MALFORMED: unsupported or invalid bounded packet. CONFIGURATION/CALIBRATION: session, field, binding, active intrinsics or mode mismatch. TIMESTAMP/STALE/FUTURE: invalid capture domain, quality or age. DUPLICATE/OLD_EPOCH/RESET: frame identity or reset boundary. HISTORY/MOUNT_HISTORY: capture-time robot or moving-mount history unavailable. UNKNOWN_TAG/FIELD_BOUNDS/ROBOT_TILT: geometry is inconsistent. AMBIGUOUS: IPPE alternatives are not decisively resolved. RESIDUAL/INNOVATION: image or pre-fusion disagreement exceeds policy. NO_TAGS on a fresh valid observation is normal operation.
+Check the camera page for the frame's validation/fusion decision. If the connection or clock is failing, use [Network and power recovery](#docs/recovery).
+
+## Coordinate quick reference
+
+| Quantity | Convention |
+| --- | --- |
+| Robot axes | WPILib NWU: +X forward, +Y left, +Z up |
+| Translation / angles | Metres / right-handed rotation |
+| Pitch | Positive points the forward lens down; negative points it up |
+| Wire quaternion | W, X, Y, Z |
+| Wire pose | Field-to-camera |
+| Field origin | Blue-wall-right, fixed across alliance changes |
+| OpenCV camera axes | +X right, +Y down, +Z forward; converted explicitly by the solver |
+
+The robot recovers field-to-robot with:
+
+```text
+fieldToRobot = fieldToCamera * inverse(robotToCamera)
+```
+
+Use the [Geometry guide](#docs/geometry) for visual mount inspection.
 
 ## Confidence and trust
 
-Translation uncertainty uses conservative positive floors, distance, geometry conditioning, residual and motion × timestamp uncertainty. Cameras seeing the same tags in a short interval are correlated; additional observations cannot automatically count as independent certainty. Heading is suppressed with a large finite supported deviation until its separate review gate passes.
+Translation uncertainty accounts for distance, geometry, image residual, and motion × timestamp uncertainty, with positive conservative floors. Cameras seeing the same tags close in time are correlated; extra observations are not automatically independent evidence.
 
-Revised trust evaluates each observation at its own capture time before fusion, degrades with actual odometry travel, elapsed time and collisions, and uses a consistent reset baseline. It remains behind a reviewed feature flag. Empty measurement lists never sample pose history at NaN. No history path substitutes the current pose to conceal missing capture-time evidence.
+> **Heading remains suppressed.** It uses a large finite supported deviation until its separate review gate passes. Revised trust also remains behind a reviewed feature flag.
+
+<details>
+<summary>Capture-time trust and reset rules</summary>
+
+Revised trust evaluates observations at their capture time before fusion, degrades with odometry travel, elapsed time and collisions, and uses a consistent reset baseline. Empty measurement lists never sample pose history at NaN. Missing capture-time history is never concealed by substituting the current pose.
+
+</details>

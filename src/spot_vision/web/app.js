@@ -1295,47 +1295,72 @@ async function docsPage(id) {
   const topics = docs.topics,
     topic = topics.find((t) => t.id === id) || topics[0];
   $("#page").innerHTML =
-    `<h1>Docs</h1><input id="docs-search" class="docs-search" type="search" placeholder="Search docs" aria-label="Search docs"><div class="docs-layout"><nav id="docs-nav" class="panel docs-nav" aria-label="Documentation topics"></nav><article class="article" id="docs-article"></article><aside class="docs-outline"><h3>On this page</h3><div id="docs-outline"></div></aside></div>`;
+    `<div class="docs-header"><h1>Documentation</h1></div>
+    <div class="docs-search-wrap"><label class="sr-only" for="docs-search">Search documentation</label><input id="docs-search" class="docs-search" type="search" placeholder="Search guides, settings and error codes…" aria-controls="docs-search-results" autocomplete="off"><div id="docs-search-results" class="docs-search-results" hidden></div></div>
+    <div class="docs-layout"><nav id="docs-nav" class="panel docs-nav" aria-label="Documentation topics"></nav><article class="article" id="docs-article"></article><aside class="docs-outline"><h3>On this page</h3><div id="docs-outline"></div></aside></div>
+    <dialog class="docs-image-dialog" aria-label="Screenshot viewer"><form method="dialog"><button class="docs-dialog-close" aria-label="Close screenshot">Close ×</button></form><img alt=""><p></p></dialog>`;
   const groups = ["Getting started", "Guides", "Reference"];
-  function navigation(query = "") {
-    $("#docs-nav").innerHTML = groups
-      .map(
-        (group) =>
-          `<h3>${group.toUpperCase()}</h3>${topics
-            .filter(
-              (t) =>
-                t.group === group &&
-                (t.title + " " + t.text)
-                  .toLowerCase()
-                  .includes(query.toLowerCase()),
-            )
-            .map(
-              (t) =>
-                `<a class="${t.id === topic.id ? "active" : ""}" href="#docs/${t.id}">${escapeHTML(t.title)}</a>`,
-            )
-            .join("")}`,
-      )
-      .join("");
-  }
-  navigation();
-  $("#docs-search").oninput = (event) => navigation(event.target.value);
-  const index = topics.indexOf(topic);
-  $("#docs-article").innerHTML =
-    topic.html +
-    `<div class="prev-next">${index ? `<a href="#docs/${topics[index - 1].id}">← ${escapeHTML(topics[index - 1].title)}</a>` : "<span></span>"}${index < topics.length - 1 ? `<a href="#docs/${topics[index + 1].id}">${escapeHTML(topics[index + 1].title)} →</a>` : ""}</div>`;
-  $("#docs-outline").innerHTML = topic.headings
-    .map(
-      (h) =>
-        `<a href="#${h.id}" data-outline="${h.id}">${escapeHTML(h.text)}</a>`,
-    )
-    .join("");
-  for (const link of $$("[data-outline]"))
-    link.onclick = (event) => {
-      event.preventDefault();
-      document
-        .getElementById(link.dataset.outline)
-        ?.scrollIntoView({ behavior: "auto" });
+  $("#docs-nav").innerHTML = groups.map((group) =>
+    `<h3>${group}</h3>${topics.filter((t) => t.group === group).map((t) =>
+      `<a class="${t.id === topic.id ? "active" : ""}" ${t.id === topic.id ? 'aria-current="page"' : ""} href="#docs/${t.id}">${escapeHTML(t.title)}</a>`).join("")}`,
+  ).join("");
+  function search(query) {
+    const results = $("#docs-search-results"),
+      words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    results.hidden = !words.length;
+    if (!words.length) return;
+    const matches = topics.flatMap((t) => (t.sections || [{id: "", title: t.title, text: t.text}])
+      .filter((section) => words.every((word) => `${t.title} ${section.title} ${section.text}`.toLowerCase().includes(word)))
+      .map((section) => ({t, section, score: words.filter((word) => section.title.toLowerCase().includes(word)).length})))
+      .sort((a, b) => b.score - a.score);
+    const snippet = (value) => {
+      const position = Math.max(0, value.toLowerCase().indexOf(words[0]) - 55);
+      return `${position ? "…" : ""}${value.slice(position, position + 170)}${value.length > position + 170 ? "…" : ""}`;
     };
+    results.innerHTML = `<p role="status">${matches.length ? `${matches.length} matching sections` : "No matching sections. Try a camera name, setting or error code."}</p>` +
+      matches.slice(0, 20).map(({t, section}) =>
+        `<a class="docs-search-result" href="#docs/${t.id}/${section.id}/search"><small>${escapeHTML(t.title)}</small><strong>${escapeHTML(section.title)}</strong><span>${escapeHTML(snippet(section.text))}</span></a>`).join("");
+  }
+  $("#docs-search").oninput = (event) => search(event.target.value);
+  $("#docs-search").onkeydown = (event) => {
+    if (event.key === "Escape") {
+      event.target.value = "";
+      search("");
+    } else if (event.key === "ArrowDown") {
+      const first = $("#docs-search-results a");
+      if (first) { event.preventDefault(); first.focus(); }
+    }
+  };
+  const index = topics.indexOf(topic);
+  $("#docs-article").innerHTML = topic.html +
+    `<div class="prev-next">${index ? `<a href="#docs/${topics[index - 1].id}"><small>Previous</small>← ${escapeHTML(topics[index - 1].title)}</a>` : "<span></span>"}${index < topics.length - 1 ? `<a href="#docs/${topics[index + 1].id}"><small>Next</small>${escapeHTML(topics[index + 1].title)} →</a>` : ""}</div>`;
+  $("#docs-outline").innerHTML = topic.headings.map((h) =>
+    `<a href="#docs/${topic.id}/${h.id}" data-outline="${h.id}">${escapeHTML(h.text)}</a>`).join("");
+  const dialog = $(".docs-image-dialog");
+  for (const button of $$("[data-screenshot]")) button.onclick = () => {
+    dialog.querySelector("img").src = button.dataset.screenshot;
+    dialog.querySelector("img").alt = button.querySelector("img").alt;
+    dialog.querySelector("p").textContent = button.closest("figure").querySelector("figcaption")?.textContent || "";
+    dialog.showModal();
+  };
+  dialog.onclick = (event) => { if (event.target === dialog) dialog.close(); };
+  // The static shell resets scroll during routing. Jump after that reset,
+  // including same-topic links and browser history navigation.
+  const section = currentRoute().tab;
+  requestAnimationFrame(() => {
+    if (!section) { scrollTo(0, 0); return; }
+    const target = document.getElementById(section);
+    if (!target) return;
+    if (location.hash.endsWith("/search")) {
+      const disclosure = target.closest("details");
+      if (disclosure) disclosure.open = true;
+      for (let node = target.nextElementSibling; node && !/^H[234]$/.test(node.tagName); node = node.nextElementSibling)
+        if (node.matches("details")) node.open = true;
+    }
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ behavior: "auto" });
+  });
   pageUpdate = () => {};
 }
 function render() {
@@ -1354,6 +1379,7 @@ function render() {
     (route.id || "") +
     "/" +
     (route.tab || "") +
+    (route.page === "docs" ? "/" + (location.hash.split("/")[3] || "") : "") +
     (route.page === "camera" ? "/" + Boolean(c?.logical_name) + "/" + Boolean(c?.standalone_setup) : "");
   if (key !== routeKey) {
     routeKey = key;
