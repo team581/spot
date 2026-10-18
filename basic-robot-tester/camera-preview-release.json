@@ -1,0 +1,8 @@
+{
+  "repository": "team581/spot-2026",
+  "tag": "camera-preview-v0.1.2",
+  "extensionId": "team581.spot-camera-preview",
+  "version": "0.1.2",
+  "asset": "spot-camera-preview-0.1.2.vsix",
+  "sha256": "13d53c911cc26f1044cf3347e9245f20c7c700bf58f87f050b2ecf217259edd9"
+}

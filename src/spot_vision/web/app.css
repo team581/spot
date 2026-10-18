@@ -1001,3 +1001,5 @@ td {
 #config-lock:empty {
   display: none;
 }
+
+.docs-screenshot { display: block; max-width: 100%; height: auto; margin: 1rem 0; border-radius: 8px; }

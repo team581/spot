@@ -3,6 +3,13 @@ Group: Reference
 
 # API and Java integration
 
+## Camera settings in code
+
+Open [Cameras in Java](#docs/camera-configuration) for the SWYFT/Arducam hardware
+summary, complete VisionConfig.java example, all setting options and camera-control
+values. Define camera settings in VisionConfig.java; transport messages are built
+automatically.
+
 ## Offseason implementation
 
 Production Spot code lives in `offseason-bot/src/main/java/frc/robot/vision/`.
@@ -16,7 +23,7 @@ health and trust rules as hardware.
 Four chassis-fixed roles are `left`, `right`, `front`, `back`. The production
 profile remains empty until their NWU mounts, optical modes and controls are
 measured. No placeholder transforms or turret camera are published. Set the
-single `SpotCameraProfiles.FUSION_ENABLED` only after qualification; its default
+single `VisionConfig.FUSION_ENABLED` only after qualification; its default
 is false and heading fusion remains suppressed. The DS `UseVision` option and
 pit mode can suppress fusion while preserving shadow diagnostics.
 

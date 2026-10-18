@@ -1,0 +1,68 @@
+{
+  "name": "spot-camera-preview",
+  "displayName": "Spot Camera Preview",
+  "publisher": "team581",
+  "version": "0.1.2",
+  "description": "Offline preview of Spot robot camera configuration",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./out/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onLanguage:java"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": false
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "package": "npm run compile && node package.cjs",
+    "test": "node --test test/*.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "^5.6.0"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "spot.previewCameras",
+        "title": "Spot: Preview Cameras",
+        "icon": "$(device-camera)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "spot.previewCameras",
+          "when": "resourceFilename == VisionConfig.java",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "spot.previewCameras",
+          "when": "resourceFilename == VisionConfig.java"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Spot Camera Preview",
+      "properties": {
+        "spot.cameraPreview.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open camera preview when VisionConfig.java is opened."
+        }
+      }
+    }
+  }
+}

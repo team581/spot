@@ -1,0 +1,6 @@
+:root { --ink: var(--vscode-editor-foreground, #20252b); --line: var(--vscode-panel-border, #d0d5dc); --blue: var(--vscode-textLink-foreground, #176bc0); --accent-text: var(--vscode-textLink-foreground, #176bc0); --muted: var(--vscode-descriptionForeground, #677381); --good: #42aa80; --warning: #dca842; }
+body {color:var(--ink);background:var(--vscode-editor-background, #fafbfc);font-family:var(--vscode-font-family, system-ui);padding:12px;} canvas {display:block;width:100%;outline-offset:2px;} button {color:var(--vscode-button-foreground, white);background:var(--vscode-button-background, #176bc0);border:0;padding:6px;margin:3px;cursor:pointer;} button[aria-pressed=true] {outline:2px solid var(--vscode-focusBorder);} pre {white-space:pre-wrap;overflow-wrap:anywhere;} #cameras {display:flex;flex-wrap:wrap;} #status {font-weight:bold;}
+
+.drivebase-controls {margin:12px 0;display:flex;gap:12px;flex-wrap:wrap;border:1px solid var(--line);}
+.drivebase-controls input[type=number] {width:5em;color:var(--ink);background:var(--vscode-input-background, white);border:1px solid var(--line);padding:4px;}
+#drivebase-size {color:var(--muted);} #drivebase-error {color:var(--vscode-errorForeground, #c33);}

@@ -1,0 +1,66 @@
+{
+  "profile": {
+    "cameras": [{
+      "robotToCamera": {
+        "zM": 0.5,
+        "xM": 0.2,
+        "qw": 1
+      },
+      "allowedModes": [{
+        "opticalSignature": "fixed-lens-1",
+        "pixelFormat": "MJPG",
+        "width": 640,
+        "fps": 30,
+        "id": "640x480",
+        "height": 480
+      }],
+      "controls": [
+        {
+          "defaultValue": 1,
+          "name": "gain",
+          "allowOverride": true
+        },
+        {
+          "defaultValue": 16,
+          "name": "contrast"
+        }
+      ],
+      "name": "front",
+      "required": true,
+      "enabled": true
+    }],
+    "futureToleranceS": 0.005,
+    "schemaVersion": 2,
+    "field": {
+      "widthM": 8,
+      "origin": "blue-wall-right",
+      "lengthM": 16,
+      "tags": [
+        {
+          "fieldToTag": {
+            "zM": 1,
+            "xM": 4,
+            "qw": 1
+          },
+          "sizeM": 0.1651,
+          "id": 1
+        },
+        {
+          "fieldToTag": {
+            "zM": 1,
+            "yM": 1,
+            "xM": 5,
+            "qw": 1
+          },
+          "sizeM": 0.1651,
+          "id": 2
+        }
+      ]
+    },
+    "reorderWindowS": 0.02,
+    "robotId": "test-robot",
+    "maxAgeS": 0.25
+  },
+  "manifestHash": "cae7b69346ac2877ab1bb84a82cad925e935d19b6c970d1177a80bc68844e54d",
+  "robotSession": "robot-1"
+}

@@ -47,6 +47,18 @@ def render(markdown: str, topic_id: str, example: str) -> tuple[str, list]:
         if code is not None:
             code.append(line)
             continue
+        image_match = re.fullmatch(
+            r"!\[([^\]]*)\]\(../../src/spot_vision/web/docs-images/([A-Za-z0-9_.-]+\.png)\)", line
+        )
+        if image_match:
+            flush()
+            close_list()
+            alt, filename = image_match.groups()
+            output.append(
+                f'<img class="docs-screenshot" src="/docs-images/{filename}" '
+                f'alt="{html.escape(alt, quote=True)}" loading="lazy">'
+            )
+            continue
         match = re.match(r"^(#{1,3}) (.+)", line)
         if match:
             flush()

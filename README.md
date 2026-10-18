@@ -36,6 +36,9 @@ contains the installed CPU host checks and light/dark GUI comparisons. Follow th
 [remaining hardware trials](docs/beta-verification/Hardware%20Qualification.md)
 before declaring beta robot-ready or enabling fusion, heading or revised trust.
 
+See the [camera configuration reference](docs/operator/12-camera-configuration.md)
+for the SWYFT/Arducam pixel counts, Java settings, control values and units.
+
 ## Jetson prerequisites
 
 - JetPack with CUDA development tools and compute capability 8.7 support
@@ -238,3 +241,7 @@ pose, fixture and local NT4/HTTP tests run on the development Mac.
 Before robot use, run the imported GPU tests, a live known-tag/no-tag probe,
 MJPEG/YUYV comparisons, reconnect tests, a 30-minute thermal run, and the
 four-camera fairness test on the target Orin.
+
+## Offline camera preview
+
+See the [VS Code camera preview guide](docs/operator/13-vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.

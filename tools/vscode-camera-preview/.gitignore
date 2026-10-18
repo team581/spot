@@ -1,0 +1,6 @@
+node_modules/
+out/
+*.vsix
+media/viewer.js
+*.vsix.sha256
+release-notes.txt

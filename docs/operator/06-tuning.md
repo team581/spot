@@ -3,6 +3,9 @@ Group: Guides
 
 # Camera tuning
 
+For robot-code settings, hardware pixel counts and the meaning of each control,
+see [Cameras in Java](#docs/camera-configuration).
+
 ## Standalone camera setup
 
 A camera does not need a robot profile for tuning or calibration. Open its camera page and choose **Open standalone camera setup**. The normal feed, live controls, undo/redo, mode selection and calibration become available. A warning identifies the unconfigured camera; its 3D inspection model starts at (0, 0, 0) with zero rotation. Settings persist by physical identity. **Reset setup values** restores the device values captured when standalone setup was first opened.

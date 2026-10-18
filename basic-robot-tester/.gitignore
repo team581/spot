@@ -1,0 +1,8 @@
+.gradle/
+build/
+bin/
+logs/
+*.wpilog
+simgui*.json
+networktables.json*
+.vscode/.ropeproject/

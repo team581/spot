@@ -1,0 +1,10 @@
+node_modules/**
+*.ts
+tsconfig.json
+test/**
+*.vsix
+package.cjs
+package-lock.json
+release.cjs
+*.vsix.sha256
+release-notes.txt

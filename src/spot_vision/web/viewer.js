@@ -43,13 +43,12 @@
       sz * cy * cx - cz * sy * sx,
     ];
   }
-  // Camera controls use positive-up pitch; stored quaternions remain WPILib NWU.
+  // Camera controls and stored quaternions both use native WPILib NWU angles.
   function cameraAngles(q) {
-    const [yaw, pitch, roll] = angles(q);
-    return [yaw, pitch === 0 ? 0 : -pitch, roll];
+    return angles(q);
   }
   function cameraQuaternion(yaw, pitch, roll) {
-    return quaternion(yaw, -pitch, roll);
+    return quaternion(yaw, pitch, roll);
   }
   function multiply(a, b) {
     const [w, x, y, z] = a,
@@ -155,7 +154,7 @@
       this.resize.disconnect();
     }
     draw() {
-      const { camera, geometry, field, data, inspection } = this.provider(),
+      const { camera, geometry, field, data, inspection, mounts, selectedName, drivebase } = this.provider(),
         canvas = this.canvas,
         ctx = canvas.getContext("2d"),
         W = canvas.width,
@@ -273,16 +272,33 @@
         world && geometry
           ? robotPose(selected, geometry)
           : { translation: [0, 0, 0], quaternion: [1, 0, 0, 0] };
-      box(chassis, [1, 0.8, 0.15], muted);
+      if (!mounts) box(chassis, [1, 0.8, 0.15], muted);
+      else if (drivebase?.visible && Number.isFinite(drivebase.length) &&
+          Number.isFinite(drivebase.width) && drivebase.length > 0 && drivebase.width > 0) {
+        // Footprint only: X is length, Y is width. No guessed chassis height.
+        polygon([
+          [-drivebase.length / 2, -drivebase.width / 2, 0],
+          [drivebase.length / 2, -drivebase.width / 2, 0],
+          [drivebase.length / 2, drivebase.width / 2, 0],
+          [-drivebase.length / 2, drivebase.width / 2, 0],
+        ], accent, 2.5);
+      }
+      arrow(chassis, [0, 0, 0.8], "+Z up", muted);
       arrow(chassis, [0.95, 0, 0.03], "Front · +X", accent);
       arrow(chassis, [0, 0.65, 0.03], "+Y left", muted);
       const drawCamera = (pose, color, name) => {
         box(pose, [0.18, 0.14, 0.12], color);
-        arrow(pose, [0.7, 0, 0.04], "Lens", color);
+        arrow(pose, [0.7, 0, 0], "Lens", color);
         line(point(pose, [0, 0, 0.12]), point(pose, [0, 0, 0.3]), color, 2);
         label(name, point(pose, [0, 0, 0.35]), color);
       };
-      if (world) {
+      if (mounts) {
+        for (const mount of mounts) {
+          drawCamera(mount, mount.name === selectedName ? blue : muted, mount.name);
+          arrow(mount, [0, 0.25, 0], "+Y", green);
+          arrow(mount, [0, 0, 0.25], "+Z", accent);
+        }
+      } else if (world) {
         for (const candidate of candidates)
           drawCamera(
             candidate,
@@ -335,10 +351,10 @@
       ctx.font = "13px Source Sans Pro";
       ctx.textAlign = "left";
       ctx.fillStyle = muted;
-      if (!geometry) ctx.fillText("Camera geometry unavailable", 16, 28);
-      else if (!inspection && !current)
+      if (!geometry && !mounts) ctx.fillText("Camera geometry unavailable", 16, 28);
+      else if (!mounts && !inspection && !current)
         ctx.fillText("No current field pose · camera mount shown", 16, 28);
-      ctx.fillText("Drivebase outline is schematic", 16, H - 18);
+      ctx.fillText(mounts ? "Metres · grid 0.4 m · camera bodies schematic" : "Drivebase outline is schematic", 16, H - 18);
       ctx.fillStyle = ink;
     }
   }

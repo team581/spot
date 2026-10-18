@@ -5,7 +5,7 @@ Group: Getting started
 
 ## Measure the mount
 
-Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees, with positive Pitch pointing the lens up. Displayed Pitch is the negative of WPILib pitch; Yaw and Roll retain their WPILib signs. A camera looking forward has its NWU +X axis along the lens direction.
+Use WPILib NWU: +X forward, +Y left, +Z up. Measure the camera optical origin in the robot frame in metres. Record the optical-axis yaw, pitch and roll with right-handed angles. Robot code constructs `Rotation3d(roll, pitch, yaw)` in radians; the GUI displays Yaw, Pitch, Roll in degrees, with positive Pitch pointing the lens down and negative Pitch pointing it up. All displayed angles retain their native WPILib signs. A camera looking forward has its NWU +X axis along the lens direction.
 
 Do not use the visual reference's sample coordinates as measured mounts. The drivebase outline in the viewer is schematic, while the camera transform comes from the actual manifest.
 
