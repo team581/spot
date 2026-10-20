@@ -282,7 +282,12 @@
       this._flush();
     }
   }
-  const api = { finiteText, NumberEdit, History, LiveTuner };
+  function availableCameraNames(names, cameras, identity) {
+    return names.filter((name) => !cameras.some((camera) =>
+      camera.logical_name === name && camera.identity !== identity &&
+      !camera.identity.startsWith("missing:")));
+  }
+  const api = { finiteText, NumberEdit, History, LiveTuner, availableCameraNames };
   root.SpotUI = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

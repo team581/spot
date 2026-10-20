@@ -15,6 +15,40 @@ import org.junit.jupiter.api.Test;
 class SpotNetworkTest {
   private static double now() { return NetworkTablesJNI.now() / 1e6; }
 
+  @Test void freshManifestRepeatsWithinAReconnectRecoveryWindow() throws Exception {
+    HAL.initialize(500, 0);
+    int port;
+    try (var socket = new ServerSocket(0)) { port = socket.getLocalPort(); }
+    try (var fixture = new VisionIntegrationTest.Fixture(false);
+        var server = NetworkTableInstance.create(); var client = NetworkTableInstance.create()) {
+      server.startServer("", "127.0.0.1", 0, port);
+      client.setServer("127.0.0.1", port);
+      client.startClient4("manifest-recovery-test");
+      long deadline = System.nanoTime() + 5_000_000_000L;
+      while (!client.isConnected() && System.nanoTime() < deadline) Thread.sleep(10);
+      assertThat(client.isConnected()).isTrue();
+      try (var io = new SpotVisionIO(server, fixture.profile, "robot");
+          var profiles = client.getRawTopic(SpotVisionIO.ROOT + "/robot/manifest")
+              .subscribe("proto:spot.vision.v2.Manifest", new byte[0],
+                  PubSubOption.keepDuplicates(true), PubSubOption.sendAll(true),
+                  PubSubOption.periodic(.005), PubSubOption.pollStorage(16))) {
+        var received = new ArrayList<edu.wpi.first.networktables.TimestampedRaw>();
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < 600_000_000L) {
+          io.readInputs(now(), false);
+          server.flush();
+          Thread.sleep(10);
+          received.addAll(java.util.Arrays.asList(profiles.readQueue()));
+        }
+        assertThat(received.size()).isGreaterThanOrEqualTo(3);
+        assertThat(received.get(received.size() - 1).timestamp)
+            .isGreaterThan(received.get(0).timestamp);
+        for (var sample : received)
+          assertThat(SpotProtos.Manifest.parseFrom(sample.value)).isEqualTo(io.manifest());
+      }
+    }
+  }
+
   @Test void queuedRemoteObservationsRetainCaptureTimesAndMalformedBytesAreCounted() throws Exception {
     HAL.initialize(500, 0);
     int port;

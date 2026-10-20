@@ -20,6 +20,8 @@ import java.util.OptionalDouble;
 /** NT4 robot server adapter; transport bytes and metadata stay atomic. */
 public final class SpotVisionIO implements VisionIO {
   public static final String ROOT = "/Spot/v2";
+  // A reconnect needs a newly timestamped profile; cached authority stays invalid.
+  private static final double MANIFEST_PERIOD_S = .1;
   private static final ObjectMapper JSON = new ObjectMapper();
 
   /**
@@ -295,7 +297,7 @@ public final class SpotVisionIO implements VisionIO {
             .setSequence(++stateSequence)
             .build()
             .toByteArray());
-    if (now - lastPublish >= 1.0) {
+    if (now - lastPublish >= MANIFEST_PERIOD_S) {
       manifestPublisher.set(manifest.toByteArray());
       lastPublish = now;
     }

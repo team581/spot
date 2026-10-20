@@ -1,0 +1,12 @@
+[Unit]
+Description=Spot Ethernet configuration socket
+
+[Socket]
+ListenStream=/run/spot-network.sock
+SocketUser=root
+SocketGroup=spot-vision
+SocketMode=0660
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

@@ -75,6 +75,16 @@ def test_session_csrf_same_origin_and_host_are_required(web):
     assert submissions == []
 
 
+def test_direct_address_works_when_interface_was_absent_at_startup(web):
+    request, _, _, server = web
+    # Model a wildcard listener started before its interface address existed.
+    server.allowed_hosts.discard("127.0.0.1")
+    port = server.server_port
+    assert request("GET", "/api/status", headers={"Host": f"127.0.0.1:{port}"})[0] == 200
+    for hostname in ("evil.invalid", "192.0.2.1"):
+        assert request("GET", "/api/status", headers={"Host": f"{hostname}:{port}"})[0] == 403
+
+
 def test_structured_bounded_requests_reject_unknown_fields_and_nan(web):
     request, headers, submissions, _ = web
     invalid = [
@@ -203,3 +213,17 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
     assert results[1]["state"] == "rejected" and "revision conflict" in results[1]["error"]
     assert config.effective_controls("front")["gain"] == 3
     assert request("GET", "/api/jobs/" + jobs[0][0], headers=second_headers)[0] == 404
+
+
+def test_network_changes_use_existing_session_guards_and_strict_payloads(web):
+    request, headers, submissions, server = web
+    body = operation(operation="network/apply", payload={"interface": "eth0", "mode": "static", "address": "10.5.81.11/24"})
+    assert request("POST", "/api/operations", body, {})[0] == 403
+    assert request("POST", "/api/operations", body, headers)[0] == 202
+    assert submissions[-1][0] == "network/apply"
+    for payload in ({"interface": "eth0", "mode": "static", "address": "10.5.81.255/24"},
+                    {"interface": "eth0", "mode": "automatic", "address": "10.5.81.11/24"}):
+        assert request("POST", "/api/operations", operation(operation="network/apply", payload=payload), headers)[0] == 400
+    server.runtime.network = SimpleNamespace(snapshot={"hostname": "spot-2.local"})
+    assert request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.server_port}"})[0] == 200
+    assert request("GET", "/api/status", headers={"Host": f"unregistered.local:{server.server_port}"})[0] == 403

@@ -68,3 +68,15 @@ tasks.register('exportSpotCameraPreview', JavaExec) {
     args layout.buildDirectory.file('spot-camera-preview/profile.json').get().asFile.absolutePath
 }
 apply from: file('camera-preview.gradle')
+
+tasks.register('exportBenchLog', JavaExec) {
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'frc.robot.bench.ExportBenchLog'
+    doFirst {
+        if (!project.hasProperty('benchLog') || !project.hasProperty('benchOutput')) {
+            throw new GradleException('Supply -PbenchLog=/path/input.wpilog -PbenchOutput=/path/frames.jsonl')
+        }
+        args project.property('benchLog'), project.property('benchOutput')
+    }
+}

@@ -14,6 +14,7 @@ wheelhouse/
 *.dylib
 *.pyc
 /prototype-runs/
+/bench-runs/
 
 # Generated offline docs; maintain docs/operator/*.md instead.
 src/spot_vision/web/docs.json

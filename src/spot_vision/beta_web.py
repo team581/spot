@@ -19,6 +19,9 @@ from .config import ConfigError
 
 MAX_BODY = 64 * 1024
 OPERATIONS = {
+    "network/apply": {"interface", "mode", "address"},
+    "network/confirm": {"token"},
+    "network/revert": {"token"},
     "device/setup": {"identity", "revision"},
     "device/tune": {"identity", "values", "revision", "reset"},
     "device/mode": {"identity", "mode_id", "revision"},
@@ -43,6 +46,9 @@ OPERATIONS = {
     },
 }
 REQUIRED = {
+    "network/apply": {"interface", "mode", "address"},
+    "network/confirm": {"token"},
+    "network/revert": {"token"},
     "device/setup": {"identity", "revision"},
     "device/tune": {"identity", "revision"},
     "device/mode": {"identity", "mode_id", "revision"},
@@ -69,6 +75,13 @@ def validate_request(operation: str, payload: dict) -> None:
         raise ConfigError("Unknown operation or invalid request")
     if set(payload) - OPERATIONS[operation] or REQUIRED.get(operation, set()) - set(payload):
         raise ConfigError("Unknown or missing request fields")
+    if operation == "network/apply":
+        from .networking import validate_change
+        validate_change(payload)
+    if operation in {"network/confirm", "network/revert"} and not (
+        isinstance(payload["token"], str) and re.fullmatch(r"[a-f0-9]{32}", payload["token"])
+    ):
+        raise ConfigError("Invalid network confirmation")
     for key, value in payload.items():
         if key in {"identity", "name", "revision", "generation", "mode_id", "phase"}:
             if not isinstance(value, str) or len(value) > 128 or any(ord(c) < 32 for c in value):
@@ -190,7 +203,11 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("Host", "")
         parsed = urlsplit("http://" + host)
         if (
-            parsed.hostname not in self.server.allowed_hosts
+            (
+                parsed.hostname not in self.server.allowed_hosts
+                and parsed.hostname != self.connection.getsockname()[0]
+                and parsed.hostname != getattr(getattr(self.server.runtime, "network", None), "snapshot", {}).get("hostname")
+            )
             or parsed.username
             or parsed.password
             or parsed.path

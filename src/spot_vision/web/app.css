@@ -1085,3 +1085,14 @@ td {
   .docs-layout { display: block; }
   .article { border: 0; max-width: none; padding: 0; }
 }
+
+#network-form {
+  display: grid;
+  gap: 10px;
+  max-width: 42rem;
+  margin-top: 24px;
+}
+#network-form label { font-weight: 600; }
+#network-form select, #network-form input { width: 100%; min-width: 0; }
+#network-form p { margin: 2px 0 8px; }
+#network-form button { justify-self: start; }

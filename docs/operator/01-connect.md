@@ -45,7 +45,7 @@ flowchart LR
 
 For the two-cable bench, keep the Mac-facing port at **192.168.69.170/24** and change only the robot-facing port. The two ports must use different subnets. A cable directly to the roboRIO usually needs **Static** because neither end supplies DHCP. Wi-Fi and the internet default route are preserved.
 
-**Find Spot:** open [spot.local:5800](http://spot.local:5800/) from the same local network. Network shows the actual local name and current IP addresses. If another device already uses `spot.local`, the displayed name may be `spot-2.local`. Local-name discovery does not cross routers or the Jetson's two Ethernet links; use the address on the link connected to your computer.
+**Find Spot:** open [spot.local:5800](http://spot.local:5800/) from the same local network. Network shows the actual local name and current IP addresses. If another device already uses `spot.local`, the displayed name may be `spot-2.local`. Discovery is advertised through the Jetson's Ethernet ports so a separate Jetson Wi-Fi link cannot divert name lookup from the robot or maintenance network. Local-name discovery does not cross routers or the Jetson's two Ethernet links; use the address on the link connected to your computer.
 
 If address controls are unavailable, the installation needs its network helper; see [deployment](#docs/deployment). The **Jetson address** is separate from the **Robot endpoint**, which is the roboRIO NT server Spot connects to.
 

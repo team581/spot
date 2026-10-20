@@ -205,6 +205,10 @@ class BetaNtTransport:
             self.clock.connection(uuid.uuid4().hex if connected else None)
             self._ack = None
             self._connection_after_us = nt_now_us()
+            if connected:
+                # Allow the initial exchange to arrive before retrying a
+                # missing or rejected sample from a newly connected server.
+                self._last_resync_ns = time.monotonic_ns()
         self.configuration.connection_changed(connected)
 
     def _sync_event(self, event) -> None:
@@ -239,8 +243,7 @@ class BetaNtTransport:
             and self._config.enabled
             and self.instance.isConnected()
             and sync.state != "Synchronized"
-            and sync.update_age_s is not None
-            and sync.update_age_s > self.clock.expiry_s
+            and (sync.update_age_s is None or sync.update_age_s > self.clock.expiry_s)
             and time.monotonic_ns() - self._last_resync_ns > 1_000_000_000
         ):
             self._last_resync_ns = time.monotonic_ns()

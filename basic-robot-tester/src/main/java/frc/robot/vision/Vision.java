@@ -138,8 +138,11 @@ public final class Vision implements AutoCloseable {
       select(broadTags());
       if (getState() == VisionState.HUB_TAGS) setStateFromRequest(VisionState.WAITING_FOR_HUB_TAGS);
     }
-    history.add(now, capture.current(now));
     var inputs = io.readInputs(now, enabled.getAsBoolean());
+    // Input collection can take long enough for newer exposures to arrive.
+    // Validate age against the clock after collection, not its earlier start.
+    now = clock.getAsDouble();
+    history.add(now, capture.current(now));
     var health = inputs.health();
     var ack = health.acknowledgement();
     String epoch =

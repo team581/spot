@@ -14,7 +14,7 @@ from spot_vision.clock import ClockGate
 from spot_vision.config import ConfigError, NtConfig
 from spot_vision.configuration import mode_signature
 from spot_vision.devices import DeviceManager, DeviceNode, DeviceRegistry
-from spot_vision.models import CameraCounters, DetectionBatch, FramePacket
+from spot_vision.models import CameraCounters, DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 from spot_vision.proto import vision_v2_pb2 as wire
 from spot_vision.queues import LatestFrameSlot
 
@@ -115,6 +115,35 @@ def runtime(tmp_path):
     identity = devices.snapshot()[0]["identity"]
     runtime.configuration.rename(identity, "front", runtime.configuration.state.generation)
     return runtime, identity, nodes, constructed
+
+
+def test_supervisor_does_not_block_or_report_capture_transitions_as_dead(runtime):
+    app, identity, _, _ = runtime
+    worker = app.workers[identity]
+    worker.name, worker.stopped = "uvc-test", True
+    app.threads = []
+    app.frames.worker = SimpleNamespace(is_alive=lambda: True)
+    app.frames.last_progress = time.monotonic()
+    entered, release = threading.Event(), threading.Event()
+
+    def transition():
+        with app._pipeline_lock:
+            entered.set()
+            release.wait(2)
+
+    thread = threading.Thread(target=transition)
+    thread.start()
+    try:
+        assert entered.wait(1)
+        started = time.monotonic()
+        assert app.tick()
+        assert time.monotonic() - started < 0.5
+    finally:
+        release.set()
+        thread.join(2)
+    # Once apply has finished, a genuinely stopped owner must still fail health.
+    assert not app.tick()
+    assert app.fatal == "Workers stalled: uvc-test"
 
 
 def test_runtime_tuning_retains_single_capture_owner_and_detector(runtime):
@@ -413,3 +442,53 @@ def test_moving_usb_port_does_not_move_robot_name_and_return_restores_saved_tuni
     assert returned["connected"] and returned["identity"] == identity
     assert app.workers[identity].readback["gain"] == 2
     assert config.state == saved
+
+
+def test_status_reports_detection_latency_with_frame_identity(runtime):
+    app, identity, _, _ = runtime
+    frame = FramePacket(identity, 17, 19, 1, time.monotonic_ns(),
+                        np.zeros((480, 640, 2), np.uint8), "capture-test", app.generation)
+    app.frames.result(DetectedFrame(frame, DetectionBatch((), 4.5), 7.25), PoseSolution())
+    metrics = next(c for c in app.status()["cameras"] if c["identity"] == identity)["metrics"]
+    assert metrics["processed_sequence"] == 17
+    assert metrics["processed_capture_epoch"] == "capture-test"
+    assert metrics["detect_ms"] == 4.5
+    assert metrics["capture_to_detect_ms"] == 7.25
+    assert metrics["tag_ids"] == []
+
+
+def test_network_changes_run_outside_camera_configuration_queue(runtime):
+    from spot_vision.networking import NetworkClient
+    app, _, _, _ = runtime
+    app.network = NetworkClient()
+    calls = []
+    app.network.request = lambda operation, payload: calls.append(threading.current_thread().name) or {}
+    try:
+        assert app.submit("network/apply", {"interface": "eth0", "mode": "automatic", "address": ""}).result(1) == {"result": {}}
+        assert calls[0].startswith("network-change")
+        assert app.commands.empty()
+        app.configuration.robot_state(wire.RobotState(robot_session="robot-1", enabled=True, sequence=2))
+        with pytest.raises(ConfigError, match="locked"):
+            app.submit("network/apply", {}).result(1)
+        # Recovery must remain possible even when the robot state changes.
+        assert app.submit("network/revert", {"token": "a" * 32}).result(1) == {"result": {}}
+    finally:
+        app.network.close()
+
+
+def test_omitted_code_control_remains_editable_and_reapplied(runtime):
+    from spot_vision.beta_contract import content_hash
+    app, identity, _, _ = runtime
+    app.configuration.tune("front", {"gain": 7}, app.configuration.state.generation)
+    updated = manifest()
+    retained = [c for c in updated.profile.cameras[0].controls if c.name != "gain"]
+    del updated.profile.cameras[0].controls[:]
+    updated.profile.cameras[0].controls.extend(retained)
+    updated.manifest_hash = content_hash(updated.profile)
+    app.configuration.accept_manifest(updated)
+    app.configuration.robot_state(wire.RobotState(robot_session="robot-1", enabled=False, sequence=2))
+    assert app.workers[identity].readback["gain"] == 7
+    cap = next(c for c in app.status()["cameras"][0]["controls"] if c["name"] == "gain")
+    assert cap["allowed"] and cap["default"] is None
+    app.configuration.tune("front", {"gain": 8}, app.configuration.state.generation)
+    assert app.workers[identity].readback["gain"] == 8

@@ -21,7 +21,16 @@ Inspect saved Java camera mounts beside `VisionConfig.java`. The preview runs of
 | basic-robot-tester | `./gradlew build` |
 | Windows | Use `gradlew.bat` in place of `./gradlew` |
 
-The first preview can take longer while Gradle resolves dependencies. Private extension downloads require an authenticated GitHub CLI with access to `team581/spot-2026`.
+The first preview can take longer while Gradle resolves dependencies. Automatic private extension downloads require an authenticated GitHub CLI (`gh`) with access to `team581/spot-2026`. The visualizer itself does not require `gh`; use the manual installation steps below if it is unavailable.
+
+## Install manually without `gh`
+
+1. Open the robot project's `camera-preview-release.json` and note its `tag`, `asset` and `version`. Use the version pinned by that project.
+2. Sign into GitHub in your browser with an account that has access to `team581/spot-2026`, then open the [Spot releases](https://github.com/team581/spot-2026/releases). Find the release matching `tag` and download the `.vsix` file matching `asset` under **Assets**. The current pin is [camera-preview-v0.1.2](https://github.com/team581/spot-2026/releases/tag/camera-preview-v0.1.2), with asset `spot-camera-preview-0.1.2.vsix`.
+3. In the VS Code installation you use for the robot project, open **Extensions**, click **…**, and choose **Install from VSIX…**. Select the downloaded file. If using an alternate VS Code profile, install into that profile.
+4. Reload VS Code if prompted, then open `VisionConfig.java` and run **Spot: Preview Cameras** from the Command Palette, or click the camera icon in the editor title bar.
+
+Once the pinned version or a newer version is installed, the build skips the extension download, so `gh` is unnecessary. Repeat these steps when the project pins a newer version. The preview runs offline after installation; the first robot build may still need connectivity to resolve Gradle dependencies.
 
 ## Verify a mount
 
@@ -51,7 +60,7 @@ The first preview can take longer while Gradle resolves dependencies. Private ex
 | --- | --- |
 | No panel | Run **Spot: Preview Cameras**; check workspace trust and **Spot Camera Preview: Auto Open**. Closing the panel suppresses auto-open for that session. |
 | Empty scene | Add measured definitions to `CAMERAS`. |
-| Download fails | Run `gh auth status`, verify private repository access, then retry the install task below. |
+| Download fails or `gh` is missing | Follow **Install manually without `gh`** above, or run `gh auth status`, verify private repository access, then retry the install task below. |
 | Build fails | Open **Build output** and fix Java/project errors. Invalid names, dimensions or image rotation can block export. |
 | VS Code CLI missing | Set `SPOT_CAMERA_PREVIEW_CODE` to the `code` executable, or use the Gradle override below. |
 

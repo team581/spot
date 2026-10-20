@@ -11,13 +11,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class VisionConfigTest {
-  @Test void defaultsRemainShadowWithoutInventedCameras() {
+  @Test void configuredCamerasAndFlagsReachBenchWithoutDuplicatedMounts() {
     var config = BenchConfig.create();
-    assertThat(config.profile().getCamerasCount()).isZero();
-    assertThat(config.mounts()).isEmpty();
-    assertThat(config.profile().getFusionEnabled()).isFalse();
+    assertThat(config.profile().getCamerasCount()).isEqualTo(VisionConfig.CAMERAS.size());
+    assertThat(config.mounts()).hasSize(VisionConfig.CAMERAS.size());
+    assertThat(config.profile().getFusionEnabled()).isEqualTo(VisionConfig.FUSION_ENABLED);
     assertThat(config.profile().getHeadingEnabled()).isFalse();
-    assertThat(config.profile().getField().getTagsCount()).isEqualTo(32);
+    assertThat(config.profile().getField().getTagsCount()).isEqualTo(VisionConfig.FIELD_LAYOUT.getTags().size());
   }
 
   @Test void studentCameraSettingsReachManifestAndOwnTheirLists() {

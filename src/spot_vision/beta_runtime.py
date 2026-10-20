@@ -166,9 +166,18 @@ class BetaRuntime:
         self.release = {}
         self.debug = {"samples": [], "deadline": 0.0, "last": 0.0}
         self.calibration = None  # attached by installed application before starting
+        self.network = None
 
     def submit(self, operation: str, payload: dict) -> Future:
         future = Future()
+        if operation.startswith("network/"):
+            if self.network is None:
+                future.set_exception(ConfigError("Network helper is not installed"))
+                return future
+            def guard():
+                if operation == "network/apply" and self.configuration.connected:
+                    self.configuration.require_eligible()
+            return self.network.submit(operation.split("/", 1)[1], payload, guard)
         try:
             self.commands.put_nowait((operation, copy.deepcopy(payload), future))
         except queue.Full:
@@ -421,13 +430,14 @@ class BetaRuntime:
                     continue
                 if set(saved) - available:
                     raise ConfigError("Saved controls unavailable on connected camera")
-                controls[identity] = {
+                controls[identity] = dict(saved)
+                controls[identity].update({
                     c.name: saved.get(c.name, c.default_value)
                     if c.allow_override
                     else c.default_value
                     for c in definition.controls
                     if c.name in available
-                }
+                })
             else:
                 # Probe only bounded advertised modes. Never infer a logical
                 # camera name, optical signature or production calibration.
@@ -766,7 +776,7 @@ class BetaRuntime:
             ):
                 raise ConfigError("Imported tuning values must be bounded finite numbers")
             policies = {c.name: c for c in definitions[name].controls}
-            if any(key not in policies or not policies[key].allow_override for key in settings):
+            if any(key in policies and not policies[key].allow_override for key in settings):
                 raise ConfigError("Imported controls conflict with robot policy")
         for name, mode in profile.get("modes", {}).items():
             if name not in definitions or mode not in {
@@ -900,11 +910,11 @@ class BetaRuntime:
                         if worker
                         else control["value"] * factor,
                         "allowed": bool(control["writable"] and (
-                            (policy and policy.allow_override) or standalone_setup)),
+                            (definition is not None and (policy is None or policy.allow_override)) or standalone_setup)),
                         "default": policy.default_value if policy else None,
                         "required": bool(policy and policy.required),
                         "reason": ""
-                        if (policy and policy.allow_override) or standalone_setup
+                        if (definition is not None and (policy is None or policy.allow_override)) or standalone_setup
                         else "Pinned by robot code"
                         if policy
                         else "Not allowed by robot code",
@@ -1002,6 +1012,15 @@ class BetaRuntime:
                 if standalone_setup else None,
             }
             processed = self.frames.results.get(identity)
+            if processed and worker:
+                detected = processed[0]
+                camera["metrics"].update({
+                    "processed_sequence": detected.frame.sequence,
+                    "processed_capture_epoch": detected.frame.capture_epoch,
+                    "detect_ms": detected.batch.detect_ms,
+                    "capture_to_detect_ms": detected.capture_to_detect_ms,
+                    "tag_ids": [tag.id for tag in detected.batch.detections],
+                })
             camera["health"] = (
                 "Disabled"
                 if definition and not definition.enabled
@@ -1095,7 +1114,10 @@ class BetaRuntime:
             "release": self.release,
             "calibration": self.calibration.status() if self.calibration else {},
             "history": self.store.history(),
-            "endpoint": getattr(self, "endpoint", {}),
+            "network": copy.deepcopy(self.network.snapshot) if self.network else {"available": False},
+            "endpoint": {**getattr(self, "endpoint", {}), **(
+                {"local_addresses": self.network.snapshot.get("local_addresses", [])}
+                if self.network and self.network.snapshot.get("available") else {})},
             "field": {
                 "length": manifest.profile.field.length_m,
                 "width": manifest.profile.field.width_m,
@@ -1146,11 +1168,18 @@ class BetaRuntime:
             )
             > 12
         ]
-        stalled += [
-            w.name
-            for w in list(self.workers.values())
-            if not w.is_alive() or now - w.last_progress > 6
-        ]
+        # apply() stops/removes old owners and registers/starts new ones under
+        # this lock. Do not mistake either transition for a dead capture worker,
+        # or block the watchdog while hardware configuration is in progress.
+        if self._pipeline_lock.acquire(blocking=False):
+            try:
+                stalled += [
+                    w.name
+                    for w in list(self.workers.values())
+                    if not w.is_alive() or now - w.last_progress > 6
+                ]
+            finally:
+                self._pipeline_lock.release()
         if self.frames.worker.is_alive() and now - self.frames.last_progress > 6:
             stalled.append("preview-encoder")
         if not self.frames.worker.is_alive():

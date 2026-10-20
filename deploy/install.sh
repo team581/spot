@@ -21,6 +21,7 @@ fi
 install -d -o root -g spot-vision -m 0750 /etc/spot-vision
 install -d -o spot-vision -g spot-vision -m 0750 /var/lib/spot-vision
 install -d -o root -g root -m 0755 /opt/spot-vision/releases
+"$source_dir/deploy/install-network.sh" "$source_dir"
 build_dir=$(mktemp -d /var/tmp/spot-release.XXXXXXXX)
 trap 'rm -rf "$build_dir"' EXIT
 python3 -m venv "$build_dir/build-env"

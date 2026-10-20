@@ -2,7 +2,9 @@
 
 import socket
 import time
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -15,6 +17,46 @@ from spot_vision.configuration import ConfigurationService
 from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 from spot_vision.persistence import StateStore
 from spot_vision.proto import vision_v2_pb2 as wire
+
+
+@pytest.mark.parametrize("state", ["missing", "invalid", "expired", "synchronized"])
+def test_owned_client_retries_unqualified_sync_without_accepting_cached_offset(monkeypatch, state):
+    from spot_vision import beta_transport
+    from spot_vision.clock import ClockGate
+
+    transport = object.__new__(BetaNtTransport)
+    transport.clock = ClockGate()
+    transport.clock.connection("new-link")
+    if state == "invalid":
+        transport.clock.update(100, 6000, True, now_ns=0)
+    elif state in {"expired", "synchronized"}:
+        transport.clock.update(100, 10, True, now_ns=0)
+    now = [31_000_000_000 if state == "expired" else 2_000_000_000]
+    monkeypatch.setattr(beta_transport.time, "monotonic_ns", lambda: now[0])
+    calls = []
+    transport.instance = SimpleNamespace(
+        isConnected=lambda: True,
+        stopClient=lambda: calls.append("stop"),
+        startClient4=lambda identity: calls.append(identity),
+    )
+    transport._owns_instance = True
+    transport._config = NtConfig(identity="retry-test")
+    transport._last_resync_ns = now[0] - 500_000_000
+    transport._lock, transport._ack = threading.RLock(), None
+    transport._manifest = transport._robot_state = transport._decisions = SimpleNamespace(
+        readQueue=lambda: []
+    )
+    # A new connection gets a full initial-exchange grace period.
+    transport.poll()
+    assert calls == []
+    now[0] += 1_000_000_000
+    transport.poll()
+    assert calls == ([] if state == "synchronized" else ["stop", "retry-test"])
+    if state != "synchronized":
+        assert transport.clock.snapshot().state != "Synchronized"
+        now[0] += 100_000_000
+        transport.poll()
+        assert calls == ["stop", "retry-test"]
 
 
 @pytest.fixture

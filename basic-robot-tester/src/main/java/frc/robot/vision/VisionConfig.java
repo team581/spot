@@ -24,24 +24,35 @@ public final class VisionConfig {
 
   // Add named constants such as FRONT, LEFT, RIGHT and BACK, then list them in
   // CAMERAS.
-  // Example shape only: replace the example geometry/capture/control values
-  // before
-  // enabling.
+  // Bench role labels only: these mounts are examples, not measured geometry.
+  // Replace them before validating poses; fusion must remain disabled.
   public static final SpotCameraConfig FRONT = new SpotCameraConfig(
       "front", true,
       mount(.40, 0.2, .30, 0, -20, 0), // metres, then roll/pitch/yaw in degrees
       0, // image rotation: 0 or 180 degrees
-      new CaptureSettings(640, 480, 30, PixelFormat.MJPEG),
-      List.of(Control.pinned("exposure_auto", 1)));
+      new CaptureSettings(640, 480, 120, PixelFormat.MJPEG),
+      List.of(Control.pinned("auto_exposure", 1),
+          Control.tunable("exposure_time_absolute", 5000),
+          Control.tunable("gain", 64), Control.pinned("brightness", 0)));
 
   public static final SpotCameraConfig BACK = new SpotCameraConfig(
       "back", true,
       mount(-.40, 0.5, .30, 0, -20, 180), // metres, then roll/pitch/yaw in degrees
       0, // image rotation: 0 or 180 degrees
-      new CaptureSettings(640, 480, 30, PixelFormat.MJPEG),
-      List.of(Control.pinned("exposure_auto", 1)));
+      new CaptureSettings(640, 480, 120, PixelFormat.MJPEG),
+      List.of(Control.pinned("auto_exposure", 1),
+          Control.tunable("exposure_time_absolute", 5000),
+          Control.tunable("gain", 64), Control.pinned("brightness", 0)));
 
-  public static final List<SpotCameraConfig> CAMERAS = List.of(FRONT, BACK);
+  // Zero transform is an explicit placeholder for the unmeasured third mount.
+  public static final SpotCameraConfig SIDE = new SpotCameraConfig(
+      "side", true, mount(0, 0, 0, 0, 0, 0), 0,
+      new CaptureSettings(640, 480, 120, PixelFormat.MJPEG),
+      List.of(Control.pinned("auto_exposure", 1),
+          Control.tunable("exposure_time_absolute", 6000),
+          Control.tunable("gain", 61), Control.pinned("brightness", -21)));
+
+  public static final List<SpotCameraConfig> CAMERAS = List.of(FRONT, BACK, SIDE);
 
   /**
    * NWU: +X forward, +Y left, +Z up; right-handed roll, pitch, yaw in degrees.

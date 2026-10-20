@@ -100,7 +100,7 @@ async function mutation(operation, payload) {
     },
     body: JSON.stringify({ operation, payload, request_id }),
   });
-  for (let n = 0; n < 120; n++) {
+  for (let n = 0; n < (operation.startsWith("network/") ? 240 : 120); n++) {
     await new Promise((resolve) => setTimeout(resolve, 250));
     const job = await api("/api/jobs/" + result.job_id);
     if (job.state === "rejected") throw new Error(job.error);
@@ -325,11 +325,8 @@ function namePage(c) {
       return;
     }
     $("#camera-title").textContent = latest?.name || c.name;
-    const available = state.names.filter(
-      (name) =>
-        !state.cameras.some(
-          (cam) => cam.logical_name === name && cam.identity !== c.identity,
-        ),
+    const available = SpotUI.availableCameraNames(
+      state.names, state.cameras, c.identity,
     );
     const select = $("#camera-name"),
       signature = available.join();
@@ -373,7 +370,7 @@ function detailPage(c) {
     (v) => !preferred.includes(v.name),
   );
   $("#page").innerHTML =
-    `${!c.logical_name ? '<div class="panel warning"><strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation. <button id="standalone-enable">Enable standalone setup</button></div>' : ""}<div class="page-heading"><h1 id="camera-title">${escapeHTML(c.name)}</h1><span id="calibrated-state">${warningLink(c)}</span></div>${cameraSelector(c.identity)}${tabs(c.identity, "camera")}<div class="camera-layout"><section class="panel config-panel"><div class="panel-heading"><h2>Config</h2>${historyMarkup()}</div><p id="config-lock" class="lock"></p>${primary.map(controlMarkup).join("")}<div class="mode-control"><label for="optical-mode">Capture resolution / rate</label><select id="optical-mode"></select></div><div id="control-feedback" class="feedback"></div><button class="reset" id="reset-defaults">Reset to code defaults</button><details><summary>Advanced</summary>${advanced.map(controlMarkup).join("")}<button id="copy-code" class="spaced">Copy settings as code</button><pre id="code-copy" hidden></pre><label class="spaced" for="replacement-identity">Replacement camera</label><select id="replacement-identity"></select><label class="spaced"><input type="checkbox" id="replacement-confirmed"> I confirmed the replacement feed</label><button id="replace-camera" class="spaced">Replace camera</button></details><button id="reconcile" class="spaced" hidden>Reconcile current values</button><p id="page-feedback" class="feedback"></p><a href="#docs/tuning">Tuning and history</a></section><div><div>${feed(c.identity)}<div class="feed-controls"><label><input id="outlines" type="checkbox" checked>Show detection outlines</label><button id="pause-image">Pause image</button><small id="frame-info">Waiting for frame</small></div></div><div class="detail-bottom"><section class="panel"><h2>Detections</h2><div class="table-scroll"><table><thead><tr><th>ID</th><th>Range</th><th>Error</th><th>Used</th></tr></thead><tbody id="detections"></tbody></table></div><div id="robot-decision">Robot decision unavailable</div><details class="spaced"><summary>Solver candidates</summary><pre id="candidate-details"></pre></details></section><div class="viewer"><canvas id="geometry-canvas" width="700" height="350" tabindex="0" aria-label="3D camera and observed tags. Arrow keys orbit; plus/minus zoom"></canvas><button class="reset-view" id="reset-view">Reset view</button><a class="frame-label" href="#camera/${encodeURIComponent(c.identity)}/geometry">Geometry · WPILib NWU</a></div></div></div></div>`;
+    `${!c.logical_name ? '<div class="panel warning"><strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation. <button id="standalone-enable">Enable standalone setup</button></div>' : ""}<div class="page-heading"><h1 id="camera-title">${escapeHTML(c.name)}</h1><span id="calibrated-state">${warningLink(c)}</span></div>${cameraSelector(c.identity)}${tabs(c.identity, "camera")}<div class="camera-layout"><section class="panel config-panel"><div class="panel-heading"><h2>Config</h2>${historyMarkup()}</div><p id="config-lock" class="lock"></p>${primary.map(controlMarkup).join("")}<div class="mode-control"><label for="optical-mode">Capture resolution / rate</label><select id="optical-mode"></select></div><div id="control-feedback" class="feedback"></div><button class="reset" id="reset-defaults">Reset to code defaults</button><details><summary>Advanced</summary>${advanced.map(controlMarkup).join("")}<button id="copy-code" class="spaced">Copy settings as code</button><pre id="code-copy" hidden></pre><label class="spaced" for="replacement-identity">Replacement camera</label><select id="replacement-identity"></select><label class="spaced"><input type="checkbox" id="replacement-confirmed"> I confirmed the replacement feed</label><button id="replace-camera" class="spaced">Replace camera</button></details><button id="reconcile" class="spaced" hidden>Reconcile current values</button><p id="page-feedback" class="feedback"></p><a href="#docs/tuning">Tuning and history</a></section><div><div>${feed(c.identity)}<div class="feed-controls"><label><input id="outlines" type="checkbox" checked>Show detection outlines</label><button id="pause-image">Pause image</button><small id="frame-info">Waiting for frame</small></div></div><div class="detail-bottom"><section class="panel"><h2>Detections</h2><p id="pose-state" role="status"></p><div class="table-scroll"><table><thead><tr><th>ID</th><th>Range</th><th>Error</th><th>Used</th></tr></thead><tbody id="detections"></tbody></table></div><div id="robot-decision">Robot decision unavailable</div><details class="spaced"><summary>Solver candidates</summary><pre id="candidate-details"></pre></details></section><div class="viewer"><canvas id="geometry-canvas" width="700" height="350" tabindex="0" aria-label="3D camera and observed tags. Arrow keys orbit; plus/minus zoom"></canvas><button class="reset-view" id="reset-view">Reset view</button><a class="frame-label" href="#camera/${encodeURIComponent(c.identity)}/geometry">Geometry · WPILib NWU</a></div></div></div></div>`;
   if (!c.logical_name) {
     $("#standalone-enable").onclick = async () => {
       try { await beginCameraSetup(c); } catch (error) { showError(error); }
@@ -695,6 +692,12 @@ function updateDetections(id) {
         "</td></tr>";
   if ($("#candidate-details"))
     $("#candidate-details").textContent = JSON.stringify(candidates, null, 2);
+  if ($("#pose-state"))
+    $("#pose-state").textContent = !camera(id)?.calibrated
+      ? "Pose unavailable: calibrate this camera. Tags can be detected without a calibration, but distance and pose need valid intrinsics."
+      : !fresh ? "Waiting for a current detection frame before showing a pose."
+      : candidates.length ? "Local camera pose available. Robot acceptance is checked separately."
+      : "No pose solved for this frame. Check tag visibility, the field layout and solver diagnostics.";
   const decision = state.robot_decisions?.[camera(id)?.logical_name];
   if ($("#robot-decision"))
     $("#robot-decision").textContent =
@@ -890,7 +893,7 @@ function geometryPage(c) {
 }
 function networkPage() {
   $("#page").innerHTML =
-    '<h1>Network</h1><div class="two-columns"><section class="panel"><h2>Connection</h2><dl class="data-list" id="connection-data"></dl><p class="capability-lock spaced">Endpoint pinned by installation configuration</p><button id="standalone">Begin standalone setup</button><p id="page-feedback" class="feedback"></p></section><section class="panel"><h2>Link</h2><dl class="data-list" id="link-data"></dl></section></div>';
+    '<h1>Network</h1><div class="two-columns"><section class="panel"><h2>Connection</h2><dl class="data-list" id="connection-data"></dl><p class="capability-lock spaced">Endpoint pinned by installation configuration</p><button id="standalone">Begin standalone setup</button><p id="page-feedback" class="feedback"></p></section><section class="panel"><h2>Link</h2><dl class="data-list" id="link-data"></dl></section></div><section class="panel spaced"><h2>Jetson address</h2><p id="network-discovery"></p><p id="network-helper-state" class="lock"></p><div id="network-pending"></div><form id="network-form"><label for="network-interface">Ethernet port</label><select id="network-interface"><option value="">Choose a port</option></select><label for="network-mode">Address mode</label><select id="network-mode"><option value="automatic">Automatic (DHCP)</option><option value="static">Static</option></select><label for="network-address">IPv4 address / prefix</label><input id="network-address" placeholder="10.5.81.11/24" autocomplete="off" disabled><p>Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. Use a different subnet for each Jetson port.</p><button id="network-apply" class="primary" type="submit">Apply for 90 seconds</button></form><p>Reconnect if the address changes, then choose Keep settings. Without confirmation, the previous connection returns automatically. Wi-Fi and the internet default route stay unchanged.</p><p id="network-feedback" class="feedback"></p></section>';
   $("#standalone").onclick = async () => {
     try {
       await mutation("standalone", {});
@@ -899,8 +902,80 @@ function networkPage() {
       showError(error);
     }
   };
+  const port = $("#network-interface"), mode = $("#network-mode"), address = $("#network-address");
+  let networkBusy = false, portSignature = "", pendingSignature = "", restoreNetworkForm = false;
+  const updateMode = () => { address.disabled = mode.value !== "static"; };
+  mode.onchange = updateMode;
+  port.onchange = () => {
+    const selected = state.network?.interfaces?.find((i) => i.interface === port.value);
+    if (selected) {
+      mode.value = selected.mode === "static" ? "static" : "automatic";
+      address.value = selected.addresses[0] || "";
+      updateMode();
+    }
+    pageUpdate();
+  };
+  async function networkMutation(operation, payload) {
+    networkBusy = true;pageUpdate();
+    try {
+      await mutation("network/" + operation, payload);
+      $("#network-feedback").textContent = operation === "apply"
+        ? "Check the address below, then Keep settings before the countdown ends."
+        : operation === "confirm" ? "Network settings saved for future boots." : "Previous connection restored.";
+    } catch (error) {
+      restoreNetworkForm = true;
+      $("#network-feedback").textContent = error.message + " If this page disconnected, open the new address or wait for rollback.";
+    } finally { networkBusy = false;pageUpdate(); }
+  }
+  $("#network-form").onsubmit = (event) => {
+    event.preventDefault();
+    networkMutation("apply", {interface: port.value, mode: mode.value,
+      address: mode.value === "static" ? address.value.trim() : ""});
+  };
   pageUpdate = () => {
-    const e = state.endpoint || {};
+    const e = state.endpoint || {}, network = state.network || {};
+    $("#network-discovery").innerHTML = network.hostname
+      ? `Find Spot on this local network: <a href="http://${escapeHTML(network.hostname)}:${location.port || 80}/">${escapeHTML(network.hostname)}</a>. The current IP addresses are listed for each port.`
+      : "Local-name discovery is unavailable. Use one of the current IP addresses below.";
+    $("#network-helper-state").textContent = network.available ? (state.connected && state.lock_reason || "") : network.error || "Install the Spot network helper to change Ethernet addresses.";
+    const signature = JSON.stringify(network.interfaces || []);
+    if (signature !== portSignature && !networkBusy) {
+      const selected = port.value;
+      port.innerHTML = '<option value="">Choose a port</option>' + (network.interfaces || []).map((i) =>
+        `<option value="${escapeHTML(i.interface)}">${escapeHTML(i.interface)} · ${escapeHTML(i.addresses.join(", ") || "No IPv4 address")} · ${escapeHTML(i.mode)}</option>`).join("");
+      port.value = selected;portSignature = signature;
+    }
+    const pending = network.pending;
+    const pendingKey = pending ? pending.token : "";
+    if (pendingSignature && !pendingKey) restoreNetworkForm = true;
+    if (pendingKey !== pendingSignature) {
+      pendingSignature = pendingKey;
+      $("#network-pending").innerHTML = pending
+        ? '<p id="network-countdown" role="status"></p><button id="network-keep">Keep settings</button> <button id="network-revert">Revert now</button>' : "";
+      if (pending) {
+        $("#network-keep").onclick = () => networkMutation("confirm", {token: pending.token});
+        $("#network-revert").onclick = () => networkMutation("revert", {token: pending.token});
+      }
+    }
+    if (pending) {
+      const target = pending.address ? `http://${pending.address.split("/")[0]}:${location.port || 80}/#network` : "";
+      $("#network-countdown").innerHTML = `Testing ${escapeHTML(pending.interface)}. Automatic rollback in ${pending.remaining_s} seconds. ` +
+        (target ? `<a href="${escapeHTML(target)}">Open the new address</a>` : "Check the assigned DHCP address in the port list.");
+      $("#network-keep").disabled = $("#network-revert").disabled = networkBusy;
+    }
+    if (restoreNetworkForm && !networkBusy && !pending) {
+      const selected = network.interfaces?.find((i) => i.interface === port.value);
+      if (selected && selected.mode !== "unconfigured" &&
+          (selected.mode !== "static" || selected.addresses.length)) {
+        mode.value = selected.mode;
+        address.value = selected.addresses[0] || "";
+        restoreNetworkForm = false;
+      }
+    }
+    $("#network-apply").disabled = networkBusy || !network.available || !port.value || Boolean(pending) || Boolean(state.connected && state.lock_reason);
+    port.disabled = mode.disabled = networkBusy || Boolean(pending);
+    address.disabled = mode.value !== "static" || networkBusy || Boolean(pending);
+
     $("#connection-data").innerHTML = dl({
       "Robot endpoint":
         e.configured || (e.team ? `Team ${e.team}` : "Unavailable"),
@@ -1499,13 +1574,15 @@ function drawFeeds() {
       canvas = element.querySelector("canvas"),
       context = canvas.getContext("2d");
     const c = camera(id),
-      stale =
+      imageStale =
         !view?.paused &&
         (serviceError ||
           !c?.connected ||
           c.age_s > 0.5 ||
-          data?.generation !== state.applied_generation ||
-          data?.stale);
+          data?.stale),
+      stale =
+        imageStale ||
+        (!view?.paused && data?.generation !== state.applied_generation);
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (bitmap) {
       const scale = Math.min(
@@ -1599,11 +1676,13 @@ function drawFeeds() {
             : c?.present
               ? c.fault || "Waiting for image"
               : "Disconnected"
-          : stale && bitmap
+          : imageStale && bitmap
             ? "Stale image · outlines hidden"
             : !bitmap
               ? "Waiting for image"
-              : "";
+              : stale
+                ? "Live image · waiting for current robot profile"
+                : "";
     element.querySelector(".image-state").textContent = text;
     if ($("#frame-info") && id === currentRoute().id)
       $("#frame-info").textContent = data

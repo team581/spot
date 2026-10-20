@@ -15,6 +15,7 @@ from .beta_web import BetaHttpServer
 from .config import ConfigError, NtConfig
 from .devices import _run
 from .release import installed_identity
+from .networking import NetworkClient
 
 
 def local_addresses() -> list[str]:
@@ -52,6 +53,7 @@ def run_beta(args) -> int:
         backend=backend,
         processing=ProcessingPolicy.parse(config.get("processing")),
     )
+    runtime.network = NetworkClient()
     runtime.release = release
     runtime.endpoint = {
         "configured": nt.server,
@@ -89,6 +91,7 @@ def run_beta(args) -> int:
         prior[signum] = signal.signal(signum, lambda *_: stopped.set())
     try:
         runtime.start()
+        runtime.network.worker.start()
         web_thread.start()
         runtime.watchdog.ready()
         while not stopped.wait(0.2):
@@ -102,6 +105,7 @@ def run_beta(args) -> int:
     finally:
         server.shutdown()
         server.server_close()
+        runtime.network.close()
         runtime.close()
         for signum, handler in prior.items():
             signal.signal(signum, handler)

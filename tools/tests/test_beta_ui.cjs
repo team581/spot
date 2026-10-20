@@ -5,6 +5,7 @@ const {
   History,
   LiveTuner,
   finiteText,
+  availableCameraNames,
 } = require("../../src/spot_vision/web/ui-state.js");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -191,4 +192,16 @@ test("Auto theme follows OS changes; manual preference survives reload", () => {
   const reloaded = load(true);
   assert.equal(reloaded.window.SpotTheme.get(), "Light");
   assert.equal(reloaded.document.documentElement.dataset.theme, "light");
+});
+
+test("unbound role placeholders remain pairable while disconnected real bindings stay reserved", () => {
+  const names = ["front", "back", "side"];
+  const cameras = [
+    {identity: "missing:front", logical_name: "front", present: false},
+    {identity: "missing:side", logical_name: "side", present: false},
+    {identity: "physical-back", logical_name: "back", present: false},
+    {identity: "physical-front", present: true},
+  ];
+  assert.deepEqual(availableCameraNames(names, cameras, "physical-front"), ["front", "side"]);
+  assert.deepEqual(availableCameraNames(names, cameras, "physical-back"), names);
 });

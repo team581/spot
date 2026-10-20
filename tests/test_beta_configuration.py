@@ -117,3 +117,23 @@ def test_enabled_event_is_seen_during_slow_hardware_apply(tmp_path):
     with pytest.raises(ConfigError, match="locked"):
         service.tune("front", {"gain": 3}, old.generation)
     assert service.store.load() == old
+
+
+def test_omitted_control_keeps_gui_value_through_new_code_and_restart(tmp_path):
+    service = configured(tmp_path)
+    service._supported_controls = lambda _: {"gain", "contrast", "exposure_time_absolute"}
+    service.tune("front", {"exposure_time_absolute": 6000, "gain": 7}, service.state.generation)
+    changed = manifest()
+    del changed.profile.cameras[0].controls[:]
+    from spot_vision.beta_contract import content_hash
+    changed.manifest_hash = content_hash(changed.profile)
+    service.accept_manifest(changed)
+    assert service.effective_controls("front")["gain"] == 7
+    assert service.effective_controls("front")["exposure_time_absolute"] == 6000
+    service.robot_state(wire.RobotState(robot_session="robot-1", enabled=False, sequence=2))
+    service.tune("front", {"exposure_time_absolute": 7000}, service.state.generation)
+    restarted = ConfigurationService(StateStore(tmp_path), lambda *_: None)
+    assert restarted.effective_controls("front")["exposure_time_absolute"] == 7000
+    service._supported_controls = lambda _: {"gain"}
+    with pytest.raises(ConfigError, match="unavailable"):
+        service.tune("front", {"unknown": 1}, service.state.generation)

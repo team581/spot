@@ -3,7 +3,7 @@ package frc.robot.logging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.wpi.first.util.datalog.RawLogEntry;
 import edu.wpi.first.util.datalog.StringLogEntry;
-import edu.wpi.first.wpilibj.DataLogManager;
+import edu.wpi.first.util.datalog.DataLog;
 import frc.robot.vision.SpotVisionIO;
 import frc.robot.vision.VisionIO;
 import frc.robot.vision.VisionProcessor;
@@ -16,7 +16,8 @@ import java.util.function.DoubleSupplier;
 public final class RecordingVisionIO implements VisionIO {
   private final VisionIO delegate;
   private final DoubleSupplier clock;
-  private final StringLogEntry events = new StringLogEntry(DataLogManager.getLog(), "/Bench/Frames");
+  private final DataLog log;
+  private final StringLogEntry events;
   private final Map<String, RawLogEntry> raw = new HashMap<>();
   private final Map<String, LatencyWindow> received = new HashMap<>();
   private final Map<String, LatencyWindow> consumed = new HashMap<>();
@@ -26,9 +27,11 @@ public final class RecordingVisionIO implements VisionIO {
   private long fused;
   private long loggingErrors;
 
-  public RecordingVisionIO(VisionIO delegate, DoubleSupplier clock) {
+  public RecordingVisionIO(VisionIO delegate, DoubleSupplier clock, DataLog log) {
     this.delegate = delegate;
     this.clock = clock;
+    this.log = log;
+    events = new StringLogEntry(log, "/Bench/Frames");
   }
 
   @Override public Inputs readInputs(double now, boolean enabled) {
@@ -37,7 +40,7 @@ public final class RecordingVisionIO implements VisionIO {
     for (var sample : inputs.samples()) {
       frames++;
       raw.computeIfAbsent(sample.observation().getCameraName(), name ->
-          new RawLogEntry(DataLogManager.getLog(), "/Bench/Raw/" + name,
+          new RawLogEntry(log, "/Bench/Raw/" + name,
               "proto:spot.vision.v2.Observation")).append(sample.observation().toByteArray());
     }
     return inputs;
@@ -59,6 +62,7 @@ public final class RecordingVisionIO implements VisionIO {
     event.put("runtime_generation", observation.getRuntimeGeneration());
     event.put("capture_fpga_s", sample.captureFpgaSeconds());
     event.put("decision_fpga_s", now);
+    event.put("decision_nt_s", edu.wpi.first.networktables.NetworkTablesJNI.now() / 1e6);
     event.put("age_ms", ageMs);
     event.put("decision", decision.reason().name());
     event.put("processing_ms", observation.getTiming().getTotalMs());

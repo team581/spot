@@ -376,7 +376,7 @@ class ConfigurationService:
             for key, value in values.items():
                 if supported is not None and key not in supported:
                     raise ConfigError(f"{key}: unavailable on the connected device")
-                if key not in policies or not policies[key].allow_override:
+                if key in policies and not policies[key].allow_override:
                     raise ConfigError(f"{key}: pinned or unsupported by robot policy")
                 if type(value) not in (int, float) or not math.isfinite(value):
                     raise ConfigError(f"{key}: numeric value required")
@@ -395,12 +395,14 @@ class ConfigurationService:
 
     def effective_controls(self, name: str, data: dict | None = None) -> dict[str, float]:
         saved = self.profile_data(data).get("settings", {}).get(name, {})
-        return {
+        values = dict(saved)
+        values.update({
             policy.name: saved.get(policy.name, policy.default_value)
             if policy.allow_override
             else policy.default_value
             for policy in self.camera(name).controls
-        }
+        })
+        return values
 
     def set_mode(self, name: str, mode_id: str, expected: str) -> StateSnapshot:
         with self._lock:

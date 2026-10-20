@@ -34,6 +34,14 @@ There is no tuning **Save** or **Apply** button. For exact control names and val
 
 > **Optical changes affect calibration.** Focus, zoom, crop, rotation and flip can invalidate intrinsics. Capture mode and control readback also affect measured timing. Revalidate the applicable evidence before robot use.
 
+## Frame rate and latency
+
+Capture FPS and processing FPS are separate. Use a supported capture mode, then compare delivered updates, p95/p99 latency, worst-case age and gaps. Higher FPS is useful only if the system keeps up.
+
+On the three-camera bench, **640 × 480 MJPEG at 120 capture FPS with a 30 FPS processing cap** delivered about 28 detections per second per camera. The 20/30/45 cap comparison had similar robot receipt p95 (about 41–44 ms); 45 repeatedly triggered load reduction, so 30 preserves more headroom. These are bench measurements from read completion, not sensor exposure, and the cameras were not yet calibrated for live pose solving. Recheck after calibration and under the robot's actual workload.
+
+A low p95 does not rule out an outage. Clock renewal caused longer delivery gaps; the faster robot profile announcement reduced recovery time, but timing qualification is still required. Stale or invalid observations must remain rejected.
+
 <details>
 <summary>Exposure limits</summary>
 
