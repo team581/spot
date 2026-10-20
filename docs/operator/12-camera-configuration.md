@@ -73,7 +73,7 @@ Changing capture settings changes the generated mode ID/signature. Calibration a
 | `required=false` | Skip an absent control; an invalid value on a present control is still rejected |
 | `allowOverride=true` | Permit a saved GUI value while editing is eligible |
 
-A saved override can survive a new Java default; use **Reset to code defaults** to restore that default. Values must satisfy the device's range, step and menu. Optional tunable example: `new Control("sharpness", 0, false, true)` only if that camera allows zero.
+Omitted controls remain editable in the GUI and retain saved values across deployments and Jetson restarts. Pinned entries always take precedence. A saved override can survive a new Java default; use **Reset to code defaults** to restore that default. Values must satisfy the device's range, step and menu. Optional tunable example: `new Control("sharpness", 0, false, true)` only if that camera allows zero.
 
 ![Camera Config panel with live controls and applied device values](../../src/spot_vision/web/docs-images/camera.png)
 

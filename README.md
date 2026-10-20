@@ -39,6 +39,10 @@ before declaring beta robot-ready or enabling fusion, heading or revised trust.
 See the [camera configuration reference](docs/operator/12-camera-configuration.md)
 for the SWYFT/Arducam pixel counts, Java settings, control values and units.
 
+For a bare roboRIO and Jetson without a switch, follow the
+[robot integration session](docs/operator/14-robot-integration-session.md):
+bring-up, setup friction, disconnect/restart recovery, and evidence-driven agent repairs.
+
 ## Jetson prerequisites
 
 - JetPack with CUDA development tools and compute capability 8.7 support

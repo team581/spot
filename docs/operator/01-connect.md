@@ -27,6 +27,28 @@ Open the dashboard, check the robot link, and find your cameras. Start here when
 
 > **Editing locked?** Disable the connected robot. For bench work with the link known disconnected, click **Begin standalone setup** on Network. Unknown robot state never unlocks edits automatically; connecting a robot ends standalone setup.
 
+## Set the Jetson address
+
+Open **Network → Jetson address**. The port list shows each Ethernet interface and its current IP address. Pick the port you want to change.
+
+- **Automatic (DHCP)** gets an address from your router or robot network. It needs a DHCP server.
+- **Static** keeps the address you enter. For team 581, a free address such as **10.5.81.11/24** works on the robot subnet. Keep the roboRIO at its own address, usually **10.5.81.2**.
+
+Click **Apply for 90 seconds**. If needed, open the new address, then click **Keep settings**. If the connection fails or you do not confirm, Spot restores the previous connection automatically. **Revert now** restores it immediately. Confirmed settings survive a reboot.
+
+```mermaid
+flowchart LR
+  A[Choose Ethernet port] --> B[Automatic or Static]
+  B --> C[Apply and check connection]
+  C --> D[Keep settings]
+```
+
+For the two-cable bench, keep the Mac-facing port at **192.168.69.170/24** and change only the robot-facing port. The two ports must use different subnets. A cable directly to the roboRIO usually needs **Static** because neither end supplies DHCP. Wi-Fi and the internet default route are preserved.
+
+**Find Spot:** open [spot.local:5800](http://spot.local:5800/) from the same local network. Network shows the actual local name and current IP addresses. If another device already uses `spot.local`, the displayed name may be `spot-2.local`. Local-name discovery does not cross routers or the Jetson's two Ethernet links; use the address on the link connected to your computer.
+
+If address controls are unavailable, the installation needs its network helper; see [deployment](#docs/deployment). The **Jetson address** is separate from the **Robot endpoint**, which is the roboRIO NT server Spot connects to.
+
 ## Choose your next task
 
 - [Name cameras](#docs/name) to bind physical feeds to robot-code names.
@@ -45,6 +67,6 @@ ssh -i ~/.ssh/spot_jetson_ed25519 team581@192.168.69.170
 
 For direct Ethernet, the development Mac uses `192.168.69.171/24` on its connected adapter. These maintenance addresses are separate from the robot NT endpoint.
 
-Installation settings live in `/etc/spot-vision/beta.json`. Defaults use team 581 discovery and HTTP port 5800. Set `nt.server` instead of `nt.team` for an explicit robot endpoint. The GUI does not change operating-system addresses. The UI and saved calibration remain accessible without cameras or a robot; alpha development commands do not start this GUI.
+Installation settings live in `/etc/spot-vision/beta.json`. Defaults use team 581 discovery and HTTP port 5800. Set `nt.server` instead of `nt.team` for an explicit robot endpoint. The Network page changes Ethernet addresses through the installed network helper; it does not change the robot NT endpoint. The UI and saved calibration remain accessible without cameras or a robot; alpha development commands do not start this GUI.
 
 </details>

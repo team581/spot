@@ -25,8 +25,10 @@ For a configured camera, disable the connected robot. Without a profile, open th
 | Exposure | Shorter reduces motion blur; longer collects more light. Values are in µs. |
 | Gain | Brightens the image but can increase noise. Use the device's advertised scale. |
 | Automatic controls | Disable the relevant automatic mode before setting manual values. |
-| Policy lock | Robot code decides which controls can be overridden. |
+| Policy lock | Explicitly pinned controls follow robot code; omitted controls keep saved GUI values. |
 | Rejected or clipped request | Read the reason; the previous acknowledged setting stays active. |
+
+Acknowledged GUI values are saved on the Jetson and restored after restart. Omitting a control from Java leaves it under GUI control; adding a pinned entry takes authority again. **Reset to code defaults** resets controls with tunable Java defaults and leaves omitted controls unchanged.
 
 There is no tuning **Save** or **Apply** button. For exact control names and values, see [Cameras in Java](#docs/camera-configuration).
 

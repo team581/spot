@@ -5,6 +5,8 @@ Group: Getting started
 
 Check the camera image, then the robot's decision. Seeing a local pose is only the first check.
 
+A visible tag does not guarantee a pose. **Calibration required** means Spot can detect tag IDs and corners but cannot compute a trustworthy distance or pose. Complete intrinsics for each actual camera and capture mode. Then verify the field layout, tag size and measured mounts; robot timing and acceptance checks still apply. The Detections panel explains whether a local pose is available.
+
 ## Check the image
 
 1. Open **Overview** and check detection FPS and frame age.

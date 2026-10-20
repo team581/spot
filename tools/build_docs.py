@@ -12,6 +12,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -259,10 +260,39 @@ def build(source: Path) -> dict:
     return {"schema_version": 1, "topics": topics}
 
 
+def build_web_bundle(source: Path, web: Path, output: Path) -> None:
+    """Stage docs with the matching UI, styles, fonts and screenshots."""
+    web, output = web.resolve(), output.resolve()
+    if output.is_relative_to(web) or web.is_relative_to(output):
+        raise ValueError("Web bundle output must be separate from source assets")
+    document = build(source)
+    for topic in document["topics"]:
+        for filename in re.findall(r'<img[^>]+src="/([^"]+)"', topic["html"]):
+            asset = (web / filename).resolve()
+            if not asset.is_relative_to(web) or not asset.is_file():
+                raise ValueError(f"Missing docs image in {topic['id']}: {filename}")
+    shutil.copytree(web, output, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("docs.json", ".DS_Store", "._*", "__pycache__"))
+    (output / "docs.json").write_text(
+        json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n"
+    )
+    # Source screenshots may be owner-only on the development Mac. The Jetson
+    # serves these files as an unprivileged service account.
+    for path in output.rglob("*"):
+        path.chmod(0o755 if path.is_dir() else 0o644)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--web-assets", type=Path,
+                        help="Stage the complete web bundle beside the output docs.json")
     args = parser.parse_args()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(build(args.source), ensure_ascii=False, separators=(",", ":")) + "\n")
+    if args.web_assets:
+        if args.output.name != "docs.json":
+            parser.error("--web-assets requires an output named docs.json")
+        build_web_bundle(args.source, args.web_assets, args.output.parent)
+    else:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(build(args.source), ensure_ascii=False, separators=(",", ":")) + "\n")

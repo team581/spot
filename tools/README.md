@@ -226,3 +226,31 @@ unsupported syntax. It needs no external scripts or network connection.
 
 Check the compiler and all maintained pages with
 `python3 -m unittest discover -s tools/tests -p test_build_docs.py`.
+
+For the Jetson UI, build the documentation and its matching web assets together:
+
+```sh
+python3 tools/build_docs.py --source docs/operator \
+  --web-assets src/spot_vision/web --output dist/jetson-web/docs.json
+```
+
+The normal CMake/wheel build installs this complete bundle too. A scoped UI
+deployment must transfer the entire bundle into the active runtime's `web/`
+directory, including `app.css`, `app.js`, fonts and `docs-images/`; use the
+deployment workflow to back up and verify the actual installed location.
+Copying only `docs.json` can leave new article markup paired with old styles
+and missing screenshots. The builder checks image references and makes assets
+readable by the unprivileged service account. Reload the browser after deployment.
+
+## Robot integration session
+
+The [bench session guide](../docs/operator/14-robot-integration-session.md) covers
+separate MacBook–Jetson and Jetson–roboRIO Ethernet links, agent-configured
+routing/relay access, setup/recovery checks, and an agent-owned execution/repair loop. `bench_capture.py` records bounded Jetson status alongside the running
+service; `bench_session.py` creates run snapshots, collects explicit remote
+paths, diagnoses status, and summarizes exported tester WPILOGs. Both use Python
+3.10+ standard libraries. Run `--help` for commands. The agent executes setup, deployment, GUI checks, collection and retests;
+requests for human help are limited to unavailable physical actions/access. Start
+with setup failures; latency statistics are supporting evidence. Artifacts live in ignored
+`bench-runs/`. Test the report logic with
+`python3 -m unittest discover -s tools/tests -p test_bench_session.py`.

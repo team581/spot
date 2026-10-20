@@ -133,12 +133,18 @@ endif()
 # stays in the build directory and is never inferred from a runtime checkout.
 add_custom_target(spot_build_manifest ALL
   COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_docs.py"
-    --source "${CMAKE_CURRENT_SOURCE_DIR}/docs/operator" --output "${CMAKE_CURRENT_BINARY_DIR}/docs.json"
+    --source "${CMAKE_CURRENT_SOURCE_DIR}/docs/operator"
+    --web-assets "${CMAKE_CURRENT_SOURCE_DIR}/src/spot_vision/web"
+    --output "${CMAKE_CURRENT_BINARY_DIR}/web/docs.json"
   COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_manifest.py"
     --root "${CMAKE_CURRENT_SOURCE_DIR}" --native "$<TARGET_FILE:_spot_cuda>"
-    --cuda "${SPOT_BUILD_CUDA}" --docs "${CMAKE_CURRENT_BINARY_DIR}/docs.json" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
+    --cuda "${SPOT_BUILD_CUDA}" --docs "${CMAKE_CURRENT_BINARY_DIR}/web/docs.json" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
   DEPENDS _spot_cuda
   VERBATIM)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json" DESTINATION spot_vision)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/docs.json" DESTINATION spot_vision/web)
+# Install one matching bundle rather than updated HTML with missing screenshots
+# or an older stylesheet. Normalize permissions for the service account.
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/web/" DESTINATION spot_vision/web
+  FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+  DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)

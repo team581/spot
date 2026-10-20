@@ -1,12 +1,14 @@
 """Regression checks for the shared offline/hosted documentation compiler."""
 
 import sys
+import json
+import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from build_docs import build, render
+from build_docs import build, build_web_bundle, render
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,9 +44,36 @@ class Structure(HTMLParser):
 
 
 class DocsBuildTests(unittest.TestCase):
+    def test_web_bundle_includes_matching_styles_scripts_and_readable_images(self):
+        web = ROOT / 'src/spot_vision/web'
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'web'
+            build_web_bundle(ROOT / 'docs/operator', web, output)
+            document = json.loads((output / 'docs.json').read_text())
+            for name in ('app.css', 'app.js', 'index.html', 'theme.js', 'ui-state.js'):
+                self.assertEqual((output / name).read_bytes(), (web / name).read_bytes())
+            for topic in document['topics']:
+                for image in Structure(topic['html']).images:
+                    asset = output / image.lstrip('/')
+                    self.assertEqual(asset.read_bytes(), (web / image.lstrip('/')).read_bytes())
+                    self.assertEqual(asset.stat().st_mode & 0o777, 0o644)
+            # Rebuilding refreshes the stylesheet along with regenerated docs.
+            (output / 'app.css').write_text('old styles')
+            build_web_bundle(ROOT / 'docs/operator', web, output)
+            self.assertEqual((output / 'app.css').read_bytes(), (web / 'app.css').read_bytes())
+
+    def test_web_bundle_rejects_missing_screenshots_and_overlapping_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            web = Path(directory) / 'assets'
+            web.mkdir()
+            with self.assertRaisesRegex(ValueError, 'Missing docs image'):
+                build_web_bundle(ROOT / 'docs/operator', web, Path(directory) / 'output')
+            with self.assertRaisesRegex(ValueError, 'separate'):
+                build_web_bundle(ROOT / 'docs/operator', web, web / 'output')
+
     def test_all_pages_have_valid_structure_assets_and_links(self):
         topics = build(ROOT / 'docs/operator')['topics']
-        self.assertEqual(len(topics), 13)
+        self.assertEqual(len(topics), 14)
         by_id = {t['id']: t for t in topics}
         for topic in topics:
             with self.subTest(topic=topic['id']):

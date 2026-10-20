@@ -17,6 +17,10 @@ flowchart LR
   Localization --> Logs
 ```
 
+See the [robot integration session](../docs/operator/14-robot-integration-session.md)
+for the two-port Jetson setup (MacBook ↔ Jetson ↔ roboRIO), an agent execution checklist, evidence capture, and a bounded
+agent-owned deployment/fix/retest workflow.
+
 ## Build and deploy
 
 Open **this folder** in WPILib 2026 VS Code. The project uses GradleRIO/WPILib
@@ -99,9 +103,10 @@ public static final List<SpotCameraConfig> CAMERAS = List.of(FRONT);
   first-frame seeding. This constant stays out of the actual robot's vision
   configuration; its drivetrain supplies pose history instead.
 
-Defaults deliberately contain **no cameras**. Expect `No measured camera
-configuration` until real definitions are added. Invalid camera settings are
-rejected before publication. Startup failures appear in
+The checked-in bench configuration registers `front` and `back`. Review their
+mounts and capture requests for your physical rig. An empty list produces
+`No measured camera configuration`. Invalid settings are rejected before
+publication. Startup failures appear in
 `SmartDashboard/Bench/ConfigError`.
 
 For printed tags at home, replace `FIELD_LAYOUT` with a surveyed
@@ -119,8 +124,10 @@ or configure transport to add cameras.
 Connect Jetson and roboRIO Ethernet, directly or through a switch, on a common
 subnet. The roboRIO program is the NT4 **server**. Configure the Jetson's installed
 beta service to connect to it; use an explicit `nt.server` address if team
-discovery is inappropriate for the home network. A roboRIO USB connection to a
-laptop alone does not establish a Jetson-to-roboRIO Ethernet path.
+discovery is inappropriate for the home network. For this bench, use the Jetson's second Ethernet port for the MacBook on a separate
+management subnet. The agent configures and verifies routing/return access through
+the Jetson for roboRIO deployment and logs; the two ports are not automatically
+a switch. No Mac-to-roboRIO USB connection is required.
 
 Use a matching Spot v2 service (0.2.1 or later with `tag_selection_supported`).
 Use Spot's naming/binding, calibration, and timing qualification workflows before
@@ -156,8 +163,11 @@ bench estimator submissions. The transport filters unhealthy/malformed/session
 mismatched packets before delivery, so delivered counts are not network packet
 counts or a complete packet-loss measurement.
 
-DataLogManager records NT state plus per-frame records under `/Bench/Frames`
-(JSON) and original delivered protobufs under `/Bench/Raw/<camera>`. Frame records
+An independent writer saves `bench-<robot-session>.wpilog` even without Driver
+Station packets. It records typed bench telemetry, per-frame records under
+`/Bench/Frames` (JSON) and original delivered protobufs under `/Bench/Raw/<camera>`.
+DataLogManager separately records normal NT/DS state and may pause without DS
+traffic. `Bench/LogDirectory` identifies the selected directory. Frame records
 include identity, sequence, epochs, capture/decision/consumption times, rejection
 reason, and reported timing uncertainty. `BENCH_FUSED` means insertion into this
 bench estimator. Normal logging goes to roboRIO USB storage when present, or

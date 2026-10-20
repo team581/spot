@@ -63,3 +63,9 @@ Application files live read-only under `/opt/spot-vision/releases/RELEASE_ID`; a
 Preserve the historical alpha installation before a first migration. An alpha wheel is not a beta rollback target. Configuration imports check the current profile, identity, policy, mode and calibration before atomic disabled-only acknowledgement. Without verified wall time, System shows **Time unavailable** while release identity and monotonic uptime remain available.
 
 </details>
+
+## Ethernet controls and discovery
+
+The normal installer includes the network helper and local-name discovery. On an existing installation, run `sudo deploy/install-network.sh /absolute/spot/source` from the source checkout, then deploy the updated Spot application. NetworkManager and Avahi must be installed. This does not change Ethernet addresses; choose Automatic or Static on **Network → Jetson address**.
+
+The helper is a separate system service with access limited to physical Ethernet ports. Spot's camera service stays unprivileged. NetworkManager protects each trial with a 90-second rollback; an unconfirmed connection is not selected automatically on boot. Wi-Fi profiles and default routes are preserved. The installer saves previous helper and Avahi files in the printed backup directory.
