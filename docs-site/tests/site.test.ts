@@ -48,6 +48,27 @@ await Promise.all(
 			});
 		}
 
+		await test(`${target}: Markdown and MDX diagrams render without client JavaScript`, () => {
+			for (const [page, labels] of [
+				['calibrate', ['Apply passing results']],
+				['connect', ['Keep settings']],
+				['java', ['Drive estimator']],
+				['robot-integration-session', ['Enable verified fusion', 'Agent redeploys and retests', 'roboRIO Ethernet']],
+			] as const) {
+				const nodes = documents.get(`operator/${page}/index.html`)!;
+				const diagrams = nodes.filter(
+					(node) =>
+						node.tagName === 'svg' &&
+						node.attrs.some(({ name, value }) => name === 'class' && value.split(' ').includes('pele')),
+				);
+				assert.equal(diagrams.length, labels.length, `Missing diagrams in ${page}`);
+				for (const [index, label] of labels.entries()) {
+					assert.ok(textContent(diagrams[index]).includes(label), `Missing diagram label in ${page}: ${label}`);
+				}
+				assert.ok(!nodes.some((node) => node.tagName === 'pre' && textContent(node).includes('flowchart LR')));
+			}
+		});
+
 		await test(`${target}: generated links, section anchors, scripts, styles, and screenshots resolve`, () => {
 			assert.ok(documents.has('index.html'), 'Missing site homepage');
 			for (const [file, nodes] of documents) {
