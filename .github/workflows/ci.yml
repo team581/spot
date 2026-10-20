@@ -48,7 +48,7 @@ jobs:
         with:
           name: jetson-docs
           path: dist/jetson-docs
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
       - uses: jdx/mise-action@v5
