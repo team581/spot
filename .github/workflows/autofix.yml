@@ -7,8 +7,12 @@ permissions:
 
 jobs:
   autofix:
+    name: Autofix
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: docs-site
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/setup@v3
@@ -16,8 +20,10 @@ jobs:
           cache: true
           working-directory: docs-site
           require-lockfile: true
+      - run: pnpm exec astro sync
       - run: pnpm format:fix
-        working-directory: docs-site
+        continue-on-error: true
       - run: pnpm lint:fix
-        working-directory: docs-site
-      - uses: autofix-ci/action@v1
+        continue-on-error: true
+      - name: Run autofix.ci
+        uses: autofix-ci/action@v1

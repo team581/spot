@@ -22,9 +22,11 @@ jobs:
           cache: true
           working-directory: docs-site
           require-lockfile: true
-      - run: pnpm format
-      - run: pnpm lint
-      - run: pnpm knip
+      - run: pnpm exec astro sync
+      - parallel:
+          - run: pnpm format
+          - run: pnpm lint
+          - run: pnpm knip
       - run: pnpm build
       - run: pnpm build:jetson
       - run: pnpm test
