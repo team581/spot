@@ -57,8 +57,7 @@ let state = {
   routeKey = "",
   pageUpdate = () => {},
   viewer = null,
-  tuner = null,
-  docs = null;
+  tuner = null;
 function updateHTML(element, html) {
   if (element.dataset.rendered !== html) {
     element.dataset.rendered = html;
@@ -145,9 +144,9 @@ function nav() {
     ["calibration", "Calibration"],
     ["network", "Network"],
     ["system", "System"],
-    ["docs", "Docs"],
   ])
     html += `<a href="#${path}" class="${path === "calibration" ? "section-gap " : ""}${route.page === path ? "active" : ""}" title="${label}" aria-label="${label}">${icon(path)}<span class="nav-label">${label}</span></a>`;
+  html += `<a href="/docs/" title="Docs" aria-label="Docs">${icon("docs")}<span class="nav-label">Docs</span></a>`;
   if (navHTML !== html) {
     $("#nav").innerHTML = html;
     navHTML = html;
@@ -247,7 +246,7 @@ function overview(page) {
                 `<a class="panel tile" href="#camera/${encodeURIComponent(c.identity)}" data-tile="${escapeHTML(c.identity)}"><header><strong>${escapeHTML(c.name)}</strong><span class="calibrated"></span></header>${feed(c.identity)}<div class="metrics"><span class="fps" title="Measured capture FPS; detection and preview rates are separate">— FPS</span><span class="tags">— tags</span><span class="age">— ms</span></div></a>`,
             )
             .join("")
-        : '<div class="panel empty"><h2>No cameras discovered</h2><p>Connect a powered USB camera. Discovery continues automatically.</p><a href="#docs/connect">Connection guide</a></div>';
+        : '<div class="panel empty"><h2>No cameras discovered</h2><p>Connect a powered USB camera. Discovery continues automatically.</p><a href="/docs/operator/connect/">Connection guide</a></div>';
     }
     for (const c of state.cameras) {
       const tile = $(`[data-tile="${c.identity}"]`);
@@ -294,7 +293,7 @@ async function beginCameraSetup(c) {
 }
 function namePage(c) {
   $("#page").innerHTML =
-    `<h1 id="camera-title">${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}<div class="name-layout">${feed(c.identity)}<section class="panel"><h2>Camera name</h2><p class="warning">⚠ Not configured in code</p><label for="camera-name">Name</label><select id="camera-name"></select><label class="spaced"><input type="checkbox" id="preview-confirmed"> This preview matches the physical camera</label><button id="rename" class="primary">Rename</button><hr><p>Use this camera without a robot profile for tuning and calibration.</p><button id="standalone-camera">Open standalone camera setup</button><p id="naming-lock" class="lock"></p><p id="page-feedback" class="feedback"></p><a href="#docs/name">Configure camera names in robot code</a></section></div>`;
+    `<h1 id="camera-title">${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}<div class="name-layout">${feed(c.identity)}<section class="panel"><h2>Camera name</h2><p class="warning">⚠ Not configured in code</p><label for="camera-name">Name</label><select id="camera-name"></select><label class="spaced"><input type="checkbox" id="preview-confirmed"> This preview matches the physical camera</label><button id="rename" class="primary">Rename</button><hr><p>Use this camera without a robot profile for tuning and calibration.</p><button id="standalone-camera">Open standalone camera setup</button><p id="naming-lock" class="lock"></p><p id="page-feedback" class="feedback"></p><a href="/docs/operator/name/">Configure camera names in robot code</a></section></div>`;
   $("#standalone-camera").onclick = async () => {
     try { await beginCameraSetup(c); } catch (error) { showError(error); }
   };
@@ -370,7 +369,7 @@ function detailPage(c) {
     (v) => !preferred.includes(v.name),
   );
   $("#page").innerHTML =
-    `${!c.logical_name ? '<div class="panel warning"><strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation. <button id="standalone-enable">Enable standalone setup</button></div>' : ""}<div class="page-heading"><h1 id="camera-title">${escapeHTML(c.name)}</h1><span id="calibrated-state">${warningLink(c)}</span></div>${cameraSelector(c.identity)}${tabs(c.identity, "camera")}<div class="camera-layout"><section class="panel config-panel"><div class="panel-heading"><h2>Config</h2>${historyMarkup()}</div><p id="config-lock" class="lock"></p>${primary.map(controlMarkup).join("")}<div class="mode-control"><label for="optical-mode">Capture resolution / rate</label><select id="optical-mode"></select></div><div id="control-feedback" class="feedback"></div><button class="reset" id="reset-defaults">Reset to code defaults</button><details><summary>Advanced</summary>${advanced.map(controlMarkup).join("")}<button id="copy-code" class="spaced">Copy settings as code</button><pre id="code-copy" hidden></pre><label class="spaced" for="replacement-identity">Replacement camera</label><select id="replacement-identity"></select><label class="spaced"><input type="checkbox" id="replacement-confirmed"> I confirmed the replacement feed</label><button id="replace-camera" class="spaced">Replace camera</button></details><button id="reconcile" class="spaced" hidden>Reconcile current values</button><p id="page-feedback" class="feedback"></p><a href="#docs/tuning">Tuning and history</a></section><div><div>${feed(c.identity)}<div class="feed-controls"><label><input id="outlines" type="checkbox" checked>Show detection outlines</label><button id="pause-image">Pause image</button><small id="frame-info">Waiting for frame</small></div></div><div class="detail-bottom"><section class="panel"><h2>Detections</h2><p id="pose-state" role="status"></p><div class="table-scroll"><table><thead><tr><th>ID</th><th>Range</th><th>Error</th><th>Used</th></tr></thead><tbody id="detections"></tbody></table></div><div id="robot-decision">Robot decision unavailable</div><details class="spaced"><summary>Solver candidates</summary><pre id="candidate-details"></pre></details></section><div class="viewer"><canvas id="geometry-canvas" width="700" height="350" tabindex="0" aria-label="3D camera and observed tags. Arrow keys orbit; plus/minus zoom"></canvas><button class="reset-view" id="reset-view">Reset view</button><a class="frame-label" href="#camera/${encodeURIComponent(c.identity)}/geometry">Geometry · WPILib NWU</a></div></div></div></div>`;
+    `${!c.logical_name ? '<div class="panel warning"><strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation. <button id="standalone-enable">Enable standalone setup</button></div>' : ""}<div class="page-heading"><h1 id="camera-title">${escapeHTML(c.name)}</h1><span id="calibrated-state">${warningLink(c)}</span></div>${cameraSelector(c.identity)}${tabs(c.identity, "camera")}<div class="camera-layout"><section class="panel config-panel"><div class="panel-heading"><h2>Config</h2>${historyMarkup()}</div><p id="config-lock" class="lock"></p>${primary.map(controlMarkup).join("")}<div class="mode-control"><label for="optical-mode">Capture resolution / rate</label><select id="optical-mode"></select></div><div id="control-feedback" class="feedback"></div><button class="reset" id="reset-defaults">Reset to code defaults</button><details><summary>Advanced</summary>${advanced.map(controlMarkup).join("")}<button id="copy-code" class="spaced">Copy settings as code</button><pre id="code-copy" hidden></pre><label class="spaced" for="replacement-identity">Replacement camera</label><select id="replacement-identity"></select><label class="spaced"><input type="checkbox" id="replacement-confirmed"> I confirmed the replacement feed</label><button id="replace-camera" class="spaced">Replace camera</button></details><button id="reconcile" class="spaced" hidden>Reconcile current values</button><p id="page-feedback" class="feedback"></p><a href="/docs/operator/tuning/">Tuning and history</a></section><div><div>${feed(c.identity)}<div class="feed-controls"><label><input id="outlines" type="checkbox" checked>Show detection outlines</label><button id="pause-image">Pause image</button><small id="frame-info">Waiting for frame</small></div></div><div class="detail-bottom"><section class="panel"><h2>Detections</h2><p id="pose-state" role="status"></p><div class="table-scroll"><table><thead><tr><th>ID</th><th>Range</th><th>Error</th><th>Used</th></tr></thead><tbody id="detections"></tbody></table></div><div id="robot-decision">Robot decision unavailable</div><details class="spaced"><summary>Solver candidates</summary><pre id="candidate-details"></pre></details></section><div class="viewer"><canvas id="geometry-canvas" width="700" height="350" tabindex="0" aria-label="3D camera and observed tags. Arrow keys orbit; plus/minus zoom"></canvas><button class="reset-view" id="reset-view">Reset view</button><a class="frame-label" href="#camera/${encodeURIComponent(c.identity)}/geometry">Geometry · WPILib NWU</a></div></div></div></div>`;
   if (!c.logical_name) {
     $("#standalone-enable").onclick = async () => {
       try { await beginCameraSetup(c); } catch (error) { showError(error); }
@@ -769,7 +768,7 @@ function geometryPreview(c) {
 }
 function geometryPage(c) {
   $("#page").innerHTML =
-    `<h1>${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}${tabs(c.identity, "geometry")}<div class="camera-layout"><section class="panel geometry-panel"><div class="panel-heading"><h2>Geometry</h2>${historyMarkup()}</div><p class="lock">${c.logical_name ? "Transform pinned by robot code" : "Not configured with the robot · local origin only"}</p><label class="inspection"><input id="inspection-preview" type="checkbox"> Inspection preview</label><div id="geometry-fields"></div><button id="geometry-reset" class="reset">Reset to code defaults</button><p class="feedback" id="page-feedback"></p><small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small><p><a href="#docs/geometry">Measuring camera geometry</a></p></section><div><div class="viewer geometry-view"><canvas id="geometry-canvas" width="1000" height="720" tabindex="0" aria-label="Robot geometry in WPILib NWU. Arrow keys orbit; plus/minus zoom"></canvas><button id="reset-view" class="reset-view">Reset view</button><span class="frame-label">Inspection · production geometry from robot code</span></div><div class="transform-readout" id="transform-readout"></div></div></div>`;
+    `<h1>${escapeHTML(c.name)}</h1>${cameraSelector(c.identity)}${tabs(c.identity, "geometry")}<div class="camera-layout"><section class="panel geometry-panel"><div class="panel-heading"><h2>Geometry</h2>${historyMarkup()}</div><p class="lock">${c.logical_name ? "Transform pinned by robot code" : "Not configured with the robot · local origin only"}</p><label class="inspection"><input id="inspection-preview" type="checkbox"> Inspection preview</label><div id="geometry-fields"></div><button id="geometry-reset" class="reset">Reset to code defaults</button><p class="feedback" id="page-feedback"></p><small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small><p><a href="/docs/operator/geometry/">Measuring camera geometry</a></p></section><div><div class="viewer geometry-view"><canvas id="geometry-canvas" width="1000" height="720" tabindex="0" aria-label="Robot geometry in WPILib NWU. Arrow keys orbit; plus/minus zoom"></canvas><button id="reset-view" class="reset-view">Reset view</button><span class="frame-label">Inspection · production geometry from robot code</span></div><div class="transform-readout" id="transform-readout"></div></div></div>`;
   geometryNumbers = [];
   lazyViewer(c.identity, true).then(() => {
     if (!$("#geometry-fields")) return;
@@ -1250,7 +1249,7 @@ function calibrationPage(results) {
       if (!usable.some((c) => c.identity === id))
         selectedCalibration.delete(id);
     $("#calibration-content").innerHTML =
-      `<div class="calibration-layout"><div><div class="inline-actions"><select id="calibration-selection" aria-label="Camera to add"><option value="">Select camera</option>${usable.map((c) => `<option value="${c.identity}">${escapeHTML(c.name)}</option>`).join("")}</select><button id="add-camera">Add camera</button></div><div id="calibration-cards" class="calibration-grid spaced"></div></div><section class="panel board"><h2>Board</h2><div id="board-fields" class="board-fields"></div><button id="update-board" class="spaced">Update board</button><label class="spaced">Group capture set<select id="group-phase"><option value="fit">Fitting captures</option><option value="holdout">Validation captures</option></select></label><button id="start-all" class="primary spaced">Start automatic capture</button><p><a href="#docs/calibrate">Capture and validation guide</a></p></section></div>`;
+      `<div class="calibration-layout"><div><div class="inline-actions"><select id="calibration-selection" aria-label="Camera to add"><option value="">Select camera</option>${usable.map((c) => `<option value="${c.identity}">${escapeHTML(c.name)}</option>`).join("")}</select><button id="add-camera">Add camera</button></div><div id="calibration-cards" class="calibration-grid spaced"></div></div><section class="panel board"><h2>Board</h2><div id="board-fields" class="board-fields"></div><button id="update-board" class="spaced">Update board</button><label class="spaced">Group capture set<select id="group-phase"><option value="fit">Fitting captures</option><option value="holdout">Validation captures</option></select></label><button id="start-all" class="primary spaced">Start automatic capture</button><p><a href="/docs/operator/calibrate/">Capture and validation guide</a></p></section></div>`;
     $("#start-all").onclick = () =>
       action("start-all", { phase: $("#group-phase").value });
     $("#add-camera").onclick = async () => {
@@ -1364,80 +1363,6 @@ function calibrationPage(results) {
     };
   }
 }
-async function docsPage(id) {
-  if (!docs) docs = await api("/docs.json");
-  if (currentRoute().page !== "docs" || currentRoute().id !== id) return;
-  const topics = docs.topics,
-    topic = topics.find((t) => t.id === id) || topics[0];
-  $("#page").innerHTML =
-    `<div class="docs-header"><h1>Documentation</h1></div>
-    <div class="docs-search-wrap"><label class="sr-only" for="docs-search">Search documentation</label><input id="docs-search" class="docs-search" type="search" placeholder="Search guides, settings and error codes…" aria-controls="docs-search-results" autocomplete="off"><div id="docs-search-results" class="docs-search-results" hidden></div></div>
-    <div class="docs-layout"><nav id="docs-nav" class="panel docs-nav" aria-label="Documentation topics"></nav><article class="article" id="docs-article"></article><aside class="docs-outline"><h3>On this page</h3><div id="docs-outline"></div></aside></div>
-    <dialog class="docs-image-dialog" aria-label="Screenshot viewer"><form method="dialog"><button class="docs-dialog-close" aria-label="Close screenshot">Close ×</button></form><img alt=""><p></p></dialog>`;
-  const groups = ["Getting started", "Guides", "Reference"];
-  $("#docs-nav").innerHTML = groups.map((group) =>
-    `<h3>${group}</h3>${topics.filter((t) => t.group === group).map((t) =>
-      `<a class="${t.id === topic.id ? "active" : ""}" ${t.id === topic.id ? 'aria-current="page"' : ""} href="#docs/${t.id}">${escapeHTML(t.title)}</a>`).join("")}`,
-  ).join("");
-  function search(query) {
-    const results = $("#docs-search-results"),
-      words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    results.hidden = !words.length;
-    if (!words.length) return;
-    const matches = topics.flatMap((t) => (t.sections || [{id: "", title: t.title, text: t.text}])
-      .filter((section) => words.every((word) => `${t.title} ${section.title} ${section.text}`.toLowerCase().includes(word)))
-      .map((section) => ({t, section, score: words.filter((word) => section.title.toLowerCase().includes(word)).length})))
-      .sort((a, b) => b.score - a.score);
-    const snippet = (value) => {
-      const position = Math.max(0, value.toLowerCase().indexOf(words[0]) - 55);
-      return `${position ? "…" : ""}${value.slice(position, position + 170)}${value.length > position + 170 ? "…" : ""}`;
-    };
-    results.innerHTML = `<p role="status">${matches.length ? `${matches.length} matching sections` : "No matching sections. Try a camera name, setting or error code."}</p>` +
-      matches.slice(0, 20).map(({t, section}) =>
-        `<a class="docs-search-result" href="#docs/${t.id}/${section.id}/search"><small>${escapeHTML(t.title)}</small><strong>${escapeHTML(section.title)}</strong><span>${escapeHTML(snippet(section.text))}</span></a>`).join("");
-  }
-  $("#docs-search").oninput = (event) => search(event.target.value);
-  $("#docs-search").onkeydown = (event) => {
-    if (event.key === "Escape") {
-      event.target.value = "";
-      search("");
-    } else if (event.key === "ArrowDown") {
-      const first = $("#docs-search-results a");
-      if (first) { event.preventDefault(); first.focus(); }
-    }
-  };
-  const index = topics.indexOf(topic);
-  $("#docs-article").innerHTML = topic.html +
-    `<div class="prev-next">${index ? `<a href="#docs/${topics[index - 1].id}"><small>Previous</small>← ${escapeHTML(topics[index - 1].title)}</a>` : "<span></span>"}${index < topics.length - 1 ? `<a href="#docs/${topics[index + 1].id}"><small>Next</small>${escapeHTML(topics[index + 1].title)} →</a>` : ""}</div>`;
-  $("#docs-outline").innerHTML = topic.headings.map((h) =>
-    `<a href="#docs/${topic.id}/${h.id}" data-outline="${h.id}">${escapeHTML(h.text)}</a>`).join("");
-  const dialog = $(".docs-image-dialog");
-  for (const button of $$("[data-screenshot]")) button.onclick = () => {
-    dialog.querySelector("img").src = button.dataset.screenshot;
-    dialog.querySelector("img").alt = button.querySelector("img").alt;
-    dialog.querySelector("p").textContent = button.closest("figure").querySelector("figcaption")?.textContent || "";
-    dialog.showModal();
-  };
-  dialog.onclick = (event) => { if (event.target === dialog) dialog.close(); };
-  // The static shell resets scroll during routing. Jump after that reset,
-  // including same-topic links and browser history navigation.
-  const section = currentRoute().tab;
-  requestAnimationFrame(() => {
-    if (!section) { scrollTo(0, 0); return; }
-    const target = document.getElementById(section);
-    if (!target) return;
-    if (location.hash.endsWith("/search")) {
-      const disclosure = target.closest("details");
-      if (disclosure) disclosure.open = true;
-      for (let node = target.nextElementSibling; node && !/^H[234]$/.test(node.tagName); node = node.nextElementSibling)
-        if (node.matches("details")) node.open = true;
-    }
-    target.setAttribute("tabindex", "-1");
-    target.focus({ preventScroll: true });
-    target.scrollIntoView({ behavior: "auto" });
-  });
-  pageUpdate = () => {};
-}
 function render() {
   for (const [id, preview] of previews)
     if (!state.cameras.some((c) => c.identity === id)) {
@@ -1454,7 +1379,6 @@ function render() {
     (route.id || "") +
     "/" +
     (route.tab || "") +
-    (route.page === "docs" ? "/" + (location.hash.split("/")[3] || "") : "") +
     (route.page === "camera" ? "/" + Boolean(c?.logical_name) + "/" + Boolean(c?.standalone_setup) : "");
   if (key !== routeKey) {
     routeKey = key;
@@ -1473,8 +1397,6 @@ function render() {
       calibrationPage(route.id === "results");
     else if (route.page === "network") networkPage();
     else if (route.page === "system") systemPage();
-    else if (route.page === "docs")
-      docsPage(route.id).catch((error) => showError(error));
     else {
       $("#page").innerHTML =
         '<h1>Camera unavailable</h1><p>The configured camera may be disconnected. <a href="#cameras">Open Cameras</a></p>';

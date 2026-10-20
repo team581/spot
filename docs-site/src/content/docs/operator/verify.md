@@ -1,7 +1,6 @@
-Title: 5. Verify detections
-Group: Getting started
-
-# Verify detections
+---
+title: '5. Verify detections'
+---
 
 Check the camera image, then the robot's decision. Seeing a local pose is only the first check.
 
@@ -14,24 +13,24 @@ A visible tag does not guarantee a pose. **Calibration required** means Spot can
 3. Inspect **Detections** and **Solver candidates** for that frame.
 4. Use **Pause image** for a closer look; resume to request fresh frames. Processing and publication continue while the image is paused.
 
-![Camera page with detection outlines, detection table and local 3D pose candidates](../../src/spot_vision/web/docs-images/camera.png)
+![Camera page with detection outlines, detection table and local 3D pose candidates](../../../assets/docs-images/camera.png)
 
-*Image, table and candidates describe the same displayed frame. The example feed is synthetic.*
+_Image, table and candidates describe the same displayed frame. The example feed is synthetic._
 
 ## Read the status correctly
 
-| Indicator | Meaning |
-| --- | --- |
-| Detection FPS | Usable detector/solver cadence; separate from capture and browser preview FPS |
-| Zero tags | Normal for a fresh frame without visible tags |
-| — | Metric unavailable |
-| Increasing frame age | The last frame is getting older; stale images lose their outlines |
-| Blue / amber candidate | Local lowest-image-error solution / alternative solutions |
-| Robot validation / fusion | Separate robot decisions for the identified frame and capture epoch |
+| Indicator                 | Meaning                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| Detection FPS             | Usable detector/solver cadence; separate from capture and browser preview FPS |
+| Zero tags                 | Normal for a fresh frame without visible tags                                 |
+| —                         | Metric unavailable                                                            |
+| Increasing frame age      | The last frame is getting older; stale images lose their outlines             |
+| Blue / amber candidate    | Local lowest-image-error solution / alternative solutions                     |
+| Robot validation / fusion | Separate robot decisions for the identified frame and capture epoch           |
 
 ## Confirm robot acceptance
 
-Check **Robot validation** and **Fusion** on the camera page. If feedback is unavailable, local detections do not establish robot acceptance. For a rejection, use the [fault lookup](#docs/faults).
+Check **Robot validation** and **Fusion** on the camera page. If feedback is unavailable, local detections do not establish robot acceptance. For a rejection, use the [fault lookup](../faults/).
 
 The robot checks capture-time pose and mount history, tag geometry, field bounds, timestamps and innovation. IPPE alternatives need a decisive capture-time heading advantage.
 
@@ -45,6 +44,6 @@ The robot checks capture-time pose and mount history, tag geometry, field bounds
 - Measure four-camera throughput, frame age and image/pose accuracy.
 - Test USB/Ethernet outages, independent boot orders, abrupt power loss, recovery and rollback.
 
-Export the timing signature in the System support bundle. Submit measured timing evidence through the API while disabled. Mode/control changes invalidate that evidence. Never use zero uncertainty or adjust timestamps to hide clock errors. See [API and Java integration](#docs/java) for the timing-record contract.
+Export the timing signature in the System support bundle. Submit measured timing evidence through the API while disabled. Mode/control changes invalidate that evidence. Never use zero uncertainty or adjust timestamps to hide clock errors. See [API and Java integration](../java/) for the timing-record contract.
 
 </details>

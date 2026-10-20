@@ -25,8 +25,8 @@ roboRIO as NT server and Jetson as client. See [v2 schema/API notes](proto/READM
 
 The installed beta runs with `spot-vision beta --installation
 /etc/spot-vision/beta.json` and serves its offline GUI on port 5808. Use the
-[operator guide](docs/operator/01-connect.md) for connection, code-defined camera
-names, calibration and verification; [deployment and rollback](docs/operator/09-deployment.md)
+[operator guide](docs-site/src/content/docs/operator/connect.md) for connection, code-defined camera
+names, calibration and verification; [deployment and rollback](docs-site/src/content/docs/operator/deployment.md)
 describes immutable CUDA releases and explicit activation. Offline setup can use
 a cached robot profile, while current robot session/disabled eligibility gates
 mutations and valid output. Supply measured mounts in robot code before rollout.
@@ -36,17 +36,18 @@ contains the installed CPU host checks and light/dark GUI comparisons. Follow th
 [remaining hardware trials](docs/beta-verification/Hardware%20Qualification.md)
 before declaring beta robot-ready or enabling fusion, heading or revised trust.
 
-See the [camera configuration reference](docs/operator/12-camera-configuration.md)
+See the [camera configuration reference](docs-site/src/content/docs/operator/camera-configuration.md)
 for the SWYFT/Arducam pixel counts, Java settings, control values and units.
 
 For a bare roboRIO and Jetson without a switch, follow the
-[robot integration session](docs/operator/14-robot-integration-session.md):
+[robot integration session](docs-site/src/content/docs/operator/robot-integration-session.md):
 bring-up, setup friction, disconnect/restart recovery, and evidence-driven agent repairs.
 
 ## Jetson prerequisites
 
 - JetPack with CUDA development tools and compute capability 8.7 support
 - Python 3.10 or newer
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - CMake 3.24+, Ninja, a C++20 compiler, `libgoogle-glog-dev`, and `libgflags-dev`
 - GStreamer with V4L2, JPEG decode, and OpenCV GStreamer support
 - `v4l-utils`
@@ -60,19 +61,22 @@ sudo apt install cmake ninja-build python3-dev python3-venv \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
 ```
 
+Before a source installation, [set up the docs tooling](tools/README.md#operator-documentation)
+and run `pnpm --dir docs-site build:jetson`. The generated `dist/jetson-docs/`
+must accompany the checkout used for the wheel build. Node and pnpm are build
+tools; installed Jetson releases serve the bundled site without them.
+
 Build and install into a virtual environment:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[test,systemd]'
+CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra systemd
 ```
 
 NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
 Install it for the default alpha configuration:
 
 ```sh
-CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" .venv/bin/pip install -e '.[nt,systemd]'
+CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra nt --extra systemd
 ```
 
 The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
@@ -83,7 +87,7 @@ For a host-only Python installation with the production CPU detector and shared
 edge-geometry diagnostics, but without CUDA:
 
 ```sh
-CMAKE_ARGS="-DSPOT_BUILD_CUDA=OFF" .venv/bin/pip install -e '.[test]'
+uv sync --locked -Ccmake.define.SPOT_BUILD_CUDA=OFF
 ```
 
 ## First camera test
@@ -248,4 +252,4 @@ four-camera fairness test on the target Orin.
 
 ## Offline camera preview
 
-See the [VS Code camera preview guide](docs/operator/13-vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.
+See the [VS Code camera preview guide](docs-site/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.

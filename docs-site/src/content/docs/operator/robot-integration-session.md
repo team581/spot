@@ -1,7 +1,6 @@
-Title: Robot integration session
-Group: Testing
-
-# Robot integration session
+---
+title: 'Robot integration session'
+---
 
 ## Session closeout — 18–19 October 2026
 
@@ -9,20 +8,20 @@ Group: Testing
 
 ### Installed configuration
 
-| Item | Verified setting |
-| --- | --- |
-| Dashboard | [spot.local:5800](http://spot.local:5800/) or maintenance address [192.168.69.170:5800](http://192.168.69.170:5800/) |
-| Jetson robot Ethernet | `enP7p1s0`, `10.5.81.11/24` |
-| Jetson maintenance Ethernet | `enP8p1s0`, `192.168.69.170/24`; development Mac `192.168.69.171/24` |
-| roboRIO NT4 server | `10.5.81.2` |
-| Camera bindings | `front = USB-01`, `back = USB-02`, `side = USB-04` |
-| Capture / processing | All three: 640 × 480 MJPEG at 120 capture FPS; 30 FPS processing cap |
-| Exposure / gain / brightness | Front: 5,000 µs / 64 / 0; back: 5,000 µs / 64 / 0; side: 6,000 µs / 61 / −21 |
-| Java configuration | `basic-robot-tester/src/main/java/frc/robot/vision/VisionConfig.java`; robot ID `basic-robot-tester` |
-| Profile hash | `53bd2c866f8ebce83e3cf90038570da7b254d284a1dc50fb84f4b07e45688e97` |
-| Saved installation settings | `/etc/spot-vision/beta.json`; assignments and calibration live outside immutable application releases |
+| Item                         | Verified setting                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Dashboard                    | [spot.local:5800](http://spot.local:5800/) or maintenance address [192.168.69.170:5800](http://192.168.69.170:5800/) |
+| Jetson robot Ethernet        | `enP7p1s0`, `10.5.81.11/24`                                                                                          |
+| Jetson maintenance Ethernet  | `enP8p1s0`, `192.168.69.170/24`; development Mac `192.168.69.171/24`                                                 |
+| roboRIO NT4 server           | `10.5.81.2`                                                                                                          |
+| Camera bindings              | `front = USB-01`, `back = USB-02`, `side = USB-04`                                                                   |
+| Capture / processing         | All three: 640 × 480 MJPEG at 120 capture FPS; 30 FPS processing cap                                                 |
+| Exposure / gain / brightness | Front: 5,000 µs / 64 / 0; back: 5,000 µs / 64 / 0; side: 6,000 µs / 61 / −21                                         |
+| Java configuration           | `basic-robot-tester/src/main/java/frc/robot/vision/VisionConfig.java`; robot ID `basic-robot-tester`                 |
+| Profile hash                 | `53bd2c866f8ebce83e3cf90038570da7b254d284a1dc50fb84f4b07e45688e97`                                                   |
+| Saved installation settings  | `/etc/spot-vision/beta.json`; assignments and calibration live outside immutable application releases                |
 
-Interface names and USB identities describe this Jetson. Preserve the camera sockets; after moving a camera to a different socket, verify the preview and assignment again. The basic tester is a vision-only harness, not the robot's drivetrain program. Use [Java integration](#docs/java) when moving the integration into the actual robot project.
+Interface names and USB identities describe this Jetson. Preserve the camera sockets; after moving a camera to a different socket, verify the preview and assignment again. The basic tester is a vision-only harness, not the robot's drivetrain program. Use [Java integration](../java/) when moving the integration into the actual robot project.
 
 ### What passed
 
@@ -51,7 +50,7 @@ All three live feeds detected tag 4 and returned `NO_CALIBRATION` with no pose c
 
 1. Mount the cameras securely and keep or deliberately rebind their USB assignments. Connect the Jetson robot port to the robot network; confirm `10.5.81.11` is unused by another device. Use **Network → Jetson address** if the installation needs a different address.
 2. Replace every example mount in `VisionConfig.java` with measured x/y/z and roll/pitch/yaw. Verify the actual field layout and tag size, then deploy the actual robot project and confirm the current profile in Spot.
-3. Complete [intrinsic calibration](#docs/calibrate) for each physical camera and the final capture mode. Qualify exposure timestamps and validate poses against independently measured positions and orientations.
+3. Complete [intrinsic calibration](../calibrate/) for each physical camera and the final capture mode. Qualify exposure timestamps and validate poses against independently measured positions and orientations.
 4. Resolve or explicitly qualify renewal outages, repeat latency checks with calibrated pose solving and the real robot workload, then verify estimator consumption before enabling fusion.
 
 ```mermaid
@@ -99,11 +98,11 @@ flowchart LR
   J --> R[roboRIO Ethernet]
 ```
 
-| Connection | Purpose |
-| --- | --- |
+| Connection                               | Purpose                                                                     |
+| ---------------------------------------- | --------------------------------------------------------------------------- |
 | MacBook Ethernet adapter ↔ Jetson port A | Agent management: SSH, deployment to Jetson, Spot browser and log retrieval |
-| Jetson port B ↔ roboRIO Ethernet | Robot NT4 transport and access to roboRIO through the Jetson |
-| Three SWYFT cameras → Jetson USB | Three simultaneous, independently identified camera streams |
+| Jetson port B ↔ roboRIO Ethernet         | Robot NT4 transport and access to roboRIO through the Jetson                |
+| Three SWYFT cameras → Jetson USB         | Three simultaneous, independently identified camera streams                 |
 
 Use normal Ethernet cables and each device's own power supply. No Ethernet switch, radio, USB-B cable or Wi-Fi is required. Keep both Ethernet cables connected during normal testing. Request a physical change only if the observed cabling differs from this setup. Keep the roboRIO disabled throughout the session.
 
@@ -113,12 +112,12 @@ Inspect the Mac's Ethernet adapter and both Jetson interfaces. Map each interfac
 
 Example addresses for team 581, preserving the documented Jetson maintenance address:
 
-| Device/interface | Address | Purpose |
-| --- | --- | --- |
-| MacBook Ethernet adapter | `192.168.69.171/24` | Agent computer on the management link |
-| Jetson port A, facing MacBook | `192.168.69.170/24` | SSH/Spot management endpoint |
-| Jetson port B, facing roboRIO | `10.5.81.10/24` | Spot on the robot link |
-| roboRIO Ethernet | `10.5.81.2/24` | NT4 server |
+| Device/interface              | Address             | Purpose                               |
+| ----------------------------- | ------------------- | ------------------------------------- |
+| MacBook Ethernet adapter      | `192.168.69.171/24` | Agent computer on the management link |
+| Jetson port A, facing MacBook | `192.168.69.170/24` | SSH/Spot management endpoint          |
+| Jetson port B, facing roboRIO | `10.5.81.10/24`     | Spot on the robot link                |
+| roboRIO Ethernet              | `10.5.81.2/24`      | NT4 server                            |
 
 Inspect existing addresses/routes first and adapt the example if it conflicts with the actual team or another connected network. Preserve working maintenance access and record the original settings plus rollback commands before making changes. Do not put both Jetson ports on the same subnet. Neither direct link needs to replace the Mac's normal internet default route.
 
@@ -162,17 +161,17 @@ If any stream is absent, frozen, duplicated or faulted, save its evidence, diagn
 
 Execute the following checks in order, collecting evidence automatically. Record expected/actual behavior, elapsed time, confusing wording, commands, edits and restart counts in the run notes. These are the primary integration results; a latency screen does not replace them. At the first failure, enter the repair loop below and return to that same step after the fix.
 
-| Step | Agent action | Evidence of success |
-| --- | --- | --- |
-| 1. Deploy | Build/deploy `basic-robot-tester`; leave disabled | Starts with no drivetrain/CAN devices; configuration loaded; unique bench log exists |
-| 2. Connect | Start/verify Spot and the Jetson–roboRIO Ethernet link | Robot ID/profile appears; config generation acknowledged; clock synchronizes; no manual transport-topic setup |
-| 3. Bind all three | Preserve/verify existing physical-to-role bindings; use the UI only where a binding is missing | Three distinct SWYFT feeds map to three intended roles; record every manual step; capture settings/controls read back correctly |
-| 4. Configure geometry | Obtain actual mount/tag measurements; define the home layout in Java | Profile shows the intended mount, tag ID/size/pose; changes survive rebuild/redeploy |
-| 5. Complete prerequisites | Run the normal intrinsic calibration/timing workflow; request only necessary target motions | GUI says what is missing and how to resolve it; valid evidence is associated with the actual capture/control settings |
-| 6. Observe all three | Record all three capture streams concurrently and verify per-camera robot delivery/diagnostics for 60 seconds | Three live streams remain fresh; each role has delivered decisions or an explicit upstream prerequisite/fault explaining withholding; no unexplained silence |
-| 7. Persist | Restart Spot and then the roboRIO separately; verify saved settings are reapplied | All three bindings/capture settings and applicable calibration persist; the current robot profile is automatically received/applied; no manual configuration or topic edits |
-| 8. Interrupt | Start recording, request a 5-second interruption/reconnection of only the Jetson–roboRIO Ethernet cable, verify recovery; repeat USB unplug/replug for each SWYFT camera in turn | Other camera streams continue during each USB interruption; all three recover fresh frames with stable bindings; robot link/observations recover without stale backlog |
-| 9. Automatic boot | Reboot the Jetson remotely, then request a physical power cycle for a separate cold-boot check; observe without manually starting/configuring Spot | Boot service starts unattended; persistent networking and camera state load automatically; three streams recover and the robot profile is applied without login, GUI clicks or repair commands |
+| Step                      | Agent action                                                                                                                                                                     | Evidence of success                                                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Deploy                 | Build/deploy `basic-robot-tester`; leave disabled                                                                                                                                | Starts with no drivetrain/CAN devices; configuration loaded; unique bench log exists                                                                                                           |
+| 2. Connect                | Start/verify Spot and the Jetson–roboRIO Ethernet link                                                                                                                           | Robot ID/profile appears; config generation acknowledged; clock synchronizes; no manual transport-topic setup                                                                                  |
+| 3. Bind all three         | Preserve/verify existing physical-to-role bindings; use the UI only where a binding is missing                                                                                   | Three distinct SWYFT feeds map to three intended roles; record every manual step; capture settings/controls read back correctly                                                                |
+| 4. Configure geometry     | Obtain actual mount/tag measurements; define the home layout in Java                                                                                                             | Profile shows the intended mount, tag ID/size/pose; changes survive rebuild/redeploy                                                                                                           |
+| 5. Complete prerequisites | Run the normal intrinsic calibration/timing workflow; request only necessary target motions                                                                                      | GUI says what is missing and how to resolve it; valid evidence is associated with the actual capture/control settings                                                                          |
+| 6. Observe all three      | Record all three capture streams concurrently and verify per-camera robot delivery/diagnostics for 60 seconds                                                                    | Three live streams remain fresh; each role has delivered decisions or an explicit upstream prerequisite/fault explaining withholding; no unexplained silence                                   |
+| 7. Persist                | Restart Spot and then the roboRIO separately; verify saved settings are reapplied                                                                                                | All three bindings/capture settings and applicable calibration persist; the current robot profile is automatically received/applied; no manual configuration or topic edits                    |
+| 8. Interrupt              | Start recording, request a 5-second interruption/reconnection of only the Jetson–roboRIO Ethernet cable, verify recovery; repeat USB unplug/replug for each SWYFT camera in turn | Other camera streams continue during each USB interruption; all three recover fresh frames with stable bindings; robot link/observations recover without stale backlog                         |
+| 9. Automatic boot         | Reboot the Jetson remotely, then request a physical power cycle for a separate cold-boot check; observe without manually starting/configuring Spot                               | Boot service starts unattended; persistent networking and camera state load automatically; three streams recover and the robot profile is applied without login, GUI clicks or repair commands |
 
 ### Verify unattended boot and automatic configuration
 
@@ -193,7 +192,7 @@ Do not wait for every pose gate before diagnosing setup: profile exchange, USB b
 
 The current tester configuration contains `front` and `back`, pointing in opposite directions. Inspect the actual configuration at execution time. Three-camera capture discovery must be tested before editing that profile. For subsequent robot integration, reconcile three physical feeds with three Java roles: retain valid existing roles/mounts and add the missing bench role using actual measurements. Record the profile change; do not invent a third mount or overwrite measured settings. Keep all three cameras capturing during the integration trial. Provide targets in each view if testing tag acceptance from every role; a healthy no-tag view is not a link failure. If geometry is unavailable, complete the raw capture check and explicitly mark pose/robot-delivery prerequisites as pending.
 
-For a printed tag at home, define a surveyed `AprilTagFieldLayout`; an official tag ID on a wall does not have its official field position. Obtain measurements of the black tag square, mount, and target pose; request missing physical measurements once and record their source. See [camera settings](#docs/camera-configuration). Single-tag pose ambiguity may correctly cause rejection; a second visible tag can help.
+For a printed tag at home, define a surveyed `AprilTagFieldLayout`; an official tag ID on a wall does not have its official field position. Obtain measurements of the black tag square, mount, and target pose; request missing physical measurements once and record their source. See [camera settings](../camera-configuration/). Single-tag pose ambiguity may correctly cause rejection; a second visible tag can help.
 
 Leave `FUSION_ENABLED` false for initial integration. To test actual estimator ingestion afterward, keep the whole rig and tag fixed, set the measured `BenchConfig.STATIONARY_POSE`, and enable fusion only in the tester. Confirm `BENCH_FUSED` and increasing consumption counts. This estimator has zero wheel movement and zero gyro rotation. Rotating a camera/rig/tag is an optional detection and recovery exercise with fusion disabled; it cannot validate moving-robot localization or heading accuracy.
 

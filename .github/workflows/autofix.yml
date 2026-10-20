@@ -1,0 +1,29 @@
+name: autofix.ci
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  autofix:
+    name: Autofix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+          working-directory: docs-site
+          require-lockfile: true
+      - run: pnpm exec astro sync
+      - run: pnpm format:fix
+        continue-on-error: true
+      - run: pnpm lint:fix
+        continue-on-error: true
+      - name: Run autofix.ci
+        uses: autofix-ci/action@v1

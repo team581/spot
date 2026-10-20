@@ -1,7 +1,6 @@
-Title: Camera tuning
-Group: Guides
-
-# Camera tuning
+---
+title: 'Camera tuning'
+---
 
 Adjust the live image and check what the camera actually accepted. Eligible slider changes apply immediately.
 
@@ -9,9 +8,9 @@ Adjust the live image and check what the camera actually accepted. Eligible slid
 
 For a configured camera, disable the connected robot. Without a profile, open the USB feed and click **Open standalone camera setup**. After a service restart, use **Enable standalone setup** to authorize edits again.
 
-![Camera Config panel with live exposure, gain and brightness controls](../../src/spot_vision/web/docs-images/camera.png)
+![Camera Config panel with live exposure, gain and brightness controls](../../../assets/docs-images/camera.png)
 
-*Config shows the available controls beside the feed. Demonstration values are examples, not recommended presets.*
+_Config shows the available controls beside the feed. Demonstration values are examples, not recommended presets._
 
 ## Tune and confirm
 
@@ -20,17 +19,17 @@ For a configured camera, disable the connected robot. Without a profile, open th
 3. Wait for the pending request to finish and check the actual device readback.
 4. Use undo/redo to compare changes, or **Reset to code defaults** to restore the robot policy.
 
-| Setting | Useful first check |
-| --- | --- |
-| Exposure | Shorter reduces motion blur; longer collects more light. Values are in µs. |
-| Gain | Brightens the image but can increase noise. Use the device's advertised scale. |
-| Automatic controls | Disable the relevant automatic mode before setting manual values. |
-| Policy lock | Explicitly pinned controls follow robot code; omitted controls keep saved GUI values. |
-| Rejected or clipped request | Read the reason; the previous acknowledged setting stays active. |
+| Setting                     | Useful first check                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| Exposure                    | Shorter reduces motion blur; longer collects more light. Values are in µs.            |
+| Gain                        | Brightens the image but can increase noise. Use the device's advertised scale.        |
+| Automatic controls          | Disable the relevant automatic mode before setting manual values.                     |
+| Policy lock                 | Explicitly pinned controls follow robot code; omitted controls keep saved GUI values. |
+| Rejected or clipped request | Read the reason; the previous acknowledged setting stays active.                      |
 
 Acknowledged GUI values are saved on the Jetson and restored after restart. Omitting a control from Java leaves it under GUI control; adding a pinned entry takes authority again. **Reset to code defaults** resets controls with tunable Java defaults and leaves omitted controls unchanged.
 
-There is no tuning **Save** or **Apply** button. For exact control names and values, see [Cameras in Java](#docs/camera-configuration).
+There is no tuning **Save** or **Apply** button. For exact control names and values, see [Cameras in Java](../camera-configuration/).
 
 > **Optical changes affect calibration.** Focus, zoom, crop, rotation and flip can invalidate intrinsics. Capture mode and control readback also affect measured timing. Revalidate the applicable evidence before robot use.
 

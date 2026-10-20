@@ -14,8 +14,8 @@ from .beta_runtime import BetaRuntime
 from .beta_web import BetaHttpServer
 from .config import ConfigError, NtConfig
 from .devices import _run
-from .release import installed_identity
 from .networking import NetworkClient
+from .release import installed_identity
 
 
 def local_addresses() -> list[str]:
@@ -75,7 +75,8 @@ def run_beta(args) -> int:
         "app.css",
         "source-sans-pro.woff2",
         "blazing-bulldogs.svg",
-        "docs.json",
+        "docs/index.html",
+        "docs/pagefind/pagefind.js",
     ):
         if not (assets / relative).is_file():
             raise ConfigError(f"Installed UI asset missing: {relative}")

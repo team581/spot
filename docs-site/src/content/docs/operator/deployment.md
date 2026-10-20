@@ -1,7 +1,6 @@
-Title: Deployment / rollback
-Group: Guides
-
-# Deployment and rollback
+---
+title: 'Deployment / rollback'
+---
 
 Build an immutable release, activate its ID, then verify the software actually running.
 
@@ -10,8 +9,13 @@ Build an immutable release, activate its ID, then verify the software actually r
 On the Jetson, prepare the build prerequisites in the repository README, then run:
 
 ```sh
+pnpm --dir docs-site install --frozen-lockfile
+pnpm --dir docs-site build:jetson
 sudo deploy/install.sh /home/team581/spot-2026
 ```
+
+The documentation build needs Node and pnpm. Alternatively, copy the prebuilt
+`dist/jetson-docs/` directory with the checkout; installed releases need neither tool.
 
 The installer builds and verifies the CUDA wheel and prints a **release ID**. It does not switch the running service.
 
@@ -31,16 +35,16 @@ sudo /opt/spot-vision/activate.py RELEASE_ID --setup-only
 
 Activation restarts the service and waits up to 120 seconds for HTTP/native identity and the required readiness checks. Open **System** to verify the result.
 
-![System page showing the running release, source commit, native build and deployment status](../../src/spot_vision/web/docs-images/system.png)
+![System page showing the running release, source commit, native build and deployment status](../../../assets/docs-images/system.png)
 
-*Use the Software panel to check the running identity and latest attempt. This demonstration has no installed native build.*
+_Use the Software panel to check the running identity and latest attempt. This demonstration has no installed native build._
 
-| System field | Check |
-| --- | --- |
-| Running release | The intended release ID and actually loaded module |
-| Last successful deployment | The latest verified activation |
-| Last attempt / rollback | Whether the latest switch failed or restored a previous release |
-| Started | Process start time; calendar time may be unavailable until clock verification |
+| System field               | Check                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| Running release            | The intended release ID and actually loaded module                            |
+| Last successful deployment | The latest verified activation                                                |
+| Last attempt / rollback    | Whether the latest switch failed or restored a previous release               |
+| Started                    | Process start time; calendar time may be unavailable until clock verification |
 
 ## Roll back
 

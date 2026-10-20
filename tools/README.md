@@ -185,7 +185,13 @@ when the connection is lost.
 
 ## Local verification
 
-With the repository's existing test environment:
+Run the HTTP and CPU packaging checks after building the Jetson docs:
+
+```sh
+mise run check:application
+```
+
+With the repository's full development environment, run all tests:
 
 ```sh
 .venv/bin/python -m pytest tools/tests tests
@@ -195,56 +201,17 @@ Dashboard tests use synthetic observations, a fake local SSH executable, and a
 local pseudo-terminal. They never contact a host. Authentication, live remote
 Ctrl-C cleanup, camera access, and performance remain Jetson acceptance checks.
 
-### Hosted operator documentation
+### Operator documentation
 
-`python3 tools/build_docs_site.py` builds `dist/docs` and a Netlify upload ZIP.
-The build reuses the Jetson UI's docs renderer, HTML shell, CSS, fonts, images,
-and theme controls. Only the Docs route is available on the hosted site; it
-makes no requests to robot or camera services. Edit `docs/operator/*.md` to
-update both versions. `netlify.toml` defines the hosted build and publish folder.
+The guides in `docs-site/src/content/docs/` appear on both the Jetson at `/docs/` and the [Astro + Starlight](https://starlight.astro.build/) site in `docs-site/`.
+Edit the shared guides to update both versions.
 
-For a local preview (no upload):
+Run `pnpm --dir docs-site build:jetson` before building a Spot wheel. It produces `dist/jetson-docs/`, which is bundled into the installed application for offline use.
 
-```sh
-python3 tools/build_docs_site.py
-python3 -m http.server 5814 --bind 127.0.0.1 --directory dist/docs
-```
-
-Open `http://127.0.0.1:5814/#docs/connect`. Rebuild after source edits and reload.
-
-The shared Markdown compiler supports tables, `> **Label:**` callouts,
-`<details>` / `<summary>` disclosures, and PNG screenshots in
-`src/spot_vision/web/docs-images`. Put a single italic caption immediately after
-a screenshot; the site adds an enlarge button. Use measured/demo captions as
-appropriate, keeping illustrative values distinct from physical measurements.
-Section headings and disclosure summaries are indexed for search and deep links.
-
-Diagrams use a deliberately small offline Mermaid subset: `flowchart LR` with
-one connected chain, one `A[Label] --> B[Label]` edge per line (later source
-labels may be omitted). The compiler emits accessible inline SVG and rejects
-unsupported syntax. It needs no external scripts or network connection.
-
-Check the compiler and all maintained pages with
-`python3 -m unittest discover -s tools/tests -p test_build_docs.py`.
-
-For the Jetson UI, build the documentation and its matching web assets together:
-
-```sh
-python3 tools/build_docs.py --source docs/operator \
-  --web-assets src/spot_vision/web --output dist/jetson-web/docs.json
-```
-
-The normal CMake/wheel build installs this complete bundle too. A scoped UI
-deployment must transfer the entire bundle into the active runtime's `web/`
-directory, including `app.css`, `app.js`, fonts and `docs-images/`; use the
-deployment workflow to back up and verify the actual installed location.
-Copying only `docs.json` can leave new article markup paired with old styles
-and missing screenshots. The builder checks image references and makes assets
-readable by the unprivileged service account. Reload the browser after deployment.
 
 ## Robot integration session
 
-The [bench session guide](../docs/operator/14-robot-integration-session.md) covers
+The [bench session guide](../docs-site/src/content/docs/operator/robot-integration-session.md) covers
 separate MacBook–Jetson and Jetson–roboRIO Ethernet links, agent-configured
 routing/relay access, setup/recovery checks, and an agent-owned execution/repair loop. `bench_capture.py` records bounded Jetson status alongside the running
 service; `bench_session.py` creates run snapshots, collects explicit remote

@@ -11,6 +11,10 @@ if [[ ! -f "$source_dir/pyproject.toml" ]]; then
   echo "Spot source was not found at $source_dir" >&2
   exit 1
 fi
+if [[ ! -f "$source_dir/dist/jetson-docs/index.html" || ! -f "$source_dir/dist/jetson-docs/pagefind/pagefind.js" ]]; then
+  echo "Build documentation before installing: pnpm --dir $source_dir/docs-site build:jetson" >&2
+  exit 1
+fi
 if ! id spot-vision >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin spot-vision
 fi

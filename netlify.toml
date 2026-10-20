@@ -1,6 +1,10 @@
 [build]
-  command = "python3 tools/build_docs_site.py"
-  publish = "dist/docs"
+  base = "docs-site"
+  command = "pnpm build"
+  publish = "../dist/docs"
+
+[build.environment]
+  NODE_VERSION = "24"
 
 [[headers]]
   for = "/*"

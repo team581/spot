@@ -218,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
             raise PermissionError("Host is not an installed Spot address")
         return host
 
-    def _reply(self, status: int, payload, *, mime="application/json", cookie=None) -> None:
+    def _reply(self, status: int, payload, *, mime="application/json", cookie=None, docs=False) -> None:
         if mime == "application/json" and not isinstance(payload, bytes):
             payload = json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
         self.send_response(status)
@@ -229,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "same-origin")
         self.send_header(
             "Content-Security-Policy",
+            # Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly.
+            "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" if docs else
             "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         )
         if cookie:
@@ -314,6 +316,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             relative = "index.html" if path in {"", "/"} else path.lstrip("/")
             asset = (self.server.assets / relative).resolve()
+            if asset.is_relative_to(self.server.assets / "docs") and asset.is_dir():
+                if not path.endswith("/"):
+                    self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+                    self.send_header("Location", path + "/")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                asset /= "index.html"
             if (
                 not asset.is_relative_to(self.server.assets)
                 or not asset.is_file()
@@ -325,6 +335,7 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 asset.read_bytes(),
                 mime=mimetypes.guess_type(asset.name)[0] or "application/octet-stream",
+                docs=asset.is_relative_to(self.server.assets / "docs"),
             )
         except (ConfigError, ValueError) as exc:
             self._reply(400, {"error": str(exc)})

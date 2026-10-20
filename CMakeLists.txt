@@ -131,14 +131,19 @@ endif()
 
 # Hash the exact module loaded by the installed Python process. Build identity
 # stays in the build directory and is never inferred from a runtime checkout.
+set(SPOT_DOCS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/jetson-docs" CACHE PATH "Prebuilt Starlight site for /docs/")
+if(NOT EXISTS "${SPOT_DOCS_DIR}/index.html" OR NOT EXISTS "${SPOT_DOCS_DIR}/pagefind/pagefind.js")
+  message(FATAL_ERROR "Build the bundled documentation first: pnpm --dir docs-site build:jetson")
+endif()
 add_custom_target(spot_build_manifest ALL
-  COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_docs.py"
-    --source "${CMAKE_CURRENT_SOURCE_DIR}/docs/operator"
-    --web-assets "${CMAKE_CURRENT_SOURCE_DIR}/src/spot_vision/web"
-    --output "${CMAKE_CURRENT_BINARY_DIR}/web/docs.json"
+  COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/web"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/spot_vision/web" "${CMAKE_CURRENT_BINARY_DIR}/web"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${SPOT_DOCS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/web/docs"
   COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_manifest.py"
     --root "${CMAKE_CURRENT_SOURCE_DIR}" --native "$<TARGET_FILE:_spot_cuda>"
-    --cuda "${SPOT_BUILD_CUDA}" --docs "${CMAKE_CURRENT_BINARY_DIR}/web/docs.json" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
+    --cuda "${SPOT_BUILD_CUDA}" --web-assets "${CMAKE_CURRENT_BINARY_DIR}/web" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
   DEPENDS _spot_cuda
   VERBATIM)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json" DESTINATION spot_vision)
