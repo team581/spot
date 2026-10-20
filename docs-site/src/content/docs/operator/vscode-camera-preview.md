@@ -1,7 +1,6 @@
-Title: VS Code camera preview
-Group: Reference
-
-# VS Code camera preview
+---
+title: 'VS Code camera preview'
+---
 
 Inspect saved Java camera mounts beside `VisionConfig.java`. The preview runs offline and reads the compiled configuration.
 
@@ -11,15 +10,15 @@ Inspect saved Java camera mounts beside `VisionConfig.java`. The preview runs of
 2. Open `src/main/java/frc/robot/vision/VisionConfig.java` in the robot project.
 3. Click the camera icon in the editor title bar, or run **Spot: Preview Cameras** from the Command Palette.
 
-![VS Code camera icon showing the Spot: Preview Cameras tooltip](../../src/spot_vision/web/docs-images/vscode-preview-cameras-button.png)
+![VS Code camera icon showing the Spot: Preview Cameras tooltip](../../../assets/docs-images/vscode-preview-cameras-button.png)
 
-*Open the preview from the camera icon. It normally opens automatically beside the configuration file.*
+_Open the preview from the camera icon. It normally opens automatically beside the configuration file._
 
-| Project | Build |
-| --- | --- |
-| offseason-2026 | `./gradlew :offseason-bot:build` |
-| basic-robot-tester | `./gradlew build` |
-| Windows | Use `gradlew.bat` in place of `./gradlew` |
+| Project            | Build                                     |
+| ------------------ | ----------------------------------------- |
+| offseason-2026     | `./gradlew :offseason-bot:build`          |
+| basic-robot-tester | `./gradlew build`                         |
+| Windows            | Use `gradlew.bat` in place of `./gradlew` |
 
 The first preview can take longer while Gradle resolves dependencies. Automatic private extension downloads require an authenticated GitHub CLI (`gh`) with access to `team581/spot-2026`. The visualizer itself does not require `gh`; use the manual installation steps below if it is unavailable.
 
@@ -34,9 +33,9 @@ Once the pinned version or a newer version is installed, the build skips the ext
 
 ## Verify a mount
 
-![VisionConfig.java beside the Spot Cameras 3D preview and adjustable drivebase controls](../../src/spot_vision/web/docs-images/vscode-camera-preview-split-screen.png)
+![VisionConfig.java beside the Spot Cameras 3D preview and adjustable drivebase controls](../../../assets/docs-images/vscode-camera-preview-split-screen.png)
 
-*Keep definitions on the left and mounts on the right. This older screenshot uses illustrative mounts and earlier pitch labels; current versions use WPILib pitch on both sides.*
+_Keep definitions on the left and mounts on the right. This older screenshot uses illustrative mounts and earlier pitch labels; current versions use WPILib pitch on both sides._
 
 1. Register the measured definitions in **CAMERAS**. A named constant alone does not appear in the scene.
 2. Save a position or rotation change. The preview builds and refreshes automatically.
@@ -47,22 +46,22 @@ Once the pinned version or a newer version is installed, the build skips the ext
 
 ## Check preview status
 
-| Status | Meaning / action |
-| --- | --- |
-| Current | Saved configuration exported successfully |
-| Unsaved changes | Scene still reflects an earlier saved version |
-| Building | A new export is running |
-| Stale preview | Last successful scene retained after an error; open **Build output**, fix the code and save or refresh |
+| Status          | Meaning / action                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Current         | Saved configuration exported successfully                                                              |
+| Unsaved changes | Scene still reflects an earlier saved version                                                          |
+| Building        | A new export is running                                                                                |
+| Stale preview   | Last successful scene retained after an error; open **Build output**, fix the code and save or refresh |
 
 ## Troubleshooting
 
-| Problem | Try this |
-| --- | --- |
-| No panel | Run **Spot: Preview Cameras**; check workspace trust and **Spot Camera Preview: Auto Open**. Closing the panel suppresses auto-open for that session. |
-| Empty scene | Add measured definitions to `CAMERAS`. |
-| Download fails or `gh` is missing | Follow **Install manually without `gh`** above, or run `gh auth status`, verify private repository access, then retry the install task below. |
-| Build fails | Open **Build output** and fix Java/project errors. Invalid names, dimensions or image rotation can block export. |
-| VS Code CLI missing | Set `SPOT_CAMERA_PREVIEW_CODE` to the `code` executable, or use the Gradle override below. |
+| Problem                           | Try this                                                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No panel                          | Run **Spot: Preview Cameras**; check workspace trust and **Spot Camera Preview: Auto Open**. Closing the panel suppresses auto-open for that session. |
+| Empty scene                       | Add measured definitions to `CAMERAS`.                                                                                                                |
+| Download fails or `gh` is missing | Follow **Install manually without `gh`** above, or run `gh auth status`, verify private repository access, then retry the install task below.         |
+| Build fails                       | Open **Build output** and fix Java/project errors. Invalid names, dimensions or image rotation can block export.                                      |
+| VS Code CLI missing               | Set `SPOT_CAMERA_PREVIEW_CODE` to the `code` executable, or use the Gradle override below.                                                            |
 
 <details>
 <summary>Extension updates and manual installation</summary>
@@ -93,4 +92,4 @@ Camera bodies and the drivebase are schematic; no calibrated field of view is in
 
 </details>
 
-Before commissioning, verify physical identity, calibration, delivered FPS, USB capacity and applied controls on the Jetson. See [Cameras in Java](#docs/camera-configuration).
+Before commissioning, verify physical identity, calibration, delivered FPS, USB capacity and applied controls on the Jetson. See [Cameras in Java](../camera-configuration/).

@@ -1,0 +1,23 @@
+name: autofix.ci
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+          working-directory: docs-site
+          require-lockfile: true
+      - run: pnpm format:fix
+        working-directory: docs-site
+      - run: pnpm lint:fix
+        working-directory: docs-site
+      - uses: autofix-ci/action@v1

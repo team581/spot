@@ -1,7 +1,6 @@
-Title: 2. Name cameras
-Group: Getting started
-
-# Name cameras
+---
+title: '2. Name cameras'
+---
 
 Bind each physical USB feed to its matching name in robot code. A rename keeps the camera's compatible calibration.
 
@@ -12,18 +11,18 @@ Bind each physical USB feed to its matching name in robot code. A rename keeps t
 3. Under **Camera name**, choose its code-defined **Name** and check **This preview matches the physical camera**.
 4. Click **Rename**. Wait for the sidebar name to change and confirm the same feed stays selected.
 
-![USB camera preview beside the Camera name selector and Rename button](../../src/spot_vision/web/docs-images/naming.png)
+![USB camera preview beside the Camera name selector and Rename button](../../../assets/docs-images/naming.png)
 
-*Match the preview first, then choose the name. The names in this demonstration come from its example profile.*
+_Match the preview first, then choose the name. The names in this demonstration come from its example profile._
 
 ## If a name is missing
 
-| Symptom | What to do |
-| --- | --- |
-| No names available | Add measured camera definitions to robot code, deploy, and check the profile on Network. |
-| Name already in use | Use [Replace a camera](#docs/replacement) for a deliberate replacement. |
-| Cached names shown | Reconnect the robot to confirm the current profile. |
-| Calibration warning remains | Continue to [Calibrate](#docs/calibrate); naming does not calibrate a camera. |
+| Symptom                     | What to do                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| No names available          | Add measured camera definitions to robot code, deploy, and check the profile on Network. |
+| Name already in use         | Use [Replace a camera](../replacement/) for a deliberate replacement.                    |
+| Cached names shown          | Reconnect the robot to confirm the current profile.                                      |
+| Calibration warning remains | Continue to [Calibrate](../calibrate/); naming does not calibrate a camera.              |
 
 > **Use stable ports.** Keep the hub on the same Jetson port and each camera on its labelled hub port. Linux `/dev/videoN` order is not a camera identity.
 
@@ -38,4 +37,4 @@ Robot code supplies names, modes, transforms, field layout and control policy. Y
 
 </details>
 
-Next: [check camera geometry](#docs/geometry).
+Next: [check camera geometry](../geometry/).

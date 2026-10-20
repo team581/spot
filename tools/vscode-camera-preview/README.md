@@ -2,7 +2,7 @@
 
 Private Team 581 VS Code extension. Open `VisionConfig.java` for a split-screen view of the actual compiled camera mounts. Save Java changes to refresh. Use the camera icon or **Spot: Preview Cameras** to reopen a closed preview.
 
-See the [student guide](https://github.com/team581/spot-2026/blob/main/docs/operator/13-vscode-camera-preview.md) for installation, automatic updates, coordinate conventions, and troubleshooting.
+See the [student guide](https://github.com/team581/spot-2026/blob/main/docs-site/src/content/docs/operator/vscode-camera-preview.md) for installation, automatic updates, coordinate conventions, and troubleshooting.
 
 ## Development
 

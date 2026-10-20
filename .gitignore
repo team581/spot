@@ -16,5 +16,6 @@ wheelhouse/
 /prototype-runs/
 /bench-runs/
 
-# Generated offline docs; maintain docs/operator/*.md instead.
-src/spot_vision/web/docs.json
+# Astro build state and dependencies.
+node_modules/
+docs-site/.astro/

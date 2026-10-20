@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def generate(root: Path, native: Path, cuda: bool, docs: Path | None = None) -> dict:
+def generate(root: Path, native: Path, cuda: bool, web_assets: Path) -> dict:
     def git(*arguments):
         result = subprocess.run(
             ["git", "-C", str(root), *arguments], capture_output=True, check=False
@@ -30,8 +30,7 @@ def generate(root: Path, native: Path, cuda: bool, docs: Path | None = None) -> 
         "proto/",
         "deploy/",
         "tools/build_manifest.py",
-        "tools/build_docs.py",
-        "docs/operator/",
+        "docs-site/",
     )
     for relative in sorted(set(paths)):
         name = relative.decode()
@@ -69,10 +68,13 @@ def generate(root: Path, native: Path, cuda: bool, docs: Path | None = None) -> 
         for path in sorted((root / "src/spot_vision").rglob("*"))
         if path.is_file()
         and "__pycache__" not in path.parts
-        and (path.suffix == ".py" or "web" in path.parts)
+        and path.suffix == ".py"
     }
-    if docs:
-        document["artifact_hashes"]["web/docs.json"] = hashlib.sha256(docs.read_bytes()).hexdigest()
+    document["artifact_hashes"].update({
+        "web/" + path.relative_to(web_assets).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(web_assets.rglob("*"))
+        if path.is_file()
+    })
     document["protobuf_generated_versions"] = {"v1": "7.35.1", "v2": "6.33.2"}
     document["release_id"] = hashlib.sha256(
         json.dumps(document, sort_keys=True).encode()
@@ -85,9 +87,9 @@ if __name__ == "__main__":
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--native", type=Path, required=True)
     parser.add_argument("--cuda", choices=["ON", "OFF"], required=True)
-    parser.add_argument("--docs", type=Path)
+    parser.add_argument("--web-assets", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.write_text(
-        json.dumps(generate(args.root, args.native, args.cuda == "ON", args.docs), indent=2) + "\n"
+        json.dumps(generate(args.root, args.native, args.cuda == "ON", args.web_assets), indent=2) + "\n"
     )

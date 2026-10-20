@@ -1,7 +1,6 @@
-Title: 4. Calibrate
-Group: Getting started
-
-# Calibrate
+---
+title: '4. Calibrate'
+---
 
 Fit the lens model, test it on new views, then apply the passing result. Intrinsic calibration does not measure the robot mount.
 
@@ -17,11 +16,11 @@ flowchart LR
 Verify a live preview. A robot profile or name is optional: choose **Open standalone camera setup** on the camera page, or add the connected camera on Calibration.
 
 | Board setting | Measured printed board |
-| --- | --- |
-| Squares X × Y | 15 × 15 |
-| Square length | 0.030 m (30 mm) |
-| Marker length | 0.022 m (22 mm) |
-| Dictionary | `DICT_4X4_250` |
+| ------------- | ---------------------- |
+| Squares X × Y | 15 × 15                |
+| Square length | 0.030 m (30 mm)        |
+| Marker length | 0.022 m (22 mm)        |
+| Dictionary    | `DICT_4X4_250`         |
 
 Confirm the actual print scale, enter these values in **Board**, and choose the lens model and minimum fit views. The production CUDA path supports the five-coefficient model.
 
@@ -32,9 +31,9 @@ Confirm the actual print scale, enter these values in **Board**, and choose the 
 3. Move the board across the image. Vary distance and tilt while keeping it sharp. Collect at least **15 diverse views**.
 4. Click **Calibrate** for each camera. Other cameras stay usable while it solves.
 
-![Calibration capture page showing camera cards, fit controls and board settings](../../src/spot_vision/web/docs-images/calibration.png)
+![Calibration capture page showing camera cards, fit controls and board settings](../../../assets/docs-images/calibration.png)
 
-*Capture controls are below each feed; board dimensions are on the right. Coverage particles guide where to move the board, but do not certify calibration quality.*
+_Capture controls are below each feed; board dimensions are on the right. Coverage particles guide where to move the board, but do not certify calibration quality._
 
 ## Validate on new views
 
@@ -43,9 +42,9 @@ Confirm the actual print scale, enter these values in **Board**, and choose the 
 3. Click **Validate**, then open **Results / history**.
 4. Check the view counts, independent validation RMS and pass/retry reason. The configured RMS limit is at most **0.8 px**.
 
-![Calibration results with passing and failing cameras and Apply selected](../../src/spot_vision/web/docs-images/calibration-results.png)
+![Calibration results with passing and failing cameras and Apply selected](../../../assets/docs-images/calibration-results.png)
 
-*Review each camera's result before applying. This demonstration includes both a pass and a retry.*
+_Review each camera's result before applying. This demonstration includes both a pass and a retry._
 
 ## Apply or restore
 
@@ -66,4 +65,4 @@ Application validates the whole group, stages an immutable generation, rebuilds 
 
 </details>
 
-Next: [verify detections and robot decisions](#docs/verify).
+Next: [verify detections and robot decisions](../verify/).

@@ -150,14 +150,8 @@ def test_preview_allows_twenty_fps_but_rejects_request_bursts(web, monkeypatch):
     assert request("GET", path, headers=headers)[0] == 429
 
 
-def test_offline_json_asset_and_pending_rejected_job(web):
+def test_pending_rejected_job(web):
     request, headers, _, server = web
-    docs = b'{"articles":[{"title":"Name a camera"}]}'
-    (server.assets / "docs.json").write_bytes(docs)
-    status, response_headers, raw = request("GET", "/docs.json")
-    assert status == 200 and response_headers["Content-Type"] == "application/json"
-    assert raw == docs
-
     pending = Future()
     server.runtime.submit = lambda operation, payload: pending
     status, _, raw = request("POST", "/api/operations", operation(), headers)
@@ -167,6 +161,41 @@ def test_offline_json_asset_and_pending_rejected_job(web):
     pending.set_exception(ValueError("Camera readback rejected the requested gain"))
     result = json.loads(request("GET", path, headers=headers)[2])
     assert result == {"state": "rejected", "error": "Camera readback rejected the requested gain"}
+
+
+def test_docs_directory_pages_assets_and_missing_paths(web):
+    request, _, submissions, server = web
+    docs = server.assets / "docs"
+    article = docs / "operator/calibrate"
+    article.mkdir(parents=True)
+    (docs / "index.html").write_text("<!doctype html><title>Operator guide</title>")
+    page = b'<!doctype html><title>Calibrate</title>'
+    (article / "index.html").write_bytes(page)
+    (docs / "search.wasm").write_bytes(b'\x00asm')
+
+    for path in ("/docs", "/docs/operator/calibrate"):
+        status, headers, body = request("GET", path)
+        assert status == 301 and headers["Location"] == path + "/" and body == b""
+    status, headers, body = request("GET", "/docs/operator/calibrate/")
+    assert status == 200 and headers["Content-Type"] == "text/html" and body == page
+    # The static docs policy permits Starlight and search without changing the dashboard's policy.
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+    assert "'wasm-unsafe-eval'" in headers["Content-Security-Policy"]
+    assert "'unsafe-inline'" not in request("GET", "/")[1]["Content-Security-Policy"]
+    assert request("GET", "/docs/")[0] == 200
+    assert request("GET", "/docs/search.wasm")[1]["Content-Type"] == "application/wasm"
+    assert request("GET", "/docs/missing/")[0] == 404
+    assert request("GET", "/docs/operator/calibrate/../../../../secret")[0] == 404
+    assert submissions == []
+
+
+def test_docs_cannot_follow_symlinks_outside_web_assets(web, tmp_path):
+    request, _, _, server = web
+    outside = tmp_path.parent / (tmp_path.name + "-private")
+    outside.mkdir()
+    (outside / "index.html").write_text("private")
+    (server.assets / "docs").symlink_to(outside, target_is_directory=True)
+    assert request("GET", "/docs/")[0] == 404
 
 
 def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp_path):

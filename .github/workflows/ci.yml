@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+          working-directory: docs-site
+          require-lockfile: true
+      - run: pnpm format
+      - run: pnpm lint
+      - run: pnpm knip
+      - run: pnpm build
+      - run: pnpm build:jetson
+      - run: pnpm test
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jetson-docs
+          path: dist/jetson-docs
+          if-no-files-found: error
+          retention-days: 1
+
+  application:
+    name: Application integration
+    needs: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: jetson-docs
+          path: dist/jetson-docs
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - uses: jdx/mise-action@v5
+        with:
+          install: false
+      - run: mise run check:application

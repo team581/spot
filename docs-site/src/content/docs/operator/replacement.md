@@ -1,7 +1,6 @@
-Title: Replace a camera
-Group: Guides
-
-# Replace a camera
+---
+title: 'Replace a camera'
+---
 
 Rebind the existing logical name, then qualify the replacement's optics and timing.
 
@@ -11,22 +10,22 @@ Rebind the existing logical name, then qualify the replacement's optics and timi
 2. Open the existing named camera and expand **Advanced**.
 3. Select the connected device under **Replacement camera**. Verify its preview and labelled USB port.
 4. Check **I confirmed the replacement feed**, then click **Replace camera**.
-5. Verify capture mode and controls, [calibrate with new validation views](#docs/calibrate), then repeat measured timing and pose qualification.
+5. Verify capture mode and controls, [calibrate with new validation views](../calibrate/), then repeat measured timing and pose qualification.
 
 > **Treat every replacement as a new physical camera.** Replacement invalidates calibration even if the device reports the same serial number.
 
 ## What carries over?
 
-| Kept | Must be checked again |
-| --- | --- |
-| Logical camera name | Physical feed and USB identity |
-| Robot-code mount transform | Actual replacement mounting and lens direction |
-| Robot control policy | Applied mode and control readback |
-| Saved history | New calibration, independent validation and timing/pose evidence |
+| Kept                       | Must be checked again                                            |
+| -------------------------- | ---------------------------------------------------------------- |
+| Logical camera name        | Physical feed and USB identity                                   |
+| Robot-code mount transform | Actual replacement mounting and lens direction                   |
+| Robot control policy       | Applied mode and control readback                                |
+| Saved history              | New calibration, independent validation and timing/pose evidence |
 
-![Geometry tab used to compare replacement mounting with the code-defined transform](../../src/spot_vision/web/docs-images/geometry.png)
+![Geometry tab used to compare replacement mounting with the code-defined transform](../../../assets/docs-images/geometry.png)
 
-*After rebinding, compare the physical mount with Geometry. The code-defined transform remains unchanged by replacement.*
+_After rebinding, compare the physical mount with Geometry. The code-defined transform remains unchanged by replacement._
 
 <details>
 <summary>Identity and history checks</summary>

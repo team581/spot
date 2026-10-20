@@ -17,7 +17,7 @@ flowchart LR
   Localization --> Logs
 ```
 
-See the [robot integration session](../docs/operator/14-robot-integration-session.md)
+See the [robot integration session](../docs-site/src/content/docs/operator/robot-integration-session.md)
 for the two-port Jetson setup (MacBook ↔ Jetson ↔ roboRIO), an agent execution checklist, evidence capture, and a bounded
 agent-owned deployment/fix/retest workflow.
 
@@ -51,7 +51,7 @@ desktop tests cannot qualify actual roboRIO FPGA timing or Jetson performance.
 
 ## Configure the bench
 
-See the [camera configuration reference](../docs/operator/12-camera-configuration.md)
+See the [camera configuration reference](../docs-site/src/content/docs/operator/camera-configuration.md)
 for the hardware quick reference, every Java option, and control values/units.
 
 Students edit **`src/main/java/frc/robot/vision/VisionConfig.java`**, following the

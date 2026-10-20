@@ -1,9 +1,11 @@
-Title: API / Java integration
-Group: Reference
+---
+title: 'API / Java integration'
+---
 
-# API and Java integration
+import { Code } from '@astrojs/starlight/components';
+import javaExample from '../../../assets/java-example.java?raw';
 
-Use this reference for subsystem ownership, transport and HTTP contracts. For day-to-day configuration, start with [Cameras in Java](#docs/camera-configuration).
+Use this reference for subsystem ownership, transport and HTTP contracts. For day-to-day configuration, start with [Cameras in Java](../camera-configuration/).
 
 ## Robot data flow
 
@@ -14,11 +16,11 @@ flowchart LR
   Localization --> Estimator[Drive estimator]
 ```
 
-| Owner | Responsibility |
-| --- | --- |
-| `Vision` | Sole scheduled owner of transport, capture history, ordering, selection state and cached camera status |
+| Owner          | Responsibility                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Vision`       | Sole scheduled owner of transport, capture history, ordering, selection state and cached camera status                                     |
 | `Localization` | Drain immutable `VisionMeasurement` values once, check age/history, convert FPGA to CTRE time once, insert pose, acknowledge actual fusion |
-| `TrustFactor` | Update from fused evidence; simulation follows the same health/trust rules |
+| `TrustFactor`  | Update from fused evidence; simulation follows the same health/trust rules                                                                 |
 
 The offseason implementation lives in `offseason-bot/src/main/java/frc/robot/vision/`. Construction order is drivetrain → IMU → Vision → HealthManager → Swerve → Localization; helpers do not schedule themselves. Localization returns fusion acknowledgements to Vision and updates local trust only after fusion.
 
@@ -29,21 +31,20 @@ The offseason implementation lives in `offseason-bot/src/main/java/frc/robot/vis
 
 This seam provides one NT instance/session, capture source, clock and explicit capabilities. `poseAt` returns empty outside available FPGA-time history.
 
-```java-example
-```
+<Code code={javaExample} lang="java" />
 
 </details>
 
 ## Tag selection
 
-| Request | Behavior |
-| --- | --- |
-| `tagsRequest()` | All configured field IDs |
-| `hubTagsRequest()` | Acquire broadly, then use own-alliance hub IDs after fresh accepted evidence from any camera |
-| Red hub | 2, 3, 4, 5, 8, 9, 10, 11 |
-| Blue hub | 18, 19, 20, 21, 24, 25, 26, 27 |
-| Unknown alliance / incomplete layout | Keep broad acquisition |
-| Hub evidence lost for 0.5 s | Return to broad acquisition |
+| Request                              | Behavior                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `tagsRequest()`                      | All configured field IDs                                                                     |
+| `hubTagsRequest()`                   | Acquire broadly, then use own-alliance hub IDs after fresh accepted evidence from any camera |
+| Red hub                              | 2, 3, 4, 5, 8, 9, 10, 11                                                                     |
+| Blue hub                             | 18, 19, 20, 21, 24, 25, 26, 27                                                               |
+| Unknown alliance / incomplete layout | Keep broad acquisition                                                                       |
+| Hub evidence lost for 0.5 s          | Return to broad acquisition                                                                  |
 
 Requires Spot **0.2.1+** with `tag_selection_supported=true` and matching offseason integration (`frc.robot.vision.generated`, schema v2). Older services report unsupported. Repeated requests do not reset timers. Selection changes invalidate queued old-policy output; filtering happens before solving and the robot checks applied generations.
 
@@ -60,14 +61,14 @@ Qualify USB/compute throughput, visibility, correlation, partial outages, FPGA t
 
 ## Observation contract
 
-| Field / limit | Contract |
-| --- | --- |
-| Topics / type | `/Spot/v2` · `proto:spot.vision.v2.*` raw packets |
-| Schema | `proto/vision_v2.proto`, installed under `spot_vision/schemas` |
-| Frame identity | Session, generation, binding, calibration, mode, sequence and capture epoch |
-| Robot timestamp | NT sample time translated to FPGA time; local Jetson NT time is diagnostic only |
-| Bounds | 64 KiB per observation · 32 cameras · 64 tags · 2 candidates |
-| Initial time gates | 250 ms max age · 5 ms future tolerance · 20 ms reorder watermark |
+| Field / limit      | Contract                                                                        |
+| ------------------ | ------------------------------------------------------------------------------- |
+| Topics / type      | `/Spot/v2` · `proto:spot.vision.v2.*` raw packets                               |
+| Schema             | `proto/vision_v2.proto`, installed under `spot_vision/schemas`                  |
+| Frame identity     | Session, generation, binding, calibration, mode, sequence and capture epoch     |
+| Robot timestamp    | NT sample time translated to FPGA time; local Jetson NT time is diagnostic only |
+| Bounds             | 64 KiB per observation · 32 cameras · 64 tags · 2 candidates                    |
+| Initial time gates | 250 ms max age · 5 ms future tolerance · 20 ms reorder watermark                |
 
 Reject stale, future, conflicting-domain, pre-reset, duplicate, old-epoch and mismatched packets. Do not clamp timestamps. Sentinels 0/1 require a verified NT server; actual roboRIO timing needs hardware qualification.
 
@@ -82,11 +83,11 @@ Handlers enqueue work; they never open cameras, solve calibration or write state
 <details>
 <summary>HTTP limits and measured timing records</summary>
 
-| Limit | Value |
-| --- | --- |
-| Ordinary body / import | 64 KiB / 2 MiB |
-| Sessions / HTTP workers | 8 / 16 |
-| Live mutations | 5 per second; burst 2 |
+| Limit                   | Value                 |
+| ----------------------- | --------------------- |
+| Ordinary body / import  | 64 KiB / 2 MiB        |
+| Sessions / HTTP workers | 8 / 16                |
+| Live mutations          | 5 per second; burst 2 |
 
 A `qualify-timing` payload carries revision and a record with physical identity, System timing signature, `timestamp_source` = `read-completion-local-nt`, nonpositive `correction_us`, positive `uncertainty_s` ≤ 0.02, `measured_cycles` ≥ 100, and explicit evidence/conditions. Submit while disabled. Synthetic test records are not qualification evidence.
 

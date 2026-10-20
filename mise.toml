@@ -1,0 +1,10 @@
+[settings]
+idiomatic_version_file_enable_tools = ["node", "pnpm"]
+
+[tasks."check:application"]
+description = "Check HTTP integration and build the CPU wheel (requires build:jetson output)"
+run = [
+  "uv sync --locked --no-install-project",
+  "uv run --no-sync python -m pytest tests/test_beta_web.py tools/tests/test_build_manifest.py",
+  "uv build --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+]
