@@ -4,7 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "astro dev --host 127.0.0.1 --port 5814",
-		"build": "astro check && NODE_ENV=production astro build",
+		"check": "astro sync && tsc --noEmit --runExternalCode",
+		"build": "pnpm check && NODE_ENV=production astro build",
 		"build:jetson": "DOCS_TARGET=jetson NODE_ENV=production astro build",
 		"preview": "astro preview --host 127.0.0.1 --port 5814",
 		"format": "oxfmt --check",
@@ -24,13 +25,13 @@
 		"pele": "1.7.0"
 	},
 	"devDependencies": {
-		"@astrojs/check": "0.9.10",
+		"@astrojs/ts-content-mapper": "0.2.0",
 		"knip": "6.42.0",
 		"oxfmt": "0.73.0",
 		"oxlint": "1.88.0",
 		"oxlint-tsgolint": "7.0.2004",
 		"parse5": "8.0.1",
-		"typescript": "6.0.3"
+		"typescript": "7.1.0-beta"
 	},
 	"devEngines": {
 		"runtime": {
