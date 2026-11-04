@@ -72,9 +72,6 @@ def run_beta(args) -> int:
     assets = Path(str(files("spot_vision.web")))
     for relative in (
         "index.html",
-        "app.js",
-        "app.css",
-        "source-sans-pro.woff2",
         "blazing-bulldogs.svg",
         "docs/index.html",
         "docs/pagefind/pagefind.js",
