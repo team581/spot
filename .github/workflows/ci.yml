@@ -13,9 +13,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: ubuntu-latest
+          - runner: blacksmith-4vcpu-ubuntu-2404
             system: x86_64-linux
-          - runner: ubuntu-24.04-arm
+          - runner: blacksmith-4vcpu-ubuntu-2404-arm
             system: aarch64-linux
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -28,7 +28,7 @@ jobs:
 
   javascript:
     name: JavaScript and documentation
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -55,7 +55,7 @@ jobs:
   application:
     name: Python and CPU native module
     needs: javascript
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
