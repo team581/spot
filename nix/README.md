@@ -12,7 +12,9 @@ firmware-flashing outputs deliberately fail instead of producing developer-kit
 firmware. See [J401 support and qualification](hardware/j401/README.md) for details.
 
 Initial Ubuntu setup is complete and the maintenance SSH key is authorized on
-the current unit. NixOS boot and hardware qualification remain outstanding.
+the current unit. The NixOS installer has booted with copy-to-RAM and maintenance
+SSH works. Normal USB boot after the hub-driver fix and hardware qualification
+remain outstanding; the physical cooler fan needs connecting.
 
 `flake.lock` pins Nixpkgs, `anduril/jetpack-nixos`, and Python build tooling.
 `uv2nix` consumes the existing `uv.lock`, without a second Python dependency
@@ -33,10 +35,9 @@ To refresh it locally with Determinate Nix, run `bash tools/update-pnpm-deps-has
 - `module.nix`: services, socket, discovery, firewall, settings, and permissions.
 - `packages.nix`: locked Python environment, native CUDA build, and web assets.
 
-The two Realtek Ethernet adapters are named `spot0` and `spot1` by PCI-path
-udev link rules. The port currently called `enP8p1s0` in Ubuntu becomes `spot0`;
-`enP7p1s0` becomes `spot1`. Matching the shared driver would rename both ports to
-the same name.
+The Ethernet adapters are named `spot0` and `spot1` by PCI-path udev link rules.
+The Realtek port called `enP8p1s0` in Ubuntu becomes `spot0`; the Microchip port
+`enP7p1s0` becomes `spot1`. These names were verified in the live installer.
 A low-priority NetworkManager profile supplies `192.168.69.170/24`, without a
 default route. Confirmed GUI changes create higher-priority profiles and survive
 reboot. Avahi advertises `spot.local` on `spot0` only. Confirm the NIC driver and

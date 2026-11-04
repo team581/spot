@@ -36,6 +36,9 @@
       };
     };
 
+    # Loading this after mounting a USB root disconnects the onboard hub's devices.
+    boot.initrd.kernelModules = [ "onboard_usb_hub" ];
+
     hardware.graphics.enable = true;
     # Preserve the firmware's J401 DTB, including its runtime memory/board fixups.
     hardware.deviceTree.name = lib.mkForce null;
