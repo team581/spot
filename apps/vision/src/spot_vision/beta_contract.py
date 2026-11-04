@@ -1,26 +1,19 @@
-"""Bounded v2 protocol validation shared by configuration and transport."""
+"""Bounded profile and observation validation shared by configuration and transport."""
 
 from __future__ import annotations
 
-import hashlib
 import math
 import re
 
-from google.protobuf.message import DecodeError, Message
-
+from . import protocol_models as wire
 from .config import ConfigError
-from .proto import vision_v2_pb2 as wire
+from .protocol import content_hash, restore
 
 MAX_PROFILE_BYTES = 256 * 1024
-MAX_OBSERVATION_BYTES = 64 * 1024
 MAX_CAMERAS = 32  # protocol bound, not a claim about Jetson capacity
 MAX_TAGS = 64
 MAX_CANDIDATES = 2
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
-
-
-def content_hash(message: Message) -> str:
-    return hashlib.sha256(message.SerializeToString(deterministic=True)).hexdigest()
 
 
 def finite(*values: float) -> bool:
@@ -37,19 +30,16 @@ def valid_pose(pose: wire.Pose) -> bool:
 def parse_manifest(payload: bytes) -> wire.Manifest:
     if not 0 < len(payload) <= MAX_PROFILE_BYTES:
         raise ConfigError("manifest payload exceeds bounds or is empty")
-    message = wire.Manifest()
     try:
-        message.ParseFromString(payload)
-    except DecodeError as exc:
-        raise ConfigError("invalid manifest protobuf") from exc
+        message = restore(wire.Manifest, payload)
+    except ValueError as exc:
+        raise ConfigError("invalid manifest snapshot") from exc
     validate_manifest(message)
     return message
 
 
 def validate_manifest(message: wire.Manifest) -> None:
     profile = message.profile
-    if profile.schema_version != 2:
-        raise ConfigError("unsupported profile schema")
     if not _NAME.fullmatch(profile.robot_id) or not _NAME.fullmatch(message.robot_session):
         raise ConfigError("robot ID and session are required bounded identifiers")
     if message.manifest_hash != content_hash(profile):
@@ -69,7 +59,7 @@ def validate_manifest(message: wire.Manifest) -> None:
         if not _NAME.fullmatch(camera.name) or camera.name in names:
             raise ConfigError("invalid or duplicate camera name")
         names.add(camera.name)
-        if not camera.HasField("robot_to_camera") or not valid_pose(camera.robot_to_camera):
+        if not valid_pose(camera.robot_to_camera):
             raise ConfigError(f"{camera.name}: measured mount transform required")
         if camera.image_rotation_deg not in (0, 180):
             raise ConfigError("image rotation must be 0 or 180 degrees")
@@ -125,10 +115,6 @@ def validate_manifest(message: wire.Manifest) -> None:
 
 
 def validate_observation(message: wire.Observation) -> None:
-    if message.schema_version != 2:
-        raise ConfigError("unsupported observation schema")
-    if message.ByteSize() > MAX_OBSERVATION_BYTES:
-        raise ConfigError("observation payload exceeds limit")
     if len(message.candidates) > MAX_CANDIDATES or len(message.tags) > MAX_TAGS:
         raise ConfigError("observation candidate/tag count exceeds limit")
     for candidate in message.candidates:
@@ -152,6 +138,8 @@ def validate_observation(message: wire.Observation) -> None:
             raise ConfigError("invalid pose candidate")
     if not message.calibration_valid and message.candidates:
         raise ConfigError("uncalibrated observations cannot contain production candidates")
+    if len({tag.id for tag in message.tags}) != len(message.tags):
+        raise ConfigError("duplicate observed tag ID")
     for tag in message.tags:
         if len(tag.corners_xy_px) != 8 or not finite(*tag.corners_xy_px):
             raise ConfigError("invalid tag corners")

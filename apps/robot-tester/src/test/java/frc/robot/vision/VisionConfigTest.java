@@ -11,45 +11,62 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class VisionConfigTest {
-  @Test void configuredCamerasAndFlagsReachBenchWithoutDuplicatedMounts() {
+  @Test
+  void configuredCamerasAndFlagsReachBenchWithoutDuplicatedMounts() {
     var config = BenchConfig.create();
-    assertThat(config.profile().getCamerasCount()).isEqualTo(VisionConfig.CAMERAS.size());
+    assertThat(config.profile().cameras().size()).isEqualTo(VisionConfig.CAMERAS.size());
     assertThat(config.mounts()).hasSize(VisionConfig.CAMERAS.size());
-    assertThat(config.profile().getFusionEnabled()).isEqualTo(VisionConfig.FUSION_ENABLED);
-    assertThat(config.profile().getHeadingEnabled()).isFalse();
-    assertThat(config.profile().getField().getTagsCount()).isEqualTo(VisionConfig.FIELD_LAYOUT.getTags().size());
+    assertThat(config.profile().fusionEnabled()).isEqualTo(VisionConfig.FUSION_ENABLED);
+    assertThat(config.profile().headingEnabled()).isFalse();
+    assertThat(config.profile().field().tags().size())
+        .isEqualTo(VisionConfig.FIELD_LAYOUT.getTags().size());
   }
 
-  @Test void studentCameraSettingsReachManifestAndOwnTheirLists() {
-    var controls = new ArrayList<>(List.of(Control.pinned("exposure_auto", 1), Control.tunable("gain", 5)));
-    var camera = new SpotCameraConfig("front", true, VisionConfig.mount(.1, 0, .3, 0, 0, 90),
-        180, new CaptureSettings(640, 480, 30, PixelFormat.MJPEG), controls);
-    controls.clear();
-    var profile = VisionConfig.profile(List.of(camera));
-    var definition = profile.getCameras(0);
-    assertThat(definition.getName()).isEqualTo("front");
-    assertThat(definition.getRequired()).isTrue();
-    assertThat(definition.getImageRotationDeg()).isEqualTo(180);
-    assertThat(definition.getAllowedModesCount()).isEqualTo(1);
-    assertThat(definition.getControls(0).getAllowOverride()).isFalse();
-    assertThat(definition.getControls(1).getAllowOverride()).isTrue();
-    assertThat(SpotProtocol.pose(definition.getRobotToCamera()).getRotation().getZ())
-        .isCloseTo(Math.PI / 2, offset(1e-12));
-    assertThatThrownBy(() -> VisionConfig.profile(List.of(camera, camera)))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThat(SpotProtocol.hash(profile))
-        .isEqualTo(SpotProtocol.hash(VisionConfig.profile(List.of(camera))));
-  }
-
-  @Test void invalidCaptureSettingsAndControlsFailBeforePublication() {
+  @Test
+  void invalidCaptureSettingsAndControlsFailBeforePublication() {
     assertThatThrownBy(() -> new CaptureSettings(641, 480, 30, PixelFormat.MJPEG))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new CaptureSettings(640, 480, 0, PixelFormat.MJPEG))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> Control.pinned("gain", Double.NaN))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new SpotCameraConfig("front", true,
-        VisionConfig.mount(0, 0, .3, 0, 0, 0), 90, new CaptureSettings(640, 480, 30, PixelFormat.MJPEG), List.of()))
+    assertThatThrownBy(() ->
+            new SpotCameraConfig(
+                "front",
+                true,
+                VisionConfig.mount(0, 0, .3, 0, 0, 0),
+                90,
+                new CaptureSettings(640, 480, 30, PixelFormat.MJPEG),
+                List.of()))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void studentCameraSettingsReachManifestAndOwnTheirLists() {
+    var controls =
+        new ArrayList<>(List.of(Control.pinned("exposure_auto", 1), Control.tunable("gain", 5)));
+    var camera =
+        new SpotCameraConfig(
+            "front",
+            true,
+            VisionConfig.mount(.1, 0, .3, 0, 0, 90),
+            180,
+            new CaptureSettings(640, 480, 30, PixelFormat.MJPEG),
+            controls);
+    controls.clear();
+    var profile = VisionConfig.profile(List.of(camera));
+    var definition = profile.cameras().get(0);
+    assertThat(definition.name()).isEqualTo("front");
+    assertThat(definition.required()).isTrue();
+    assertThat(definition.imageRotationDeg()).isEqualTo(180);
+    assertThat(definition.allowedModes().size()).isEqualTo(1);
+    assertThat(definition.controls().get(0).allowOverride()).isFalse();
+    assertThat(definition.controls().get(1).allowOverride()).isTrue();
+    assertThat(SpotProtocol.pose(definition.robotToCamera()).getRotation().getZ())
+        .isCloseTo(Math.PI / 2, offset(1e-12));
+    assertThatThrownBy(() -> VisionConfig.profile(List.of(camera, camera)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(SpotProtocol.hash(profile))
+        .isEqualTo(SpotProtocol.hash(VisionConfig.profile(List.of(camera))));
   }
 }

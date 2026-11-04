@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, useCallback } from 'react';
 import { useDashboard } from '../dashboard';
 import { age } from './common';
 import type { Preview } from '../previews';
@@ -47,12 +47,12 @@ export function Feed({
 	useEffect(() => {
 		if (element.current) return previews.register(id, element.current);
 	}, [id, previews]);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const el = canvas.current,
 			ctx = el?.getContext('2d');
 		if (!el || !ctx) return;
 		ctx.clearRect(0, 0, el.width, el.height);
-		if (!bitmap) return;
+		if (!bitmap?.width || !bitmap.height) return;
 		const scale = Math.min(el.width / bitmap.width, el.height / bitmap.height),
 			w = bitmap.width * scale,
 			h = bitmap.height * scale,

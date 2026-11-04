@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import threading
 import time
 from dataclasses import replace
@@ -9,6 +10,7 @@ import numpy as np
 import pytest
 
 from beta_fixtures import manifest
+from spot_vision import protocol_models as wire
 from spot_vision.beta_runtime import BetaRuntime
 from spot_vision.clock import ClockGate
 from spot_vision.config import ConfigError, NtConfig
@@ -21,7 +23,6 @@ from spot_vision.models import (
     FramePacket,
     PoseSolution,
 )
-from spot_vision.proto import vision_v2_pb2 as wire
 from spot_vision.queues import LatestFrameSlot
 
 
@@ -265,7 +266,9 @@ def test_optional_unsupported_control_is_unavailable_without_blocking_camera(run
 
     app, identity, _, _ = runtime
     profile = manifest()
-    profile.profile.cameras[0].controls.add(name="focus_auto", default_value=0, allow_override=True)
+    profile.profile.cameras[0].controls.append(
+        wire.ControlPolicy(name="focus_auto", default_value=0, allow_override=True)
+    )
     profile.manifest_hash = content_hash(profile.profile)
     app.configuration.accept_manifest(profile)
     app.configuration.robot_state(
@@ -281,7 +284,9 @@ def test_required_unsupported_control_blocks_only_its_camera(runtime):
 
     app, identity, _, _ = runtime
     profile = manifest()
-    profile.profile.cameras[0].controls.add(name="focus_auto", default_value=0, required=True)
+    profile.profile.cameras[0].controls.append(
+        wire.ControlPolicy(name="focus_auto", default_value=0, required=True)
+    )
     profile.manifest_hash = content_hash(profile.profile)
     app.configuration.accept_manifest(profile)
     assert identity not in app.workers
@@ -289,7 +294,6 @@ def test_required_unsupported_control_blocks_only_its_camera(runtime):
 
 
 def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
-    import copy
 
     from spot_vision.persistence import StateSnapshot
 
@@ -322,7 +326,6 @@ def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
 def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(
     runtime, width, height, fps
 ):
-    import copy
 
     from spot_vision.persistence import StateSnapshot
 
@@ -342,7 +345,6 @@ def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(
 
 
 def test_preview_prefers_low_bandwidth_modes_and_rejects_excessive_capture_load(runtime):
-    import copy
 
     from spot_vision.persistence import StateSnapshot
 

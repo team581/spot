@@ -1,6 +1,6 @@
 package frc.robot.vision;
 
-import frc.robot.vision.generated.SpotProtos;
+import frc.robot.vision.data.*;
 import java.util.Objects;
 
 /** One explicit USB capture configuration; protocol mode metadata is generated internally. */
@@ -16,15 +16,9 @@ public record CaptureSettings(int width, int height, int fps, PixelFormat pixelF
         || fps > 240) throw new IllegalArgumentException("invalid capture settings");
   }
 
-  SpotProtos.OpticalMode toProto() {
+  OpticalMode toData() {
     String settings = width + "x" + height + "-" + fps + "-" + pixelFormat.name();
-    return SpotProtos.OpticalMode.newBuilder()
-        .setId("capture-" + settings)
-        .setWidth(width)
-        .setHeight(height)
-        .setFps(fps)
-        .setPixelFormat(pixelFormat.name())
-        .setOpticalSignature("capture-v1-" + settings)
-        .build();
+    return new OpticalMode(
+        "capture-" + settings, width, height, pixelFormat.name(), fps, "capture-v1-" + settings);
   }
 }

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any
 
+from wpimath.geometry import Translation2d
+
+from . import headless_models as headless_wire
 from .config import CameraConfig, NtConfig, ServiceConfig
 from .models import CameraCounters, DetectedFrame, PoseCandidate, PoseSolution
-from .proto import vision_pb2
+from .protocol import snapshot
+from .structs import PoseEstimate, TagDetection, pose_value, signed_mask
 
 LOGGER = logging.getLogger(__name__)
 _POSE_METHOD_NAMES = {
@@ -22,9 +26,8 @@ def make_vision_frame(
     detected: DetectedFrame,
     solution: PoseSolution,
     total_ms: float,
-) -> vision_pb2.VisionFrame:
-    message = vision_pb2.VisionFrame(
-        schema_version=config.schema_version,
+) -> headless_wire.VisionFrame:
+    message = headless_wire.VisionFrame(
         camera_id=camera.id,
         sequence=detected.frame.sequence,
         camera_frame_sequence=detected.frame.camera_frame_sequence,
@@ -32,8 +35,9 @@ def make_vision_frame(
         field_revision=config.field_revision,
     )
     for candidate in solution.candidates:
-        pose = message.candidates.add()
-        pose.method = cast(vision_pb2.PoseCandidate.Method.ValueType, int(candidate.method))
+        pose = headless_wire.PoseCandidate()
+        message.candidates.append(pose)
+        pose.method = int(candidate.method)
         pose.x_m, pose.y_m, pose.z_m = (float(value) for value in candidate.translation)
         pose.qw, pose.qx, pose.qy, pose.qz = (float(value) for value in candidate.quaternion_wxyz)
         pose.reprojection_error_px = candidate.reprojection_error_px
@@ -41,7 +45,8 @@ def make_vision_frame(
         pose.average_tag_distance_m = candidate.average_tag_distance_m
         pose.distortion_factor_px = candidate.distortion_factor_px
     for detection in detected.batch.detections:
-        observation = message.tags.add()
+        observation = headless_wire.TagObservation()
+        message.tags.append(observation)
         observation.id = detection.id
         observation.corners_xy_px.extend(float(value) for value in detection.corners.reshape(-1))
         observation.hamming = detection.hamming
@@ -60,6 +65,8 @@ def make_vision_frame(
 @dataclass
 class CameraPublishers:
     observation: Any
+    detections: Any
+    rejection_reasons: Any
     robot_pose: Any
     robot_pose_valid: Any
     robot_pose_method: Any
@@ -109,7 +116,6 @@ class NtPublisher:
             instance.startClient4(nt_config.identity)
         options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)
         self.global_publishers = [
-            instance.getIntegerTopic("/Spot/config/schema_version").publish(options),
             instance.getBooleanTopic("/Spot/config/enabled").publish(options),
         ]
         for camera_id in camera_ids:
@@ -119,9 +125,15 @@ class NtPublisher:
                 for name in ("capture", "decode", "overwrite", "result_queue", "sequence")
             }
             self.publishers[camera_id] = CameraPublishers(
-                observation=instance.getRawTopic(f"{root}/output/observations").publish(
-                    "proto:spot.vision.v1.VisionFrame", options
-                ),
+                observation=instance.getStructArrayTopic(
+                    f"{root}/output/observations", PoseEstimate
+                ).publish(options),
+                detections=instance.getStructArrayTopic(
+                    f"{root}/output/detections", TagDetection
+                ).publish(options),
+                rejection_reasons=instance.getStringArrayTopic(
+                    f"{root}/output/rejection_reasons"
+                ).publish(options),
                 robot_pose=instance.getStructTopic(f"{root}/output/robot_pose", Pose3d).publish(
                     options
                 ),
@@ -166,11 +178,10 @@ class NtPublisher:
                 drops=drops,
             )
 
-    def publish_global(self, schema_version: int) -> None:
+    def publish_global(self) -> None:
         if not self.enabled:
             return
-        self.global_publishers[0].set(schema_version)
-        self.global_publishers[1].set(True)
+        self.global_publishers[0].set(True)
 
     def publish_calibration_status(self, camera: CameraConfig, provisional: bool) -> None:
         if not self.enabled:
@@ -181,7 +192,7 @@ class NtPublisher:
         self,
         camera: CameraConfig,
         field_revision: int,
-        message: vision_pb2.VisionFrame,
+        message: headless_wire.VisionFrame,
         capture_timestamp_us: int,
         counters: CameraCounters,
         temperature_c: float,
@@ -190,7 +201,56 @@ class NtPublisher:
         if not self.enabled:
             return
         publishers = self.publishers[camera.id]
-        publishers.observation.set(message.SerializeToString(), capture_timestamp_us)
+        from .protocol_models import Pose
+
+        if len(message.tags) > 64:
+            raise ValueError("headless frame exceeds 64 detections")
+        indices = {tag.id: index for index, tag in enumerate(message.tags)}
+        publishers.observation.set(
+            [
+                PoseEstimate(
+                    pose_value(
+                        Pose(
+                            candidate.x_m,
+                            candidate.y_m,
+                            candidate.z_m,
+                            candidate.qw,
+                            candidate.qx,
+                            candidate.qy,
+                            candidate.qz,
+                        )
+                    ),
+                    candidate.method,
+                    signed_mask(sum(1 << indices[tag] for tag in candidate.tag_ids)),
+                    candidate.reprojection_error_px,
+                    candidate.average_tag_distance_m,
+                    0.0,
+                    0.0,
+                    candidate.distortion_factor_px,
+                )
+                for candidate in message.candidates
+            ],
+            capture_timestamp_us,
+        )
+        publishers.detections.set(
+            [
+                TagDetection(
+                    tag.id,
+                    *(Translation2d(*tag.corners_xy_px[i : i + 2]) for i in range(0, 8, 2)),
+                    tag.hamming,
+                    tag.decision_margin,
+                    tag.used_for_pose,
+                    tag.distortion_factor_px
+                    if tag.distortion_factor_px is not None
+                    else float("nan"),
+                )
+                for tag in message.tags
+            ],
+            capture_timestamp_us,
+        )
+        publishers.rejection_reasons.set(
+            [tag.rejection_reason for tag in message.tags], capture_timestamp_us
+        )
         if robot_pose is None:
             publishers.robot_pose_valid.set(False, capture_timestamp_us)
             publishers.robot_pose_method.set("METHOD_UNKNOWN", capture_timestamp_us)
@@ -260,8 +320,8 @@ class MemoryPublisher:
         self.frames: list[tuple[str, bytes, int]] = []
         self.robot_poses: list[tuple[str, PoseCandidate | None, int]] = []
 
-    def publish_global(self, schema_version: int) -> None:
-        self.schema_version = schema_version
+    def publish_global(self) -> None:
+        pass
 
     def publish_calibration_status(self, camera: CameraConfig, provisional: bool) -> None:
         del camera
@@ -271,13 +331,13 @@ class MemoryPublisher:
         self,
         camera: CameraConfig,
         field_revision: int,
-        message: vision_pb2.VisionFrame,
+        message: headless_wire.VisionFrame,
         capture_timestamp_us: int,
         counters: CameraCounters,
         temperature_c: float,
         robot_pose: PoseCandidate | None = None,
     ) -> None:
-        self.frames.append((camera.id, message.SerializeToString(), capture_timestamp_us))
+        self.frames.append((camera.id, snapshot(message), capture_timestamp_us))
         self.robot_poses.append((camera.id, robot_pose, capture_timestamp_us))
 
     def close(self) -> None:

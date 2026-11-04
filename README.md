@@ -8,8 +8,8 @@ implementation, exposed to Python through pybind11.
 The current contract is the
 [offseason integration plan](docs/Offseason%20Spot%20Integration%20Simplification%20Plan.md).
 See the [documentation index](docs/README.md) for current operator instructions
-and dated implementation/qualification evidence. Beta uses a distinct v2
-protocol, durable robot profiles, and local Java integration in
+and dated implementation/qualification evidence. Robot communication uses
+[WPILib structs and native NT topics](docs/NetworkTables.md), durable robot profiles, and local Java integration in
 `offseason-2026/offseason-bot/src/main/java/frc/robot/vision`. One Vision subsystem
 owns four fixed camera roles and alliance-hub selection; Localization owns fusion
 and capture-time trust. Fusion defaults off; measured mounts and modes remain a
@@ -19,7 +19,7 @@ The [original design](<docs/Vision%20Solution%20(Spot)%20Specs.md>) and
 
 The config-file camera commands and NT server configuration below are headless
 development tools. They do not certify robot operation; beta robot mode uses the
-roboRIO as NT server and Jetson as client. See [v2 schema/API notes](apps/vision/proto/README.md).
+roboRIO as NT server and Jetson as client. See the [transport notes](docs/NetworkTables.md).
 
 ## Local development
 
@@ -142,7 +142,7 @@ The alpha configuration starts an NT4 server on the Jetson. For each camera,
 WPILib `Pose3d` topics. Add all four topics to an AdvantageScope 3D Field tab and
 select the 2026 REBUILT field. A frame with two or more known tags is solved
 jointly from all tag corners and emits one pose; single-tag IPPE ambiguity is
-retained in the protobuf diagnostics while the lowest-error candidate is used
+retained in the local diagnostics while the lowest-error candidate is used
 for the typed pose. The calibration files shipped in `apps/vision/config/` are explicitly
 provisional and should be replaced after camera calibration.
 Set each mount's `image_rotation_deg` to `0` or `180` in `apps/vision/config/spot.json`.
@@ -191,7 +191,7 @@ orientation before invoking the same detector boundary.
 ## Image regression and distortion diagnostics
 
 Run fixed images through orientation correction, the native detector, pose
-solving, mount conversion, and protobuf serialization:
+solving, mount conversion, and result serialization:
 
 ```sh
 uv run --no-sync pytest apps/vision/tests

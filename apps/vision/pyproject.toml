@@ -11,11 +11,12 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
   "opencv-contrib-python-headless>=4.9",
-  "protobuf>=7.35.1",
+  "robotpy-wpiutil>=2026.2.2,<2027",
+  "robotpy-wpimath>=2026.2.2,<2027",
 ]
 
 [project.optional-dependencies]
-nt = ["pyntcore>=2026.2.2,<2027", "robotpy-wpimath>=2026.2.2,<2027"]
+nt = ["pyntcore>=2026.2.2,<2027"]
 systemd = ["sdnotify>=0.3.2"]
 
 [project.scripts]
@@ -33,7 +34,6 @@ cache-keys = [
   { file = "../../pyproject.toml" },
   { file = "CMakeLists.txt" },
   { file = "cpp/**/*" },
-  { file = "proto/*.proto" },
   { file = "src/spot_vision/**/*.py" },
   { file = "src/spot_vision/**/*.pyi" },
   { file = "../../dist/dashboard/**/*" },

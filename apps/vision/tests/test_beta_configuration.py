@@ -3,10 +3,10 @@ import threading
 import pytest
 
 from beta_fixtures import manifest
+from spot_vision import protocol_models as wire
 from spot_vision.config import ConfigError
 from spot_vision.configuration import ConfigurationService
 from spot_vision.persistence import StateStore
-from spot_vision.proto import vision_v2_pb2 as wire
 
 
 def configured(tmp_path):

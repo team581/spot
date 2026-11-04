@@ -1,7 +1,7 @@
 package frc.robot.vision;
 
 import edu.wpi.first.math.geometry.Transform3d;
-import frc.robot.vision.generated.SpotProtos;
+import frc.robot.vision.data.*;
 import java.util.HashSet;
 import java.util.List;
 
@@ -52,23 +52,22 @@ public record SpotCameraConfig(
       return new Control(name, defaultValue, true, true);
     }
 
-    private SpotProtos.ControlPolicy toProto() {
-      return SpotProtos.ControlPolicy.newBuilder()
-          .setName(name)
-          .setDefaultValue(value)
-          .setRequired(required)
-          .setAllowOverride(allowOverride)
-          .build();
+    private ControlPolicy toData() {
+      return new ControlPolicy(name, value, allowOverride, required);
     }
   }
 
-  public SpotProtos.CameraDefinition definition() {
-    return SpotProtocol.camera(name, robotToCamera)
-        .setRequired(required)
-        .setImageRotationDeg(imageRotationDeg)
-        .addAllowedModes(capture.toProto())
-        .addAllControls(controls.stream().map(Control::toProto).toList())
-        .build();
+  public CameraDefinition definition() {
+    return new CameraDefinition(
+        name,
+        required,
+        true,
+        SpotProtocol.pose(new edu.wpi.first.math.geometry.Pose3d().transformBy(robotToCamera)),
+        imageRotationDeg,
+        java.util.List.of(capture.toData()),
+        controls.stream().map(Control::toData).toList(),
+        false,
+        "");
   }
 
   static void identifier(String value) {

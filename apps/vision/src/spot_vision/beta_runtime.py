@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 
+from . import protocol_models as wire
 from .beta_capture import BetaCapture
 from .beta_contract import content_hash
 from .beta_frames import FrameHub
@@ -31,7 +32,6 @@ from .native import create_detector
 from .optical_modes import mode_supported, preview_mode, preview_modes
 from .persistence import StateSnapshot, StateStore, canonical_bytes, durable_replace
 from .pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
-from .proto import vision_v2_pb2 as wire
 from .runtime_status import StatusSnapshot, build_status
 from .system_metrics import SystemMetrics
 from .timing_qualification import validate_timing, validate_timing_evidence

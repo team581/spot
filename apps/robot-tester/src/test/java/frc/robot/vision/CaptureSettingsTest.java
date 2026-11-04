@@ -10,22 +10,22 @@ final class CaptureSettingsTest {
   @Test
   void captureChangesGenerateDistinctStableModeMetadata() {
     var settings = new CaptureSettings(640, 480, 30, PixelFormat.MJPEG);
-    var mode = settings.toProto();
-    assertThat(mode.getWidth()).isEqualTo(640);
-    assertThat(mode.getHeight()).isEqualTo(480);
-    assertThat(mode.getFps()).isEqualTo(30);
-    assertThat(mode.getPixelFormat()).isEqualTo("MJPEG");
-    assertThat(mode.getId()).matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,63}");
-    assertThat(mode.getOpticalSignature()).matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,63}");
-    assertThat(mode).isEqualTo(new CaptureSettings(640, 480, 30, PixelFormat.MJPEG).toProto());
+    var mode = settings.toData();
+    assertThat(mode.width()).isEqualTo(640);
+    assertThat(mode.height()).isEqualTo(480);
+    assertThat(mode.fps()).isEqualTo(30);
+    assertThat(mode.pixelFormat()).isEqualTo("MJPEG");
+    assertThat(mode.id()).matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,63}");
+    assertThat(mode.opticalSignature()).matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,63}");
+    assertThat(mode).isEqualTo(new CaptureSettings(640, 480, 30, PixelFormat.MJPEG).toData());
     for (var changed :
         List.of(
             new CaptureSettings(1280, 480, 30, PixelFormat.MJPEG),
             new CaptureSettings(640, 720, 30, PixelFormat.MJPEG),
             new CaptureSettings(640, 480, 60, PixelFormat.MJPEG),
             new CaptureSettings(640, 480, 30, PixelFormat.YUYV))) {
-      assertThat(changed.toProto().getId()).isNotEqualTo(mode.getId());
-      assertThat(changed.toProto().getOpticalSignature()).isNotEqualTo(mode.getOpticalSignature());
+      assertThat(changed.toData().id()).isNotEqualTo(mode.id());
+      assertThat(changed.toData().opticalSignature()).isNotEqualTo(mode.opticalSignature());
     }
   }
 

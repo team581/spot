@@ -12,8 +12,9 @@ import pytest
 from spot_vision import service as module
 from spot_vision.cli import _recording_frames
 from spot_vision.config import load_config
+from spot_vision.headless_models import VisionFrame
 from spot_vision.models import CameraState, FramePacket
-from spot_vision.proto import VisionFrame
+from spot_vision.protocol import restore
 from spot_vision.transport import MemoryPublisher
 
 DATA = Path(__file__).parent / "data/regression"
@@ -26,8 +27,8 @@ class Publisher(MemoryPublisher):
         self.calibration_status = {}
         self.close_calls = 0
 
-    def publish_global(self, schema):
-        self.global_schema = schema
+    def publish_global(self):
+        self.global_schema = True
 
     def publish_calibration_status(self, camera, provisional):
         self.calibration_status[camera.id] = provisional
@@ -96,7 +97,7 @@ def test_four_camera_service_publishes_tag_then_no_tag_and_stops(environment, ro
                     )
                 )
             await_frames(publisher, sequence * 4)
-        decoded = [VisionFrame.FromString(frame) for _, frame, _ in publisher.frames]
+        decoded = [restore(VisionFrame, frame) for _, frame, _ in publisher.frames]
         for camera in cameras:
             first, empty = [frame for frame in decoded if frame.camera_id == camera.id]
             assert first.sequence == 1 and first.camera_frame_sequence == 11
@@ -134,7 +135,7 @@ def test_bad_pose_configuration_retains_raw_detection_output(environment, tmp_pa
         image = next(_recording_frames(DATA / "center.png", camera))
         service.slots[camera.id].put(FramePacket(camera.id, 1, 1, 1234, time.monotonic_ns(), image))
         await_frames(environment, 1)
-        message = VisionFrame.FromString(environment.frames[0][1])
+        message = restore(VisionFrame, environment.frames[0][1])
         assert [tag.id for tag in message.tags] == [1]
         assert not message.candidates
         assert message.tags[0].rejection_reason == (

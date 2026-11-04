@@ -11,6 +11,7 @@ from spot_vision.config import (
     NtConfig,
     ServiceConfig,
 )
+from spot_vision.headless_models import VisionFrame
 from spot_vision.models import (
     CameraCounters,
     DetectedFrame,
@@ -21,7 +22,7 @@ from spot_vision.models import (
     PoseMethod,
     PoseSolution,
 )
-from spot_vision.proto import VisionFrame
+from spot_vision.protocol import restore, snapshot
 from spot_vision.transport import NtPublisher, make_vision_frame
 
 
@@ -57,10 +58,10 @@ def fixtures(tmp_path):
     return config, camera, detected, solution
 
 
-def test_protobuf_round_trip_preserves_variable_results(tmp_path):
+def test_headless_frame_preserves_variable_results(tmp_path):
     config, camera, detected, solution = fixtures(tmp_path)
     message = make_vision_frame(config, camera, detected, solution, 4.0)
-    decoded = VisionFrame.FromString(message.SerializeToString())
+    decoded = restore(VisionFrame, snapshot(message))
     assert decoded.camera_id == "front"
     assert decoded.sequence == 4
     assert decoded.tags[0].corners_xy_px == [1, 2, 3, 4, 5, 6, 7, 8]
@@ -75,9 +76,12 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
 
     config, camera, detected, solution = fixtures(tmp_path)
     publisher = NtPublisher(NtConfig(enabled=True, mode="server"), [camera.id])
-    subscriber = publisher.instance.getRawTopic("/Spot/front/output/observations").subscribe(
-        "proto:spot.vision.v1.VisionFrame",
-        b"",
+    from spot_vision.structs import PoseEstimate
+
+    subscriber = publisher.instance.getStructArrayTopic(
+        "/Spot/front/output/observations", PoseEstimate
+    ).subscribe(
+        [],
         ntcore.PubSubOptions(keepDuplicates=True, pollStorage=16),
     )
     pose_subscriber = publisher.instance.getStructTopic(
@@ -126,7 +130,7 @@ def test_nt_publisher_keeps_duplicates_and_explicit_timestamp(tmp_path):
         timestamp + 2,
     ]
     assert [update.time for update in updates[-3:]] == [timestamp, timestamp + 1, timestamp + 2]
-    assert all(VisionFrame.FromString(update.value).sequence == 4 for update in updates[-3:])
+    assert all(len(update.value) == 1 and update.value[0].method == 2 for update in updates[-3:])
     assert [update.time for update in pose_updates[-2:]] == [timestamp, timestamp + 1]
     assert all(np.isclose(update.value.X(), 1.0) for update in pose_updates[-2:])
     assert [update.value for update in valid_updates[-3:]] == [True, True, False]
@@ -142,17 +146,17 @@ def test_distortion_transport_distinguishes_missing_calibration_and_preserves_me
 
     config, camera, detected, solution = fixtures(tmp_path)
     message = make_vision_frame(config, camera, detected, solution, 4.0)
-    assert not message.tags[0].HasField("distortion_factor_px")
+    assert message.tags[0].distortion_factor_px is None
     observed = replace(detected.batch.detections[0], distortion_factor_px=12.5)
     detected = replace(detected, batch=replace(detected.batch, detections=(observed,)))
     candidate = replace(
         solution.candidates[0], average_tag_distance_m=3.25, distortion_factor_px=12.5
     )
     solution = replace(solution, candidates=(candidate,))
-    message = VisionFrame.FromString(
-        make_vision_frame(config, camera, detected, solution, 4.0).SerializeToString()
+    message = restore(
+        VisionFrame, snapshot(make_vision_frame(config, camera, detected, solution, 4.0))
     )
-    assert message.tags[0].HasField("distortion_factor_px")
+    assert message.tags[0].distortion_factor_px is not None
     assert message.tags[0].distortion_factor_px == 12.5
     assert message.candidates[0].distortion_factor_px == 12.5
     assert message.candidates[0].average_tag_distance_m == 3.25

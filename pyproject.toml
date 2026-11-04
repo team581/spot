@@ -8,7 +8,6 @@ dev = [
     "sdnotify==0.3.2",
     "ty==0.0.96",
     "spot-vision[nt,systemd]",
-    "types-protobuf==7.35.1.20260906",
 ]
 
 [tool.uv.workspace]
@@ -24,14 +23,13 @@ addopts = "-ra"
 
 [tool.coverage.run]
 branch = true
-omit = ["*/tests/*", "*/proto/vision_pb2.py", "*/proto/vision_v2_pb2.py"]
+omit = ["*/tests/*"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 src = ["apps/vision/src", "apps/vision/tests"]
 include = ["apps/**/*.py", "tools/**/*.py", "pyproject.toml"]
-extend-exclude = ["apps/vision/src/spot_vision/proto/*_pb2.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
@@ -45,4 +43,3 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["apps/vision/src/spot_vision"]
-exclude = ["apps/vision/src/spot_vision/proto/*_pb2.py"]

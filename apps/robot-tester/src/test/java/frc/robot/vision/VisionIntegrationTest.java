@@ -11,7 +11,7 @@ import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import frc.robot.vision.generated.SpotProtos;
+import frc.robot.vision.data.*;
 import frc.robot.vision.results.VisionMeasurement;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 final class VisionIntegrationTest {
   static final class FakeIO implements VisionIO {
-    SpotProtos.Acknowledgement ack;
+    Acknowledgement ack;
     TagSelection selection;
     boolean available = true;
     int reads, closed;
@@ -69,16 +69,13 @@ final class VisionIntegrationTest {
     final Pose2d robot = new Pose2d(4, 4, Rotation2d.kZero);
     final List<SpotCameraProfiles.Camera> mounts = new ArrayList<>();
     final FakeIO io = new FakeIO();
-    final SpotProtos.Profile profile;
+    final Profile profile;
     final Vision vision;
     long sequence;
 
     Fixture(boolean fusion) {
-      var field =
-          SpotProtos.FieldLayout.newBuilder()
-              .setOrigin("blue-wall-right")
-              .setLengthM(16)
-              .setWidthM(8);
+      var fieldTags = new ArrayList<FieldTag>();
+      var field = new FieldLayout("blue-wall-right", 16, 8, java.util.List.of());
       for (int id : Set.of(1, 2, 3, 4, 5, 8, 9, 10, 11, 18, 19, 20, 21, 24, 25, 26, 27)) {
         int direction =
             switch (id) {
@@ -88,22 +85,12 @@ final class VisionIntegrationTest {
               default -> 2;
             };
         double x = new double[] {4, 4, 7, 1}[direction], y = new double[] {7, 1, 4, 4}[direction];
-        field.addTags(
-            SpotProtos.FieldTag.newBuilder()
-                .setId(id)
-                .setSizeM(.1651)
-                .setFieldToTag(SpotProtos.Pose.newBuilder().setXM(x).setYM(y).setZM(1).setQw(1)));
+        fieldTags.add(new FieldTag(id, new Pose(x, y, 1, 1, 0.0, 0.0, 0.0), .1651));
       }
+      field = TestRecords.with(field, "tags", fieldTags);
+      var cameraDefinitions = new ArrayList<CameraDefinition>();
       var builder =
-          SpotProtos.Profile.newBuilder()
-              .setSchemaVersion(2)
-              .setRobotId("synthetic")
-              .setField(field)
-              .setFusionEnabled(fusion)
-              .setRevisedTrustEnabled(true)
-              .setMaxAgeS(.25)
-              .setFutureToleranceS(.005)
-              .setReorderWindowS(.02);
+          new Profile("synthetic", java.util.List.of(), field, fusion, false, true, .25, .005, .02);
       int index = 0;
       for (String name : SpotCameraProfiles.CAMERA_NAMES) {
         double yaw = new double[] {Math.PI / 2, -Math.PI / 2, 0, Math.PI}[index];
@@ -111,43 +98,45 @@ final class VisionIntegrationTest {
             new Transform3d(new Translation3d(.1 * index, .1, .5), new Rotation3d(0, 0, yaw));
         mounts.add(SpotCameraProfiles.Camera.fixed(name, mount));
         index++;
-        builder.addCameras(
-            SpotProtocol.camera(name, mount)
-                .setRequired(true)
-                .addAllowedModes(
-                    SpotProtos.OpticalMode.newBuilder()
-                        .setId("synthetic-mode")
-                        .setWidth(640)
-                        .setHeight(480)
-                        .setFps(30)
-                        .setPixelFormat("YUYV")
-                        .setOpticalSignature("synthetic-lens")));
+        cameraDefinitions.add(
+            new CameraDefinition(
+                name,
+                true,
+                true,
+                SpotProtocol.pose(new Pose3d().transformBy(mount)),
+                0,
+                List.of(new OpticalMode("synthetic-mode", 640, 480, "YUYV", 30, "synthetic-lens")),
+                List.of(),
+                false,
+                ""));
       }
-      profile = builder.build();
+      profile = TestRecords.with(builder, "cameras", cameraDefinitions);
+      var cameraGenerations = new ArrayList<CameraGeneration>();
       var ack =
-          SpotProtos.Acknowledgement.newBuilder()
-              .setSchemaVersion(2)
-              .setRobotId("synthetic")
-              .setRobotSession("robot")
-              .setServiceSession("service")
-              .setManifestHash(SpotProtocol.hash(profile))
-              .setFieldHash(SpotProtocol.hash(profile.getField()))
-              .setRuntimeGeneration("runtime")
-              .setConnectionEpoch(1)
-              .setSyncEpoch(1)
-              .setApplied(true)
-              .setTagSelectionSupported(true);
-      for (var camera : profile.getCamerasList())
-        ack.addCameras(
-            SpotProtos.CameraGeneration.newBuilder()
-                .setCameraName(camera.getName())
-                .setBindingId(camera.getName())
-                .setBindingGeneration(1)
-                .setCalibrationHash("calibration")
-                .setCalibrationValid(true)
-                .setModeId("synthetic-mode")
-                .setOpticalSignature("synthetic-lens"));
-      io.ack = ack.build();
+          new Acknowledgement(
+              "synthetic",
+              "robot",
+              SpotProtocol.hash(profile),
+              "service",
+              1,
+              1,
+              "runtime",
+              SpotProtocol.hash(profile.field()),
+              java.util.List.of(),
+              true,
+              "",
+              true);
+      for (var camera : profile.cameras())
+        cameraGenerations.add(
+            new CameraGeneration(
+                camera.name(),
+                camera.name(),
+                1,
+                "calibration",
+                "synthetic-mode",
+                "synthetic-lens",
+                true));
+      io.ack = TestRecords.with(ack, "cameras", cameraGenerations);
       vision =
           new Vision(
               io,
@@ -187,29 +176,34 @@ final class VisionIntegrationTest {
               .findFirst()
               .orElseThrow()
               .mount();
+      var frameTags = new ArrayList<TagObservation>();
+      var frameCandidates = new ArrayList<PoseCandidate>();
       var frame =
-          SpotProtos.Observation.newBuilder()
-              .setSchemaVersion(2)
-              .setRobotId("synthetic")
-              .setRobotSession("robot")
-              .setServiceSession(io.ack.getServiceSession())
-              .setCaptureEpoch("capture")
-              .setConnectionEpoch(io.ack.getConnectionEpoch())
-              .setSyncEpoch(io.ack.getSyncEpoch())
-              .setSequence(++sequence)
-              .setCameraName(camera)
-              .setBindingId(camera)
-              .setBindingGeneration(1)
-              .setManifestHash(io.ack.getManifestHash())
-              .setFieldHash(io.ack.getFieldHash())
-              .setCalibrationHash("calibration")
-              .setCalibrationValid(true)
-              .setRuntimeGeneration(io.ack.getRuntimeGeneration())
-              .setModeId("synthetic-mode")
-              .setOpticalSignature("synthetic-lens")
-              .setTimestampSource("read-completion-local-nt")
-              .setTimestampUncertaintyS(.001)
-              .setTagSelectionGeneration(selectionGeneration);
+          new Observation(
+              "synthetic",
+              "robot",
+              io.ack.serviceSession(),
+              "capture",
+              io.ack.connectionEpoch(),
+              io.ack.syncEpoch(),
+              ++sequence,
+              camera,
+              camera,
+              1,
+              io.ack.manifestHash(),
+              io.ack.fieldHash(),
+              "calibration",
+              true,
+              io.ack.runtimeGeneration(),
+              "synthetic-mode",
+              "synthetic-lens",
+              0L,
+              "read-completion-local-nt",
+              .001,
+              java.util.List.of(),
+              java.util.List.of(),
+              new ProcessingTiming(0.0, 0.0, 0.0, 0.0),
+              selectionGeneration);
       if (tag > 0) {
         int companion =
             switch (tag) {
@@ -224,47 +218,32 @@ final class VisionIntegrationTest {
               case 21 -> 27;
               default -> 1;
             };
-        frame.addTags(
-            SpotProtos.TagObservation.newBuilder()
-                .setId(companion)
-                .setUsedForPose(true)
-                .addAllCornersXyPx(List.of(3., 1., 4., 1., 4., 2., 3., 2.)));
-        frame.addTags(
-            SpotProtos.TagObservation.newBuilder()
-                .setId(tag)
-                .setUsedForPose(true)
-                .addAllCornersXyPx(List.of(1., 1., 2., 1., 2., 2., 1., 2.)));
-        frame.addCandidates(
-            SpotProtos.PoseCandidate.newBuilder()
-                .setFieldToCamera(SpotProtocol.pose(new Pose3d(robot).transformBy(mount)))
-                .setMethod(SpotProtos.PoseCandidate.Method.MULTI_TAG_SQPNP)
-                .addTagIds(tag)
-                .addTagIds(companion)
-                .setAverageTagDistanceM(2)
-                .setReprojectionErrorPx(.1)
-                .setImageAreaFraction(.02)
-                .setImageSpreadFraction(.1));
+        frameTags.add(
+            new TagObservation(
+                companion, List.of(3., 1., 4., 1., 4., 2., 3., 2.), 0, 0.0, true, "", null));
+        frameTags.add(
+            new TagObservation(
+                tag, List.of(1., 1., 2., 1., 2., 2., 1., 2.), 0, 0.0, true, "", null));
+        frameCandidates.add(
+            new PoseCandidate(
+                SpotProtocol.pose(new Pose3d(robot).transformBy(mount)),
+                PoseMethod.MULTI_TAG_SQPNP,
+                java.util.List.of(tag, companion),
+                .1,
+                2,
+                .02,
+                .1,
+                0.0));
       }
-      io.samples.add(new VisionIO.Sample(frame.build(), capture));
+      io.samples.add(
+          new VisionIO.Sample(
+              TestRecords.with(frame, "tags", frameTags, "candidates", frameCandidates), capture));
     }
 
     void tick(double now) {
       time = now;
       vision.collectInputs();
       vision.robotPeriodic();
-    }
-  }
-
-  @Test void inputCollectionDelayDoesNotMakeArrivingFramesAppearFuture() {
-    try (var f = new Fixture(false)) {
-      f.io.duringRead = () -> f.time += .030;
-      f.frame("front", 0, f.time + .010);
-      f.vision.collectInputs();
-      assertThat(f.io.reasons).containsExactly(VisionProcessor.Reason.NO_TAGS);
-      // A genuinely future timestamp still fails the unchanged tolerance gate.
-      f.frame("front", 0, f.time + .100);
-      f.vision.collectInputs();
-      assertThat(f.io.reasons.get(f.io.reasons.size() - 1)).isEqualTo(VisionProcessor.Reason.FUTURE);
     }
   }
 
@@ -276,7 +255,7 @@ final class VisionIntegrationTest {
   @Test
   void fourStaticCamerasRecoverSamePoseAndDrainOnce() {
     try (var f = new Fixture(true)) {
-      assertThat(f.profile.getCamerasList().stream().map(SpotProtos.CameraDefinition::getName))
+      assertThat(f.profile.cameras().stream().map(CameraDefinition::name))
           .containsExactly("left", "right", "front", "back");
       for (int i = 0; i < 4; i++)
         f.frame(SpotCameraProfiles.CAMERA_NAMES.get(i), new int[] {2, 3, 1, 5}[i], 10.01);
@@ -337,6 +316,21 @@ final class VisionIntegrationTest {
   }
 
   @Test
+  void inputCollectionDelayDoesNotMakeArrivingFramesAppearFuture() {
+    try (var f = new Fixture(false)) {
+      f.io.duringRead = () -> f.time += .030;
+      f.frame("front", 0, f.time + .010);
+      f.vision.collectInputs();
+      assertThat(f.io.reasons).containsExactly(VisionProcessor.Reason.NO_TAGS);
+      // A genuinely future timestamp still fails the unchanged tolerance gate.
+      f.frame("front", 0, f.time + .100);
+      f.vision.collectInputs();
+      assertThat(f.io.reasons.get(f.io.reasons.size() - 1))
+          .isEqualTo(VisionProcessor.Reason.FUTURE);
+    }
+  }
+
+  @Test
   void oldPolicyExcludedIdsAndRejectedObservationsCannotAcquireHub() {
     try (var f = new Fixture(false)) {
       f.vision.hubTagsRequest();
@@ -373,7 +367,7 @@ final class VisionIntegrationTest {
       f.io.available = true;
       f.frame("front", 1, 10.09);
       f.tick(10.10);
-      f.io.ack = f.io.ack.toBuilder().setRuntimeGeneration("new-runtime").build();
+      f.io.ack = TestRecords.with(f.io.ack, "runtimeGeneration", "new-runtime");
       f.tick(10.12);
       assertThat(f.vision.drainMeasurements()).isEmpty();
       f.frame("front", 1, 10.13);
@@ -387,7 +381,7 @@ final class VisionIntegrationTest {
       f.tick(10.18);
       assertThat(f.vision.drainMeasurements()).isEmpty();
       assertThat(f.io.reasons).contains(VisionProcessor.Reason.RESET);
-      f.io.ack = f.io.ack.toBuilder().setTagSelectionSupported(false).build();
+      f.io.ack = TestRecords.with(f.io.ack, "tagSelectionSupported", false);
       f.tick(10.2);
       assertThat(f.vision.getStatus().available()).isFalse();
     }
