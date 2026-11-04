@@ -8,7 +8,7 @@ dist/
 __pycache__/
 .pytest_cache/
 .coverage
-cpp/cccl/
+apps/vision/cpp/cccl/
 wheelhouse/
 *.so
 *.dylib
@@ -18,4 +18,4 @@ wheelhouse/
 
 # Astro build state and dependencies.
 node_modules/
-docs-site/.astro/
+apps/docs/.astro/

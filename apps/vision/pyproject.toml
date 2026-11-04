@@ -1,0 +1,48 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "spot-vision"
+version = "0.2.1"
+description = "Jetson AprilTag vision service for Team 581"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "opencv-contrib-python-headless>=4.9",
+  "protobuf>=7.35.1",
+]
+
+[project.optional-dependencies]
+nt = ["pyntcore>=2026.2.2,<2027", "robotpy-wpimath>=2026.2.2,<2027"]
+systemd = ["sdnotify>=0.3.2"]
+
+[project.scripts]
+spot-vision = "spot_vision.cli:main"
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/spot_vision"]
+
+[tool.uv]
+# Inputs are relative to this workspace member.
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "../../pyproject.toml" },
+  { file = "CMakeLists.txt" },
+  { file = "cpp/**/*" },
+  { file = "proto/*.proto" },
+  { file = "tools/build_manifest.py" },
+  { file = "src/spot_vision/**/*.py" },
+  { file = "../dashboard/*.js" },
+  { file = "../../packages/camera-viewer/viewer.js" },
+  { file = "../dashboard/*.html" },
+  { file = "../dashboard/*.css" },
+  { file = "../dashboard/*.svg" },
+  { file = "../dashboard/*.woff2" },
+  { file = "../dashboard/*.md" },
+  { git = { commit = true } },
+  { file = "../../dist/jetson-docs/**/*" },
+]

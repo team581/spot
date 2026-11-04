@@ -1,23 +1,3 @@
-[build-system]
-requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
-build-backend = "scikit_build_core.build"
-
-[project]
-name = "spot-vision"
-version = "0.2.1"
-description = "Jetson AprilTag vision service for Team 581"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-  "numpy>=1.26",
-  "opencv-contrib-python-headless>=4.9",
-  "protobuf>=7.35.1",
-]
-
-[project.optional-dependencies]
-nt = ["pyntcore>=2026.2.2,<2027", "robotpy-wpimath>=2026.2.2,<2027"]
-systemd = ["sdnotify>=0.3.2"]
-
 [dependency-groups]
 dev = [
     "pyntcore==2026.2.2",
@@ -27,21 +7,18 @@ dev = [
     "ruff==0.17.3",
     "sdnotify==0.3.2",
     "ty==0.0.96",
+    "spot-vision[nt,systemd]",
 ]
 
-[project.scripts]
-spot-vision = "spot_vision.cli:main"
+[tool.uv.workspace]
+members = ["apps/vision"]
 
-[tool.scikit-build]
-cmake.build-type = "Release"
-build-dir = "build/{wheel_tag}"
-wheel.packages = ["src/spot_vision"]
-wheel.exclude = ["spot_vision/web/package.json", "spot_vision/web/node_modules/**"]
-sdist.include = ["dist/jetson-docs/**"]
+[tool.uv.sources]
+spot-vision = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "tools/tests"]
-pythonpath = ["src", "tests"]
+testpaths = ["apps/vision/tests", "apps/vision/tools/tests"]
+pythonpath = ["apps/vision/src", "apps/vision/tests"]
 addopts = "-ra"
 
 [tool.coverage.run]
@@ -51,32 +28,20 @@ omit = ["*/tests/*", "*/proto/vision_pb2.py", "*/proto/vision_v2_pb2.py"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-include = ["src/**/*.py", "tests/**/*.py", "tools/**/*.py", "deploy/**/*.py", "pyproject.toml"]
-extend-exclude = ["src/spot_vision/proto/*_pb2.py"]
+src = ["apps/vision/src", "apps/vision/tests"]
+include = ["apps/**/*.py", "tools/**/*.py", "pyproject.toml"]
+extend-exclude = ["apps/vision/src/spot_vision/proto/*_pb2.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
-
-[tool.uv]
-# uv run/sync rebuild the editable extension when its inputs change.
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "CMakeLists.txt" },
-  { file = "cpp/**/*" },
-  { file = "proto/*.proto" },
-  { file = "tools/build_manifest.py" },
-  { file = "src/spot_vision/web/**/*" },
-  { file = "src/spot_vision/**/*.py" },
-  { git = { commit = true } },
-  { file = "dist/jetson-docs/**/*" },
-]
 
 [tool.ty]
 baseline = "ty-baseline.json"
 
 [tool.ty.environment]
 python-platform = "linux"
+python-version = "3.10"
 
 [tool.ty.src]
-include = ["src/spot_vision"]
-exclude = ["src/spot_vision/proto/*_pb2.py"]
+include = ["apps/vision/src/spot_vision"]
+exclude = ["apps/vision/src/spot_vision/proto/*_pb2.py"]

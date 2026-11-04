@@ -19,7 +19,7 @@ The [original design](docs/Vision%20Solution%20(Spot)%20Specs.md) and
 
 The camera commands and Jetson NT server configuration below describe alpha
 development. They do not certify beta robot operation; beta robot mode uses the
-roboRIO as NT server and Jetson as client. See [v2 schema/API notes](proto/README.md).
+roboRIO as NT server and Jetson as client. See [v2 schema/API notes](apps/vision/proto/README.md).
 
 ## Local development
 
@@ -45,12 +45,20 @@ mise run test
 
 Use `mise run format:fix` and `mise run lint:fix` to apply automatic fixes.
 JavaScript dependencies share the root `pnpm-lock.yaml`; run `pnpm install` from
-the root. Python dependencies and development tools use `uv.lock`.
+the root. The uv workspace contains `apps/vision`, shares one root `.venv` and
+`uv.lock`, and installs the application through the root development group.
+`uv run --package spot-vision spot-vision --help` selects the vision application.
+
+Applications live in `apps/vision`, `apps/dashboard`, `apps/docs`,
+`apps/vscode-camera-preview`, and `apps/robot-tester`. Python tests and tools stay
+with the vision service; each JavaScript application owns its own tests and checks.
+`packages/camera-viewer` is shared by the dashboard and extension through pnpm
+`workspace:*` dependencies; CMake bundles the same renderer into the Python wheel.
 The workspace packages are `spot-docs`, `spot-camera-preview`, and `spot-dashboard`.
 Run `pnpm --filter spot-dashboard check`, `lint`, or `test` to check just the
-embedded dashboard. Its static assets remain in `src/spot_vision/web` and are
-bundled by CMake without a JavaScript build step. Dashboard tests remain in
-`tools/tests` and run from either the repository root or the dashboard package.
+embedded dashboard. Its source assets live in `apps/dashboard` and are
+bundled by CMake without a JavaScript build step. Dashboard tests live in
+`apps/dashboard/tests` and run from either the repository root or the dashboard package.
 
 ty checks the service against the Python 3.10 minimum. `ty-baseline.json` records
 existing type errors, including missing generated/native type information, so new
@@ -69,8 +77,8 @@ After a CUDA setup, preserve that selection with
 
 The installed beta runs with `spot-vision beta --installation
 /etc/spot-vision/beta.json` and serves its offline GUI on port 5808. Use the
-[operator guide](docs-site/src/content/docs/operator/connect.md) for connection, code-defined camera
-names, calibration and verification; [deployment and rollback](docs-site/src/content/docs/operator/deployment.md)
+[operator guide](apps/docs/src/content/docs/operator/connect.md) for connection, code-defined camera
+names, calibration and verification; [deployment and rollback](apps/docs/src/content/docs/operator/deployment.md)
 describes immutable CUDA releases and explicit activation. Offline setup can use
 a cached robot profile, while current robot session/disabled eligibility gates
 mutations and valid output. Supply measured mounts in robot code before rollout.
@@ -80,11 +88,11 @@ contains the installed CPU host checks and light/dark GUI comparisons. Follow th
 [remaining hardware trials](docs/beta-verification/Hardware%20Qualification.md)
 before declaring beta robot-ready or enabling fusion, heading or revised trust.
 
-See the [camera configuration reference](docs-site/src/content/docs/operator/camera-configuration.md)
+See the [camera configuration reference](apps/docs/src/content/docs/operator/camera-configuration.md)
 for the SWYFT/Arducam pixel counts, Java settings, control values and units.
 
 For a bare roboRIO and Jetson without a switch, follow the
-[robot integration session](docs-site/src/content/docs/operator/robot-integration-session.md):
+[robot integration session](apps/docs/src/content/docs/operator/robot-integration-session.md):
 bring-up, setup friction, disconnect/restart recovery, and evidence-driven agent repairs.
 
 ## Jetson prerequisites
@@ -105,8 +113,8 @@ sudo apt install cmake ninja-build python3-dev python3-venv \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
 ```
 
-Before a source installation, [set up the docs tooling](tools/README.md#operator-documentation)
-and run `pnpm --dir docs-site build:jetson`. The generated `dist/jetson-docs/`
+Before a source installation, [set up the docs tooling](apps/vision/tools/README.md#operator-documentation)
+and run `pnpm --dir apps/docs build:jetson`. The generated `dist/jetson-docs/`
 must accompany the checkout used for the wheel build. Node and pnpm are build
 tools; installed Jetson releases serve the bundled site without them.
 
@@ -136,24 +144,24 @@ uv sync --locked -Ccmake.define.SPOT_BUILD_CUDA=OFF
 
 ## First camera test
 
-Edit `config/spot.json` with the camera's persistent `/dev/v4l/by-id` name,
+Edit `apps/vision/config/spot.json` with the camera's persistent `/dev/v4l/by-id` name,
 then enumerate what the driver actually supports:
 
 ```sh
-.venv/bin/spot-vision camera-modes --config config/spot.json --camera 1
+.venv/bin/spot-vision camera-modes --config apps/vision/config/spot.json --camera 1
 ```
 
 Run the headless proof. Each output line contains tag IDs, corners, hamming,
 decision margin, FPS, timing, and drops:
 
 ```sh
-.venv/bin/spot-vision probe --config config/spot.json --camera 1
+.venv/bin/spot-vision probe --config apps/vision/config/spot.json --camera 1
 ```
 
 Run the service:
 
 ```sh
-.venv/bin/spot-vision daemon --config config/spot.json
+.venv/bin/spot-vision daemon --config apps/vision/config/spot.json
 ```
 
 The alpha configuration starts an NT4 server on the Jetson. For each camera,
@@ -162,9 +170,9 @@ WPILib `Pose3d` topics. Add all four topics to an AdvantageScope 3D Field tab an
 select the 2026 REBUILT field. A frame with two or more known tags is solved
 jointly from all tag corners and emits one pose; single-tag IPPE ambiguity is
 retained in the protobuf diagnostics while the lowest-error candidate is used
-for the typed pose. The calibration files shipped in `config/` are explicitly
+for the typed pose. The calibration files shipped in `apps/vision/config/` are explicitly
 provisional and should be replaced after camera calibration.
-Set each mount's `image_rotation_deg` to `0` or `180` in `config/spot.json`.
+Set each mount's `image_rotation_deg` to `0` or `180` in `apps/vision/config/spot.json`.
 Spot corrects capture frames before detection, pose solving, and preview,
 and transforms raw-sensor calibration intrinsics into the corrected pixel frame.
 `robot_from_camera` describes that corrected camera frame. Use the actual
@@ -183,7 +191,7 @@ It manages the installed Jetson service for the duration of the session, shows
 per-camera terminal telemetry, and opens the camera and pose dashboard automatically:
 
 ```sh
-python3 tools/probe_dashboard.py --alpha
+python3 apps/vision/tools/probe_dashboard.py --alpha
 ```
 
 The normal pose publisher continues running while the wizard uses its shared camera
@@ -191,7 +199,7 @@ frames, so no second process competes for the USB devices. The dashboard at `/`
 shows calibration status, live tag outlines and projected 3D orientation axes,
 and a field pose map. Its workspace controls save layout and overlay preferences
 in the browser. Open the wizard at `/calibration` or the simple grid at `/viewer`. This alpha web interface is never started by
-systemd and must only be used on a trusted network. See [`tools/README.md`](tools/README.md).
+systemd and must only be used on a trusted network. See [`apps/vision/tools/README.md`](apps/vision/tools/README.md).
 
 ## ChArUco calibration
 
@@ -200,9 +208,9 @@ and capture a folder of sharp board views for each camera. The headless solver
 is also available for repeatable runs:
 
 ```sh
-python3 tools/calibration_ui.py
+python3 apps/vision/tools/calibration_ui.py
 .venv/bin/spot-vision calibrate-charuco --input-dir captures/camera-1 \
-  --output config/calibration-1.json --camera-id 1 --width 1280 --height 720
+  --output apps/vision/config/calibration-1.json --camera-id 1 --width 1280 --height 720
 ```
 
 Board dimensions, dictionary, distortion model, minimum frame count, and
@@ -213,10 +221,10 @@ the objective, quality gates, JSON schema, and four-camera save behavior.
 ## Offline tools
 
 ```sh
-spot-vision replay --config config/spot.json --camera 1 --input recording.mp4
-spot-vision compare --config config/spot.json --camera 1 --input recording.mp4
-spot-vision benchmark --config config/spot.json --camera 1 --input recording.mp4
-spot-vision validate-calibration --config config/spot.json --camera 1
+spot-vision replay --config apps/vision/config/spot.json --camera 1 --input recording.mp4
+spot-vision compare --config apps/vision/config/spot.json --camera 1 --input recording.mp4
+spot-vision benchmark --config apps/vision/config/spot.json --camera 1 --input recording.mp4
+spot-vision validate-calibration --config apps/vision/config/spot.json --camera 1
 ```
 
 Recordings must match the configured resolution and contain raw camera orientation.
@@ -229,9 +237,9 @@ Run fixed images through orientation correction, the native detector, pose
 solving, mount conversion, and protobuf serialization:
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m pytest tests
+PYTHONPATH=apps/vision/src .venv/bin/python -m pytest tests
 .venv/bin/python -m spot_vision image-regression \
-  --manifest tests/data/regression/manifest.json --backend cpu \
+  --manifest apps/vision/tests/data/regression/manifest.json --backend cpu \
   --repeats 20 --output /tmp/spot-regression.json
 ```
 
@@ -239,7 +247,7 @@ On the Orin, repeat with `--backend cuda`. CUDA regression disables CPU fallback
 so a failed GPU cannot masquerade as a passing GPU test. The checked-in synthetic
 PNG fixtures cover central/peripheral distortion, multiple tags, rotated sensor
 capture, and no tags. Their independent OpenCV projection oracle and generator
-are in `tests/data/regression/`. Reports contain corner, translation, rotation and
+are in `apps/vision/tests/data/regression/`. Reports contain corner, translation, rotation and
 reprojection errors plus mean/p95 pipeline timings and detector/solver timings.
 Accuracy uses explicit per-case gates; timings are measurements, not brittle
 cross-machine pass/fail thresholds. Add real camera images with measured ground
@@ -285,7 +293,7 @@ required host-to-device CUDA transfer still occurs.
 
 The expanded test suite, repeatable live verifier, latest alpha results, and
 remaining checks are documented in [Alpha Verification](docs/Alpha%20Verification.md).
-`PYTHONPATH=src .venv/bin/python -m pytest` runs both the core and alpha-tool
+`PYTHONPATH=apps/vision/src .venv/bin/python -m pytest` runs both the core and alpha-tool
 tests. Run `pnpm --filter spot-dashboard test` for the dashboard JavaScript tests.
 
 CUDA execution and Linux UVC qualification require the target Orin. CPU detector,
@@ -296,4 +304,4 @@ four-camera fairness test on the target Orin.
 
 ## Offline camera preview
 
-See the [VS Code camera preview guide](docs-site/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.
+See the [VS Code camera preview guide](apps/docs/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.

@@ -1,7 +1,6 @@
 packages:
-  - docs-site
-  - src/spot_vision/web
-  - tools/vscode-camera-preview
+  - apps/*
+  - packages/*
 
 minimumReleaseAgeExclude:
   - '@team581/starlight-theme@0.0.0'

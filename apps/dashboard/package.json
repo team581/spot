@@ -1,0 +1,15 @@
+{
+	"name": "spot-dashboard",
+	"private": true,
+	"scripts": {
+		"check": "node --check app.js && node --check theme.js && node --check ui-state.js",
+		"format": "oxfmt --check",
+		"format:fix": "oxfmt",
+		"lint": "oxlint",
+		"lint:fix": "oxlint --fix",
+		"test": "node --test tests/*.cjs"
+	},
+	"dependencies": {
+		"@spot/camera-viewer": "workspace:*"
+	}
+}

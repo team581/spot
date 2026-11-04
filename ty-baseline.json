@@ -1,7 +1,7 @@
 {
   "version": 0,
   "files": {
-    "src/spot_vision/beta_app.py": [
+    "apps/vision/src/spot_vision/beta_app.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 4,
@@ -9,7 +9,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_calibration.py": [
+    "apps/vision/src/spot_vision/beta_calibration.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 36,
@@ -35,7 +35,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_capture.py": [
+    "apps/vision/src/spot_vision/beta_capture.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 24,
@@ -43,7 +43,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_contract.py": [
+    "apps/vision/src/spot_vision/beta_contract.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 21,
@@ -75,7 +75,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_processing.py": [
+    "apps/vision/src/spot_vision/beta_processing.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 21,
@@ -89,7 +89,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_runtime.py": [
+    "apps/vision/src/spot_vision/beta_runtime.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 22,
@@ -259,7 +259,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_transport.py": [
+    "apps/vision/src/spot_vision/beta_transport.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 21,
@@ -369,7 +369,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/beta_web.py": [
+    "apps/vision/src/spot_vision/beta_web.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 39,
@@ -485,7 +485,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/camera_controls.py": [
+    "apps/vision/src/spot_vision/camera_controls.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 16,
@@ -493,7 +493,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/capture.py": [
+    "apps/vision/src/spot_vision/capture.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 67,
@@ -507,7 +507,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/config.py": [
+    "apps/vision/src/spot_vision/config.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 16,
@@ -527,7 +527,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/configuration.py": [
+    "apps/vision/src/spot_vision/configuration.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 25,
@@ -595,7 +595,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/devices.py": [
+    "apps/vision/src/spot_vision/devices.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 16,
@@ -693,7 +693,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/native.py": [
+    "apps/vision/src/spot_vision/native.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 17,
@@ -713,7 +713,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/persistence.py": [
+    "apps/vision/src/spot_vision/persistence.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 72,
@@ -727,7 +727,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/pose.py": [
+    "apps/vision/src/spot_vision/pose.py": [
       {
         "rule": "no-matching-overload",
         "startColumn": 17,
@@ -765,7 +765,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/proto/__init__.py": [
+    "apps/vision/src/spot_vision/proto/__init__.py": [
       {
         "rule": "unresolved-import",
         "startColumn": 24,
@@ -791,7 +791,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/queues.py": [
+    "apps/vision/src/spot_vision/queues.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 33,
@@ -799,7 +799,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/regression.py": [
+    "apps/vision/src/spot_vision/regression.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 30,
@@ -813,7 +813,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/release.py": [
+    "apps/vision/src/spot_vision/release.py": [
       {
         "rule": "unresolved-import",
         "startColumn": 18,
@@ -821,7 +821,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/service.py": [
+    "apps/vision/src/spot_vision/service.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 12,
@@ -835,7 +835,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/transport.py": [
+    "apps/vision/src/spot_vision/transport.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 5,
@@ -867,7 +867,7 @@
         "lineCount": 1
       }
     ],
-    "src/spot_vision/v4l2_capture.py": [
+    "apps/vision/src/spot_vision/v4l2_capture.py": [
       {
         "rule": "not-iterable",
         "startColumn": 24,

@@ -1,0 +1,15 @@
+{
+	"name": "@spot/camera-viewer",
+	"version": "0.0.0",
+	"private": true,
+	"type": "commonjs",
+	"main": "./viewer.js",
+	"exports": "./viewer.js",
+	"scripts": {
+		"check": "node --check viewer.js",
+		"format": "oxfmt --check",
+		"format:fix": "oxfmt",
+		"lint": "oxlint",
+		"lint:fix": "oxlint --fix"
+	}
+}

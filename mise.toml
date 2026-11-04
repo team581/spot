@@ -48,5 +48,5 @@ run = [
   "uv run --no-sync ruff check",
   "uv run --no-sync ty check",
   "uv run --no-sync pytest",
-  "uv build --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "uv build --package spot-vision --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
 ]

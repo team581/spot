@@ -7,6 +7,23 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "spot-vision",
+]
+
+[manifest.dependency-groups]
+dev = [
+    { name = "pyntcore", specifier = "==2026.2.2" },
+    { name = "pytest", specifier = "==9.1.1" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
+    { name = "robotpy-wpimath", specifier = "==2026.2.2" },
+    { name = "ruff", specifier = "==0.17.3" },
+    { name = "sdnotify", specifier = "==0.3.2" },
+    { name = "spot-vision", extras = ["nt", "systemd"], editable = "apps/vision" },
+    { name = "ty", specifier = "==0.0.96" },
+]
+
 [[package]]
 name = "colorama"
 version = "0.4.6"
@@ -768,7 +785,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/ce/d8/9fdc36b2a912bf781
 [[package]]
 name = "spot-vision"
 version = "0.2.1"
-source = { editable = "." }
+source = { editable = "apps/vision" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
@@ -786,17 +803,6 @@ systemd = [
     { name = "sdnotify" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pyntcore" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "robotpy-wpimath" },
-    { name = "ruff" },
-    { name = "sdnotify" },
-    { name = "ty" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
@@ -807,17 +813,6 @@ requires-dist = [
     { name = "sdnotify", marker = "extra == 'systemd'", specifier = ">=0.3.2" },
 ]
 provides-extras = ["nt", "systemd"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyntcore", specifier = "==2026.2.2" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "robotpy-wpimath", specifier = "==2026.2.2" },
-    { name = "ruff", specifier = "==0.17.3" },
-    { name = "sdnotify", specifier = "==0.3.2" },
-    { name = "ty", specifier = "==0.0.96" },
-]
 
 [[package]]
 name = "tomli"
