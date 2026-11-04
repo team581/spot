@@ -1,6 +1,6 @@
 import pytest
-from beta_fixtures import manifest
 
+from beta_fixtures import manifest
 from spot_vision.beta_contract import content_hash, parse_manifest, validate_manifest
 from spot_vision.config import ConfigError
 

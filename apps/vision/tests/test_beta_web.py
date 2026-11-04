@@ -202,7 +202,6 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
     from concurrent.futures import ThreadPoolExecutor
 
     from beta_fixtures import manifest
-
     from spot_vision.configuration import ConfigurationService
     from spot_vision.persistence import StateStore
     from spot_vision.proto import vision_v2_pb2 as wire

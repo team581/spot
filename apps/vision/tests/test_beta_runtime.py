@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from beta_fixtures import manifest
 
+from beta_fixtures import manifest
 from spot_vision.beta_runtime import BetaRuntime
 from spot_vision.clock import ClockGate
 from spot_vision.config import ConfigError, NtConfig

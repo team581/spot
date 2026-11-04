@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from beta_fixtures import manifest
 
+from beta_fixtures import manifest
 from spot_vision.beta_transport import BetaNtTransport, make_observation
 from spot_vision.clock import nt_now_us
 from spot_vision.config import NtConfig
