@@ -53,7 +53,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version-file: .tool-versions
       - uses: gradle/actions/setup-gradle@v6
       - name: Assemble
         run: ./gradlew assemble
@@ -91,6 +91,9 @@ jobs:
     needs: javascript
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
+    env:
+      # The setup actions manage these tools; mise only runs the application checks.
+      MISE_DISABLE_TOOLS: java,uv
     steps:
       - uses: useblacksmith/checkout@v1
       - uses: actions/download-artifact@v8
@@ -100,8 +103,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-          python-version: '3.12'
-          version: '0.13.7'
+          version-file: .tool-versions
       - uses: jdx/mise-action@v5
         with:
           install: false

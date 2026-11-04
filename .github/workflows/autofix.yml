@@ -29,8 +29,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-          python-version: '3.12'
-          version: '0.13.7'
+          version-file: .tool-versions
       - run: uv sync --locked --no-install-workspace
       - run: pnpm --filter spot-docs exec astro sync
       - run: pnpm format:fix

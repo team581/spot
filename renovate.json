@@ -40,7 +40,7 @@
 		},
 		{
 			"groupName": "development tooling dependencies",
-			"matchFileNames": ["package.json", "mise.toml"],
+			"matchFileNames": ["package.json", "mise.toml", ".tool-versions"],
 			"separateMajorMinor": true
 		},
 		{
@@ -50,7 +50,7 @@
 		},
 		{
 			"description": "Automerge non-major updates covered by CI",
-			"matchManagers": ["npm", "github-actions", "mise"],
+			"matchManagers": ["npm", "github-actions", "mise", "asdf"],
 			"matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
 			"automerge": true
 		},
