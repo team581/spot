@@ -1,1 +1,13 @@
-{"compilerOptions":{"target":"ES2022","module":"commonjs","outDir":"out","strict":true,"esModuleInterop":true,"skipLibCheck":true,"allowJs":true,"types":["node","vscode"]},"include":["extension.ts","project.cjs"]}
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "commonjs",
+		"outDir": "out",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"allowJs": true,
+		"types": ["node", "vscode"]
+	},
+	"include": ["extension.ts", "project.cjs"]
+}

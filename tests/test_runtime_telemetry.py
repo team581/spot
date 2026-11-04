@@ -1,4 +1,5 @@
 """Optional system integrations must stay usable with missing or malformed inputs."""
+
 import json
 import logging
 import math
@@ -11,12 +12,15 @@ from spot_vision import clock, health
 from spot_vision.logging_utils import JsonFormatter
 
 
-@pytest.mark.parametrize("readings,expected", [(["42500", "51000"], 51.),
-                                              (["42.5", "48"], 48.),
-                                              (["bad", "37000"], 37.)])
+@pytest.mark.parametrize(
+    "readings,expected",
+    [(["42500", "51000"], 51.0), (["42.5", "48"], 48.0), (["bad", "37000"], 37.0)],
+)
 def test_temperature_takes_hottest_readable_sensor(monkeypatch, readings, expected):
     monkeypatch.setattr(health.glob, "glob", lambda _: list(range(len(readings))))
-    monkeypatch.setattr(health, "Path", lambda index: SimpleNamespace(read_text=lambda: readings[index]))
+    monkeypatch.setattr(
+        health, "Path", lambda index: SimpleNamespace(read_text=lambda: readings[index])
+    )
     assert health.jetson_temperature_c() == expected
 
 
@@ -60,8 +64,9 @@ def test_json_log_includes_exception_and_interpolated_message():
     try:
         raise RuntimeError("capture failed")
     except RuntimeError:
-        record = logging.LogRecord("spot", logging.ERROR, __file__, 1,
-                                   "camera %s", ("4",), sys.exc_info())
+        record = logging.LogRecord(
+            "spot", logging.ERROR, __file__, 1, "camera %s", ("4",), sys.exc_info()
+        )
     payload = json.loads(JsonFormatter().format(record))
     assert payload["message"] == "camera 4"
     assert "RuntimeError: capture failed" in payload["exception"]

@@ -77,6 +77,7 @@ def validate_request(operation: str, payload: dict) -> None:
         raise ConfigError("Unknown or missing request fields")
     if operation == "network/apply":
         from .networking import validate_change
+
         validate_change(payload)
     if operation in {"network/confirm", "network/revert"} and not (
         isinstance(payload["token"], str) and re.fullmatch(r"[a-f0-9]{32}", payload["token"])
@@ -206,7 +207,10 @@ class Handler(BaseHTTPRequestHandler):
             (
                 parsed.hostname not in self.server.allowed_hosts
                 and parsed.hostname != self.connection.getsockname()[0]
-                and parsed.hostname != getattr(getattr(self.server.runtime, "network", None), "snapshot", {}).get("hostname")
+                and parsed.hostname
+                != getattr(getattr(self.server.runtime, "network", None), "snapshot", {}).get(
+                    "hostname"
+                )
             )
             or parsed.username
             or parsed.password
@@ -218,7 +222,9 @@ class Handler(BaseHTTPRequestHandler):
             raise PermissionError("Host is not an installed Spot address")
         return host
 
-    def _reply(self, status: int, payload, *, mime="application/json", cookie=None, docs=False) -> None:
+    def _reply(
+        self, status: int, payload, *, mime="application/json", cookie=None, docs=False
+    ) -> None:
         if mime == "application/json" and not isinstance(payload, bytes):
             payload = json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
         self.send_response(status)
@@ -230,8 +236,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header(
             "Content-Security-Policy",
             # Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly.
-            "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" if docs else
-            "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+            "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+            if docs
+            else "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         )
         if cookie:
             self.send_header(

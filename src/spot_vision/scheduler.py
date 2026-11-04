@@ -13,10 +13,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 class FairDetectorScheduler(threading.Thread):
-    def __init__(self, camera_ids: list[str], slots: dict[str, LatestFrameSlot],
-                 detectors: dict[str, Detector], counters: dict[str, CameraCounters],
-                 output: BoundedDropOldestQueue[DetectedFrame], wake_event: threading.Event,
-                 stop_event: threading.Event) -> None:
+    def __init__(
+        self,
+        camera_ids: list[str],
+        slots: dict[str, LatestFrameSlot],
+        detectors: dict[str, Detector],
+        counters: dict[str, CameraCounters],
+        output: BoundedDropOldestQueue[DetectedFrame],
+        wake_event: threading.Event,
+        stop_event: threading.Event,
+    ) -> None:
         super().__init__(name="detector-scheduler", daemon=True)
         self.camera_ids = camera_ids
         self.slots = slots
@@ -57,8 +63,9 @@ class FairDetectorScheduler(threading.Thread):
                     if camera_counters.configuration_error:
                         camera_counters.state = CameraState.CONFIG_MISMATCH
                     else:
-                        camera_counters.state = (CameraState.RUNNING if batch.detections
-                                                 else CameraState.NO_TARGETS)
+                        camera_counters.state = (
+                            CameraState.RUNNING if batch.detections else CameraState.NO_TARGETS
+                        )
                     if self.output.put(result):
                         camera_counters.result_queue_drops += 1
                 except Exception as exc:

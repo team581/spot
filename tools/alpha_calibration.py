@@ -1,17 +1,16 @@
 """ChArUco calibration web controller for the alpha daemon's shared frames."""
+
 from __future__ import annotations
 
+import copy
 import json
 import secrets
-import copy
 import threading
 import time
 from dataclasses import asdict
 from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import unquote
-
-import numpy as np
 
 from spot_vision.calibration_session import CalibrationSession
 from spot_vision.charuco import CalibrationOptions, CharucoBoardConfig
@@ -24,8 +23,7 @@ def _json(status: int, value: object):
 class AlphaCalibration:
     """Own calibration state while VisionService remains the sole camera owner."""
 
-    def __init__(self, config, latest_frame, session_root: str | Path,
-                 page: str | Path) -> None:
+    def __init__(self, config, latest_frame, session_root: str | Path, page: str | Path) -> None:
         self.config = config
         self.camera_ids = [camera.id for camera in config.cameras if camera.enabled]
         self._latest_frame = latest_frame
@@ -41,17 +39,19 @@ class AlphaCalibration:
     def _source(self, camera_id: str):
         def read():
             import cv2
+
             raw = self._latest_frame(camera_id)
             if raw.ndim == 3 and raw.shape[2] == 2:
                 return cv2.cvtColor(raw, cv2.COLOR_YUV2GRAY_YUY2)
             return raw
+
         return read
 
     def _camera_id(self, path: str) -> str | None:
         prefix, suffix = "/api/camera/", "/frame.jpg"
         if not path.startswith(prefix) or not path.endswith(suffix):
             return None
-        return unquote(path[len(prefix):-len(suffix)])
+        return unquote(path[len(prefix) : -len(suffix)])
 
     def _storage_result(self, camera_id: str, result: dict) -> dict:
         """Convert corrected-frame intrinsics back to the configured raw sensor frame."""
@@ -73,12 +73,15 @@ class AlphaCalibration:
         if path == "/":
             return HTTPStatus.OK, "text/html; charset=utf-8", {}, self._page
         if path == "/api/cameras":
-            return _json(HTTPStatus.OK, {
-                "token": self.token,
-                "cameras": self.camera_ids,
-                "viewer_url": "/viewer",
-                "preview_urls": self.preview_urls,
-            })
+            return _json(
+                HTTPStatus.OK,
+                {
+                    "token": self.token,
+                    "cameras": self.camera_ids,
+                    "viewer_url": "/viewer",
+                    "preview_urls": self.preview_urls,
+                },
+            )
         if path == "/api/session/status":
             return _json(HTTPStatus.OK, self._status())
         camera_id = self._camera_id(path)
@@ -91,6 +94,7 @@ class AlphaCalibration:
             if frame is None:
                 raise RuntimeError(f"camera {camera_id} has not produced a frame yet")
             import cv2
+
             preview = frame.copy()
             ok, encoded = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 78])
             if not ok:
@@ -111,10 +115,20 @@ class AlphaCalibration:
                 self.session = CalibrationSession(self.camera_ids, self._root, sources)
                 board_data = payload.get("board", {})
                 option_data = payload.get("options", {})
-                board = CharucoBoardConfig(**{
-                    key: board_data[key] for key in asdict(CharucoBoardConfig()) if key in board_data})
-                options = CalibrationOptions(**{
-                    key: option_data[key] for key in asdict(CalibrationOptions()) if key in option_data})
+                board = CharucoBoardConfig(
+                    **{
+                        key: board_data[key]
+                        for key in asdict(CharucoBoardConfig())
+                        if key in board_data
+                    }
+                )
+                options = CalibrationOptions(
+                    **{
+                        key: option_data[key]
+                        for key in asdict(CalibrationOptions())
+                        if key in option_data
+                    }
+                )
                 try:
                     self.session.configure(board, options)
                 except (TypeError, ValueError, RuntimeError):
@@ -122,10 +136,15 @@ class AlphaCalibration:
                     raise
                 self.results.clear()
                 session = self.session
-                threading.Thread(target=self._capture_loop, args=(session,),
-                                 name="calibration-capture", daemon=True).start()
-                return _json(HTTPStatus.OK, {
-                    "session_id": self.session.id, "cameras": self.camera_ids})
+                threading.Thread(
+                    target=self._capture_loop,
+                    args=(session,),
+                    name="calibration-capture",
+                    daemon=True,
+                ).start()
+                return _json(
+                    HTTPStatus.OK, {"session_id": self.session.id, "cameras": self.camera_ids}
+                )
             if path == "/api/session/close":
                 self.close()
                 return _json(HTTPStatus.OK, {"ok": True})
@@ -161,8 +180,10 @@ class AlphaCalibration:
                 if camera.calibration is None:
                     raise ValueError("camera has no configured calibration path")
                 self.session.save(
-                    {camera_id: result}, {camera_id: str(camera.calibration)},
-                    bool(payload.get("override", False)))
+                    {camera_id: result},
+                    {camera_id: str(camera.calibration)},
+                    bool(payload.get("override", False)),
+                )
                 return _json(HTTPStatus.OK, {"ok": True, "saved": camera_id})
             else:
                 return _json(HTTPStatus.NOT_FOUND, {"error": "unknown endpoint"})
@@ -187,12 +208,14 @@ class AlphaCalibration:
                         self._compute_async(camera_id, session)
                 except Exception as exc:
                     camera.error = f"Capture unavailable: {exc}"
-            time.sleep(max(.05, .5 - (time.monotonic() - started)))
+            time.sleep(max(0.05, 0.5 - (time.monotonic() - started)))
 
     def _compute_async(self, camera_id: str, expected_session=None) -> None:
         with self._jobs_lock:
             session = self.session
-            if session is None or (expected_session is not None and session is not expected_session):
+            if session is None or (
+                expected_session is not None and session is not expected_session
+            ):
                 return
             camera = session.cameras[camera_id]
             key = (session.id, camera_id)
@@ -213,6 +236,7 @@ class AlphaCalibration:
             finally:
                 with self._jobs_lock:
                     self._jobs.discard(key)
+
         threading.Thread(target=solve, name=f"calibrate-{camera_id}", daemon=True).start()
 
     def _status(self) -> dict:
@@ -221,7 +245,9 @@ class AlphaCalibration:
         with self._jobs_lock:
             states = self.session.status()
             for camera_id, state in states.items():
-                state["calibrating"] = state["calibrating"] or (self.session.id, camera_id) in self._jobs
+                state["calibrating"] = (
+                    state["calibrating"] or (self.session.id, camera_id) in self._jobs
+                )
             return {"session_id": self.session.id, "cameras": states}
 
     def close(self) -> None:

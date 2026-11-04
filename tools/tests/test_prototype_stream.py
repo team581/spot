@@ -25,7 +25,7 @@ def test_index_contains_all_camera_ids_and_quotes_html_and_urls():
         page = hub.index()
         assert "front" in page and "rear / &lt;one&gt;" in page
         assert "/snapshot/rear%20%2F%20%3Cone%3E" in page
-        assert "data-camera=\"rear / &lt;one&gt;\"" in page
+        assert 'data-camera="rear / &lt;one&gt;"' in page
     finally:
         hub.close()
 
@@ -51,26 +51,26 @@ def test_publish_is_idle_without_clients_and_latest_only_with_client():
 
 
 def test_result_publish_releases_camera_lock_before_waiting_for_encoder():
-    from spot_vision.models import DetectionBatch, DetectedFrame, FramePacket, PoseSolution
+    from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 
     hub = stream.StreamHub(["front"])
     camera = hub.cameras["front"]
-    packet = FramePacket("front", 3, 3, 0, time.monotonic_ns(),
-                         np.zeros((8, 16, 2), dtype=np.uint8))
+    packet = FramePacket(
+        "front", 3, 3, 0, time.monotonic_ns(), np.zeros((8, 16, 2), dtype=np.uint8)
+    )
     detected = DetectedFrame(packet, DetectionBatch((), 0), 0)
-    publisher = threading.Thread(target=hub.publish_result,
-                                 args=(detected, PoseSolution(), None))
+    publisher = threading.Thread(target=hub.publish_result, args=(detected, PoseSolution(), None))
     try:
         with hub._pending_condition:
             camera.clients = 1
             publisher.start()
             deadline = time.monotonic() + 1
             while camera.telemetry.get("sequence") != 3 and time.monotonic() < deadline:
-                time.sleep(.005)
+                time.sleep(0.005)
             assert camera.telemetry.get("sequence") == 3
             # The encoder holds the pending lock while reading camera state.
             # It must be able to take the camera lock as publish waits here.
-            acquired = camera.condition.acquire(timeout=.5)
+            acquired = camera.condition.acquire(timeout=0.5)
             if acquired:
                 camera.condition.release()
             assert acquired
@@ -90,7 +90,7 @@ def test_encoder_produces_bounded_jpeg_and_health_status():
         hub.publish("front", image, 7)
         deadline = time.monotonic() + 2
         while hub.cameras["front"].jpeg is None and time.monotonic() < deadline:
-            time.sleep(.01)
+            time.sleep(0.01)
         camera = hub.cameras["front"]
         assert camera.jpeg is not None and camera.jpeg.startswith(b"\xff\xd8")
         assert camera.sequence == 7
@@ -115,12 +115,15 @@ def test_preview_preserves_shared_frame_orientation_for_each_camera():
         hub.publish("left", np.ascontiguousarray(image[::-1, ::-1]), 1)
         hub.publish("right", image, 1)
         deadline = time.monotonic() + 2
-        while any(camera.jpeg is None for camera in hub.cameras.values()) and time.monotonic() < deadline:
-            time.sleep(.01)
-        left = cv2.imdecode(np.frombuffer(hub.cameras["left"].jpeg, np.uint8),
-                            cv2.IMREAD_GRAYSCALE)
-        right = cv2.imdecode(np.frombuffer(hub.cameras["right"].jpeg, np.uint8),
-                             cv2.IMREAD_GRAYSCALE)
+        while (
+            any(camera.jpeg is None for camera in hub.cameras.values())
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        left = cv2.imdecode(np.frombuffer(hub.cameras["left"].jpeg, np.uint8), cv2.IMREAD_GRAYSCALE)
+        right = cv2.imdecode(
+            np.frombuffer(hub.cameras["right"].jpeg, np.uint8), cv2.IMREAD_GRAYSCALE
+        )
         assert left[8, 8] > 190 and right[8, 8] < 70
         assert left[56, 56] < 70 and right[56, 56] > 190
         assert np.mean(np.abs(left.astype(int) - np.rot90(right, 2).astype(int))) < 5
@@ -165,8 +168,7 @@ def test_mjpeg_client_receives_one_framed_image():
     received = bytearray()
 
     def read_stream():
-        with urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/stream/front", timeout=3) as response:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/stream/front", timeout=3) as response:
             received.extend(response.readline())
             length = None
             while True:
@@ -184,7 +186,7 @@ def test_mjpeg_client_receives_one_framed_image():
     try:
         deadline = time.monotonic() + 1
         while hub.cameras["front"].clients == 0 and time.monotonic() < deadline:
-            time.sleep(.01)
+            time.sleep(0.01)
         hub.publish("front", np.zeros((8, 16, 2), dtype=np.uint8), 4)
         reader.join(timeout=3)
         assert not reader.is_alive()
@@ -209,7 +211,7 @@ def test_snapshot_waits_for_new_frame_and_keeps_revision_independent_of_capture_
     try:
         deadline = time.monotonic() + 1
         while hub.cameras["right"].clients == 0 and time.monotonic() < deadline:
-            time.sleep(.01)
+            time.sleep(0.01)
         assert hub.cameras["right"].clients == 1
         assert hub.cameras["left"].clients == 0
         image = np.zeros((8, 16, 2), dtype=np.uint8)
@@ -229,7 +231,7 @@ def test_snapshot_waits_for_new_frame_and_keeps_revision_independent_of_capture_
         reader.start()
         deadline = time.monotonic() + 1
         while hub.cameras["right"].clients == 0 and time.monotonic() < deadline:
-            time.sleep(.01)
+            time.sleep(0.01)
         # A capture restart can reset its sequence without confusing the viewer.
         hub.publish("right", image, 1)
         reader.join(timeout=3)
@@ -245,6 +247,7 @@ def test_snapshot_waits_for_new_frame_and_keeps_revision_independent_of_capture_
 
 def test_calibration_preview_uses_capture_while_result_pipeline_is_stalled():
     from types import SimpleNamespace
+
     from spot_vision.models import FramePacket
 
     hub = stream.StreamHub(["front"])
@@ -266,7 +269,7 @@ def test_calibration_preview_uses_capture_while_result_pipeline_is_stalled():
             reader.start()
             deadline = time.monotonic() + 1
             while preview.cameras["front"].clients == 0 and time.monotonic() < deadline:
-                time.sleep(.005)
+                time.sleep(0.005)
             image = np.full((8, 16, 2), sequence, dtype=np.uint8)
             packet = FramePacket("front", sequence, sequence, 0, time.monotonic_ns(), image)
             hub.publish_capture(packet)
@@ -289,72 +292,115 @@ def test_calibration_preview_uses_capture_while_result_pipeline_is_stalled():
 
 def dashboard_service(tmp_path):
     from types import SimpleNamespace
+
     from spot_vision.config import Calibration, CameraConfig, CameraSelector, DetectorConfig
     from spot_vision.models import CameraCounters
     from spot_vision.pose import PoseSolver
-    calibration = Calibration('front', 640, 360, 'MJPEG',
-                              ((500., 0., 320.), (0., 500., 180.), (0., 0., 1.)),
-                              (0., 0., 0., 0., 0.))
-    camera = CameraConfig('front', True, CameraSelector(device='/dev/null'), 'MJPEG',
-                          640, 360, 30, None, None, False, tmp_path / 'front.json',
-                          0, 1, DetectorConfig())
-    return SimpleNamespace(config=SimpleNamespace(cameras=(camera,)),
-                           calibrations={'front': calibration}, layout=None,
-                           counters={'front': CameraCounters()},
-                           solvers={'front': PoseSolver(calibration, None, .1651)})
+
+    calibration = Calibration(
+        "front",
+        640,
+        360,
+        "MJPEG",
+        ((500.0, 0.0, 320.0), (0.0, 500.0, 180.0), (0.0, 0.0, 1.0)),
+        (0.0, 0.0, 0.0, 0.0, 0.0),
+    )
+    camera = CameraConfig(
+        "front",
+        True,
+        CameraSelector(device="/dev/null"),
+        "MJPEG",
+        640,
+        360,
+        30,
+        None,
+        None,
+        False,
+        tmp_path / "front.json",
+        0,
+        1,
+        DetectorConfig(),
+    )
+    return SimpleNamespace(
+        config=SimpleNamespace(cameras=(camera,)),
+        calibrations={"front": calibration},
+        layout=None,
+        counters={"front": CameraCounters()},
+        solvers={"front": PoseSolver(calibration, None, 0.1651)},
+    )
 
 
 def test_orientation_axes_are_projected_from_active_intrinsics_without_field_layout(tmp_path):
     import cv2
-    from spot_vision.models import Detection, DetectionBatch, DetectedFrame, FramePacket, PoseSolution
-    hub = stream.StreamHub(['front'])
+
+    from spot_vision.models import (
+        DetectedFrame,
+        Detection,
+        DetectionBatch,
+        FramePacket,
+        PoseSolution,
+    )
+
+    hub = stream.StreamHub(["front"])
     service = dashboard_service(tmp_path)
     hub.attach_service(service)
-    solver = service.solvers['front']
-    rotation = np.array([2.85, .18, .12])
-    translation = np.array([.08, -.03, .8])
-    corners = cv2.projectPoints(solver.local_corners, rotation, translation,
-                               solver.camera_matrix, solver.distortion)[0].reshape(-1, 2)
-    packet = FramePacket('front', 3, 3, 0, time.monotonic_ns(),
-                         np.zeros((360, 640), dtype=np.uint8))
+    solver = service.solvers["front"]
+    rotation = np.array([2.85, 0.18, 0.12])
+    translation = np.array([0.08, -0.03, 0.8])
+    corners = cv2.projectPoints(
+        solver.local_corners, rotation, translation, solver.camera_matrix, solver.distortion
+    )[0].reshape(-1, 2)
+    packet = FramePacket(
+        "front", 3, 3, 0, time.monotonic_ns(), np.zeros((360, 640), dtype=np.uint8)
+    )
     try:
-        hub.cameras['front'].clients = 1
-        hub.publish_result(DetectedFrame(packet, DetectionBatch((Detection(7, corners),), 2), 3),
-                           PoseSolution(), None)
+        hub.cameras["front"].clients = 1
+        hub.publish_result(
+            DetectedFrame(packet, DetectionBatch((Detection(7, corners),), 2), 3),
+            PoseSolution(),
+            None,
+        )
         deadline = time.monotonic() + 2
-        while hub.cameras['front'].jpeg is None and time.monotonic() < deadline:
-            time.sleep(.01)
-        data = hub.cameras['front'].encoded_telemetry
-        assert data['pose'] is None and data['sequence'] == 3
-        tag = data['tags'][0]
-        assert tag['orientation_error_px'] < .001
-        axes = np.array([[0, 0, 0], [.1651*.75, 0, 0], [0, -.1651*.75, 0],
-                         [0, 0, -.1651*.75]])
-        expected = cv2.projectPoints(axes, rotation, translation, solver.camera_matrix,
-                                     solver.distortion)[0].reshape(-1, 2)
-        assert np.allclose(tag['axes'], expected, atol=.02)
+        while hub.cameras["front"].jpeg is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        data = hub.cameras["front"].encoded_telemetry
+        assert data["pose"] is None and data["sequence"] == 3
+        tag = data["tags"][0]
+        assert tag["orientation_error_px"] < 0.001
+        axes = np.array(
+            [[0, 0, 0], [0.1651 * 0.75, 0, 0], [0, -0.1651 * 0.75, 0], [0, 0, -0.1651 * 0.75]]
+        )
+        expected = cv2.projectPoints(
+            axes, rotation, translation, solver.camera_matrix, solver.distortion
+        )[0].reshape(-1, 2)
+        assert np.allclose(tag["axes"], expected, atol=0.02)
         solver.calibration = None
-        hub.publish_result(DetectedFrame(packet, DetectionBatch((Detection(7, corners),), 2), 3),
-                           PoseSolution(), None)
-        assert 'axes' not in hub.cameras['front'].telemetry['tags'][0]
+        hub.publish_result(
+            DetectedFrame(packet, DetectionBatch((Detection(7, corners),), 2), 3),
+            PoseSolution(),
+            None,
+        )
+        assert "axes" not in hub.cameras["front"].telemetry["tags"][0]
     finally:
         hub.close()
 
 
 def test_upright_tag_overlay_axes_point_right_and_up(tmp_path):
     import cv2
-    hub = stream.StreamHub(['front'])
+
+    hub = stream.StreamHub(["front"])
     service = dashboard_service(tmp_path)
     hub.attach_service(service)
-    solver = service.solvers['front']
-    rotation = np.array([.08, .04, 0.])
-    translation = np.array([.03, -.02, 1.])
-    corners = cv2.projectPoints(solver.local_corners, rotation, translation,
-                               solver.camera_matrix, solver.distortion)[0].reshape(-1, 2)
-    telemetry = {'tags': [{'id': 7, 'corners': corners.tolist()}]}
+    solver = service.solvers["front"]
+    rotation = np.array([0.08, 0.04, 0.0])
+    translation = np.array([0.03, -0.02, 1.0])
+    corners = cv2.projectPoints(
+        solver.local_corners, rotation, translation, solver.camera_matrix, solver.distortion
+    )[0].reshape(-1, 2)
+    telemetry = {"tags": [{"id": 7, "corners": corners.tolist()}]}
     try:
-        hub._project_axes('front', telemetry)
-        origin, right, up, out = telemetry['tags'][0]['axes']
+        hub._project_axes("front", telemetry)
+        origin, right, up, out = telemetry["tags"][0]["axes"]
         assert right[0] > origin[0]
         assert up[1] < origin[1]
         assert len(out) == 2
@@ -363,121 +409,149 @@ def test_upright_tag_overlay_axes_point_right_and_up(tmp_path):
 
 
 def test_dashboard_distinguishes_saved_provisional_invalid_and_active_calibration(tmp_path):
-    hub = stream.StreamHub(['front'])
+    hub = stream.StreamHub(["front"])
     service = dashboard_service(tmp_path)
     hub.attach_service(service)
     destination = service.config.cameras[0].calibration
     try:
-        camera = json.loads(hub.dashboard_status())['cameras'][0]
-        assert camera['calibration'] == 'missing'
-        saved = {'camera_id': 'front', 'width': 640, 'height': 360, 'pixel_format': 'MJPEG',
-                 'camera_matrix': [[500, 0, 320], [0, 500, 180], [0, 0, 1]],
-                 'distortion_coefficients': [0, 0, 0, 0, 0]}
+        camera = json.loads(hub.dashboard_status())["cameras"][0]
+        assert camera["calibration"] == "missing"
+        saved = {
+            "camera_id": "front",
+            "width": 640,
+            "height": 360,
+            "pixel_format": "MJPEG",
+            "camera_matrix": [[500, 0, 320], [0, 500, 180], [0, 0, 1]],
+            "distortion_coefficients": [0, 0, 0, 0, 0],
+        }
         destination.write_text(json.dumps(saved))
-        camera = json.loads(hub.dashboard_status())['cameras'][0]
-        assert camera['calibration'] == 'calibrated' and not camera['restart_required']
-        saved['provisional'] = True
+        camera = json.loads(hub.dashboard_status())["cameras"][0]
+        assert camera["calibration"] == "calibrated" and not camera["restart_required"]
+        saved["provisional"] = True
         destination.write_text(json.dumps(saved))
-        camera = json.loads(hub.dashboard_status())['cameras'][0]
-        assert camera['calibration'] == 'provisional' and camera['restart_required']
-        saved['width'] = 800
+        camera = json.loads(hub.dashboard_status())["cameras"][0]
+        assert camera["calibration"] == "provisional" and camera["restart_required"]
+        saved["width"] = 800
         destination.write_text(json.dumps(saved))
-        camera = json.loads(hub.dashboard_status())['cameras'][0]
-        assert camera['calibration'] == 'invalid' and 'mismatch' in camera['calibration_error']
-        assert camera['active_calibration'] == 'calibrated'
-        assert camera['telemetry'] == {}
+        camera = json.loads(hub.dashboard_status())["cameras"][0]
+        assert camera["calibration"] == "invalid" and "mismatch" in camera["calibration_error"]
+        assert camera["active_calibration"] == "calibrated"
+        assert camera["telemetry"] == {}
     finally:
         hub.close()
 
 
 def test_dashboard_routing_and_inspection_metadata_match_the_encoded_frame(tmp_path):
     import base64
-    hub = stream.StreamHub(['front'])
+
+    hub = stream.StreamHub(["front"])
     hub.attach_service(dashboard_service(tmp_path))
-    server = hub.serve('127.0.0.1', 0)
-    base = f'http://127.0.0.1:{server.server_address[1]}'
+    server = hub.serve("127.0.0.1", 0)
+    base = f"http://127.0.0.1:{server.server_address[1]}"
     result = []
+
     def read():
-        with urllib.request.urlopen(base + '/inspection/front?after=0', timeout=3) as response:
+        with urllib.request.urlopen(base + "/inspection/front?after=0", timeout=3) as response:
             result.append(json.load(response))
+
     try:
-        with urllib.request.urlopen(base + '/', timeout=2) as response:
-            assert b'Vision dashboard' in response.read()
+        with urllib.request.urlopen(base + "/", timeout=2) as response:
+            assert b"Vision dashboard" in response.read()
         reader = threading.Thread(target=read)
         reader.start()
         deadline = time.monotonic() + 1
-        while hub.cameras['front'].clients == 0 and time.monotonic() < deadline:
-            time.sleep(.01)
-        with hub.cameras['front'].condition:
-            hub.cameras['front'].telemetry = {'sequence': 42, 'tags': [{'id': 7}]}
-        hub.publish('front', np.zeros((8, 16), np.uint8), 42)
+        while hub.cameras["front"].clients == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        with hub.cameras["front"].condition:
+            hub.cameras["front"].telemetry = {"sequence": 42, "tags": [{"id": 7}]}
+        hub.publish("front", np.zeros((8, 16), np.uint8), 42)
         reader.join(3)
-        assert result[0]['sequence'] == result[0]['telemetry']['sequence'] == 42
-        assert base64.b64decode(result[0]['jpeg']).startswith(b'\xff\xd8')
-        assert result[0]['telemetry']['tags'][0]['id'] == 7
+        assert result[0]["sequence"] == result[0]["telemetry"]["sequence"] == 42
+        assert base64.b64decode(result[0]["jpeg"]).startswith(b"\xff\xd8")
+        assert result[0]["telemetry"]["tags"][0]["id"] == 7
     finally:
         hub.close()
 
 
 def test_dashboard_exports_field_tag_orientation(tmp_path):
     from spot_vision.pose import FieldLayout, quaternion_to_matrix
+
     service = dashboard_service(tmp_path)
-    service.layout = FieldLayout.load(Path(__file__).resolve().parents[2] /
-                                      'config/2026-rebuilt-welded.json')
-    hub = stream.StreamHub(['front'])
+    service.layout = FieldLayout.load(
+        Path(__file__).resolve().parents[2] / "config/2026-rebuilt-welded.json"
+    )
+    hub = stream.StreamHub(["front"])
     hub.attach_service(service)
     try:
         data = json.loads(hub.dashboard_status())
-        assert len(data['field_tags']) == 32
-        for tag in data['field_tags']:
-            transform = service.layout.tags[tag['id']].field_from_tag
-            np.testing.assert_allclose(tag['translation'], transform[:3, 3])
-            np.testing.assert_allclose(quaternion_to_matrix(tag['quaternion']),
-                                       transform[:3, :3], atol=1e-12)
+        assert len(data["field_tags"]) == 32
+        for tag in data["field_tags"]:
+            transform = service.layout.tags[tag["id"]].field_from_tag
+            np.testing.assert_allclose(tag["translation"], transform[:3, 3])
+            np.testing.assert_allclose(
+                quaternion_to_matrix(tag["quaternion"]), transform[:3, :3], atol=1e-12
+            )
     finally:
         hub.close()
 
 
 def test_camera_controls_http_validates_token_camera_payload_and_driver_errors(tmp_path):
     from types import SimpleNamespace
+
     from spot_vision.camera_controls import ControlError
 
     class Controls:
         def read(self):
-            return [{'name': 'brightness', 'value': 0}]
+            return [{"name": "brightness", "value": 0}]
 
         def set(self, name, value):
-            if name != 'brightness' or type(value) is not int or not -64 <= value <= 64:
-                raise ValueError('Invalid control value')
+            if name != "brightness" or type(value) is not int or not -64 <= value <= 64:
+                raise ValueError("Invalid control value")
             if value == 42:
-                raise ControlError('Device disconnected')
-            return [{'name': name, 'value': value}]
+                raise ControlError("Device disconnected")
+            return [{"name": name, "value": value}]
 
-    hub = stream.StreamHub(['front'])
+    hub = stream.StreamHub(["front"])
     service = dashboard_service(tmp_path)
-    service.capture_workers = [SimpleNamespace(camera=service.config.cameras[0], controls=Controls())]
+    service.capture_workers = [
+        SimpleNamespace(camera=service.config.cameras[0], controls=Controls())
+    ]
     hub.attach_service(service)
-    server = hub.serve('127.0.0.1', 0)
-    url = f'http://127.0.0.1:{server.server_address[1]}/api/camera-controls'
-    def post(value, token='', camera_id='front'):
-        return urllib.request.urlopen(urllib.request.Request(url, method='POST',
-            headers={'Content-Type': 'application/json', 'X-Camera-Token': token},
-            data=json.dumps({'camera_id': camera_id, 'name': 'brightness', 'value': value}).encode()), timeout=2)
+    server = hub.serve("127.0.0.1", 0)
+    url = f"http://127.0.0.1:{server.server_address[1]}/api/camera-controls"
+
+    def post(value, token="", camera_id="front"):
+        return urllib.request.urlopen(
+            urllib.request.Request(
+                url,
+                method="POST",
+                headers={"Content-Type": "application/json", "X-Camera-Token": token},
+                data=json.dumps(
+                    {"camera_id": camera_id, "name": "brightness", "value": value}
+                ).encode(),
+            ),
+            timeout=2,
+        )
+
     try:
-        with urllib.request.urlopen(url+'?id=front', timeout=2) as response:
+        with urllib.request.urlopen(url + "?id=front", timeout=2) as response:
             data = json.load(response)
-        assert data['controls'][0]['value'] == 0
+        assert data["controls"][0]["value"] == 0
         for value, token, camera_id, expected in [
-            (10, '', 'front', 403), (10, data['token'], 'unknown', 404),
-            (65, data['token'], 'front', 400), (42, data['token'], 'front', 503),
+            (10, "", "front", 403),
+            (10, data["token"], "unknown", 404),
+            (65, data["token"], "front", 400),
+            (42, data["token"], "front", 503),
         ]:
             with pytest.raises(urllib.error.HTTPError) as error:
                 post(value, token, camera_id)
             assert error.value.code == expected
-        with post(-12, data['token']) as response:
-            assert json.load(response)['controls'][0]['value'] == -12
+        with post(-12, data["token"]) as response:
+            assert json.load(response)["controls"][0]["value"] == -12
         with pytest.raises(urllib.error.HTTPError) as error:
-            urllib.request.urlopen(urllib.request.Request(url, data=b'[]', method='POST'), timeout=2)
+            urllib.request.urlopen(
+                urllib.request.Request(url, data=b"[]", method="POST"), timeout=2
+            )
         assert error.value.code == 400
     finally:
         hub.close()

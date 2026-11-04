@@ -1,4 +1,5 @@
 """Discover and tune UVC image controls without opening a second capture stream."""
+
 from __future__ import annotations
 
 import math
@@ -6,25 +7,48 @@ import re
 import subprocess
 import threading
 
-
 # Only image controls: trigger, flips and capture modes can invalidate the pipeline.
 CONTROL_INFO = {
     "auto_exposure": ("Exposure mode", "Choose Manual Mode to set a fixed exposure."),
     "exposure_auto": ("Exposure mode", "Choose Manual Mode to set a fixed exposure."),
-    "exposure_time_absolute": ("Exposure", "Shorter exposure reduces motion blur; longer exposure collects more light."),
-    "exposure_absolute": ("Exposure", "Shorter exposure reduces motion blur; longer exposure collects more light."),
+    "exposure_time_absolute": (
+        "Exposure",
+        "Shorter exposure reduces motion blur; longer exposure collects more light.",
+    ),
+    "exposure_absolute": (
+        "Exposure",
+        "Shorter exposure reduces motion blur; longer exposure collects more light.",
+    ),
     "gain": ("Gain", "Amplifies the image; higher values can increase noise."),
-    "brightness": ("Black level / brightness", "Offsets image luminance, including the darkest pixels."),
+    "brightness": (
+        "Black level / brightness",
+        "Offsets image luminance, including the darkest pixels.",
+    ),
     "black_level": ("Black level", "Adjusts the darkest image level."),
-    "contrast": ("Contrast", "Adjusts luminance gain and the separation of dark and bright pixels."),
+    "contrast": (
+        "Contrast",
+        "Adjusts luminance gain and the separation of dark and bright pixels.",
+    ),
     "gamma": ("Gamma", "Adjusts the tonal response of midtones. Units depend on firmware."),
-    "sharpness": ("Sharpness", "Adjusts edge enhancement; too much can introduce halos around tags."),
+    "sharpness": (
+        "Sharpness",
+        "Adjusts edge enhancement; too much can introduce halos around tags.",
+    ),
     "backlight_compensation": ("Backlight compensation", "Compensates for bright backgrounds."),
     "power_line_frequency": ("Anti-flicker", "Select the local lighting frequency."),
     "white_balance_automatic": ("Auto white balance", "Automatically adjusts color balance."),
-    "white_balance_temperature_auto": ("Auto white balance", "Automatically adjusts color balance."),
-    "white_balance_temperature": ("White balance", "Color temperature in kelvin; disable auto white balance to adjust."),
-    "saturation": ("Saturation", "Adjusts color intensity; may have no effect on monochrome cameras."),
+    "white_balance_temperature_auto": (
+        "Auto white balance",
+        "Automatically adjusts color balance.",
+    ),
+    "white_balance_temperature": (
+        "White balance",
+        "Color temperature in kelvin; disable auto white balance to adjust.",
+    ),
+    "saturation": (
+        "Saturation",
+        "Adjusts color intensity; may have no effect on monochrome cameras.",
+    ),
     "hue": ("Hue", "Adjusts color balance; may have no effect on monochrome cameras."),
     "autogain": ("Auto gain", "Automatically adjusts image gain."),
 }
@@ -46,7 +70,9 @@ def frame_limited_exposure(control: dict, fps: float) -> dict:
     result["range_reason"] = f"{fps:g} FPS exposure limit"
     if limited < minimum:
         result["allowed"] = False
-        result["reason"] = "Minimum exposure exceeds the frame interval; choose a lower capture rate"
+        result["reason"] = (
+            "Minimum exposure exceeds the frame interval; choose a lower capture rate"
+        )
     return result
 
 
@@ -63,20 +89,33 @@ def parse_controls(output: str) -> list[dict]:
             current = None
             if name not in CONTROL_INFO or kind not in {"int", "bool", "menu", "intmenu"}:
                 continue
-            numbers = {key: int(value) for key, value in
-                       re.findall(r"(min|max|step|default|value)=(-?\d+)", attributes)}
+            numbers = {
+                key: int(value)
+                for key, value in re.findall(r"(min|max|step|default|value)=(-?\d+)", attributes)
+            }
             if "value" not in numbers:
                 continue
             flags = attributes.split("flags=", 1)[1].strip() if "flags=" in attributes else ""
             label, description = CONTROL_INFO[name]
             factor = 100 if name in EXPOSURE_NAMES else 1
-            current = dict(name=name, type=kind, label=label, description=description,
-                           min=numbers.get("min", 0), max=numbers.get("max", 1),
-                           step=numbers.get("step", 1), default=numbers.get("default"),
-                           value=numbers["value"], flags=flags, options=[], factor=factor,
-                           unit="µs" if factor == 100 else "K" if name == "white_balance_temperature" else "",
-                           writable=not any(flag in flags for flag in
-                                            ("inactive", "read-only", "disabled", "grabbed")))
+            current = dict(
+                name=name,
+                type=kind,
+                label=label,
+                description=description,
+                min=numbers.get("min", 0),
+                max=numbers.get("max", 1),
+                step=numbers.get("step", 1),
+                default=numbers.get("default"),
+                value=numbers["value"],
+                flags=flags,
+                options=[],
+                factor=factor,
+                unit="µs" if factor == 100 else "K" if name == "white_balance_temperature" else "",
+                writable=not any(
+                    flag in flags for flag in ("inactive", "read-only", "disabled", "grabbed")
+                ),
+            )
             controls.append(current)
         elif current and current["type"] in {"menu", "intmenu"}:
             option = re.match(r"^\s+(-?\d+):\s*(.+)$", line)
@@ -84,25 +123,43 @@ def parse_controls(output: str) -> list[dict]:
                 current["options"].append({"value": int(option[1]), "label": option[2]})
     values = {item["name"]: item["value"] for item in controls}
     for item in controls:
-        automatic = (item["name"] in EXPOSURE_NAMES and
-                     values.get("auto_exposure", values.get("exposure_auto", 1)) != 1)
-        automatic |= (item["name"] == "white_balance_temperature" and
-                      bool(values.get("white_balance_automatic",
-                                      values.get("white_balance_temperature_auto", 0))))
+        automatic = (
+            item["name"] in EXPOSURE_NAMES
+            and values.get("auto_exposure", values.get("exposure_auto", 1)) != 1
+        )
+        automatic |= item["name"] == "white_balance_temperature" and bool(
+            values.get("white_balance_automatic", values.get("white_balance_temperature_auto", 0))
+        )
         automatic |= item["name"] == "gain" and bool(values.get("autogain", 0))
         if automatic:
             item["writable"] = False
             item["flags"] = (item["flags"] + ", automatic mode").strip(", ")
     # Stable order puts the essential tuning controls first.
-    return sorted(controls, key=lambda item: (item["name"] not in {
-        "auto_exposure", "exposure_auto", "autogain", "white_balance_automatic",
-        "white_balance_temperature_auto"}, list(CONTROL_INFO).index(item["name"])))
+    return sorted(
+        controls,
+        key=lambda item: (
+            item["name"]
+            not in {
+                "auto_exposure",
+                "exposure_auto",
+                "autogain",
+                "white_balance_automatic",
+                "white_balance_temperature_auto",
+            },
+            list(CONTROL_INFO).index(item["name"]),
+        ),
+    )
 
 
 def _run(device: str, argument: str) -> str:
     try:
-        result = subprocess.run(["v4l2-ctl", "--device", device, argument],
-                                capture_output=True, text=True, timeout=3, check=False)
+        result = subprocess.run(
+            ["v4l2-ctl", "--device", device, argument],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ControlError(f"Camera controls unavailable: {exc}") from exc
     if result.returncode:
@@ -118,6 +175,7 @@ class CameraControls:
 
     def _device(self) -> str:
         from .capture import resolve_device
+
         return resolve_device(self.camera.selector)
 
     def read(self) -> list[dict]:
@@ -132,14 +190,19 @@ class CameraControls:
             if control is None:
                 raise ValueError("This camera does not support that image control")
             if not control["writable"]:
-                raise ValueError("Control is inactive or read-only; disable its automatic mode first")
+                raise ValueError(
+                    "Control is inactive or read-only; disable its automatic mode first"
+                )
             if type(value) is not int:
                 raise ValueError("Control value must be an integer")
-            if (not control["min"] <= value <= control["max"] or
-                    (value - control["min"]) % control["step"]):
+            if (
+                not control["min"] <= value <= control["max"]
+                or (value - control["min"]) % control["step"]
+            ):
                 raise ValueError("Control value is outside the supported range or step")
             if control["type"] in {"menu", "intmenu"} and value not in {
-                    option["value"] for option in control["options"]}:
+                option["value"] for option in control["options"]
+            }:
                 raise ValueError("Unsupported menu option")
             _run(device, f"--set-ctrl={name}={value}")
             controls = parse_controls(_run(device, "--list-ctrls-menus"))
@@ -155,7 +218,13 @@ class CameraControls:
         for control in controls:
             name = control["name"]
             if name in self.overrides:
-                current = next((item for item in parse_controls(
-                    _run(device, "--list-ctrls-menus")) if item["name"] == name), None)
+                current = next(
+                    (
+                        item
+                        for item in parse_controls(_run(device, "--list-ctrls-menus"))
+                        if item["name"] == name
+                    ),
+                    None,
+                )
                 if current and current["writable"]:
                     _run(device, f"--set-ctrl={name}={self.overrides[name]}")

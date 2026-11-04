@@ -1,16 +1,17 @@
 """Disposable, unauthenticated MJPEG viewer for alpha hardware bring-up."""
+
 from __future__ import annotations
 
-import html
 import base64
+import html
 import json
-import socket
 import secrets
+import socket
 import threading
 import time
-from pathlib import Path
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 BOUNDARY = b"spot-frame"
@@ -45,8 +46,7 @@ class _Server(ThreadingHTTPServer):
 class StreamHub:
     """Fair, latest-only preview encoder shared by all browser clients."""
 
-    def __init__(self, camera_ids: list[str], encode_fps: float = 15.0,
-                 calibration=None) -> None:
+    def __init__(self, camera_ids: list[str], encode_fps: float = 15.0, calibration=None) -> None:
         self.cameras = {camera_id: _Camera() for camera_id in camera_ids}
         self.encode_fps = max(1.0, encode_fps)
         self._pending: dict[str, tuple[object, int, dict]] = {}
@@ -55,7 +55,8 @@ class StreamHub:
         self._pending_condition = threading.Condition()
         self._stop = threading.Event()
         self._worker = threading.Thread(
-            target=self._encode_loop, name="prototype-stream", daemon=True)
+            target=self._encode_loop, name="prototype-stream", daemon=True
+        )
         self._server: _Server | None = None
         self._server_thread: threading.Thread | None = None
         self.calibration = calibration
@@ -81,10 +82,15 @@ class StreamHub:
         if worker is None:
             return response(HTTPStatus.NOT_FOUND, {"error": "Camera is disabled or unavailable"})
         try:
-            controls = (worker.controls.read() if payload is None else
-                        worker.controls.set(payload.get("name"), payload.get("value")))
-            return response(HTTPStatus.OK, {"camera_id": camera_id, "controls": controls,
-                                           "token": self.control_token})
+            controls = (
+                worker.controls.read()
+                if payload is None
+                else worker.controls.set(payload.get("name"), payload.get("value"))
+            )
+            return response(
+                HTTPStatus.OK,
+                {"camera_id": camera_id, "controls": controls, "token": self.control_token},
+            )
         except ValueError as exc:
             return response(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except (ControlError, CameraError) as exc:
@@ -94,10 +100,13 @@ class StreamHub:
     def _pose(candidate):
         if candidate is None:
             return None
-        return {"translation": candidate.translation.tolist(),
-                "quaternion": candidate.quaternion_wxyz.tolist(),
-                "error_px": candidate.reprojection_error_px,
-                "method": candidate.method.name, "tag_ids": list(candidate.tag_ids)}
+        return {
+            "translation": candidate.translation.tolist(),
+            "quaternion": candidate.quaternion_wxyz.tolist(),
+            "error_px": candidate.reprojection_error_px,
+            "method": candidate.method.name,
+            "tag_ids": list(candidate.tag_ids),
+        }
 
     def publish_result(self, detected, solution, robot_pose) -> None:
         frame = detected.frame
@@ -105,14 +114,22 @@ class StreamHub:
         if camera is None:
             return
         telemetry = {
-            "sequence": frame.sequence, "width": frame.image.shape[1],
-            "height": frame.image.shape[0], "detect_ms": detected.batch.detect_ms,
+            "sequence": frame.sequence,
+            "width": frame.image.shape[1],
+            "height": frame.image.shape[0],
+            "detect_ms": detected.batch.detect_ms,
             "solve_ms": solution.solve_ms,
-            "tags": [{"id": tag.id, "corners": tag.corners.tolist(),
-                      "margin": tag.decision_margin, "hamming": tag.hamming,
-                      "used": tag.id in solution.used_tag_ids,
-                      "reason": solution.rejection_reasons.get(tag.id)}
-                     for tag in detected.batch.detections],
+            "tags": [
+                {
+                    "id": tag.id,
+                    "corners": tag.corners.tolist(),
+                    "margin": tag.decision_margin,
+                    "hamming": tag.hamming,
+                    "used": tag.id in solution.used_tag_ids,
+                    "reason": solution.rejection_reasons.get(tag.id),
+                }
+                for tag in detected.batch.detections
+            ],
             "pose": self._pose(robot_pose),
             "candidates": [self._pose(candidate) for candidate in solution.candidates],
         }
@@ -129,31 +146,46 @@ class StreamHub:
         if solver is not None and solver.calibration is not None:
             import cv2
             import numpy as np
-            size = solver.tag_size_m * .75
+
+            size = solver.tag_size_m * 0.75
             # The native tag plane is X right, Y down, Z into the tag.
             # The viewer legend promises right/up/out, so negate Y and Z.
-            axes = np.array([[0, 0, 0], [size, 0, 0], [0, -size, 0], [0, 0, -size]],
-                            dtype=np.float64)
-            for tag, corners in ((tag, tag["corners"]) for tag in telemetry.get("tags", []) if "corners" in tag):
+            axes = np.array(
+                [[0, 0, 0], [size, 0, 0], [0, -size, 0], [0, 0, -size]], dtype=np.float64
+            )
+            for tag, corners in (
+                (tag, tag["corners"]) for tag in telemetry.get("tags", []) if "corners" in tag
+            ):
                 try:
                     result = cv2.solvePnPGeneric(
-                        solver.local_corners, np.asarray(corners, dtype=np.float64),
-                        solver.camera_matrix, solver.distortion, flags=cv2.SOLVEPNP_IPPE_SQUARE)
+                        solver.local_corners,
+                        np.asarray(corners, dtype=np.float64),
+                        solver.camera_matrix,
+                        solver.distortion,
+                        flags=cv2.SOLVEPNP_IPPE_SQUARE,
+                    )
                     if not result[0]:
                         continue
                     estimates = []
                     for rotation, translation in zip(result[1], result[2]):
                         if float(translation.reshape(-1)[2]) <= 0:
                             continue
-                        projected = cv2.projectPoints(solver.local_corners, rotation, translation,
-                                                     solver.camera_matrix, solver.distortion)[0].reshape(-1, 2)
-                        error = float(np.sqrt(np.mean(np.sum(
-                            (projected - np.asarray(corners)) ** 2, axis=1))))
+                        projected = cv2.projectPoints(
+                            solver.local_corners,
+                            rotation,
+                            translation,
+                            solver.camera_matrix,
+                            solver.distortion,
+                        )[0].reshape(-1, 2)
+                        error = float(
+                            np.sqrt(np.mean(np.sum((projected - np.asarray(corners)) ** 2, axis=1)))
+                        )
                         estimates.append((error, rotation, translation))
                     if estimates:
                         error, rotation, translation = min(estimates, key=lambda item: item[0])
-                        points = cv2.projectPoints(axes, rotation, translation,
-                                                  solver.camera_matrix, solver.distortion)[0].reshape(-1, 2)
+                        points = cv2.projectPoints(
+                            axes, rotation, translation, solver.camera_matrix, solver.distortion
+                        )[0].reshape(-1, 2)
                         if np.isfinite(points).all():
                             tag["axes"] = points.round(2).tolist()
                             tag["orientation_error_px"] = error
@@ -163,6 +195,7 @@ class StreamHub:
     def dashboard_status(self) -> bytes:
         from spot_vision.config import load_calibration
         from spot_vision.pose import matrix_to_quaternion
+
         cameras = []
         configured = self.service.config.cameras if self.service else []
         for config in configured:
@@ -180,25 +213,54 @@ class StreamHub:
             camera = self.cameras.get(config.id)
             with camera.condition if camera else threading.RLock():
                 age = time.monotonic() - camera.updated if camera and camera.updated else None
-                cameras.append({
-                    "id": config.id, "enabled": config.enabled,
-                    "width": config.width, "height": config.height,
-                    "fresh": age is not None and age < 2, "age_s": age,
-                    "calibration": "invalid" if error else "missing" if saved is None else
-                                   "provisional" if saved.provisional else "calibrated",
-                    "calibration_error": error,
-                    "restart_required": config.enabled and corrected != loaded,
-                    "active_calibration": "missing" if loaded is None else
-                                          "provisional" if loaded.provisional else "calibrated",
-                    "counters": self.service.counters[config.id].snapshot() if config.enabled else {},
-                    "telemetry": camera.telemetry if camera and age is not None and age < 2 else {},
-                })
+                cameras.append(
+                    {
+                        "id": config.id,
+                        "enabled": config.enabled,
+                        "width": config.width,
+                        "height": config.height,
+                        "fresh": age is not None and age < 2,
+                        "age_s": age,
+                        "calibration": "invalid"
+                        if error
+                        else "missing"
+                        if saved is None
+                        else "provisional"
+                        if saved.provisional
+                        else "calibrated",
+                        "calibration_error": error,
+                        "restart_required": config.enabled and corrected != loaded,
+                        "active_calibration": "missing"
+                        if loaded is None
+                        else "provisional"
+                        if loaded.provisional
+                        else "calibrated",
+                        "counters": self.service.counters[config.id].snapshot()
+                        if config.enabled
+                        else {},
+                        "telemetry": camera.telemetry
+                        if camera and age is not None and age < 2
+                        else {},
+                    }
+                )
         layout = self.service.layout if self.service else None
-        return json.dumps({"cameras": cameras, "field_tags": [
-            {"id": tag.id, "translation": tag.field_from_tag[:3, 3].tolist(),
-             "quaternion": matrix_to_quaternion(tag.field_from_tag[:3, :3]).tolist()}
-            for tag in layout.tags.values()] if layout else [],
-            "field_available": layout is not None}, allow_nan=False).encode()
+        return json.dumps(
+            {
+                "cameras": cameras,
+                "field_tags": [
+                    {
+                        "id": tag.id,
+                        "translation": tag.field_from_tag[:3, 3].tolist(),
+                        "quaternion": matrix_to_quaternion(tag.field_from_tag[:3, :3]).tolist(),
+                    }
+                    for tag in layout.tags.values()
+                ]
+                if layout
+                else [],
+                "field_available": layout is not None,
+            },
+            allow_nan=False,
+        ).encode()
 
     def attach_calibration(self, calibration) -> None:
         self.calibration = calibration
@@ -206,8 +268,9 @@ class StreamHub:
         # Its encoder also avoids dashboard orientation solving entirely.
         if self._preview_hub is None:
             self._preview_hub = StreamHub(list(self.cameras), encode_fps=20)
-        calibration.preview_urls = {camera_id: f"/preview/{quote(camera_id, safe='')}"
-                                    for camera_id in self.cameras}
+        calibration.preview_urls = {
+            camera_id: f"/preview/{quote(camera_id, safe='')}" for camera_id in self.cameras
+        }
 
     def publish_capture(self, frame) -> None:
         if self._preview_hub is not None:
@@ -268,7 +331,7 @@ class StreamHub:
             with self._pending_condition:
                 ready = self._next_ready()
                 if ready is None:
-                    self._pending_condition.wait(.02)
+                    self._pending_condition.wait(0.02)
                     continue
             camera_id, image, sequence, telemetry = ready
             camera = self.cameras[camera_id]
@@ -278,17 +341,22 @@ class StreamHub:
                 telemetry = dict(telemetry)
                 telemetry["tags"] = [dict(tag) for tag in telemetry.get("tags", [])]
                 self._project_axes(camera_id, telemetry)
-                gray = (cv2.cvtColor(image, cv2.COLOR_YUV2GRAY_YUY2)
-                        if image.ndim == 3 and image.shape[2] == 2 else
-                        cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image)
+                gray = (
+                    cv2.cvtColor(image, cv2.COLOR_YUV2GRAY_YUY2)
+                    if image.ndim == 3 and image.shape[2] == 2
+                    else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                    if image.ndim == 3
+                    else image
+                )
                 height, width = gray.shape[:2]
                 scale = min(1.0, 640 / width, 360 / height)
                 if scale < 1.0:
                     gray = cv2.resize(
-                        gray, (max(1, round(width * scale)), max(1, round(height * scale))),
-                        interpolation=cv2.INTER_AREA)
-                ok, encoded = cv2.imencode(
-                    ".jpg", gray, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                        gray,
+                        (max(1, round(width * scale)), max(1, round(height * scale))),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                ok, encoded = cv2.imencode(".jpg", gray, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 if not ok:
                     raise RuntimeError("JPEG encoder returned no image")
                 with camera.condition:
@@ -335,8 +403,10 @@ class StreamHub:
                 url = urlsplit(self.path)
                 path = url.path
                 if path in {"/", "/dashboard"} and hub.service is not None:
-                    self._body(Path(__file__).with_name("alpha_dashboard.html").read_bytes(),
-                               "text/html; charset=utf-8")
+                    self._body(
+                        Path(__file__).with_name("alpha_dashboard.html").read_bytes(),
+                        "text/html; charset=utf-8",
+                    )
                     return
                 if path == "/api/dashboard":
                     self._body(hub.dashboard_status(), "application/json")
@@ -360,17 +430,20 @@ class StreamHub:
                     self._body(hub.health(), "application/json")
                     return
                 if path.startswith("/stream/"):
-                    camera = hub.cameras.get(unquote(path[len("/stream/"):]))
+                    camera = hub.cameras.get(unquote(path[len("/stream/") :]))
                     if camera is None:
                         self.send_error(HTTPStatus.NOT_FOUND)
                         return
                     self._stream(camera)
                     return
                 if path.startswith(("/snapshot/", "/inspection/", "/preview/")):
-                    prefix = next(prefix for prefix in ("/snapshot/", "/inspection/", "/preview/")
-                                  if path.startswith(prefix))
+                    prefix = next(
+                        prefix
+                        for prefix in ("/snapshot/", "/inspection/", "/preview/")
+                        if path.startswith(prefix)
+                    )
                     encoder = hub._preview_hub if prefix == "/preview/" else hub
-                    camera = encoder.cameras.get(unquote(path[len(prefix):])) if encoder else None
+                    camera = encoder.cameras.get(unquote(path[len(prefix) :])) if encoder else None
                     if camera is None:
                         self.send_error(HTTPStatus.NOT_FOUND)
                         return
@@ -401,17 +474,22 @@ class StreamHub:
                     self.send_error(HTTPStatus.BAD_REQUEST)
                     return
                 if path == "/api/camera-controls":
-                    self._app_response(hub.camera_controls(
-                        payload.get("camera_id"), payload,
-                        self.headers.get("X-Camera-Token", "")))
+                    self._app_response(
+                        hub.camera_controls(
+                            payload.get("camera_id"),
+                            payload,
+                            self.headers.get("X-Camera-Token", ""),
+                        )
+                    )
                     return
                 response = hub.calibration.post(
-                    urlsplit(self.path).path, payload,
-                    self.headers.get("X-Calibration-Token", ""))
+                    urlsplit(self.path).path, payload, self.headers.get("X-Calibration-Token", "")
+                )
                 self._app_response(response)
 
-            def _snapshot(self, camera: _Camera, after: int, metadata: bool = False,
-                          encoder=None) -> None:
+            def _snapshot(
+                self, camera: _Camera, after: int, metadata: bool = False, encoder=None
+            ) -> None:
                 encoder = encoder or hub
                 with camera.condition:
                     camera.clients += 1
@@ -425,8 +503,7 @@ class StreamHub:
                             if remaining <= 0:
                                 break
                             camera.condition.wait(remaining)
-                        frame, revision, sequence = (
-                            camera.jpeg, camera.revision, camera.sequence)
+                        frame, revision, sequence = (camera.jpeg, camera.revision, camera.sequence)
                         telemetry = camera.encoded_telemetry
                     if frame is None or revision <= after:
                         self.send_response(HTTPStatus.NO_CONTENT)
@@ -434,10 +511,18 @@ class StreamHub:
                         self.end_headers()
                         return
                     if metadata:
-                        self._body(json.dumps({"revision": revision, "sequence": sequence,
-                                              "telemetry": telemetry,
-                                              "jpeg": base64.b64encode(frame).decode("ascii")},
-                                             allow_nan=False).encode(), "application/json")
+                        self._body(
+                            json.dumps(
+                                {
+                                    "revision": revision,
+                                    "sequence": sequence,
+                                    "telemetry": telemetry,
+                                    "jpeg": base64.b64encode(frame).decode("ascii"),
+                                },
+                                allow_nan=False,
+                            ).encode(),
+                            "application/json",
+                        )
                         return
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "image/jpeg")
@@ -462,8 +547,8 @@ class StreamHub:
                     hub._pending_condition.notify()
                 self.send_response(HTTPStatus.OK)
                 self.send_header(
-                    "Content-Type",
-                    f"multipart/x-mixed-replace; boundary={BOUNDARY.decode()}")
+                    "Content-Type", f"multipart/x-mixed-replace; boundary={BOUNDARY.decode()}"
+                )
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
                 last_revision = 0
@@ -475,14 +560,20 @@ class StreamHub:
                                     break
                                 camera.condition.wait(1.0)
                             frame, sequence, revision = (
-                                camera.jpeg, camera.sequence, camera.revision)
+                                camera.jpeg,
+                                camera.sequence,
+                                camera.revision,
+                            )
                         if frame is None or revision == last_revision:
                             continue
                         last_revision = revision
                         header = (
-                            b"--" + BOUNDARY + b"\r\nContent-Type: image/jpeg\r\n"
+                            b"--"
+                            + BOUNDARY
+                            + b"\r\nContent-Type: image/jpeg\r\n"
                             + f"Content-Length: {len(frame)}\r\n"
-                              f"X-Sequence: {sequence}\r\n\r\n".encode())
+                            f"X-Sequence: {sequence}\r\n\r\n".encode()
+                        )
                         self.wfile.write(header + frame + b"\r\n")
                         self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError, OSError):
@@ -495,7 +586,8 @@ class StreamHub:
 
         self._server = _Server((host, port), Handler)
         self._server_thread = threading.Thread(
-            target=self._server.serve_forever, name="prototype-http", daemon=True)
+            target=self._server.serve_forever, name="prototype-http", daemon=True
+        )
         self._server_thread.start()
         return self._server
 
@@ -511,17 +603,22 @@ class StreamHub:
                     "clients": camera.clients,
                     "error": camera.error,
                 }
-        return (json.dumps({"ready": self._server is not None, "cameras": statuses},
-                           separators=(",", ":")) + "\n").encode()
+        return (
+            json.dumps(
+                {"ready": self._server is not None, "cameras": statuses}, separators=(",", ":")
+            )
+            + "\n"
+        ).encode()
 
     def index(self) -> str:
         cards = "".join(
             f'<section data-camera="{html.escape(camera_id, quote=True)}">'
-            f'<header><h2>{html.escape(camera_id)}</h2><span>Waiting for frames</span></header>'
+            f"<header><h2>{html.escape(camera_id)}</h2><span>Waiting for frames</span></header>"
             f'<canvas data-url="/snapshot/{quote(camera_id, safe="")}" '
             f'role="img" aria-label="Live {html.escape(camera_id, quote=True)} camera stream">'
-            f'</canvas></section>'
-            for camera_id in self.cameras)
+            f"</canvas></section>"
+            for camera_id in self.cameras
+        )
         return (
             "<!doctype html><html><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
@@ -552,7 +649,8 @@ class StreamHub:
             "const c=h.cameras[s.dataset.camera],x=s.querySelector('span');"
             "x.textContent=!c?'Unavailable':c.error?c.error:c.fresh?'Live · frame '+c.sequence:"
             "c.sequence?'Stale · frame '+c.sequence:'Waiting for frames';});}catch(e){}}"
-            "update();setInterval(update,1000);</script></body></html>")
+            "update();setInterval(update,1000);</script></body></html>"
+        )
 
     def close(self) -> None:
         if self._preview_hub is not None:

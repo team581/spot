@@ -1,6 +1,7 @@
 """Device selection, backend fallback and capture retry regressions."""
-from dataclasses import replace
+
 import threading
+from dataclasses import replace
 from types import SimpleNamespace
 
 import cv2
@@ -14,18 +15,35 @@ from spot_vision.queues import LatestFrameSlot
 
 
 def camera(**changes):
-    base = CameraConfig("front", True, CameraSelector(device="/dev/fake"), "YUY2", 16, 8, 60,
-                        None, None, False, None, 27, 1, DetectorConfig(backend="cpu"))
+    base = CameraConfig(
+        "front",
+        True,
+        CameraSelector(device="/dev/fake"),
+        "YUY2",
+        16,
+        8,
+        60,
+        None,
+        None,
+        False,
+        None,
+        27,
+        1,
+        DetectorConfig(backend="cpu"),
+    )
     return replace(base, **changes)
 
 
-@pytest.mark.parametrize("selector,expected", [
-    (CameraSelector(device="/dev/video2"), "/dev/video2"),
-    (CameraSelector(by_id="usb-camera"), "/dev/v4l/by-id/usb-camera"),
-    (CameraSelector(by_id="/custom/camera"), "/custom/camera"),
-    (CameraSelector(by_path="port-camera"), "/dev/v4l/by-path/port-camera"),
-    (CameraSelector(by_path="/custom/port"), "/custom/port"),
-])
+@pytest.mark.parametrize(
+    "selector,expected",
+    [
+        (CameraSelector(device="/dev/video2"), "/dev/video2"),
+        (CameraSelector(by_id="usb-camera"), "/dev/v4l/by-id/usb-camera"),
+        (CameraSelector(by_id="/custom/camera"), "/custom/camera"),
+        (CameraSelector(by_path="port-camera"), "/dev/v4l/by-path/port-camera"),
+        (CameraSelector(by_path="/custom/port"), "/custom/port"),
+    ],
+)
 def test_persistent_selector_resolution(monkeypatch, selector, expected):
     monkeypatch.setattr(capture, "_real_device", lambda path: path)
     assert capture.resolve_device(selector) == expected
@@ -44,14 +62,28 @@ def test_device_symlink_resolves_and_missing_device_is_reported(tmp_path):
 
 @pytest.mark.parametrize("udev", [False, True])
 def test_serial_selection_supports_by_id_and_udev_fallback(monkeypatch, udev):
-    monkeypatch.setattr(capture.glob, "glob", lambda path:
-                        ([] if udev else ["/dev/v4l/by-id/usb-serial581"]) if "by-id" in path
-                        else ["/dev/video1", "/dev/video2"])
+    monkeypatch.setattr(
+        capture.glob,
+        "glob",
+        lambda path: (
+            ([] if udev else ["/dev/v4l/by-id/usb-serial581"])
+            if "by-id" in path
+            else ["/dev/video1", "/dev/video2"]
+        ),
+    )
     monkeypatch.setattr(capture, "_real_device", lambda path: path)
-    monkeypatch.setattr(capture.subprocess, "run", lambda args, **kw: SimpleNamespace(
-        stdout="ID_SERIAL_SHORT=serial581\n" if args[-1] == "--name=/dev/video2" else "OTHER=1\n"))
+    monkeypatch.setattr(
+        capture.subprocess,
+        "run",
+        lambda args, **kw: SimpleNamespace(
+            stdout="ID_SERIAL_SHORT=serial581\n"
+            if args[-1] == "--name=/dev/video2"
+            else "OTHER=1\n"
+        ),
+    )
     assert capture.resolve_device(CameraSelector(serial="serial581")) == (
-        "/dev/video2" if udev else "/dev/v4l/by-id/usb-serial581")
+        "/dev/video2" if udev else "/dev/v4l/by-id/usb-serial581"
+    )
 
 
 def test_missing_serial_and_empty_selector_report_errors(monkeypatch):
@@ -68,13 +100,17 @@ def test_enumeration_error_handling(monkeypatch, mode):
         assert "--list-formats-ext" in args and kwargs["timeout"] == 10
         if mode == "missing_tool":
             raise FileNotFoundError()
-        return SimpleNamespace(returncode=int(mode == "driver_error"), stderr="disconnected", stdout="modes")
+        return SimpleNamespace(
+            returncode=int(mode == "driver_error"), stderr="disconnected", stdout="modes"
+        )
 
     monkeypatch.setattr(capture.subprocess, "run", run)
     if mode == "success":
         assert capture.enumerate_camera("/dev/fake") == "modes"
     else:
-        with pytest.raises(capture.CameraError, match="required" if mode == "missing_tool" else "disconnected"):
+        with pytest.raises(
+            capture.CameraError, match="required" if mode == "missing_tool" else "disconnected"
+        ):
             capture.enumerate_camera("/dev/fake")
 
 
@@ -124,8 +160,10 @@ def test_capture_failure_always_releases_camera_and_tracks_decode_errors(monkeyp
         def read(self):
             if failure == "no_frame":
                 return False, None
-            return True, np.zeros((8, 16, 3) if failure == "bad_shape" else (8, 16, 2),
-                                  dtype=np.uint8 if failure == "bad_shape" else np.float32)
+            return True, np.zeros(
+                (8, 16, 3) if failure == "bad_shape" else (8, 16, 2),
+                dtype=np.uint8 if failure == "bad_shape" else np.float32,
+            )
 
         def release(self):
             self.released = True
@@ -163,13 +201,17 @@ def test_reconnect_backoff_is_bounded_and_stops_promptly(monkeypatch):
 
     monkeypatch.setattr(worker, "_capture_until_failure", fail)
     worker.run()
-    assert stop.delays == [.1, .2, .4, .8, 1.6, 3.2, 5., 5., 5.]
+    assert stop.delays == [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 5.0, 5.0, 5.0]
     assert counters.capture_failures == 9 and counters.reconnects == 8
     assert counters.state == CameraState.RETRY_WAIT
 
 
 def test_disabled_capture_does_not_touch_device(monkeypatch):
-    worker = capture.CaptureWorker(camera(enabled=False), LatestFrameSlot(), CameraCounters(), threading.Event())
-    monkeypatch.setattr(worker, "_capture_until_failure", lambda: pytest.fail("disabled device opened"))
+    worker = capture.CaptureWorker(
+        camera(enabled=False), LatestFrameSlot(), CameraCounters(), threading.Event()
+    )
+    monkeypatch.setattr(
+        worker, "_capture_until_failure", lambda: pytest.fail("disabled device opened")
+    )
     worker.run()
     assert worker.counters.state == CameraState.DISABLED

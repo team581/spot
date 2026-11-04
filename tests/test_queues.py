@@ -7,8 +7,9 @@ from spot_vision.queues import BoundedDropOldestQueue, LatestFrameSlot
 
 
 def frame(sequence: int) -> FramePacket:
-    return FramePacket("front", sequence, sequence, sequence, sequence,
-                       np.zeros((8, 8, 2), dtype=np.uint8))
+    return FramePacket(
+        "front", sequence, sequence, sequence, sequence, np.zeros((8, 8, 2), dtype=np.uint8)
+    )
 
 
 def test_latest_frame_slot_overwrites_old_frame():

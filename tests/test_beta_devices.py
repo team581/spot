@@ -47,18 +47,25 @@ def test_metadata_nodes_group_with_physical_device_and_replacement_identity_chan
 
 def test_ports_do_not_swap_labels_or_device_identity_when_cameras_are_swapped(tmp_path):
     registry = DeviceRegistry(tmp_path)
-    a, b = registry.identify([node(port="a", serial="first"),
-                              node(port="b", serial="second", path="/dev/video2")])
-    swapped = DeviceRegistry(tmp_path).identify([
-        node(port="b", serial="first"), node(port="a", serial="second", path="/dev/video2"),
-    ])
+    a, b = registry.identify(
+        [node(port="a", serial="first"), node(port="b", serial="second", path="/dev/video2")]
+    )
+    swapped = DeviceRegistry(tmp_path).identify(
+        [
+            node(port="b", serial="first"),
+            node(port="a", serial="second", path="/dev/video2"),
+        ]
+    )
     by_port = {device.topology: device for device in swapped}
     assert by_port["a"].display_id == a.display_id and by_port["b"].display_id == b.display_id
     assert by_port["a"].identity not in {a.identity, b.identity}
     assert by_port["b"].identity not in {a.identity, b.identity}
-    restored = DeviceRegistry(tmp_path).identify([
-        node(port="b", serial="second"), node(port="a", serial="first", path="/dev/video4"),
-    ])
+    restored = DeviceRegistry(tmp_path).identify(
+        [
+            node(port="b", serial="second"),
+            node(port="a", serial="first", path="/dev/video4"),
+        ]
+    )
     assert {d.identity for d in restored} == {a.identity, b.identity}
 
 
@@ -67,10 +74,16 @@ def test_legacy_registry_adopts_current_port_without_losing_saved_identity(tmp_p
     import json
 
     identity = hashlib.sha256(b"serial:1234:5678:unique").hexdigest()
-    (tmp_path / "devices.json").write_text(json.dumps({
-        "schema_version": 1, "display_ids": {identity: "USB-03"},
-        "duplicate_serials": [], "next_id": 4,
-    }))
+    (tmp_path / "devices.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "display_ids": {identity: "USB-03"},
+                "duplicate_serials": [],
+                "next_id": 4,
+            }
+        )
+    )
     current = DeviceRegistry(tmp_path).identify([node()])[0]
     assert current.identity == identity and current.display_id == "USB-03"
     persisted = json.loads((tmp_path / "devices.json").read_text())

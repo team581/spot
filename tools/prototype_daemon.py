@@ -3,6 +3,7 @@
 Run from the repository checkout on the Jetson.  This intentionally lives in
 ``tools`` and is not installed or referenced by systemd.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,25 +28,37 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     hub = StreamHub([camera.id for camera in config.cameras if camera.enabled])
     calibration = AlphaCalibration(
-        config, hub.latest_frame, Path(args.config).resolve().parent / ".calibration-sessions",
-        Path(__file__).with_name("calibration_ui.html"))
+        config,
+        hub.latest_frame,
+        Path(args.config).resolve().parent / ".calibration-sessions",
+        Path(__file__).with_name("calibration_ui.html"),
+    )
     hub.attach_calibration(calibration)
     try:
         try:
             hub.serve(args.host, args.port)
             logging.getLogger(__name__).info(
-                "prototype viewer listening on %s:%d", args.host, args.port,
+                "prototype viewer listening on %s:%d",
+                args.host,
+                args.port,
                 extra={"prototype": {"type": "viewer", "ready": True, "port": args.port}},
             )
         except OSError as exc:
             logging.getLogger(__name__).error(
-                "prototype viewer unavailable: %s", exc,
-                extra={"prototype": {
-                    "type": "viewer", "ready": False, "port": args.port, "error": str(exc),
-                }},
+                "prototype viewer unavailable: %s",
+                exc,
+                extra={
+                    "prototype": {
+                        "type": "viewer",
+                        "ready": False,
+                        "port": args.port,
+                        "error": str(exc),
+                    }
+                },
             )
-        service = VisionService(config, result_observer=hub.publish_result,
-                                capture_observer=hub.publish_capture)
+        service = VisionService(
+            config, result_observer=hub.publish_result, capture_observer=hub.publish_capture
+        )
         hub.attach_service(service)
         service.run_forever()
     finally:

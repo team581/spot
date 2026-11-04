@@ -185,9 +185,14 @@ class ConfigurationService:
             devices = data.setdefault("standalone_cameras", {})
             if identity not in devices and len(devices) >= 128:
                 raise ConfigError("Standalone camera setup limit reached")
-            devices.setdefault(identity, {
-                "mode": copy.deepcopy(mode), "settings": dict(defaults), "defaults": dict(defaults),
-            })
+            devices.setdefault(
+                identity,
+                {
+                    "mode": copy.deepcopy(mode),
+                    "settings": dict(defaults),
+                    "defaults": dict(defaults),
+                },
+            )
             return self._commit(data, expected)
 
     def tune_device(self, identity: str, values: dict, expected: str, *, reset=False):
@@ -212,7 +217,8 @@ class ConfigurationService:
             entry["settings"].update(values)
             if optical_controls(entry["settings"]) != previous:
                 data["calibrations"] = {
-                    key: record for key, record in data.get("calibrations", {}).items()
+                    key: record
+                    for key, record in data.get("calibrations", {}).items()
                     if record["identity"] != identity
                 }
             return self._commit(data, expected)
@@ -396,12 +402,14 @@ class ConfigurationService:
     def effective_controls(self, name: str, data: dict | None = None) -> dict[str, float]:
         saved = self.profile_data(data).get("settings", {}).get(name, {})
         values = dict(saved)
-        values.update({
-            policy.name: saved.get(policy.name, policy.default_value)
-            if policy.allow_override
-            else policy.default_value
-            for policy in self.camera(name).controls
-        })
+        values.update(
+            {
+                policy.name: saved.get(policy.name, policy.default_value)
+                if policy.allow_override
+                else policy.default_value
+                for policy in self.camera(name).controls
+            }
+        )
         return values
 
     def set_mode(self, name: str, mode_id: str, expected: str) -> StateSnapshot:

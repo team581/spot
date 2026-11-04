@@ -169,9 +169,9 @@ def test_docs_directory_pages_assets_and_missing_paths(web):
     article = docs / "operator/calibrate"
     article.mkdir(parents=True)
     (docs / "index.html").write_text("<!doctype html><title>Operator guide</title>")
-    page = b'<!doctype html><title>Calibrate</title>'
+    page = b"<!doctype html><title>Calibrate</title>"
     (article / "index.html").write_bytes(page)
-    (docs / "search.wasm").write_bytes(b'\x00asm')
+    (docs / "search.wasm").write_bytes(b"\x00asm")
 
     for path in ("/docs", "/docs/operator/calibrate"):
         status, headers, body = request("GET", path)
@@ -246,13 +246,34 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
 
 def test_network_changes_use_existing_session_guards_and_strict_payloads(web):
     request, headers, submissions, server = web
-    body = operation(operation="network/apply", payload={"interface": "eth0", "mode": "static", "address": "10.5.81.11/24"})
+    body = operation(
+        operation="network/apply",
+        payload={"interface": "eth0", "mode": "static", "address": "10.5.81.11/24"},
+    )
     assert request("POST", "/api/operations", body, {})[0] == 403
     assert request("POST", "/api/operations", body, headers)[0] == 202
     assert submissions[-1][0] == "network/apply"
-    for payload in ({"interface": "eth0", "mode": "static", "address": "10.5.81.255/24"},
-                    {"interface": "eth0", "mode": "automatic", "address": "10.5.81.11/24"}):
-        assert request("POST", "/api/operations", operation(operation="network/apply", payload=payload), headers)[0] == 400
+    for payload in (
+        {"interface": "eth0", "mode": "static", "address": "10.5.81.255/24"},
+        {"interface": "eth0", "mode": "automatic", "address": "10.5.81.11/24"},
+    ):
+        assert (
+            request(
+                "POST",
+                "/api/operations",
+                operation(operation="network/apply", payload=payload),
+                headers,
+            )[0]
+            == 400
+        )
     server.runtime.network = SimpleNamespace(snapshot={"hostname": "spot-2.local"})
-    assert request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.server_port}"})[0] == 200
-    assert request("GET", "/api/status", headers={"Host": f"unregistered.local:{server.server_port}"})[0] == 403
+    assert (
+        request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.server_port}"})[0]
+        == 200
+    )
+    assert (
+        request("GET", "/api/status", headers={"Host": f"unregistered.local:{server.server_port}"})[
+            0
+        ]
+        == 403
+    )

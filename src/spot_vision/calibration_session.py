@@ -1,18 +1,28 @@
 """Hardware-independent calibration session state and capture policy."""
+
 from __future__ import annotations
 
 import secrets
 import shutil
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
-from .charuco import (CalibrationOptions, CalibrationReport, CharucoBoardConfig,
-                      CharucoFrame, calibrate, detect_frame, make_board, write_calibration, _diversity)
+from .charuco import (
+    CalibrationOptions,
+    CalibrationReport,
+    CharucoBoardConfig,
+    CharucoFrame,
+    _diversity,
+    calibrate,
+    detect_frame,
+    make_board,
+    write_calibration,
+)
 
 
 def frame_motion(current: CharucoFrame, previous: CharucoFrame) -> float:
@@ -24,12 +34,14 @@ def frame_motion(current: CharucoFrame, previous: CharucoFrame) -> float:
     if current.image_size != previous.image_size:
         return float("inf")
     _, current_indices, previous_indices = np.intersect1d(
-        current.ids, previous.ids, return_indices=True)
+        current.ids, previous.ids, return_indices=True
+    )
     if len(current_indices) < 4:
         return float("inf")
     displacement = current.image_points[current_indices] - previous.image_points[previous_indices]
-    return float(np.sqrt(np.mean(np.sum(displacement ** 2, axis=1))) /
-                 np.linalg.norm(current.image_size))
+    return float(
+        np.sqrt(np.mean(np.sum(displacement**2, axis=1))) / np.linalg.norm(current.image_size)
+    )
 
 
 def _view_signature(sample: CharucoFrame, board: CharucoBoardConfig) -> np.ndarray | None:
@@ -41,9 +53,11 @@ def _view_signature(sample: CharucoFrame, board: CharucoBoardConfig) -> np.ndarr
     an estimate of intrinsic-parameter uncertainty.
     """
     import cv2
+
     ids = sample.ids.reshape(-1)
-    points = np.column_stack((ids % (board.squares_x - 1) + 1,
-                              ids // (board.squares_x - 1) + 1)).astype(float)
+    points = np.column_stack(
+        (ids % (board.squares_x - 1) + 1, ids // (board.squares_x - 1) + 1)
+    ).astype(float)
     if len(points) < 4 or np.linalg.matrix_rank(points - points.mean(axis=0)) < 2:
         return None
     # Isotropic image normalization preserves shape for nonsquare feeds.
@@ -60,13 +74,17 @@ def _view_signature(sample: CharucoFrame, board: CharucoBoardConfig) -> np.ndarr
     area = abs(np.linalg.det(jacobian))
     if min(lengths) < 1e-8 or area < 1e-10:
         return None
-    return np.array([np.log(np.sqrt(area)), np.log(lengths[0] / lengths[1]),
-                     np.dot(a, b) / np.prod(lengths),
-                     *(h[2, :2] / projected[2] * max(board.squares_x, board.squares_y))])
+    return np.array(
+        [
+            np.log(np.sqrt(area)),
+            np.log(lengths[0] / lengths[1]),
+            np.dot(a, b) / np.prod(lengths),
+            *(h[2, :2] / projected[2] * max(board.squares_x, board.squares_y)),
+        ]
+    )
 
 
-def coverage_state(samples: list[CharucoFrame], board: CharucoBoardConfig,
-                   size: int = 12) -> dict:
+def coverage_state(samples: list[CharucoFrame], board: CharucoBoardConfig, size: int = 12) -> dict:
     """Score local evidence, requiring six distinct views, scale AND tilt spread.
 
     Similar views are merged using continuous distances (no bin-boundary
@@ -75,11 +93,14 @@ def coverage_state(samples: list[CharucoFrame], board: CharucoBoardConfig,
     """
     views = [[[] for _ in range(size)] for _ in range(size)]
     particles = {}
-    thresholds = np.array([np.log(1.15), .12, .12, .12, .12])
+    thresholds = np.array([np.log(1.15), 0.12, 0.12, 0.12, 0.12])
     for sample in samples:
         normalized = sample.image_points / sample.image_size
-        valid = normalized[np.isfinite(normalized).all(axis=1) &
-                           (normalized >= 0).all(axis=1) & (normalized < 1).all(axis=1)]
+        valid = normalized[
+            np.isfinite(normalized).all(axis=1)
+            & (normalized >= 0).all(axis=1)
+            & (normalized < 1).all(axis=1)
+        ]
         signature = _view_signature(sample, board)
         touched = set()
         for x, y in valid:
@@ -101,13 +122,18 @@ def coverage_state(samples: list[CharucoFrame], board: CharucoBoardConfig,
                 spread = np.ptp(evidence, axis=0)
                 # 30% apparent scale range and substantial foreshortening or
                 # perspective change, in addition to independent observations.
-                scores[row, col] = min(len(evidence) / 6, spread[0] / np.log(1.3),
-                                       max(spread[1:]) / .25, 1.0)
-    return {"coverage_grid": scores.tolist(),
-            "coverage_progress": float(scores.mean()),
-            "coverage_good_fraction": float(np.mean(scores >= 1)),
-            "coverage_particles": [{"x": x, "y": y, "progress": float(scores[region])}
-                                   for x, y, region in particles.values()]}
+                scores[row, col] = min(
+                    len(evidence) / 6, spread[0] / np.log(1.3), max(spread[1:]) / 0.25, 1.0
+                )
+    return {
+        "coverage_grid": scores.tolist(),
+        "coverage_progress": float(scores.mean()),
+        "coverage_good_fraction": float(np.mean(scores >= 1)),
+        "coverage_particles": [
+            {"x": x, "y": y, "progress": float(scores[region])}
+            for x, y, region in particles.values()
+        ],
+    }
 
 
 @dataclass
@@ -145,8 +171,12 @@ class CameraSession:
             self.capture_reason = "Show more sharp board corners"
         return self.last_detection
 
-    def accept(self, options: CalibrationOptions, automatic: bool = False,
-               board: CharucoBoardConfig | None = None) -> bool:
+    def accept(
+        self,
+        options: CalibrationOptions,
+        automatic: bool = False,
+        board: CharucoBoardConfig | None = None,
+    ) -> bool:
         if self.calibrating:
             return False
         if self.last_detection is None:
@@ -155,11 +185,14 @@ class CameraSession:
         if automatic and board is not None:
             grid = np.asarray(self.coverage(board)["coverage_grid"])
             points = self.last_detection.image_points / self.last_detection.image_size
-            points = points[np.isfinite(points).all(axis=1) &
-                            (points >= 0).all(axis=1) & (points < 1).all(axis=1)]
+            points = points[
+                np.isfinite(points).all(axis=1)
+                & (points >= 0).all(axis=1)
+                & (points < 1).all(axis=1)
+            ]
             if len(points):
                 cells = (points * grid.shape[0]).astype(int)
-                if np.mean(grid[cells[:, 1], cells[:, 0]] >= 1) > .90:
+                if np.mean(grid[cells[:, 1], cells[:, 0]] >= 1) > 0.90:
                     self.capture_reason = "Already green — move to yellow or unseen regions"
                     return False
         if len(self.samples) >= options.max_frames:
@@ -177,18 +210,27 @@ class CameraSession:
 
 
 class CalibrationSession:
-    def __init__(self, cameras: list[str], root: str | Path, sources: dict[str, Callable[[], np.ndarray]] | None = None):
+    def __init__(
+        self,
+        cameras: list[str],
+        root: str | Path,
+        sources: dict[str, Callable[[], np.ndarray]] | None = None,
+    ):
         self.id = secrets.token_urlsafe(12)
         self.root = Path(root) / self.id
         self.root.mkdir(parents=True, exist_ok=True)
-        self.cameras = {camera_id: CameraSession(camera_id, (sources or {}).get(camera_id)) for camera_id in cameras}
+        self.cameras = {
+            camera_id: CameraSession(camera_id, (sources or {}).get(camera_id))
+            for camera_id in cameras
+        }
         self.board = CharucoBoardConfig()
         self.options = CalibrationOptions()
         self.created = time.monotonic()
         self._lock = threading.RLock()
 
     def configure(self, board: CharucoBoardConfig, options: CalibrationOptions) -> None:
-        board.validate(); options.validate()
+        board.validate()
+        options.validate()
         make_board(board)  # Fail before starting capture for undersized dictionaries.
         self.board, self.options = board, options
 
@@ -234,17 +276,26 @@ class CalibrationSession:
     def restart(self, camera_id: str) -> None:
         with self._lock:
             old = self.cameras[camera_id]
-            self.cameras[camera_id] = CameraSession(camera_id, old.source, running=True, mode=old.mode)
+            self.cameras[camera_id] = CameraSession(
+                camera_id, old.source, running=True, mode=old.mode
+            )
 
     def ready(self, camera_id: str) -> bool:
         with self._lock:
             camera = self.cameras[camera_id]
-            return (camera.running and camera.mode == "auto" and not camera.calibrating
-                    and camera.report is None and len(camera.samples) >= self.options.min_frames
-                    and max(f.coverage for f in camera.samples) >= self.options.min_coverage
-                    and _diversity(camera.samples) >= self.options.min_diversity
-                    and (camera.coverage(self.board)["coverage_good_fraction"] >= .90
-                         or len(camera.samples) >= self.options.max_frames))
+            return (
+                camera.running
+                and camera.mode == "auto"
+                and not camera.calibrating
+                and camera.report is None
+                and len(camera.samples) >= self.options.min_frames
+                and max(f.coverage for f in camera.samples) >= self.options.min_coverage
+                and _diversity(camera.samples) >= self.options.min_diversity
+                and (
+                    camera.coverage(self.board)["coverage_good_fraction"] >= 0.90
+                    or len(camera.samples) >= self.options.max_frames
+                )
+            )
 
     def compute(self, camera_id: str) -> tuple[dict | None, CalibrationReport]:
         with self._lock:
@@ -278,20 +329,31 @@ class CalibrationSession:
                 if report is None or (not report.accepted and not override):
                     raise ValueError(f"camera {camera_id} has not passed validation")
             for camera_id, result in results.items():
-                result = dict(result); result["camera_id"] = camera_id
+                result = dict(result)
+                result["camera_id"] = camera_id
                 write_calibration(paths[camera_id], result)
 
     def status(self) -> dict:
         with self._lock:
-            return {camera_id: {"running": camera.running, "calibrating": camera.calibrating, "frames": len(camera.samples),
-                                "detected": camera.last_detection is not None,
-                                "coverage": 0 if camera.last_detection is None else camera.last_detection.coverage,
-                                **camera.coverage(self.board),
-                                "mode": camera.mode,
-                                "capture_reason": camera.capture_reason,
-                                "motion": camera.motion if np.isfinite(camera.motion) else None,
-                                "report": None if camera.report is None else camera.report.__dict__,
-                                "error": camera.error} for camera_id, camera in self.cameras.items()}
+            return {
+                camera_id: {
+                    "running": camera.running,
+                    "calibrating": camera.calibrating,
+                    "frames": len(camera.samples),
+                    "detected": camera.last_detection is not None,
+                    "coverage": 0
+                    if camera.last_detection is None
+                    else camera.last_detection.coverage,
+                    **camera.coverage(self.board),
+                    "mode": camera.mode,
+                    "capture_reason": camera.capture_reason,
+                    "motion": camera.motion if np.isfinite(camera.motion) else None,
+                    "report": None if camera.report is None else camera.report.__dict__,
+                    "error": camera.error,
+                }
+                for camera_id, camera in self.cameras.items()
+            }
 
     def close(self) -> None:
-        self.stop(); shutil.rmtree(self.root, ignore_errors=True)
+        self.stop()
+        shutil.rmtree(self.root, ignore_errors=True)

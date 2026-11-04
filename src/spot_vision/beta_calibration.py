@@ -156,10 +156,14 @@ class BetaCalibration:
                         worker is None
                         or not worker.verified
                         or mode is None
-                        or (mode.id == "preview" and identity not in
-                            config.state.data.get("standalone_cameras", {}))
+                        or (
+                            mode.id == "preview"
+                            and identity not in config.state.data.get("standalone_cameras", {})
+                        )
                     ):
-                        raise ConfigError("Verify each camera and open standalone setup or choose a robot name")
+                        raise ConfigError(
+                            "Verify each camera and open standalone setup or choose a robot name"
+                        )
                     signature = mode_signature(mode)
                     old = self.cameras.get(identity)
                     target[identity] = (

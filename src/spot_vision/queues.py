@@ -86,6 +86,7 @@ class FairResultQueue(Generic[T]):
     A fast producer can replace only its own results. Offline cameras never
     delay delivery; the capacity argument is per camera.
     """
+
     def __init__(self, camera_ids: list[str], capacity: int) -> None:
         if capacity < 1 or len(set(camera_ids)) != len(camera_ids):
             raise ValueError("positive capacity and unique camera IDs required")

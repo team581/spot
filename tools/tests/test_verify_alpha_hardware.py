@@ -1,65 +1,91 @@
 """Failure injection ensures the live checker cannot certify stale or broken output."""
-from copy import deepcopy
+
 import importlib.util
 import json
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
 import numpy as np
-
 import pytest
 
 spec = importlib.util.spec_from_file_location(
-    "verify_alpha_hardware", Path(__file__).resolve().parents[1] / "verify_alpha_hardware.py")
+    "verify_alpha_hardware", Path(__file__).resolve().parents[1] / "verify_alpha_hardware.py"
+)
 hardware = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hardware)
 
 
 def camera(sequence=1):
-    candidate = {"translation": [1., 2., 3.], "quaternion": [1., 0., 0., 0.],
-                 "error_px": .2, "tag_ids": [4]}
-    return {"id": "1", "enabled": True, "fresh": True, "restart_required": False,
-            "counters": {"captured": 100 * sequence, "detected": 20 * sequence},
-            "telemetry": {"sequence": sequence, "detect_ms": 4., "solve_ms": 2.,
-                          "tags": [{"id": 4, "hamming": 0,
-                                    "corners": [[10, 20], [20, 20], [20, 30], [10, 30]]}],
-                          "pose": deepcopy(candidate), "candidates": [candidate]}}
+    candidate = {
+        "translation": [1.0, 2.0, 3.0],
+        "quaternion": [1.0, 0.0, 0.0, 0.0],
+        "error_px": 0.2,
+        "tag_ids": [4],
+    }
+    return {
+        "id": "1",
+        "enabled": True,
+        "fresh": True,
+        "restart_required": False,
+        "counters": {"captured": 100 * sequence, "detected": 20 * sequence},
+        "telemetry": {
+            "sequence": sequence,
+            "detect_ms": 4.0,
+            "solve_ms": 2.0,
+            "tags": [{"id": 4, "hamming": 0, "corners": [[10, 20], [20, 20], [20, 30], [10, 30]]}],
+            "pose": deepcopy(candidate),
+            "candidates": [candidate],
+        },
+    }
 
 
 def evaluate(rows=None, **kwargs):
     rows = rows or [camera(1), camera(2)]
     samples = [{"cameras": [row]} for row in rows]
-    return hardware.evaluate_samples(samples, 1., {"1": {"decoded": True}}, **kwargs)
+    return hardware.evaluate_samples(samples, 1.0, {"1": {"decoded": True}}, **kwargs)
 
 
 def test_valid_live_progress_and_expected_tag_pass():
     report = evaluate(expected_cameras=["1"], expected_ids=[4])
     assert report["passed"]
     assert report["cameras"]["1"]["detect_fps"] == 20
-    assert report["cameras"]["1"]["max_reprojection_error_px"] == .2
+    assert report["cameras"]["1"]["max_reprojection_error_px"] == 0.2
     json.dumps(report, allow_nan=False)
 
 
-@pytest.mark.parametrize("change,reason", [
-    (lambda c: c.update(fresh=False), "stale_frame"),
-    (lambda c: c.update(restart_required=True), "calibration_restart_required"),
-    (lambda c: c["counters"].update(configuration_error="bad lens"), "configuration_error"),
-    (lambda c: c["telemetry"].update(tags=[]), "no_visible_tag"),
-    (lambda c: c["telemetry"].update(pose=None), "missing_robot_pose"),
-    (lambda c: c["telemetry"].update(candidates=[]), "missing_camera_candidates"),
-    (lambda c: c["telemetry"]["pose"].update(translation=[float("nan"), 0, 0]), "invalid_translation"),
-    (lambda c: c["telemetry"]["pose"].update(quaternion=[2, 0, 0, 0]), "unnormalized_quaternion"),
-    (lambda c: c["telemetry"]["pose"].update(quaternion=[1, 0, 0]), "invalid_quaternion"),
-    (lambda c: c["telemetry"]["pose"].update(error_px=-1), "invalid_reprojection_error"),
-    (lambda c: c["telemetry"]["pose"].update(error_px=float("inf")), "invalid_reprojection_error"),
-    (lambda c: c["telemetry"]["pose"].update(error_px=.3), "wrong_selected_candidate"),
-    (lambda c: c["telemetry"]["pose"].update(tag_ids=[99]), "pose_uses_unobserved_tags"),
-    (lambda c: c["telemetry"]["tags"][0].update(corners=[[1, 2]]), "invalid_corners"),
-    (lambda c: c["telemetry"]["tags"][0].update(hamming=-1), "invalid_hamming"),
-    (lambda c: c["telemetry"].update(detect_ms=float("nan")), "invalid_detect_ms"),
-    (lambda c: c["telemetry"].update(solve_ms=-1), "invalid_solve_ms"),
-])
+@pytest.mark.parametrize(
+    "change,reason",
+    [
+        (lambda c: c.update(fresh=False), "stale_frame"),
+        (lambda c: c.update(restart_required=True), "calibration_restart_required"),
+        (lambda c: c["counters"].update(configuration_error="bad lens"), "configuration_error"),
+        (lambda c: c["telemetry"].update(tags=[]), "no_visible_tag"),
+        (lambda c: c["telemetry"].update(pose=None), "missing_robot_pose"),
+        (lambda c: c["telemetry"].update(candidates=[]), "missing_camera_candidates"),
+        (
+            lambda c: c["telemetry"]["pose"].update(translation=[float("nan"), 0, 0]),
+            "invalid_translation",
+        ),
+        (
+            lambda c: c["telemetry"]["pose"].update(quaternion=[2, 0, 0, 0]),
+            "unnormalized_quaternion",
+        ),
+        (lambda c: c["telemetry"]["pose"].update(quaternion=[1, 0, 0]), "invalid_quaternion"),
+        (lambda c: c["telemetry"]["pose"].update(error_px=-1), "invalid_reprojection_error"),
+        (
+            lambda c: c["telemetry"]["pose"].update(error_px=float("inf")),
+            "invalid_reprojection_error",
+        ),
+        (lambda c: c["telemetry"]["pose"].update(error_px=0.3), "wrong_selected_candidate"),
+        (lambda c: c["telemetry"]["pose"].update(tag_ids=[99]), "pose_uses_unobserved_tags"),
+        (lambda c: c["telemetry"]["tags"][0].update(corners=[[1, 2]]), "invalid_corners"),
+        (lambda c: c["telemetry"]["tags"][0].update(hamming=-1), "invalid_hamming"),
+        (lambda c: c["telemetry"].update(detect_ms=float("nan")), "invalid_detect_ms"),
+        (lambda c: c["telemetry"].update(solve_ms=-1), "invalid_solve_ms"),
+    ],
+)
 def test_invalid_live_output_is_rejected(change, reason):
     row = camera()
     change(row)
@@ -78,8 +104,9 @@ def test_missing_requested_camera_is_rejected():
     assert not report["passed"] and report["cameras"]["2"]["failures"] == ["camera_missing"]
 
 
-@pytest.mark.parametrize("counter", ["capture_failures", "decode_failures", "reconnects",
-                                     "timestamp_discontinuities"])
+@pytest.mark.parametrize(
+    "counter", ["capture_failures", "decode_failures", "reconnects", "timestamp_discontinuities"]
+)
 def test_new_hardware_failures_fail_while_historical_counts_do_not(counter):
     first, last = camera(1), camera(2)
     first["counters"][counter] = last["counters"][counter] = 100
@@ -102,8 +129,9 @@ def test_stuck_publication_is_rejected_even_if_detector_keeps_running():
 
 
 def test_invalid_preview_is_rejected():
-    report = hardware.evaluate_samples([{"cameras": [camera(1)]}, {"cameras": [camera(2)]}],
-                                       1, {"1": {"decoded": False}})
+    report = hardware.evaluate_samples(
+        [{"cameras": [camera(1)]}, {"cameras": [camera(2)]}], 1, {"1": {"decoded": False}}
+    )
     assert "invalid_preview_jpeg" in report["cameras"]["1"]["failures"]
 
 
@@ -115,8 +143,9 @@ def test_latest_only_drops_are_reported_without_failing_correct_output():
     assert "result_queue_drops" in report["cameras"]["1"]["warnings"]
 
 
-@pytest.mark.parametrize("samples,elapsed", [([], 1), ([{"cameras": []}], 1),
-                                             ([{"cameras": []}] * 2, 0)])
+@pytest.mark.parametrize(
+    "samples,elapsed", [([], 1), ([{"cameras": []}], 1), ([{"cameras": []}] * 2, 0)]
+)
 def test_insufficient_evidence_cannot_pass(samples, elapsed):
     with pytest.raises(ValueError):
         hardware.evaluate_samples(samples, elapsed, {})
@@ -138,9 +167,11 @@ def test_cli_connection_failure_returns_error(monkeypatch, capsys):
 
 @pytest.mark.parametrize("scenario", ["healthy", "not_ready", "bad_jpeg"])
 def test_verifier_collects_get_only_evidence_and_saves_report(monkeypatch, tmp_path, scenario):
-    clock = iter([0., 0., .5, 1., 1.])
+    clock = iter([0.0, 0.0, 0.5, 1.0, 1.0])
     sleeps, requests = [], []
-    monkeypatch.setattr(hardware, "time", SimpleNamespace(monotonic=lambda: next(clock), sleep=sleeps.append))
+    monkeypatch.setattr(
+        hardware, "time", SimpleNamespace(monotonic=lambda: next(clock), sleep=sleeps.append)
+    )
     dashboards = 0
     jpeg = cv2.imencode(".jpg", np.zeros((8, 16), np.uint8))[1].tobytes()
 
@@ -174,13 +205,21 @@ def test_verifier_collects_get_only_evidence_and_saves_report(monkeypatch, tmp_p
         return Response(body)
 
     monkeypatch.setattr(hardware, "urlopen", get)
-    report = hardware.verify("http://jetson/", duration_s=1, interval_s=.5,
-                             expected_cameras=["1"], expected_ids=[4], output_dir=tmp_path)
+    report = hardware.verify(
+        "http://jetson/",
+        duration_s=1,
+        interval_s=0.5,
+        expected_cameras=["1"],
+        expected_ids=[4],
+        output_dir=tmp_path,
+    )
     assert report["passed"] == (scenario == "healthy")
-    assert sleeps == [.5, .5] and len(requests) == 6
+    assert sleeps == [0.5, 0.5] and len(requests) == 6
     assert json.loads((tmp_path / "report.json").read_text()) == report
     assert len(json.loads((tmp_path / "samples.json").read_text())) == 3
-    assert (tmp_path / "camera-1.jpg").read_bytes() == (b"bad jpeg" if scenario == "bad_jpeg" else jpeg)
+    assert (tmp_path / "camera-1.jpg").read_bytes() == (
+        b"bad jpeg" if scenario == "bad_jpeg" else jpeg
+    )
 
 
 @pytest.mark.parametrize("duration,interval", [(0, 1), (1, 0), (1, 2)])

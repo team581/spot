@@ -1,4 +1,5 @@
 """Rotation singularities and backend failure diagnostics."""
+
 import json
 from pathlib import Path
 
@@ -8,8 +9,14 @@ import pytest
 
 from spot_vision.config import ConfigError, load_calibration
 from spot_vision.models import Detection, PoseCandidate, PoseMethod, PoseSolution
-from spot_vision.pose import (FieldLayout, FieldTag, PoseSolver, matrix_to_quaternion,
-                              quaternion_to_matrix, select_robot_pose)
+from spot_vision.pose import (
+    FieldLayout,
+    FieldTag,
+    PoseSolver,
+    matrix_to_quaternion,
+    quaternion_to_matrix,
+    select_robot_pose,
+)
 
 DATA = Path(__file__).parent / "data/regression"
 
@@ -32,10 +39,12 @@ def test_zero_quaternion_is_rejected():
 
 
 def test_pose_selection_has_stable_tie_break_and_validates_mount_shape():
-    first = PoseCandidate(PoseMethod.SINGLE_TAG_IPPE_SQUARE, np.array([1, 2, 3]),
-                          np.array([1, 0, 0, 0]), .2, (1,))
-    second = PoseCandidate(PoseMethod.SINGLE_TAG_IPPE_SQUARE, np.array([9, 8, 7]),
-                           np.array([1, 0, 0, 0]), .2, (1,))
+    first = PoseCandidate(
+        PoseMethod.SINGLE_TAG_IPPE_SQUARE, np.array([1, 2, 3]), np.array([1, 0, 0, 0]), 0.2, (1,)
+    )
+    second = PoseCandidate(
+        PoseMethod.SINGLE_TAG_IPPE_SQUARE, np.array([9, 8, 7]), np.array([1, 0, 0, 0]), 0.2, (1,)
+    )
     result = select_robot_pose(PoseSolution((first, second)), np.eye(4))
     assert np.array_equal(result.translation, first.translation)
     with pytest.raises(ConfigError, match="4x4"):
@@ -44,8 +53,11 @@ def test_pose_selection_has_stable_tie_break_and_validates_mount_shape():
 
 
 def test_solver_failure_retains_known_and_unknown_raw_observations(monkeypatch):
-    solver = PoseSolver(load_calibration(DATA / "calibration.json"),
-                        FieldLayout({1: FieldTag(1, np.eye(4))}, 1), .3)
+    solver = PoseSolver(
+        load_calibration(DATA / "calibration.json"),
+        FieldLayout({1: FieldTag(1, np.eye(4))}, 1),
+        0.3,
+    )
 
     def fail(_):
         raise cv2.error("bad geometry")

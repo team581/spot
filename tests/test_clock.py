@@ -3,10 +3,13 @@ import pytest
 from spot_vision.clock import FrameRateCounter
 
 
-@pytest.mark.parametrize("timestamps", [
-    [i / 20 for i in range(21)],
-    [0.0] + [t for i in range(10) for t in (i / 10 + .001, (i + 1) / 10)],
-])
+@pytest.mark.parametrize(
+    "timestamps",
+    [
+        [i / 20 for i in range(21)],
+        [0.0] + [t for i in range(10) for t in (i / 10 + 0.001, (i + 1) / 10)],
+    ],
+)
 def test_frame_rate_counts_elapsed_time_for_regular_and_burst_delivery(timestamps):
     rate = FrameRateCounter()
     for timestamp in timestamps:
@@ -19,7 +22,7 @@ def test_frame_rate_counts_elapsed_time_for_regular_and_burst_delivery(timestamp
 def test_frame_rate_waits_for_full_window_and_counts_stalls():
     rate = FrameRateCounter()
     assert rate.update(0) == 0
-    assert rate.update(.5) == 0
-    assert rate.update(5) == pytest.approx(.4)
-    assert rate.update(5.001) == pytest.approx(.4)
+    assert rate.update(0.5) == 0
+    assert rate.update(5) == pytest.approx(0.4)
+    assert rate.update(5.001) == pytest.approx(0.4)
     assert rate.update(6) == pytest.approx(2)

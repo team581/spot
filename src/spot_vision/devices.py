@@ -192,16 +192,20 @@ class DeviceRegistry:
                 identities = set()
                 for topology, slot in slots.items():
                     if (
-                        not isinstance(topology, str) or not topology
+                        not isinstance(topology, str)
+                        or not topology
                         or not isinstance(slot, dict)
                         or set(slot) != {"display_id", "identities"}
                         or not isinstance(slot["display_id"], str)
                         or slot["display_id"] in labels
                         or not isinstance(slot["identities"], dict)
                         or len(slot["identities"]) > 4096
-                        or any(not isinstance(key, str) or not isinstance(value, str)
-                               or not re.fullmatch(r"[a-f0-9]{64}", value)
-                               for key, value in slot["identities"].items())
+                        or any(
+                            not isinstance(key, str)
+                            or not isinstance(value, str)
+                            or not re.fullmatch(r"[a-f0-9]{64}", value)
+                            for key, value in slot["identities"].items()
+                        )
                     ):
                         raise ValueError("invalid saved USB port slot")
                     values = set(slot["identities"].values())
@@ -239,8 +243,9 @@ class DeviceRegistry:
                     else f"port:{node.vendor}:{node.product}:{topology}"
                 )
                 legacy_identity = hashlib.sha256(observable.encode()).hexdigest()
-                used_identities = {identity for slot in slots.values()
-                                   for identity in slot["identities"].values()}
+                used_identities = {
+                    identity for slot in slots.values() for identity in slot["identities"].values()
+                }
                 if topology not in slots:
                     if len(slots) >= 4096:
                         raise ConfigError("USB port inventory limit reached")
@@ -256,8 +261,10 @@ class DeviceRegistry:
                 if identity is None:
                     if len(self.data["display_ids"]) >= 4096:
                         raise ConfigError("device inventory limit reached")
-                    identity = legacy_identity if legacy_identity not in used_identities else (
-                        hashlib.sha256(f"slot:{topology}:{observable}".encode()).hexdigest()
+                    identity = (
+                        legacy_identity
+                        if legacy_identity not in used_identities
+                        else (hashlib.sha256(f"slot:{topology}:{observable}".encode()).hexdigest())
                     )
                     slot["identities"][observable] = identity
                     self.data["display_ids"][identity] = slot["display_id"]

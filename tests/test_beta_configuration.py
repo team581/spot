@@ -50,14 +50,16 @@ def test_disconnect_does_not_unlock_enabled_robot_and_standalone_is_explicit(tmp
 
 
 def test_device_setup_and_tuning_persist_without_any_robot_profile(tmp_path):
-    service = ConfigurationService(StateStore(tmp_path), lambda *_: None,
-                                   device_exists=lambda identity: identity == "usb-a")
+    service = ConfigurationService(
+        StateStore(tmp_path), lambda *_: None, device_exists=lambda identity: identity == "usb-a"
+    )
     mode = {"width": 640, "height": 480, "fps": 120, "pixel_format": "MJPG"}
     service.setup_device("usb-a", mode, {"gain": 10}, service.state.generation)
     service.tune_device("usb-a", {"gain": 11}, service.state.generation)
     assert service.manifest is None and not service.state.data.get("profiles")
-    restarted = ConfigurationService(StateStore(tmp_path), lambda *_: None,
-                                     device_exists=lambda _: True)
+    restarted = ConfigurationService(
+        StateStore(tmp_path), lambda *_: None, device_exists=lambda _: True
+    )
     assert restarted.state.data["standalone_cameras"]["usb-a"]["settings"] == {"gain": 11}
     with pytest.raises(ConfigError, match="locked"):
         restarted.tune_device("usb-a", {"gain": 12}, restarted.state.generation)
@@ -80,7 +82,13 @@ def test_device_setup_cannot_override_robot_binding_or_enable_state(tmp_path):
 
 def test_device_tuning_failure_keeps_acknowledged_values_and_generation(tmp_path):
     def apply(state, _):
-        if state.data.get("standalone_cameras", {}).get("usb-a", {}).get("settings", {}).get("gain") == 99:
+        if (
+            state.data.get("standalone_cameras", {})
+            .get("usb-a", {})
+            .get("settings", {})
+            .get("gain")
+            == 99
+        ):
             raise ConfigError("driver rejected gain")
 
     service = ConfigurationService(StateStore(tmp_path), apply, device_exists=lambda _: True)
@@ -126,6 +134,7 @@ def test_omitted_control_keeps_gui_value_through_new_code_and_restart(tmp_path):
     changed = manifest()
     del changed.profile.cameras[0].controls[:]
     from spot_vision.beta_contract import content_hash
+
     changed.manifest_hash = content_hash(changed.profile)
     service.accept_manifest(changed)
     assert service.effective_controls("front")["gain"] == 7

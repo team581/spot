@@ -3,6 +3,7 @@
 This module also runs standalone in the root-owned network helper. It never
 imports application code, executes shell text, or changes Wi-Fi/default routes.
 """
+
 from __future__ import annotations
 
 import copy
@@ -46,20 +47,33 @@ def validate_change(values):
         parsed = ipaddress.IPv4Interface(address)
     except ValueError as exc:
         raise NetworkError("Use an IPv4 address with a prefix, for example 10.5.81.11/24") from exc
-    if ("/" not in address or not 1 <= parsed.network.prefixlen <= 30
-            or parsed.ip.is_multicast or parsed.ip.is_loopback or parsed.ip.is_link_local
-            or parsed.ip.is_unspecified or parsed.ip.is_reserved
-            or parsed.ip in {parsed.network.network_address, parsed.network.broadcast_address}):
+    if (
+        "/" not in address
+        or not 1 <= parsed.network.prefixlen <= 30
+        or parsed.ip.is_multicast
+        or parsed.ip.is_loopback
+        or parsed.ip.is_link_local
+        or parsed.ip.is_unspecified
+        or parsed.ip.is_reserved
+        or parsed.ip in {parsed.network.network_address, parsed.network.broadcast_address}
+    ):
         raise NetworkError("Choose a usable IPv4 host address and prefix /1 through /30")
     return {**values, "address": str(parsed)}
 
 
 def run(arguments, *, timeout=8):
     try:
-        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout,
-                                env={**os.environ, "LC_ALL": "C"})
+        result = subprocess.run(
+            arguments,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ, "LC_ALL": "C"},
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise NetworkError("Network service did not respond; previous settings are protected by rollback") from exc
+        raise NetworkError(
+            "Network service did not respond; previous settings are protected by rollback"
+        ) from exc
     if result.returncode:
         raise NetworkError(result.stderr.strip()[:400] or "Network command failed")
     return result.stdout.strip()
@@ -73,13 +87,26 @@ class NetworkManager:
         return self.run(["nmcli", *args], timeout=timeout)
 
     def bus(self, method, signature="", *args):
-        reply = self.run(["busctl", "--system", "--json=short", "call", NM, NM_PATH,
-                          NM, method, signature, *map(str, args)])
+        reply = self.run(
+            [
+                "busctl",
+                "--system",
+                "--json=short",
+                "call",
+                NM,
+                NM_PATH,
+                NM,
+                method,
+                signature,
+                *map(str, args),
+            ]
+        )
         return json.loads(reply)["data"] if reply else []
 
     def checkpoints(self):
-        reply = self.run(["busctl", "--system", "--json=short", "get-property", NM,
-                          NM_PATH, NM, "Checkpoints"])
+        reply = self.run(
+            ["busctl", "--system", "--json=short", "get-property", NM, NM_PATH, NM, "Checkpoints"]
+        )
         return json.loads(reply)["data"]
 
     def rollback(self, checkpoint):
@@ -101,7 +128,9 @@ class NetworkManager:
 
     def interfaces(self):
         active = {}
-        for row in self.nm("-t", "-f", "UUID,DEVICE", "connection", "show", "--active").splitlines():
+        for row in self.nm(
+            "-t", "-f", "UUID,DEVICE", "connection", "show", "--active"
+        ).splitlines():
             identity, _, device = row.partition(":")
             active[device] = identity
         links = json.loads(self.run(["ip", "-json", "address", "show"]))
@@ -113,31 +142,74 @@ class NetworkManager:
             if self.nm("-g", "GENERAL.TYPE", "device", "show", name) != "ethernet":
                 continue
             identity = active.get(name)
-            method = self.nm("-g", "ipv4.method", "connection", "show", "uuid", identity) if identity else ""
-            result.append({"interface": name, "mac": link.get("address", ""),
-                           "connected": "LOWER_UP" in link.get("flags", []),
-                           "addresses": [f"{a['local']}/{a['prefixlen']}" for a in link.get("addr_info", []) if a['family'] == 'inet'],
-                           "mode": "automatic" if method == "auto" else "static" if method == "manual" else "unconfigured",
-                           "connection_uuid": identity})
+            method = (
+                self.nm("-g", "ipv4.method", "connection", "show", "uuid", identity)
+                if identity
+                else ""
+            )
+            result.append(
+                {
+                    "interface": name,
+                    "mac": link.get("address", ""),
+                    "connected": "LOWER_UP" in link.get("flags", []),
+                    "addresses": [
+                        f"{a['local']}/{a['prefixlen']}"
+                        for a in link.get("addr_info", [])
+                        if a["family"] == "inet"
+                    ],
+                    "mode": "automatic"
+                    if method == "auto"
+                    else "static"
+                    if method == "manual"
+                    else "unconfigured",
+                    "connection_uuid": identity,
+                }
+            )
         return result
 
     def status(self):
         pending = self.pending()
         hostname, discovery = "", "unavailable"
         try:
-            reply = self.run(["busctl", "--system", "--json=short", "call", "org.freedesktop.Avahi",
-                              "/", "org.freedesktop.Avahi.Server", "GetHostNameFqdn"])
+            reply = self.run(
+                [
+                    "busctl",
+                    "--system",
+                    "--json=short",
+                    "call",
+                    "org.freedesktop.Avahi",
+                    "/",
+                    "org.freedesktop.Avahi.Server",
+                    "GetHostNameFqdn",
+                ]
+            )
             hostname = json.loads(reply)["data"][0]
             discovery = "active"
         except NetworkError:
             pass
-        addresses = [a["local"] for link in json.loads(self.run(["ip", "-json", "address", "show"]))
-                     for a in link.get("addr_info", []) if a["family"] == "inet"]
-        return {"available": True, "interfaces": self.interfaces(), "hostname": hostname,
-                "local_addresses": addresses,
-                "discovery": discovery, "pending": ({"token": pending["token"],
-                "interface": pending["interface"], "address": pending["address"],
-                "remaining_s": max(0, round(pending["deadline"] - time.monotonic()))} if pending else None)}
+        addresses = [
+            a["local"]
+            for link in json.loads(self.run(["ip", "-json", "address", "show"]))
+            for a in link.get("addr_info", [])
+            if a["family"] == "inet"
+        ]
+        return {
+            "available": True,
+            "interfaces": self.interfaces(),
+            "hostname": hostname,
+            "local_addresses": addresses,
+            "discovery": discovery,
+            "pending": (
+                {
+                    "token": pending["token"],
+                    "interface": pending["interface"],
+                    "address": pending["address"],
+                    "remaining_s": max(0, round(pending["deadline"] - time.monotonic())),
+                }
+                if pending
+                else None
+            ),
+        }
 
     def apply(self, values):
         values = validate_change(values)
@@ -146,7 +218,9 @@ class NetworkManager:
         interfaces = self.interfaces()
         selected = next((i for i in interfaces if i["interface"] == values["interface"]), None)
         if selected is None:
-            raise NetworkError("Only a physical Ethernet port managed by NetworkManager can be changed")
+            raise NetworkError(
+                "Only a physical Ethernet port managed by NetworkManager can be changed"
+            )
         if values["mode"] == "static":
             network = ipaddress.IPv4Interface(values["address"]).network
             # Also include Wi-Fi, bridges and VPN addresses in the overlap check.
@@ -154,8 +228,12 @@ class NetworkManager:
                 if link["ifname"] == values["interface"]:
                     continue
                 for a in link.get("addr_info", []):
-                    if a["family"] == "inet" and network.overlaps(ipaddress.IPv4Network(f"{a['local']}/{a['prefixlen']}", strict=False)):
-                        raise NetworkError("This subnet overlaps another Jetson port; choose separate subnets")
+                    if a["family"] == "inet" and network.overlaps(
+                        ipaddress.IPv4Network(f"{a['local']}/{a['prefixlen']}", strict=False)
+                    ):
+                        raise NetworkError(
+                            "This subnet overlaps another Jetson port; choose separate subnets"
+                        )
         device = self.nm("-g", "GENERAL.DBUS-PATH", "device", "show", values["interface"])
         checkpoint_at = time.monotonic()
         checkpoint = self.bus("CheckpointCreate", "aouu", 1, device, 90, 0)[0]
@@ -163,26 +241,77 @@ class NetworkManager:
         try:
             name = "Spot-" + values["interface"] + "-" + token[:8]
             old = selected["connection_uuid"]
-            priority = int(self.nm("-g", "connection.autoconnect-priority", "connection", "show", "uuid", old)) if old else 0
+            priority = (
+                int(
+                    self.nm(
+                        "-g", "connection.autoconnect-priority", "connection", "show", "uuid", old
+                    )
+                )
+                if old
+                else 0
+            )
             if priority >= 999:
-                raise NetworkError("Connection priority needs administrator review before another change")
+                raise NetworkError(
+                    "Connection priority needs administrator review before another change"
+                )
             if old:
                 self.nm("connection", "clone", "uuid", old, name)
             else:
-                self.nm("connection", "add", "type", "ethernet", "ifname", values["interface"], "con-name", name)
+                self.nm(
+                    "connection",
+                    "add",
+                    "type",
+                    "ethernet",
+                    "ifname",
+                    values["interface"],
+                    "con-name",
+                    name,
+                )
             identity = self.nm("-g", "connection.uuid", "connection", "show", name)
-            self.nm("connection", "modify", "uuid", identity, "connection.autoconnect", "no",
-                    "connection.interface-name", values["interface"], "802-3-ethernet.mac-address", selected["mac"],
-                    "ipv4.method", "auto" if values["mode"] == "automatic" else "manual",
-                    "ipv4.addresses", values["address"], "ipv4.gateway", "", "ipv4.dns", "",
-                    "ipv4.routes", "", "ipv4.never-default", "yes", "ipv4.ignore-auto-dns", "yes",
-                    "ipv6.never-default", "yes", "ipv6.ignore-auto-dns", "yes", "ipv4.dad-timeout", "1500")
-            pending = {**values, "token": token, "connection_uuid": identity,
-                       "priority": priority + 1, "checkpoint": checkpoint,
-                       "deadline": checkpoint_at + 90}
+            self.nm(
+                "connection",
+                "modify",
+                "uuid",
+                identity,
+                "connection.autoconnect",
+                "no",
+                "connection.interface-name",
+                values["interface"],
+                "802-3-ethernet.mac-address",
+                selected["mac"],
+                "ipv4.method",
+                "auto" if values["mode"] == "automatic" else "manual",
+                "ipv4.addresses",
+                values["address"],
+                "ipv4.gateway",
+                "",
+                "ipv4.dns",
+                "",
+                "ipv4.routes",
+                "",
+                "ipv4.never-default",
+                "yes",
+                "ipv4.ignore-auto-dns",
+                "yes",
+                "ipv6.never-default",
+                "yes",
+                "ipv6.ignore-auto-dns",
+                "yes",
+                "ipv4.dad-timeout",
+                "1500",
+            )
+            pending = {
+                **values,
+                "token": token,
+                "connection_uuid": identity,
+                "priority": priority + 1,
+                "checkpoint": checkpoint,
+                "deadline": checkpoint_at + 90,
+            }
             self.state.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             temporary = self.state.with_suffix(".next")
-            temporary.write_text(json.dumps(pending));temporary.chmod(0o600)
+            temporary.write_text(json.dumps(pending))
+            temporary.chmod(0o600)
             temporary.replace(self.state)
             self.nm("--wait", "45", "connection", "up", "uuid", identity, timeout=49)
         except Exception:
@@ -198,17 +327,32 @@ class NetworkManager:
         if not pending or token != pending["token"]:
             raise NetworkError("This network change expired or was already reverted")
         if keep:
-            current = next((i for i in self.interfaces() if i["interface"] == pending["interface"]), {})
-            if current.get("connection_uuid") != pending["connection_uuid"] or not current.get("addresses"):
-                raise NetworkError("The selected port has no active IPv4 connection; revert or wait for rollback")
+            current = next(
+                (i for i in self.interfaces() if i["interface"] == pending["interface"]), {}
+            )
+            if current.get("connection_uuid") != pending["connection_uuid"] or not current.get(
+                "addresses"
+            ):
+                raise NetworkError(
+                    "The selected port has no active IPv4 connection; revert or wait for rollback"
+                )
             # Persist the user's confirmation before committing. If the helper
             # restarts after CheckpointDestroy, status must not delete a kept profile.
             pending["confirm_requested"] = True
             temporary = self.state.with_suffix(".next")
-            temporary.write_text(json.dumps(pending));temporary.chmod(0o600)
+            temporary.write_text(json.dumps(pending))
+            temporary.chmod(0o600)
             temporary.replace(self.state)
-            self.nm("connection", "modify", "uuid", pending["connection_uuid"],
-                    "connection.autoconnect-priority", str(pending["priority"]), "connection.autoconnect", "yes")
+            self.nm(
+                "connection",
+                "modify",
+                "uuid",
+                pending["connection_uuid"],
+                "connection.autoconnect-priority",
+                str(pending["priority"]),
+                "connection.autoconnect",
+                "yes",
+            )
             self.bus("CheckpointDestroy", "o", pending["checkpoint"])
         else:
             self.rollback(pending["checkpoint"])
@@ -241,7 +385,9 @@ class NetworkClient:
         with socket.socket(socket.AF_UNIX) as connection:
             connection.settimeout(60)
             connection.connect(self.path)
-            connection.sendall((json.dumps({"operation": operation, "payload": payload}) + "\n").encode())
+            connection.sendall(
+                (json.dumps({"operation": operation, "payload": payload}) + "\n").encode()
+            )
             with connection.makefile("rb") as stream:
                 reply = json.loads(stream.readline(65537))
         if "error" in reply:
@@ -254,12 +400,18 @@ class NetworkClient:
             try:
                 self.request("status", {})
             except (OSError, ValueError) as exc:
-                self.snapshot = {"available": False, "error": "Network helper unavailable: " + str(exc)[:180]}
+                self.snapshot = {
+                    "available": False,
+                    "error": "Network helper unavailable: " + str(exc)[:180],
+                }
             self.stop.wait(3)
 
     def submit(self, operation, payload, guard=lambda: None):
         if not self.busy.acquire(blocking=False):
-            future = Future();future.set_exception(NetworkError("Network change already in progress"));return future
+            future = Future()
+            future.set_exception(NetworkError("Network change already in progress"))
+            return future
+
         def execute():
             try:
                 guard()
@@ -267,6 +419,7 @@ class NetworkClient:
                 return {"result": result}
             finally:
                 self.busy.release()
+
         return self.executor.submit(execute)
 
     def close(self):

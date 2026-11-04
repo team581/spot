@@ -1,8 +1,8 @@
 """Local NT4 integration. This is not roboRIO clock qualification."""
 
 import socket
-import time
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 

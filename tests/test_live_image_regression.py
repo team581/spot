@@ -1,4 +1,5 @@
 """Permanent offline regressions from all four real alpha camera images."""
+
 from pathlib import Path
 
 import cv2
@@ -10,9 +11,13 @@ from spot_vision import _spot_cuda as native
 DATA = Path(__file__).parent / "data/live-alpha"
 
 
-@pytest.mark.parametrize("camera_id,width,height", [("1", 640, 480), ("2", 1280, 720),
-                                                    ("3", 1280, 720), ("4", 1280, 720)])
-def test_real_tag4_image_detection_is_repeatable_and_does_not_leave_stale_tags(camera_id, width, height):
+@pytest.mark.parametrize(
+    "camera_id,width,height",
+    [("1", 640, 480), ("2", 1280, 720), ("3", 1280, 720), ("4", 1280, 720)],
+)
+def test_real_tag4_image_detection_is_repeatable_and_does_not_leave_stale_tags(
+    camera_id, width, height
+):
     image = cv2.imread(str(DATA / f"camera-{camera_id}.jpg"))
     assert image is not None and image.shape == (height, width, 3)
     yuyv = cv2.cvtColor(image, cv2.COLOR_BGR2YUV_YUY2)

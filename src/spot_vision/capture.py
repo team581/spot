@@ -12,8 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .clock import FrameRateCounter, nt_now_us
 from .camera_controls import CameraControls
+from .clock import FrameRateCounter, nt_now_us
 from .config import CameraConfig, CameraSelector
 from .models import CameraCounters, CameraState, FramePacket
 from .queues import LatestFrameSlot
@@ -52,9 +52,13 @@ def resolve_device(selector: CameraSelector) -> str:
         for candidate in sorted(glob.glob("/dev/video*")):
             result = subprocess.run(
                 ["udevadm", "info", "--query=property", f"--name={candidate}"],
-                check=False, capture_output=True, text=True,
+                check=False,
+                capture_output=True,
+                text=True,
             )
-            properties = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+            properties = dict(
+                line.split("=", 1) for line in result.stdout.splitlines() if "=" in line
+            )
             if properties.get("ID_SERIAL_SHORT") == selector.serial:
                 return _real_device(candidate)
         raise CameraError(f"no camera with serial {selector.serial!r}")
@@ -65,7 +69,10 @@ def enumerate_camera(device: str) -> str:
     try:
         result = subprocess.run(
             ["v4l2-ctl", "--device", device, "--all", "--list-formats-ext", "--list-ctrls-menus"],
-            check=False, capture_output=True, text=True, timeout=10,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
     except FileNotFoundError as exc:
         raise CameraError("v4l2-ctl is required to enumerate cameras") from exc
@@ -78,8 +85,13 @@ def build_gstreamer_pipeline(camera: CameraConfig, device: str) -> str:
     source = f'v4l2src device="{device}" io-mode=2'
     dimensions = f"width={camera.width},height={camera.height},framerate={camera.fps}/1"
     if camera.format in {"MJPG", "MJPEG"}:
-        stages = [source, f"image/jpeg,{dimensions}", "jpegdec", "videoconvert",
-                  "video/x-raw,format=YUY2"]
+        stages = [
+            source,
+            f"image/jpeg,{dimensions}",
+            "jpegdec",
+            "videoconvert",
+            "video/x-raw,format=YUY2",
+        ]
     elif camera.format in {"YUY2", "YUYV"}:
         stages = [source, f"video/x-raw,format=YUY2,{dimensions}"]
     else:
@@ -91,7 +103,9 @@ def build_gstreamer_pipeline(camera: CameraConfig, device: str) -> str:
 def _set_control(device: str, name: str, value: int) -> bool:
     result = subprocess.run(
         ["v4l2-ctl", "--device", device, f"--set-ctrl={name}={value}"],
-        check=False, capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     return result.returncode == 0
 
@@ -103,11 +117,12 @@ def configure_controls(camera: CameraConfig, device: str) -> None:
         _set_control(device, "exposure_auto", 1) or _set_control(device, "auto_exposure", 1)
         # Both V4L2 UVC spellings use 100 us units, while the public config is
         # intentionally expressed in microseconds.
-        exposure_units = (None if camera.exposure_us is None else
-                          max(1, camera.exposure_us // 100))
-        if (camera.exposure_us is not None
-                and not _set_control(device, "exposure_time_absolute", exposure_units)
-                and not _set_control(device, "exposure_absolute", exposure_units)):
+        exposure_units = None if camera.exposure_us is None else max(1, camera.exposure_us // 100)
+        if (
+            camera.exposure_us is not None
+            and not _set_control(device, "exposure_time_absolute", exposure_units)
+            and not _set_control(device, "exposure_absolute", exposure_units)
+        ):
             raise CameraError("camera does not expose a supported manual exposure control")
     if camera.gain is not None and not _set_control(device, "gain", camera.gain):
         raise CameraError("camera does not expose a gain control")
@@ -157,6 +172,7 @@ def open_capture(cv2, camera: CameraConfig, device: str):
     """Use bounded MJPEG reads on Linux; otherwise prefer GStreamer."""
     if sys.platform.startswith("linux") and camera.format in {"MJPG", "MJPEG"}:
         from .v4l2_capture import MjpegCapture
+
         return MjpegCapture(cv2, camera, device), True
     pipeline = build_gstreamer_pipeline(camera, device)
     capture = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
@@ -184,9 +200,14 @@ def open_capture(cv2, camera: CameraConfig, device: str):
 
 
 class CaptureWorker(threading.Thread):
-    def __init__(self, camera: CameraConfig, slot: LatestFrameSlot, counters: CameraCounters,
-                 stop_event: threading.Event,
-                 frame_observer: Callable[[FramePacket], None] | None = None) -> None:
+    def __init__(
+        self,
+        camera: CameraConfig,
+        slot: LatestFrameSlot,
+        counters: CameraCounters,
+        stop_event: threading.Event,
+        frame_observer: Callable[[FramePacket], None] | None = None,
+    ) -> None:
         super().__init__(name=f"capture-{camera.id}", daemon=True)
         self.camera = camera
         self.slot = slot
@@ -238,8 +259,11 @@ class CaptureWorker(threading.Thread):
                 if not ok or frame is None:
                     raise CameraError("capture returned no frame")
                 try:
-                    decoded = (bgr_to_yuyv_frame(frame, self.camera, cv2)
-                               if converts_from_bgr else validate_yuyv_frame(frame, self.camera))
+                    decoded = (
+                        bgr_to_yuyv_frame(frame, self.camera, cv2)
+                        if converts_from_bgr
+                        else validate_yuyv_frame(frame, self.camera)
+                    )
                     image = orient_yuyv_frame(decoded, self.camera)
                 except CameraError:
                     self.counters.decode_failures += 1
@@ -262,11 +286,16 @@ class CaptureWorker(threading.Thread):
                     try:
                         self.frame_observer(packet)
                     except Exception:
-                        LOGGER.debug("capture observer failed for %s", self.camera.id, exc_info=True)
+                        LOGGER.debug(
+                            "capture observer failed for %s", self.camera.id, exc_info=True
+                        )
                 self.counters.captured += 1
                 self.counters.last_capture_monotonic = now
-                self.counters.state = (CameraState.CONFIG_MISMATCH
-                                       if self.counters.configuration_error else CameraState.RUNNING)
+                self.counters.state = (
+                    CameraState.CONFIG_MISMATCH
+                    if self.counters.configuration_error
+                    else CameraState.RUNNING
+                )
                 self.counters.error = self.counters.configuration_error
                 if now - successful_since >= 10.0:
                     successful_since = now

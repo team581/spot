@@ -66,15 +66,17 @@ def generate(root: Path, native: Path, cuda: bool, web_assets: Path) -> dict:
             path.read_bytes()
         ).hexdigest()
         for path in sorted((root / "src/spot_vision").rglob("*"))
-        if path.is_file()
-        and "__pycache__" not in path.parts
-        and path.suffix == ".py"
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix == ".py"
     }
-    document["artifact_hashes"].update({
-        "web/" + path.relative_to(web_assets).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(web_assets.rglob("*"))
-        if path.is_file()
-    })
+    document["artifact_hashes"].update(
+        {
+            "web/" + path.relative_to(web_assets).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in sorted(web_assets.rglob("*"))
+            if path.is_file()
+        }
+    )
     document["protobuf_generated_versions"] = {"v1": "7.35.1", "v2": "6.33.2"}
     document["release_id"] = hashlib.sha256(
         json.dumps(document, sort_keys=True).encode()
@@ -91,5 +93,6 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.write_text(
-        json.dumps(generate(args.root, args.native, args.cuda == "ON", args.web_assets), indent=2) + "\n"
+        json.dumps(generate(args.root, args.native, args.cuda == "ON", args.web_assets), indent=2)
+        + "\n"
     )

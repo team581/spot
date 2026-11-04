@@ -70,8 +70,9 @@ def test_detection_fps_counts_completed_frames_without_burst_inflation(monkeypat
             return DetectionBatch((), 1.0, image.ctypes.data)
 
     counters = {"a": CameraCounters()}
-    scheduler = FairDetectorScheduler(["a"], {"a": slot}, {"a": Detector()}, counters,
-                                      BoundedDropOldestQueue(32), wake, stop)
+    scheduler = FairDetectorScheduler(
+        ["a"], {"a": slot}, {"a": Detector()}, counters, BoundedDropOldestQueue(32), wake, stop
+    )
     monkeypatch.setattr(scheduler_module.time, "monotonic_ns", lambda: next(clock))
     scheduler.run()
     assert counters["a"].detected == len(timestamps)

@@ -1,4 +1,5 @@
 """Bounded buffering, wakeups, and shutdown under producer/consumer contention."""
+
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -63,8 +64,10 @@ def test_put_wakes_waiting_consumer():
 def test_concurrent_producers_do_not_exceed_capacity_or_duplicate_items():
     queue = BoundedDropOldestQueue(17)
     with ThreadPoolExecutor(4) as pool:
-        futures = [pool.submit(lambda start=start: [queue.put((start, i)) for i in range(200)])
-                   for start in range(4)]
+        futures = [
+            pool.submit(lambda start=start: [queue.put((start, i)) for i in range(200)])
+            for start in range(4)
+        ]
         drops = sum(sum(future.result(timeout=3)) for future in futures)
     assert drops == 800 - 17
     queue.close()

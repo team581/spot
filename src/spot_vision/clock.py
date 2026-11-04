@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
 import threading
+import time
 from dataclasses import dataclass
 
 
@@ -64,8 +64,9 @@ class ClockGate:
     No wall time or guessed latency participates in this state machine.
     """
 
-    def __init__(self, *, expiry_s: float = 30.0, jump_us: int = 5_000,
-                 max_rtt2_us: int = 5_000) -> None:
+    def __init__(
+        self, *, expiry_s: float = 30.0, jump_us: int = 5_000, max_rtt2_us: int = 5_000
+    ) -> None:
         if expiry_s <= 0 or jump_us <= 0 or max_rtt2_us <= 0:
             raise ValueError("clock limits must be positive")
         self.expiry_s, self.jump_us, self.max_rtt2_us = expiry_s, jump_us, max_rtt2_us
@@ -92,8 +93,9 @@ class ClockGate:
         self._sync_epoch += 1
         self._ready_ns = 0
 
-    def update(self, offset_us: int | None, rtt2_us: int, valid: bool,
-               now_ns: int | None = None) -> None:
+    def update(
+        self, offset_us: int | None, rtt2_us: int, valid: bool, now_ns: int | None = None
+    ) -> None:
         now = time.monotonic_ns() if now_ns is None else now_ns
         with self._lock:
             self._expire(now)
@@ -119,8 +121,11 @@ class ClockGate:
                 self._ready_ns = now
 
     def _expire(self, now: int) -> None:
-        if (self._state == "Synchronized" and self._updated_ns is not None
-                and (now - self._updated_ns) / 1e9 > self.expiry_s):
+        if (
+            self._state == "Synchronized"
+            and self._updated_ns is not None
+            and (now - self._updated_ns) / 1e9 > self.expiry_s
+        ):
             self._invalidate("Waiting")
             self._offset = None
 
@@ -136,6 +141,11 @@ class ClockGate:
         with self._lock:
             self._expire(now)
             return SyncSnapshot(
-                self._state, self._connection_epoch, self._sync_epoch, self._offset,
+                self._state,
+                self._connection_epoch,
+                self._sync_epoch,
+                self._offset,
                 None if self._updated_ns is None else (now - self._updated_ns) / 1e9,
-                self._ready_ns, self._discontinuities)
+                self._ready_ns,
+                self._discontinuities,
+            )

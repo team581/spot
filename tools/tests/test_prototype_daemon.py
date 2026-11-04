@@ -1,4 +1,5 @@
 """Alpha startup failures must close preview and calibration resources."""
+
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,12 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize("failure", [None, "viewer", "service"])
 def test_alpha_daemon_cleanup_and_shared_camera_observers(monkeypatch, failure):
     monkeypatch.syspath_prepend(str(ROOT))
-    spec = importlib.util.spec_from_file_location("tested_prototype_daemon", ROOT / "prototype_daemon.py")
+    spec = importlib.util.spec_from_file_location(
+        "tested_prototype_daemon", ROOT / "prototype_daemon.py"
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     events = []
-    config = SimpleNamespace(cameras=[SimpleNamespace(id="1", enabled=True),
-                                     SimpleNamespace(id="off", enabled=False)])
+    config = SimpleNamespace(
+        cameras=[SimpleNamespace(id="1", enabled=True), SimpleNamespace(id="off", enabled=False)]
+    )
 
     class Hub:
         def __init__(self, ids):

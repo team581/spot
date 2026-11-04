@@ -76,11 +76,13 @@ def record_calibration(record: dict, camera: CameraConfig) -> Calibration:
 
 def preview_modes(device):
     return [
-        mode for mode in device.modes
+        mode
+        for mode in device.modes
         if mode["pixel_format"] in {"MJPG", "YUYV"}
         and 16 <= mode["width"] <= 1920
         and 16 <= mode["height"] <= 1080
-        and mode["width"] % 8 == 0 and mode["height"] % 8 == 0
+        and mode["width"] % 8 == 0
+        and mode["height"] % 8 == 0
         and 0 < mode["fps"] <= 240
         and mode["width"] * mode["height"] * mode["fps"] <= 640 * 480 * 240
     ]
@@ -88,7 +90,8 @@ def preview_modes(device):
 
 def preview_mode(mode):
     return wire.OpticalMode(
-        id="preview", fps=round(mode["fps"]),
+        id="preview",
+        fps=round(mode["fps"]),
         **{key: mode[key] for key in ("width", "height", "pixel_format")},
     )
 
@@ -174,9 +177,11 @@ class BetaRuntime:
             if self.network is None:
                 future.set_exception(ConfigError("Network helper is not installed"))
                 return future
+
             def guard():
                 if operation == "network/apply" and self.configuration.connected:
                     self.configuration.require_eligible()
+
             return self.network.submit(operation.split("/", 1)[1], payload, guard)
         try:
             self.commands.put_nowait((operation, copy.deepcopy(payload), future))
@@ -239,37 +244,55 @@ class BetaRuntime:
                         if not worker or not worker.verified or mode is None:
                             raise ConfigError("Wait for a verified camera preview")
                         device = self.devices.get(identity)
-                        defaults = {
-                            c["name"]: c["value"] * c["factor"] for c in device.controls
-                        }
+                        defaults = {c["name"]: c["value"] * c["factor"] for c in device.controls}
                         result = self.configuration.setup_device(
-                            identity, {key: getattr(mode, key) for key in
-                            ("width", "height", "pixel_format", "fps")},
-                            defaults, payload["revision"],
+                            identity,
+                            {
+                                key: getattr(mode, key)
+                                for key in ("width", "height", "pixel_format", "fps")
+                            },
+                            defaults,
+                            payload["revision"],
                         )
                     elif operation == "device/tune":
                         self._validate_exposure(payload["identity"], payload.get("values", {}))
                         result = self.configuration.tune_device(
-                            payload["identity"], payload.get("values", {}), payload["revision"],
+                            payload["identity"],
+                            payload.get("values", {}),
+                            payload["revision"],
                             reset=payload.get("reset", False),
                         )
                     elif operation == "device/mode":
                         identity = payload["identity"]
                         device = self.devices.get(identity)
-                        mode = next((m for m in preview_modes(device)
-                            if mode_signature(preview_mode(m)) == payload["mode_id"]), None) if device else None
+                        mode = (
+                            next(
+                                (
+                                    m
+                                    for m in preview_modes(device)
+                                    if mode_signature(preview_mode(m)) == payload["mode_id"]
+                                ),
+                                None,
+                            )
+                            if device
+                            else None
+                        )
                         if mode is None:
                             raise ConfigError("Selected mode is not supported by this camera")
                         result = self.configuration.set_device_mode(
-                            identity, mode, payload["revision"],
+                            identity,
+                            mode,
+                            payload["revision"],
                         )
                     elif operation == "rename":
                         result = self.configuration.rename(
                             payload["identity"], payload["name"], payload["revision"]
                         )
                     elif operation == "tune":
-                        identity = next((key for key, name in self.roles.items()
-                                         if name == payload["name"]), None)
+                        identity = next(
+                            (key for key, name in self.roles.items() if name == payload["name"]),
+                            None,
+                        )
                         self._validate_exposure(identity, payload.get("values", {}))
                         result = self.configuration.tune(
                             payload["name"],
@@ -320,7 +343,8 @@ class BetaRuntime:
                         "applied_generation": self.configuration.acknowledged_generation,
                         "result": result if isinstance(result, dict) else None,
                         "controls": dict(self.workers[payload["identity"]].readback)
-                        if operation.startswith("device/") and payload.get("identity") in self.workers
+                        if operation.startswith("device/")
+                        and payload.get("identity") in self.workers
                         else self._readback_for_name(payload.get("name")),
                     }
                 )
@@ -431,13 +455,15 @@ class BetaRuntime:
                 if set(saved) - available:
                     raise ConfigError("Saved controls unavailable on connected camera")
                 controls[identity] = dict(saved)
-                controls[identity].update({
-                    c.name: saved.get(c.name, c.default_value)
-                    if c.allow_override
-                    else c.default_value
-                    for c in definition.controls
-                    if c.name in available
-                })
+                controls[identity].update(
+                    {
+                        c.name: saved.get(c.name, c.default_value)
+                        if c.allow_override
+                        else c.default_value
+                        for c in definition.controls
+                        if c.name in available
+                    }
+                )
             else:
                 # Probe only bounded advertised modes. Never infer a logical
                 # camera name, optical signature or production calibration.
@@ -447,8 +473,12 @@ class BetaRuntime:
                 candidates = preview_modes(physical)
                 setup = state.data.get("standalone_cameras", {}).get(identity)
                 if setup:
-                    candidates = [m for m in candidates
-                        if mode_signature(preview_mode(m)) == mode_signature(preview_mode(setup["mode"]))]
+                    candidates = [
+                        m
+                        for m in candidates
+                        if mode_signature(preview_mode(m))
+                        == mode_signature(preview_mode(setup["mode"]))
+                    ]
                 failed = self._preview_failed.setdefault(identity, set())
                 previous = self.workers.get(identity)
                 if (
@@ -838,16 +868,20 @@ class BetaRuntime:
             name = control["name"]
             if name not in EXPOSURE_NAMES or name not in values:
                 continue
-            limited = frame_limited_exposure({
-                **control, **{key: control[key] * control["factor"]
-                             for key in ("min", "max", "step")},
-            }, mode.fps)
+            limited = frame_limited_exposure(
+                {
+                    **control,
+                    **{key: control[key] * control["factor"] for key in ("min", "max", "step")},
+                },
+                mode.fps,
+            )
             value = values[name]
             if not limited["exposure_limit_available"] or (
                 type(value) in (int, float) and value > limited["max"]
             ):
-                raise ConfigError(f"Exposure must fit one {mode.fps:g} FPS frame "
-                                  f"(maximum {limited['max']:g} µs)")
+                raise ConfigError(
+                    f"Exposure must fit one {mode.fps:g} FPS frame (maximum {limited['max']:g} µs)"
+                )
 
     def _supported_controls(self, name):
         device = self.devices.get(name)
@@ -886,7 +920,9 @@ class BetaRuntime:
             identity = device["identity"]
             name = by_identity.get(identity)
             definition = next((c for c in definitions if c.name == name), None)
-            standalone_setup = not name and identity in config.state.data.get("standalone_cameras", {})
+            standalone_setup = not name and identity in config.state.data.get(
+                "standalone_cameras", {}
+            )
             worker = self.workers.get(identity)
             record = self.calibrations.get(identity)
             capabilities = []
@@ -909,12 +945,21 @@ class BetaRuntime:
                         "value": worker.readback.get(control["name"], control["value"] * factor)
                         if worker
                         else control["value"] * factor,
-                        "allowed": bool(control["writable"] and (
-                            (definition is not None and (policy is None or policy.allow_override)) or standalone_setup)),
+                        "allowed": bool(
+                            control["writable"]
+                            and (
+                                (
+                                    definition is not None
+                                    and (policy is None or policy.allow_override)
+                                )
+                                or standalone_setup
+                            )
+                        ),
                         "default": policy.default_value if policy else None,
                         "required": bool(policy and policy.required),
                         "reason": ""
-                        if (definition is not None and (policy is None or policy.allow_override)) or standalone_setup
+                        if (definition is not None and (policy is None or policy.allow_override))
+                        or standalone_setup
                         else "Pinned by robot code"
                         if policy
                         else "Not allowed by robot code",
@@ -922,7 +967,8 @@ class BetaRuntime:
                 )
                 if identity in self.modes:
                     capabilities[-1] = frame_limited_exposure(
-                        capabilities[-1], self.modes[identity].fps,
+                        capabilities[-1],
+                        self.modes[identity].fps,
                     )
             camera = {
                 **device,
@@ -975,8 +1021,11 @@ class BetaRuntime:
                 "age_s": None
                 if worker is None or worker.frame is None
                 else (time.monotonic_ns() - worker.frame.captured_monotonic_ns) / 1e9,
-                "mode_id": (mode_signature(self.modes[identity]) if not name else self.modes[identity].id)
-                if identity in self.modes else None,
+                "mode_id": (
+                    mode_signature(self.modes[identity]) if not name else self.modes[identity].id
+                )
+                if identity in self.modes
+                else None,
                 "mode_signature": mode_signature(self.modes[identity])
                 if identity in self.modes
                 else None,
@@ -992,8 +1041,10 @@ class BetaRuntime:
                     for m in definition.allowed_modes
                 ]
                 if definition
-                else [{"id": mode_signature(preview_mode(m)), **m, "supported": True}
-                      for m in preview_modes(self.devices.get(identity))],
+                else [
+                    {"id": mode_signature(preview_mode(m)), **m, "supported": True}
+                    for m in preview_modes(self.devices.get(identity))
+                ],
                 "geometry": {
                     "translation": [
                         definition.robot_to_camera.x_m,
@@ -1009,18 +1060,21 @@ class BetaRuntime:
                 }
                 if definition
                 else {"translation": [0, 0, 0], "quaternion": [1, 0, 0, 0], "placeholder": True}
-                if standalone_setup else None,
+                if standalone_setup
+                else None,
             }
             processed = self.frames.results.get(identity)
             if processed and worker:
                 detected = processed[0]
-                camera["metrics"].update({
-                    "processed_sequence": detected.frame.sequence,
-                    "processed_capture_epoch": detected.frame.capture_epoch,
-                    "detect_ms": detected.batch.detect_ms,
-                    "capture_to_detect_ms": detected.capture_to_detect_ms,
-                    "tag_ids": [tag.id for tag in detected.batch.detections],
-                })
+                camera["metrics"].update(
+                    {
+                        "processed_sequence": detected.frame.sequence,
+                        "processed_capture_epoch": detected.frame.capture_epoch,
+                        "detect_ms": detected.batch.detect_ms,
+                        "capture_to_detect_ms": detected.capture_to_detect_ms,
+                        "tag_ids": [tag.id for tag in detected.batch.detections],
+                    }
+                )
             camera["health"] = (
                 "Disabled"
                 if definition and not definition.enabled
@@ -1114,10 +1168,17 @@ class BetaRuntime:
             "release": self.release,
             "calibration": self.calibration.status() if self.calibration else {},
             "history": self.store.history(),
-            "network": copy.deepcopy(self.network.snapshot) if self.network else {"available": False},
-            "endpoint": {**getattr(self, "endpoint", {}), **(
-                {"local_addresses": self.network.snapshot.get("local_addresses", [])}
-                if self.network and self.network.snapshot.get("available") else {})},
+            "network": copy.deepcopy(self.network.snapshot)
+            if self.network
+            else {"available": False},
+            "endpoint": {
+                **getattr(self, "endpoint", {}),
+                **(
+                    {"local_addresses": self.network.snapshot.get("local_addresses", [])}
+                    if self.network and self.network.snapshot.get("available")
+                    else {}
+                ),
+            },
             "field": {
                 "length": manifest.profile.field.length_m,
                 "width": manifest.profile.field.width_m,

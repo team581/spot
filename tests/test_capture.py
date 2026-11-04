@@ -19,10 +19,20 @@ from spot_vision.config import CameraConfig, CameraSelector, DetectorConfig
 
 def camera(format="YUY2"):
     return CameraConfig(
-        id="front", enabled=True, selector=CameraSelector(device="/dev/video0"),
-        format=format, width=1280, height=800, fps=60, exposure_us=1000, gain=20,
-        auto_exposure=False, calibration=None, timestamp_correction_us=0,
-        config_revision=1, detector=DetectorConfig(),
+        id="front",
+        enabled=True,
+        selector=CameraSelector(device="/dev/video0"),
+        format=format,
+        width=1280,
+        height=800,
+        fps=60,
+        exposure_us=1000,
+        gain=20,
+        auto_exposure=False,
+        calibration=None,
+        timestamp_correction_us=0,
+        config_revision=1,
+        detector=DetectorConfig(),
     )
 
 
@@ -65,8 +75,9 @@ def test_manual_exposure_converts_microseconds_to_uvc_units(monkeypatch):
 
 def test_configured_image_controls_are_applied_on_capture_start(monkeypatch):
     calls = []
-    monkeypatch.setattr(capture, "_set_control", lambda device, name, value:
-                        calls.append((name, value)) or True)
+    monkeypatch.setattr(
+        capture, "_set_control", lambda device, name, value: calls.append((name, value)) or True
+    )
     configure_controls(replace(camera(), contrast=16, sharpness=0), "/dev/video4")
     assert ("contrast", 16) in calls and ("sharpness", 0) in calls
 
@@ -89,10 +100,13 @@ def test_frame_validation_rejects_shape_and_non_contiguous():
 
 def test_180_degree_orientation_preserves_packed_yuyv_chroma_and_stride():
     configured = replace(camera(), width=4, height=2, image_rotation_deg=180)
-    raw = np.array([
-        [[10, 101], [20, 201], [30, 102], [40, 202]],
-        [[50, 103], [60, 203], [70, 104], [80, 204]],
-    ], dtype=np.uint8)
+    raw = np.array(
+        [
+            [[10, 101], [20, 201], [30, 102], [40, 202]],
+            [[50, 103], [60, 203], [70, 104], [80, 204]],
+        ],
+        dtype=np.uint8,
+    )
     oriented = orient_yuyv_frame(raw, configured)
     assert oriented.tolist() == [
         [[80, 104], [70, 204], [60, 103], [50, 203]],
@@ -105,6 +119,7 @@ def test_180_degree_orientation_preserves_packed_yuyv_chroma_and_stride():
 
 def test_capture_observer_receives_oriented_frames_without_detector_and_is_isolated(monkeypatch):
     import threading
+
     from spot_vision.models import CameraCounters
     from spot_vision.queues import LatestFrameSlot
 
@@ -134,8 +149,9 @@ def test_capture_observer_receives_oriented_frames_without_detector_and_is_isola
         raise RuntimeError("preview unavailable")
 
     counters = CameraCounters()
-    worker = capture.CaptureWorker(configured, LatestFrameSlot(threading.Event()),
-                                   counters, stop, observer)
+    worker = capture.CaptureWorker(
+        configured, LatestFrameSlot(threading.Event()), counters, stop, observer
+    )
     monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
     worker._capture_until_failure()
     assert [packet.sequence for packet in received] == [1, 2]
@@ -146,6 +162,7 @@ def test_capture_observer_receives_oriented_frames_without_detector_and_is_isola
 
 def test_capture_fps_counts_bursts_and_resets_on_reconnect(monkeypatch):
     import threading
+
     from spot_vision.models import CameraCounters
     from spot_vision.queues import LatestFrameSlot
 

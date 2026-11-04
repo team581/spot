@@ -103,7 +103,8 @@ class Calibration:
         if len(self.distortion) not in {4, 5, 8, 12, 14}:
             raise ConfigError("calibration distortion requires 4, 5, 8, 12, or 14 coefficients")
         if not all(math.isfinite(value) for row in self.camera_matrix for value in row) or not all(
-                math.isfinite(value) for value in self.distortion):
+            math.isfinite(value) for value in self.distortion
+        ):
             raise ConfigError("calibration intrinsics must be finite")
         if self.camera_matrix[0][0] <= 0 or self.camera_matrix[1][1] <= 0:
             raise ConfigError("calibration focal lengths must be positive")
@@ -134,8 +135,9 @@ class Calibration:
         for index in (2, 3, 8, 9, 10, 11):
             if index < len(distortion):
                 distortion[index] = -distortion[index]
-        return replace(self, camera_matrix=tuple(tuple(row) for row in matrix),
-                       distortion=tuple(distortion))
+        return replace(
+            self, camera_matrix=tuple(tuple(row) for row in matrix), distortion=tuple(distortion)
+        )
 
 
 def _required(mapping: dict[str, Any], key: str, where: str) -> Any:
@@ -175,8 +177,9 @@ def load_config(path: str | Path) -> ServiceConfig:
             raise ConfigError(f"duplicate camera id {camera_id!r}")
         ids.add(camera_id)
         selector_raw = item.get("selector", {})
-        selector = CameraSelector(**{key: selector_raw.get(key) for key in
-                                    ("serial", "by_id", "by_path", "device")})
+        selector = CameraSelector(
+            **{key: selector_raw.get(key) for key in ("serial", "by_id", "by_path", "device")}
+        )
         enabled = bool(item.get("enabled", True))
         if enabled and not selector.configured():
             raise ConfigError(f"{where}.selector has no usable identity")
@@ -201,35 +204,51 @@ def load_config(path: str | Path) -> ServiceConfig:
             raise ConfigError(f"{where}.robot_from_camera must be an object")
         translation = extrinsics.get("translation_m", (0.0, 0.0, 0.0))
         rpy = extrinsics.get("rotation_rpy_deg", (0.0, 0.0, 0.0))
-        if (not isinstance(translation, (list, tuple)) or len(translation) != 3 or
-                not all(isinstance(value, (int, float)) and not isinstance(value, bool)
-                        and math.isfinite(value) for value in translation)):
+        if (
+            not isinstance(translation, (list, tuple))
+            or len(translation) != 3
+            or not all(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+                for value in translation
+            )
+        ):
             raise ConfigError(f"{where}.robot_from_camera.translation_m must have 3 numbers")
-        if (not isinstance(rpy, (list, tuple)) or len(rpy) != 3 or
-                not all(isinstance(value, (int, float)) and not isinstance(value, bool)
-                        and math.isfinite(value) for value in rpy)):
+        if (
+            not isinstance(rpy, (list, tuple))
+            or len(rpy) != 3
+            or not all(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+                for value in rpy
+            )
+        ):
             raise ConfigError(f"{where}.robot_from_camera.rotation_rpy_deg must have 3 numbers")
-        cameras.append(CameraConfig(
-            id=camera_id,
-            enabled=enabled,
-            selector=selector,
-            format=str(item.get("format", "YUY2")).upper(),
-            width=width,
-            height=height,
-            fps=fps,
-            exposure_us=(None if item.get("exposure_us") is None else int(item["exposure_us"])),
-            gain=(None if item.get("gain") is None else int(item["gain"])),
-            auto_exposure=bool(item.get("auto_exposure", False)),
-            calibration=_path(source.parent, item.get("calibration")),
-            timestamp_correction_us=int(item.get("timestamp_correction_us", 0)),
-            config_revision=int(item.get("config_revision", 1)),
-            detector=detector,
-            image_rotation_deg=rotation,
-            robot_from_camera_translation=tuple(float(value) for value in translation),
-            robot_from_camera_rpy_deg=tuple(float(value) for value in rpy),
-            contrast=_image_control(item, "contrast", where),
-            sharpness=_image_control(item, "sharpness", where),
-        ))
+        cameras.append(
+            CameraConfig(
+                id=camera_id,
+                enabled=enabled,
+                selector=selector,
+                format=str(item.get("format", "YUY2")).upper(),
+                width=width,
+                height=height,
+                fps=fps,
+                exposure_us=(None if item.get("exposure_us") is None else int(item["exposure_us"])),
+                gain=(None if item.get("gain") is None else int(item["gain"])),
+                auto_exposure=bool(item.get("auto_exposure", False)),
+                calibration=_path(source.parent, item.get("calibration")),
+                timestamp_correction_us=int(item.get("timestamp_correction_us", 0)),
+                config_revision=int(item.get("config_revision", 1)),
+                detector=detector,
+                image_rotation_deg=rotation,
+                robot_from_camera_translation=tuple(float(value) for value in translation),
+                robot_from_camera_rpy_deg=tuple(float(value) for value in rpy),
+                contrast=_image_control(item, "contrast", where),
+                sharpness=_image_control(item, "sharpness", where),
+            )
+        )
 
     nt_raw = raw.get("nt", {})
     nt = NtConfig(**nt_raw)
@@ -274,8 +293,11 @@ def load_calibration(path: str | Path) -> Calibration:
         distortion = distortion.get("data")
     if isinstance(matrix, list) and len(matrix) == 9 and not isinstance(matrix[0], list):
         matrix = [matrix[0:3], matrix[3:6], matrix[6:9]]
-    if not (isinstance(matrix, list) and len(matrix) == 3 and
-            all(isinstance(row, list) and len(row) == 3 for row in matrix)):
+    if not (
+        isinstance(matrix, list)
+        and len(matrix) == 3
+        and all(isinstance(row, list) and len(row) == 3 for row in matrix)
+    ):
         raise ConfigError("calibration camera_matrix must be 3x3")
     if not isinstance(distortion, list) or len(distortion) < 4:
         raise ConfigError("calibration distortion_coefficients must have at least four values")
@@ -291,8 +313,11 @@ def load_calibration(path: str | Path) -> Calibration:
         pixel_format=str(raw.get("pixel_format", "YUY2")),
         camera_matrix=tuple(tuple(float(value) for value in row) for row in matrix),
         distortion=tuple(float(value) for value in distortion),
-        reprojection_error_px=(None if raw.get("reprojection_error_px") is None
-                               else float(raw["reprojection_error_px"])),
+        reprojection_error_px=(
+            None
+            if raw.get("reprojection_error_px") is None
+            else float(raw["reprojection_error_px"])
+        ),
         provisional=bool(raw.get("provisional", False)),
     )
 

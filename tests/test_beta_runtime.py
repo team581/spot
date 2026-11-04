@@ -14,7 +14,13 @@ from spot_vision.clock import ClockGate
 from spot_vision.config import ConfigError, NtConfig
 from spot_vision.configuration import mode_signature
 from spot_vision.devices import DeviceManager, DeviceNode, DeviceRegistry
-from spot_vision.models import CameraCounters, DetectedFrame, DetectionBatch, FramePacket, PoseSolution
+from spot_vision.models import (
+    CameraCounters,
+    DetectedFrame,
+    DetectionBatch,
+    FramePacket,
+    PoseSolution,
+)
 from spot_vision.proto import vision_v2_pb2 as wire
 from spot_vision.queues import LatestFrameSlot
 
@@ -313,7 +319,9 @@ def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
 
 
 @pytest.mark.parametrize("width,height,fps", [(640, 480, 120), (640, 400, 210), (1920, 1080, 30)])
-def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(runtime, width, height, fps):
+def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(
+    runtime, width, height, fps
+):
     import copy
 
     from spot_vision.persistence import StateSnapshot
@@ -370,8 +378,12 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
     config.manifest = None
     config.begin_standalone()
     config._commit({}, config.state.generation)
-    config.setup_device(identity, {"width": 640, "height": 480, "fps": 30, "pixel_format": "MJPG"},
-                        {"gain": 1, "contrast": 16}, config.state.generation)
+    config.setup_device(
+        identity,
+        {"width": 640, "height": 480, "fps": 30, "pixel_format": "MJPG"},
+        {"gain": 1, "contrast": 16},
+        config.state.generation,
+    )
     worker = app.workers[identity]
     config.tune_device(identity, {"gain": 2}, config.state.generation)
     assert app.workers[identity] is worker and worker.readback["gain"] == 2
@@ -381,21 +393,39 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
     assert status["geometry"]["quaternion"] == [1, 0, 0, 0]
     assert next(c for c in status["controls"] if c["name"] == "gain")["allowed"]
     app.calibration = BetaCalibration(app)
-    app.calibration.command("select", {"identities": [identity], "revision": config.state.generation})
+    app.calibration.command(
+        "select", {"identities": [identity], "revision": config.state.generation}
+    )
     assert identity in app.calibration.cameras
     assert not app.roles and app.camera_generations() == []
     record = {
-        "identity": identity, "mode_signature": mode_signature(app.modes[identity]),
-        "fit": {"accepted": True, "frames_used": 15, "rms_reprojection_error_px": 0.1,
-                "coverage": 0.5, "diversity": 0.75},
+        "identity": identity,
+        "mode_signature": mode_signature(app.modes[identity]),
+        "fit": {
+            "accepted": True,
+            "frames_used": 15,
+            "rms_reprojection_error_px": 0.1,
+            "coverage": 0.5,
+            "diversity": 0.75,
+        },
         "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
-        "algorithm": "charuco-fit-holdout-v2", "model": "plumb_bob",
-        "board": {"squares_x": 15, "squares_y": 15, "square_length_m": 0.03,
-                  "marker_length_m": 0.022, "dictionary": "DICT_4X4_250"},
+        "algorithm": "charuco-fit-holdout-v2",
+        "model": "plumb_bob",
+        "board": {
+            "squares_x": 15,
+            "squares_y": 15,
+            "square_length_m": 0.03,
+            "marker_length_m": 0.022,
+            "dictionary": "DICT_4X4_250",
+        },
         "image_rotation_deg": 0,
-        "intrinsics": {"width": 640, "height": 480,
-                       "camera_matrix": [[500, 0, 320], [0, 500, 240], [0, 0, 1]],
-                       "distortion_coefficients": [0] * 5, "reprojection_error_px": 0.1},
+        "intrinsics": {
+            "width": 640,
+            "height": 480,
+            "camera_matrix": [[500, 0, 320], [0, 500, 240], [0, 0, 1]],
+            "distortion_coefficients": [0] * 5,
+            "reprojection_error_px": 0.1,
+        },
     }
     config.calibration_group([record], config.state.generation, app.validate_calibration)
     assert app.status()["cameras"][0]["calibrated"]
@@ -409,13 +439,26 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
 def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(runtime):
     app, identity, _, _ = runtime
     device = app.devices.get(identity)
-    exposure = {"name": "exposure_time_absolute", "type": "int", "label": "Exposure",
-                "min": 50, "max": 10000, "step": 1, "default": 50, "value": 50,
-                "factor": 100, "unit": "µs", "writable": True, "options": [], "flags": ""}
+    exposure = {
+        "name": "exposure_time_absolute",
+        "type": "int",
+        "label": "Exposure",
+        "min": 50,
+        "max": 10000,
+        "step": 1,
+        "default": 50,
+        "value": 50,
+        "factor": 100,
+        "unit": "µs",
+        "writable": True,
+        "options": [],
+        "flags": "",
+    }
     app.devices._devices[identity] = replace(device, controls=(*device.controls, exposure))
     app.modes[identity].fps = 120
-    control = next(c for c in app.status()["cameras"][0]["controls"]
-                   if c["name"] == "exposure_time_absolute")
+    control = next(
+        c for c in app.status()["cameras"][0]["controls"] if c["name"] == "exposure_time_absolute"
+    )
     assert control["max"] == 8300 and control["hardware_max"] == 1_000_000
     app._validate_exposure(identity, {"exposure_time_absolute": 8300})
     with pytest.raises(ConfigError, match="maximum 8300"):
@@ -446,8 +489,16 @@ def test_moving_usb_port_does_not_move_robot_name_and_return_restores_saved_tuni
 
 def test_status_reports_detection_latency_with_frame_identity(runtime):
     app, identity, _, _ = runtime
-    frame = FramePacket(identity, 17, 19, 1, time.monotonic_ns(),
-                        np.zeros((480, 640, 2), np.uint8), "capture-test", app.generation)
+    frame = FramePacket(
+        identity,
+        17,
+        19,
+        1,
+        time.monotonic_ns(),
+        np.zeros((480, 640, 2), np.uint8),
+        "capture-test",
+        app.generation,
+    )
     app.frames.result(DetectedFrame(frame, DetectionBatch((), 4.5), 7.25), PoseSolution())
     metrics = next(c for c in app.status()["cameras"] if c["identity"] == identity)["metrics"]
     assert metrics["processed_sequence"] == 17
@@ -459,15 +510,22 @@ def test_status_reports_detection_latency_with_frame_identity(runtime):
 
 def test_network_changes_run_outside_camera_configuration_queue(runtime):
     from spot_vision.networking import NetworkClient
+
     app, _, _, _ = runtime
     app.network = NetworkClient()
     calls = []
-    app.network.request = lambda operation, payload: calls.append(threading.current_thread().name) or {}
+    app.network.request = lambda operation, payload: (
+        calls.append(threading.current_thread().name) or {}
+    )
     try:
-        assert app.submit("network/apply", {"interface": "eth0", "mode": "automatic", "address": ""}).result(1) == {"result": {}}
+        assert app.submit(
+            "network/apply", {"interface": "eth0", "mode": "automatic", "address": ""}
+        ).result(1) == {"result": {}}
         assert calls[0].startswith("network-change")
         assert app.commands.empty()
-        app.configuration.robot_state(wire.RobotState(robot_session="robot-1", enabled=True, sequence=2))
+        app.configuration.robot_state(
+            wire.RobotState(robot_session="robot-1", enabled=True, sequence=2)
+        )
         with pytest.raises(ConfigError, match="locked"):
             app.submit("network/apply", {}).result(1)
         # Recovery must remain possible even when the robot state changes.
@@ -478,6 +536,7 @@ def test_network_changes_run_outside_camera_configuration_queue(runtime):
 
 def test_omitted_code_control_remains_editable_and_reapplied(runtime):
     from spot_vision.beta_contract import content_hash
+
     app, identity, _, _ = runtime
     app.configuration.tune("front", {"gain": 7}, app.configuration.state.generation)
     updated = manifest()
@@ -486,7 +545,9 @@ def test_omitted_code_control_remains_editable_and_reapplied(runtime):
     updated.profile.cameras[0].controls.extend(retained)
     updated.manifest_hash = content_hash(updated.profile)
     app.configuration.accept_manifest(updated)
-    app.configuration.robot_state(wire.RobotState(robot_session="robot-1", enabled=False, sequence=2))
+    app.configuration.robot_state(
+        wire.RobotState(robot_session="robot-1", enabled=False, sequence=2)
+    )
     assert app.workers[identity].readback["gain"] == 7
     cap = next(c for c in app.status()["cameras"][0]["controls"] if c["name"] == "gain")
     assert cap["allowed"] and cap["default"] is None

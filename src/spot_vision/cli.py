@@ -34,7 +34,9 @@ def _parser() -> argparse.ArgumentParser:
     beta.add_argument("--installation", default="/etc/spot-vision/beta.json")
     beta.add_argument("--state-root", default="/var/lib/spot-vision")
 
-    verify = subcommands.add_parser("verify-release", help="verify installed Python/native identity")
+    verify = subcommands.add_parser(
+        "verify-release", help="verify installed Python/native identity"
+    )
     verify.add_argument("--backend", choices=("cpu", "cuda"), default="cuda")
 
     daemon = subcommands.add_parser("daemon", help="run the complete vision service")
@@ -67,7 +69,9 @@ def _parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--input", required=True)
     benchmark.add_argument("--frames", type=int, default=300)
 
-    regression = subcommands.add_parser("image-regression", help="measure fixed-image pipeline accuracy")
+    regression = subcommands.add_parser(
+        "image-regression", help="measure fixed-image pipeline accuracy"
+    )
     regression.add_argument("--manifest", required=True)
     regression.add_argument("--backend", choices=("cpu", "cuda"), default="cpu")
     regression.add_argument("--repeats", type=int, default=5)
@@ -77,7 +81,9 @@ def _parser() -> argparse.ArgumentParser:
     calibration.add_argument("--config", required=True)
     calibration.add_argument("--camera", required=True)
 
-    charuco = subcommands.add_parser("calibrate-charuco", help="calibrate one camera from ChArUco images")
+    charuco = subcommands.add_parser(
+        "calibrate-charuco", help="calibrate one camera from ChArUco images"
+    )
     charuco.add_argument("--input-dir", required=True)
     charuco.add_argument("--output", help="calibration JSON; defaults to the camera config path")
     charuco.add_argument("--config", help="camera service JSON (use with --camera)")
@@ -103,22 +109,29 @@ def _calibration(camera):
     return calibration.for_image_rotation(camera)
 
 
-def _batch_json(sequence: int, batch: DetectionBatch, total_ms: float,
-                capture_fps: float = 0.0, drops: int = 0) -> str:
-    return json.dumps({
-        "sequence": sequence,
-        "tags": [{
-            "id": detection.id,
-            "corners": detection.corners.tolist(),
-            "hamming": detection.hamming,
-            "decision_margin": detection.decision_margin,
-            "distortion_factor_px": detection.distortion_factor_px,
-        } for detection in batch.detections],
-        "capture_fps": capture_fps,
-        "detect_ms": batch.detect_ms,
-        "total_ms": total_ms,
-        "dropped_before_processing": drops,
-    }, separators=(",", ":"))
+def _batch_json(
+    sequence: int, batch: DetectionBatch, total_ms: float, capture_fps: float = 0.0, drops: int = 0
+) -> str:
+    return json.dumps(
+        {
+            "sequence": sequence,
+            "tags": [
+                {
+                    "id": detection.id,
+                    "corners": detection.corners.tolist(),
+                    "hamming": detection.hamming,
+                    "decision_margin": detection.decision_margin,
+                    "distortion_factor_px": detection.distortion_factor_px,
+                }
+                for detection in batch.detections
+            ],
+            "capture_fps": capture_fps,
+            "detect_ms": batch.detect_ms,
+            "total_ms": total_ms,
+            "dropped_before_processing": drops,
+        },
+        separators=(",", ":"),
+    )
 
 
 def _run_probe(args) -> int:
@@ -146,8 +159,16 @@ def _run_probe(args) -> int:
             started = time.perf_counter_ns()
             batch = detector.detect(frame.image)
             total_ms = (time.perf_counter_ns() - started) / 1e6
-            print(_batch_json(frame.sequence, batch, total_ms, counters.fps_capture,
-                              counters.overwritten_before_processing), flush=True)
+            print(
+                _batch_json(
+                    frame.sequence,
+                    batch,
+                    total_ms,
+                    counters.fps_capture,
+                    counters.overwritten_before_processing,
+                ),
+                flush=True,
+            )
             processed += 1
     except KeyboardInterrupt:
         pass
@@ -174,17 +195,20 @@ def _recording_frames(path: str | Path, camera) -> Iterator[np.ndarray]:
         if frames is not None:
             iterator = iter(frames)
         else:
+
             def video_iterator():
                 while True:
                     ok, frame = capture.read()
                     if not ok:
                         return
                     yield frame
+
             iterator = video_iterator()
         for bgr in iterator:
             if bgr.shape[:2] != (camera.height, camera.width):
                 raise RuntimeError(
-                    f"recording is {bgr.shape[1]}x{bgr.shape[0]}, expected {camera.width}x{camera.height}")
+                    f"recording is {bgr.shape[1]}x{bgr.shape[0]}, expected {camera.width}x{camera.height}"
+                )
             yield orient_yuyv_frame(cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV_YUY2), camera)
     finally:
         if frames is None:
@@ -195,8 +219,7 @@ def _run_replay(args) -> int:
     config = load_config(args.config)
     camera = config.camera(args.camera)
     detector = create_detector(camera, _calibration(camera))
-    for sequence, frame in enumerate(
-            _recording_frames(args.input, camera), start=1):
+    for sequence, frame in enumerate(_recording_frames(args.input, camera), start=1):
         started = time.perf_counter_ns()
         batch = detector.detect(frame)
         print(_batch_json(sequence, batch, (time.perf_counter_ns() - started) / 1e6))
@@ -209,11 +232,13 @@ def _run_compare(args) -> int:
     config = load_config(args.config)
     camera = config.camera(args.camera)
     calibration = _calibration(camera)
-    gpu = create_detector(replace(camera, detector=replace(
-        camera.detector, backend="cuda", fallback_to_cpu=False)),
-                          calibration)
-    cpu = create_detector(replace(camera, detector=replace(camera.detector, backend="cpu")),
-                          calibration)
+    gpu = create_detector(
+        replace(camera, detector=replace(camera.detector, backend="cuda", fallback_to_cpu=False)),
+        calibration,
+    )
+    cpu = create_detector(
+        replace(camera, detector=replace(camera.detector, backend="cpu")), calibration
+    )
     mismatches = 0
     processed = 0
     max_corner_delta = 0.0
@@ -225,13 +250,23 @@ def _run_compare(args) -> int:
         if gpu_by_id.keys() != cpu_by_id.keys():
             mismatches += 1
         for tag_id in gpu_by_id.keys() & cpu_by_id.keys():
-            max_corner_delta = max(max_corner_delta, float(np.max(np.abs(
-                gpu_by_id[tag_id].corners - cpu_by_id[tag_id].corners))))
+            max_corner_delta = max(
+                max_corner_delta,
+                float(np.max(np.abs(gpu_by_id[tag_id].corners - cpu_by_id[tag_id].corners))),
+            )
         processed += 1
         if processed >= args.frames:
             break
-    print(json.dumps({"frames": processed, "id_mismatches": mismatches,
-                      "max_corner_delta_px": max_corner_delta}, indent=2))
+    print(
+        json.dumps(
+            {
+                "frames": processed,
+                "id_mismatches": mismatches,
+                "max_corner_delta_px": max_corner_delta,
+            },
+            indent=2,
+        )
+    )
     return 1 if mismatches else 0
 
 
@@ -250,15 +285,20 @@ def _run_benchmark(args) -> int:
     if not durations:
         raise RuntimeError("recording contains no frames")
     values = np.asarray(durations)
-    print(json.dumps({
-        "backend": camera.detector.backend,
-        "frames": len(durations),
-        "detections": detections,
-        "mean_detect_ms": float(values.mean()),
-        "p50_detect_ms": float(np.percentile(values, 50)),
-        "p95_detect_ms": float(np.percentile(values, 95)),
-        "processed_fps": float(1000.0 / values.mean()),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "backend": camera.detector.backend,
+                "frames": len(durations),
+                "detections": detections,
+                "mean_detect_ms": float(values.mean()),
+                "p50_detect_ms": float(np.percentile(values, 50)),
+                "p95_detect_ms": float(np.percentile(values, 95)),
+                "processed_fps": float(1000.0 / values.mean()),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -274,14 +314,19 @@ def _run_validate_calibration(args) -> int:
     if config.field_layout:
         layout = FieldLayout.load(config.field_layout, config.field_revision)
     PoseSolver(calibration, layout, config.tag_size_m)
-    print(json.dumps({
-        "camera": camera.id,
-        "calibration": str(camera.calibration),
-        "resolution": [calibration.width, calibration.height],
-        "pixel_format": calibration.pixel_format,
-        "reprojection_error_px": calibration.reprojection_error_px,
-        "field_revision": None if layout is None else layout.revision,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "camera": camera.id,
+                "calibration": str(camera.calibration),
+                "resolution": [calibration.width, calibration.height],
+                "pixel_format": calibration.pixel_format,
+                "reprojection_error_px": calibration.reprojection_error_px,
+                "field_revision": None if layout is None else layout.revision,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -295,6 +340,7 @@ def _run_charuco(args) -> int:
         detect_frame,
         write_calibration,
     )
+
     if bool(args.config) != bool(args.camera):
         raise ConfigError("--config and --camera must be provided together")
     configured_camera = None
@@ -306,8 +352,9 @@ def _run_charuco(args) -> int:
             args.output = str(configured_camera.calibration)
     if args.output is None:
         raise ConfigError("--output is required unless --config and --camera are used")
-    board = CharucoBoardConfig(args.squares_x, args.squares_y, args.square_length_m,
-                               args.marker_length_m, args.dictionary)
+    board = CharucoBoardConfig(
+        args.squares_x, args.squares_y, args.square_length_m, args.marker_length_m, args.dictionary
+    )
     options = CalibrationOptions(model=args.model, min_frames=args.min_frames)
     frames = []
     for path in sorted(Path(args.input_dir).glob("*")):
@@ -320,11 +367,20 @@ def _run_charuco(args) -> int:
         if frame is not None:
             frames.append(frame)
     result, report = calibrate(frames, board, options)
-    print(json.dumps({"accepted": report.accepted, "reason": report.reason,
-                      "frames_used": report.frames_used, "coverage": report.coverage,
-                      "diversity": report.diversity,
-                      "rms_reprojection_error_px": report.rms_reprojection_error_px,
-                      "rejected_frames": report.rejected_frames}, indent=2))
+    print(
+        json.dumps(
+            {
+                "accepted": report.accepted,
+                "reason": report.reason,
+                "frames_used": report.frames_used,
+                "coverage": report.coverage,
+                "diversity": report.diversity,
+                "rms_reprojection_error_px": report.rms_reprojection_error_px,
+                "rejected_frames": report.rejected_frames,
+            },
+            indent=2,
+        )
+    )
     if result is None:
         return 2
     if args.camera_id:
@@ -340,9 +396,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "beta":
             from .beta_app import run_beta
+
             return run_beta(args)
         if args.command == "verify-release":
             from .release import installed_identity
+
             print(json.dumps(installed_identity(backend=args.backend), indent=2))
             return 0
         if args.command == "daemon":
@@ -363,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
             return _run_benchmark(args)
         if args.command == "image-regression":
             from .regression import run_image_regression
+
             if args.repeats < 1:
                 raise ConfigError("--repeats must be positive")
             report = run_image_regression(args.manifest, backend=args.backend, repeats=args.repeats)

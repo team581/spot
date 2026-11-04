@@ -25,7 +25,10 @@ def test_generated_docs_changes_alter_release_identity(tmp_path, monkeypatch):
     original = generate(ROOT, native, False, web)
     key = "web/docs/operator/calibrate/index.html"
     assert original["artifact_hashes"][key] == hashlib.sha256(article.read_bytes()).hexdigest()
-    assert original["artifact_hashes"]["web/docs/pagefind/pagefind.wasm"] == hashlib.sha256(search.read_bytes()).hexdigest()
+    assert (
+        original["artifact_hashes"]["web/docs/pagefind/pagefind.wasm"]
+        == hashlib.sha256(search.read_bytes()).hexdigest()
+    )
 
     article.write_bytes(b"updated documentation")
     updated = generate(ROOT, native, False, web)

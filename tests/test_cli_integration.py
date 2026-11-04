@@ -1,4 +1,5 @@
 """Exercise public commands with real images and controlled IO failures."""
+
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -20,7 +21,9 @@ def command(name, *extra):
     return [name, "--config", str(DATA / "config.json"), "--camera", "front", *extra]
 
 
-@pytest.mark.parametrize("image,ids", [("center.png", [1]), ("multi.png", [1, 2]), ("blank.png", [])])
+@pytest.mark.parametrize(
+    "image,ids", [("center.png", [1]), ("multi.png", [1, 2]), ("blank.png", [])]
+)
 def test_replay_command_emits_actual_native_detections(capsys, image, ids):
     assert cli.main(command("replay", "--input", str(DATA / image), "--frames", "1")) == 0
     output = json.loads(capsys.readouterr().out)
@@ -46,14 +49,27 @@ def test_validate_calibration_loads_actual_layout(capsys):
 
 def test_image_regression_command_writes_same_json_as_stdout(tmp_path, capsys):
     path = tmp_path / "report.json"
-    assert cli.main(["image-regression", "--manifest", str(DATA / "manifest.json"),
-                     "--repeats", "1", "--output", str(path)]) == 0
+    assert (
+        cli.main(
+            [
+                "image-regression",
+                "--manifest",
+                str(DATA / "manifest.json"),
+                "--repeats",
+                "1",
+                "--output",
+                str(path),
+            ]
+        )
+        == 0
+    )
     assert json.loads(path.read_text()) == json.loads(capsys.readouterr().out)
     assert json.loads(path.read_text())["passed"]
 
 
 def test_failed_regression_command_returns_one_and_retains_report(monkeypatch, tmp_path, capsys):
     from spot_vision import regression
+
     report = {"passed": False, "cases": [{"failures": ["tag_ids"]}]}
     monkeypatch.setattr(regression, "run_image_regression", lambda *a, **kw: report)
     path = tmp_path / "failure.json"
@@ -64,8 +80,20 @@ def test_failed_regression_command_returns_one_and_retains_report(monkeypatch, t
 @pytest.mark.parametrize("repeats", ["0", "-1"])
 def test_invalid_regression_repeat_count_fails_without_creating_output(repeats, tmp_path):
     path = tmp_path / "report.json"
-    assert cli.main(["image-regression", "--manifest", "unused", "--repeats", repeats,
-                     "--output", str(path)]) == 2
+    assert (
+        cli.main(
+            [
+                "image-regression",
+                "--manifest",
+                "unused",
+                "--repeats",
+                repeats,
+                "--output",
+                str(path),
+            ]
+        )
+        == 2
+    )
     assert not path.exists()
 
 
@@ -159,25 +187,57 @@ def test_compare_forbids_gpu_fallback_and_reports_id_mismatches(monkeypatch, cap
 
 def test_charuco_empty_input_does_not_write_a_calibration(tmp_path, capsys):
     target = tmp_path / "calibration.json"
-    assert cli.main(["calibrate-charuco", "--input-dir", str(tmp_path), "--output", str(target),
-                     "--width", "640", "--height", "480"]) == 2
+    assert (
+        cli.main(
+            [
+                "calibrate-charuco",
+                "--input-dir",
+                str(tmp_path),
+                "--output",
+                str(target),
+                "--width",
+                "640",
+                "--height",
+                "480",
+            ]
+        )
+        == 2
+    )
     assert not json.loads(capsys.readouterr().out)["accepted"]
     assert not target.exists()
 
 
 @pytest.mark.parametrize("extra", [[], ["--config", "unused"], ["--camera", "front"]])
 def test_charuco_requires_destination_and_paired_config_camera(tmp_path, extra):
-    assert cli.main(["calibrate-charuco", "--input-dir", str(tmp_path),
-                     "--width", "640", "--height", "480", *extra]) == 2
+    assert (
+        cli.main(
+            [
+                "calibrate-charuco",
+                "--input-dir",
+                str(tmp_path),
+                "--width",
+                "640",
+                "--height",
+                "480",
+                *extra,
+            ]
+        )
+        == 2
+    )
 
 
 @pytest.mark.parametrize("mode", ["frame", "worker_exit", "interrupt"])
 def test_probe_shuts_down_capture_on_success_exit_and_interrupt(monkeypatch, capsys, mode):
     import time
+
     from spot_vision.models import FramePacket
 
     instances = []
-    image = next(cli._recording_frames(DATA / "center.png", load_config(DATA / "config.json").camera("front")))
+    image = next(
+        cli._recording_frames(
+            DATA / "center.png", load_config(DATA / "config.json").camera("front")
+        )
+    )
 
     class Capture:
         joined = False
@@ -201,8 +261,10 @@ def test_probe_shuts_down_capture_on_success_exit_and_interrupt(monkeypatch, cap
     monkeypatch.setattr(cli, "resolve_device", lambda _: "/dev/fake")
     monkeypatch.setattr(cli, "enumerate_camera", lambda _: "camera modes")
     if mode == "interrupt":
+
         def interrupt(_):
             raise KeyboardInterrupt()
+
         monkeypatch.setattr(cli, "create_detector", lambda *_: SimpleNamespace(detect=interrupt))
     assert cli.main(command("probe", "--frames", "1")) == (2 if mode == "worker_exit" else 0)
     assert instances[0].stop.is_set() and instances[0].joined

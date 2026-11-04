@@ -1,8 +1,9 @@
 """Session state, validation and race regressions without physical board IO."""
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -20,8 +21,15 @@ def session(tmp_path):
 
 
 def sample():
-    return CharucoFrame(np.array([[100, 100], [200, 100], [100, 200], [200, 200]], float),
-                        np.array([0, 1, 14, 15]), (640, 480), 4, .4, 100, 1)
+    return CharucoFrame(
+        np.array([[100, 100], [200, 100], [100, 200], [200, 200]], float),
+        np.array([0, 1, 14, 15]),
+        (640, 480),
+        4,
+        0.4,
+        100,
+        1,
+    )
 
 
 def test_start_stop_restart_are_scoped_and_preserve_source(session):
@@ -107,7 +115,7 @@ def test_inflight_detection_cannot_mutate_stopped_or_replaced_camera(session, mo
 
 def test_slow_compute_does_not_block_other_camera_status_or_capture(session, monkeypatch):
     entered, release = threading.Event(), threading.Event()
-    report = CalibrationReport(True, "ok", 15, .8, .8, .2)
+    report = CalibrationReport(True, "ok", 15, 0.8, 0.8, 0.2)
 
     def compute(*_):
         entered.set()
@@ -130,7 +138,7 @@ def test_slow_compute_does_not_block_other_camera_status_or_capture(session, mon
 
 
 def test_save_validates_every_camera_before_writing_any(session, tmp_path):
-    session.cameras["a"].report = CalibrationReport(True, "ok", 15, .8, .8, .2)
+    session.cameras["a"].report = CalibrationReport(True, "ok", 15, 0.8, 0.8, 0.2)
     paths = {camera: str(tmp_path / f"{camera}.json") for camera in ["a", "b"]}
     with pytest.raises(ValueError, match="camera b"):
         session.save({"a": {}, "b": {}}, paths)
@@ -141,7 +149,7 @@ def test_save_override_requires_report_and_preserves_input(session, tmp_path):
     destination = tmp_path / "saved.json"
     with pytest.raises(ValueError):
         session.save({"a": {}}, {"a": str(destination)}, override=True)
-    session.cameras["a"].report = CalibrationReport(False, "poor RMS", 15, .8, .8, 3)
+    session.cameras["a"].report = CalibrationReport(False, "poor RMS", 15, 0.8, 0.8, 3)
     source = {"camera_id": "wrong", "value": 123}
     with pytest.raises(ValueError):
         session.save({"a": source}, {"a": str(destination)})

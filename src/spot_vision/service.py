@@ -20,11 +20,20 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputWorker(threading.Thread):
-    def __init__(self, config: ServiceConfig, cameras: dict, counters: dict[str, CameraCounters],
-                 solvers: dict[str, PoseSolver], queue: BoundedDropOldestQueue[DetectedFrame],
-                 publisher: NtPublisher, stop_event: threading.Event,
-                 field_revision: int, frame_observer: Callable[[FramePacket], None] | None = None,
-                 result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = None) -> None:
+    def __init__(
+        self,
+        config: ServiceConfig,
+        cameras: dict,
+        counters: dict[str, CameraCounters],
+        solvers: dict[str, PoseSolver],
+        queue: BoundedDropOldestQueue[DetectedFrame],
+        publisher: NtPublisher,
+        stop_event: threading.Event,
+        field_revision: int,
+        frame_observer: Callable[[FramePacket], None] | None = None,
+        result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None]
+        | None = None,
+    ) -> None:
         super().__init__(name="pose-and-output", daemon=True)
         self.config = config
         self.cameras = cameras
@@ -65,15 +74,20 @@ class OutputWorker(threading.Thread):
                     LOGGER.debug("frame observer failed for %s", camera_id, exc_info=True)
             total_ms = (time.monotonic_ns() - detected.frame.captured_monotonic_ns) / 1e6
             message = make_vision_frame(
-                self.config, self.cameras[camera_id], detected, solution, total_ms)
+                self.config, self.cameras[camera_id], detected, solution, total_ms
+            )
             # Use the effective layout revision when the config requested automatic hashing.
             message.field_revision = self.field_revision
             temperature_c = jetson_temperature_c()
             robot_pose = select_robot_pose(solution, self.robot_from_cameras[camera_id])
             self.publisher.publish_frame(
-                self.cameras[camera_id], self.field_revision, message,
-                detected.frame.capture_timestamp_us, self.counters[camera_id],
-                temperature_c, robot_pose,
+                self.cameras[camera_id],
+                self.field_revision,
+                message,
+                detected.frame.capture_timestamp_us,
+                self.counters[camera_id],
+                temperature_c,
+                robot_pose,
             )
             if self.result_observer is not None:
                 try:
@@ -82,36 +96,45 @@ class OutputWorker(threading.Thread):
                     LOGGER.debug("result observer failed for %s", camera_id, exc_info=True)
             LOGGER.debug(
                 "frame camera=%s sequence=%d tags=%d candidates=%d total_ms=%.3f",
-                camera_id, message.sequence, len(message.tags), len(message.candidates), total_ms,
-                extra={"prototype": {
-                    "type": "frame",
-                    "camera_id": camera_id,
-                    "sequence": message.sequence,
-                    "state": self.counters[camera_id].state.value,
-                    "tags": [{
-                        "id": tag.id,
-                        "corners": list(tag.corners_xy_px),
-                        "hamming": tag.hamming,
-                        "decision_margin": tag.decision_margin,
-                    } for tag in message.tags],
-                    "candidate_count": len(message.candidates),
-                    "capture_fps": self.counters[camera_id].fps_capture,
-                    "detect_fps": self.counters[camera_id].fps_detect,
-                    "timing": {
-                        "capture_to_detect_ms": message.timing.capture_to_detect_ms,
-                        "detect_ms": message.timing.detect_ms,
-                        "solve_ms": message.timing.solve_ms,
-                        "total_ms": message.timing.total_ms,
-                    },
-                    "drops": {
-                        "capture": self.counters[camera_id].capture_failures,
-                        "decode": self.counters[camera_id].decode_failures,
-                        "overwrite": self.counters[camera_id].overwritten_before_processing,
-                        "result_queue": self.counters[camera_id].result_queue_drops,
-                        "sequence": self.counters[camera_id].driver_sequence_gaps,
-                    },
-                    "temperature_c": temperature_c,
-                }},
+                camera_id,
+                message.sequence,
+                len(message.tags),
+                len(message.candidates),
+                total_ms,
+                extra={
+                    "prototype": {
+                        "type": "frame",
+                        "camera_id": camera_id,
+                        "sequence": message.sequence,
+                        "state": self.counters[camera_id].state.value,
+                        "tags": [
+                            {
+                                "id": tag.id,
+                                "corners": list(tag.corners_xy_px),
+                                "hamming": tag.hamming,
+                                "decision_margin": tag.decision_margin,
+                            }
+                            for tag in message.tags
+                        ],
+                        "candidate_count": len(message.candidates),
+                        "capture_fps": self.counters[camera_id].fps_capture,
+                        "detect_fps": self.counters[camera_id].fps_detect,
+                        "timing": {
+                            "capture_to_detect_ms": message.timing.capture_to_detect_ms,
+                            "detect_ms": message.timing.detect_ms,
+                            "solve_ms": message.timing.solve_ms,
+                            "total_ms": message.timing.total_ms,
+                        },
+                        "drops": {
+                            "capture": self.counters[camera_id].capture_failures,
+                            "decode": self.counters[camera_id].decode_failures,
+                            "overwrite": self.counters[camera_id].overwritten_before_processing,
+                            "result_queue": self.counters[camera_id].result_queue_drops,
+                            "sequence": self.counters[camera_id].driver_sequence_gaps,
+                        },
+                        "temperature_c": temperature_c,
+                    }
+                },
             )
 
 
@@ -119,7 +142,9 @@ class OutputWorker(threading.Thread):
 class VisionService:
     config: ServiceConfig
     frame_observer: Callable[[FramePacket], None] | None = None
-    result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = None
+    result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = (
+        None
+    )
     capture_observer: Callable[[FramePacket], None] | None = None
 
     def __post_init__(self) -> None:
@@ -152,8 +177,7 @@ class VisionService:
         self.layout = None
         if self.config.field_layout:
             try:
-                self.layout = FieldLayout.load(
-                    self.config.field_layout, self.config.field_revision)
+                self.layout = FieldLayout.load(self.config.field_layout, self.config.field_revision)
             except ConfigError as exc:
                 LOGGER.warning("field-relative pose output disabled: %s", exc)
                 for counter in self.counters.values():
@@ -171,25 +195,42 @@ class VisionService:
                 self.counters[camera.id].error = self.counters[camera.id].configuration_error
                 LOGGER.warning("camera %s detector unavailable: %s", camera.id, exc)
         self.solvers = {
-            camera.id: PoseSolver(self.calibrations[camera.id], self.layout,
-                                  self.config.tag_size_m)
+            camera.id: PoseSolver(self.calibrations[camera.id], self.layout, self.config.tag_size_m)
             for camera in enabled
         }
         self.slots = {camera.id: LatestFrameSlot(self.wake_event) for camera in enabled}
         per_camera_capacity = max(1, self.config.result_queue_capacity // max(1, len(enabled)))
         self.result_queue = FairResultQueue([camera.id for camera in enabled], per_camera_capacity)
-        self.capture_workers = [CaptureWorker(
-            camera, self.slots[camera.id], self.counters[camera.id], self.stop_event,
-            self.capture_observer)
-            for camera in enabled]
+        self.capture_workers = [
+            CaptureWorker(
+                camera,
+                self.slots[camera.id],
+                self.counters[camera.id],
+                self.stop_event,
+                self.capture_observer,
+            )
+            for camera in enabled
+        ]
         self.scheduler = FairDetectorScheduler(
-            [camera.id for camera in usable], self.slots, self.detectors, self.counters,
-            self.result_queue, self.wake_event, self.stop_event,
+            [camera.id for camera in usable],
+            self.slots,
+            self.detectors,
+            self.counters,
+            self.result_queue,
+            self.wake_event,
+            self.stop_event,
         )
         self.publisher = NtPublisher(self.config.nt, [camera.id for camera in enabled])
         self.output_worker = OutputWorker(
-            self.config, self.cameras, self.counters, self.solvers, self.result_queue,
-            self.publisher, self.stop_event, self.field_revision, self.frame_observer,
+            self.config,
+            self.cameras,
+            self.counters,
+            self.solvers,
+            self.result_queue,
+            self.publisher,
+            self.stop_event,
+            self.field_revision,
+            self.frame_observer,
             self.result_observer,
         )
         self.watchdog = Watchdog()
@@ -198,8 +239,9 @@ class VisionService:
         self.publisher.publish_global(self.config.schema_version)
         for camera_id, camera in self.cameras.items():
             calibration = self.calibrations[camera_id]
-            self.publisher.publish_calibration_status(camera, bool(
-                calibration is not None and calibration.provisional))
+            self.publisher.publish_calibration_status(
+                camera, bool(calibration is not None and calibration.provisional)
+            )
         for worker in self.capture_workers:
             worker.start()
         self.scheduler.start()
@@ -212,21 +254,28 @@ class VisionService:
             while not self.stop_event.wait(1.0):
                 summary = ", ".join(
                     f"{camera_id}:{counter.state.value}/{counter.fps_detect:.1f}fps"
-                    for camera_id, counter in self.counters.items())
+                    for camera_id, counter in self.counters.items()
+                )
                 LOGGER.debug(
-                    "service status %s", summary,
-                    extra={"prototype": {
-                        "type": "status",
-                        "temperature_c": jetson_temperature_c(),
-                        "cameras": {
-                            camera_id: counter.snapshot()
-                            for camera_id, counter in self.counters.items()
-                        },
-                    }},
+                    "service status %s",
+                    summary,
+                    extra={
+                        "prototype": {
+                            "type": "status",
+                            "temperature_c": jetson_temperature_c(),
+                            "cameras": {
+                                camera_id: counter.snapshot()
+                                for camera_id, counter in self.counters.items()
+                            },
+                        }
+                    },
                 )
                 now = time.monotonic()
-                failed = [worker.name for worker in (self.scheduler,self.output_worker)
-                          if not worker.is_alive() or now-worker.last_progress_monotonic > 2.]
+                failed = [
+                    worker.name
+                    for worker in (self.scheduler, self.output_worker)
+                    if not worker.is_alive() or now - worker.last_progress_monotonic > 2.0
+                ]
                 if failed:
                     raise RuntimeError("pipeline workers stalled: " + ", ".join(failed))
                 self.watchdog.ping(summary)

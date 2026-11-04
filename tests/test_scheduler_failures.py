@@ -1,4 +1,5 @@
 """One faulty camera cannot terminate detection for the remaining cameras."""
+
 import threading
 import time
 from types import SimpleNamespace
@@ -23,7 +24,7 @@ def test_failed_camera_is_isolated_and_healthy_camera_still_publishes():
     def succeed(_):
         calls.append("good")
         stop.set()
-        return DetectionBatch((), 1.)
+        return DetectionBatch((), 1.0)
 
     detectors = {"bad": SimpleNamespace(detect=fail), "good": SimpleNamespace(detect=succeed)}
     for name, slot in slots.items():
@@ -53,11 +54,12 @@ def test_result_overload_drops_oldest_and_counts_loss():
             stop.set()
         else:
             enqueue()
-        return DetectionBatch((), 1.)
+        return DetectionBatch((), 1.0)
 
     enqueue()
-    FairDetectorScheduler(["a"], {"a": slot}, {"a": SimpleNamespace(detect=detect)}, counters,
-                          output, wake, stop).run()
+    FairDetectorScheduler(
+        ["a"], {"a": slot}, {"a": SimpleNamespace(detect=detect)}, counters, output, wake, stop
+    ).run()
     assert counters["a"].detected == 3
     assert counters["a"].result_queue_drops == 2
     assert output.get(timeout=0).frame.sequence == 2

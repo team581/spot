@@ -1,4 +1,5 @@
 """Real pybind detector validation, buffer ownership and tag/no-tag transitions."""
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -19,15 +20,18 @@ def detector():
     return native.CpuDetector(16, 8, native.DetectorOptions())
 
 
-@pytest.mark.parametrize("image,error", [
-    (np.zeros((8, 16, 2), dtype=np.float32), TypeError),
-    (np.zeros((8, 16), dtype=np.uint8), ValueError),
-    (np.zeros((8, 16, 3), dtype=np.uint8), ValueError),
-    (np.zeros((9, 16, 2), dtype=np.uint8), ValueError),
-    (np.zeros((8, 16, 2), dtype=np.uint8)[:, ::-1], ValueError),
-    (np.zeros((8, 32, 2), dtype=np.uint8)[:, ::2], ValueError),
-    (np.asfortranarray(np.zeros((8, 16, 2), dtype=np.uint8)), ValueError),
-])
+@pytest.mark.parametrize(
+    "image,error",
+    [
+        (np.zeros((8, 16, 2), dtype=np.float32), TypeError),
+        (np.zeros((8, 16), dtype=np.uint8), ValueError),
+        (np.zeros((8, 16, 3), dtype=np.uint8), ValueError),
+        (np.zeros((9, 16, 2), dtype=np.uint8), ValueError),
+        (np.zeros((8, 16, 2), dtype=np.uint8)[:, ::-1], ValueError),
+        (np.zeros((8, 32, 2), dtype=np.uint8)[:, ::2], ValueError),
+        (np.asfortranarray(np.zeros((8, 16, 2), dtype=np.uint8)), ValueError),
+    ],
+)
 def test_native_rejects_invalid_buffer_before_detection(detector, image, error):
     with pytest.raises(error):
         detector.detect(image)
@@ -123,16 +127,24 @@ def test_fallback_error_is_visible_to_scheduler():
     assert detector.using_fallback
 
 
-@pytest.mark.parametrize("decimate", [1., 1.5, 3., 4.])
+@pytest.mark.parametrize("decimate", [1.0, 1.5, 3.0, 4.0])
 @pytest.mark.parametrize("fallback", [False, True])
-def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(monkeypatch, decimate, fallback):
+def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
+    monkeypatch, decimate, fallback
+):
     from spot_vision.native import NativeDetector, create_detector
 
     camera = load_config(DATA / "config.json").camera("front")
-    camera = replace(camera, detector=replace(camera.detector, backend="cuda", decimate=decimate,
-                                              fallback_to_cpu=fallback))
+    camera = replace(
+        camera,
+        detector=replace(
+            camera.detector, backend="cuda", decimate=decimate, fallback_to_cpu=fallback
+        ),
+    )
     monkeypatch.setattr(native, "CUDA_AVAILABLE", True)
-    monkeypatch.setattr(native, "CudaDetector", lambda *_: pytest.fail("fatal constructor reached"), raising=False)
+    monkeypatch.setattr(
+        native, "CudaDetector", lambda *_: pytest.fail("fatal constructor reached"), raising=False
+    )
     if fallback:
         result = create_detector(camera, None)
         assert isinstance(result, NativeDetector)
