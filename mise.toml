@@ -49,4 +49,5 @@ run = [
   "uv run --no-sync ty check",
   "uv run --no-sync pytest",
   "uv build --package spot-vision --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "uv run --no-sync python apps/vision/tests/installed_service.py dist/wheels",
 ]

@@ -12,11 +12,16 @@ On the Jetson, prepare the build prerequisites in the repository README, then ru
 pnpm install --frozen-lockfile
 pnpm build
 pnpm build:jetson
-sudo apps/vision/deploy/install.sh /home/team581/spot-2026
+sudo SPOT_UV="$(command -v uv)" apps/vision/deploy/install.sh /home/team581/spot-2026
 ```
 
-The documentation build needs Node and pnpm. Alternatively, copy the prebuilt
-`dist/jetson-docs/` directory with the checkout; installed releases need neither tool.
+The dashboard and documentation builds need Node and pnpm. Alternatively, copy
+prebuilt `dist/dashboard/` and `dist/jetson-docs/` directories with the checkout.
+The installer requires uv and the system Python; installed releases need none of
+the JS build tools. `SPOT_UV` supplies the uv executable when sudo resets PATH.
+Runtime dependencies come from the root `uv.lock`, with the `nt` and `systemd`
+extras. The built wheel is installed non-editably into its own environment,
+without resolving another set of dependency versions.
 
 The installer builds and verifies the CUDA wheel and prints a **release ID**. It does not switch the running service.
 

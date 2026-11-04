@@ -19,6 +19,9 @@ if [[ ! -f "$source_dir/dist/dashboard/index.html" ]]; then
   echo "Build the dashboard before installing: pnpm --dir $source_dir --filter spot-dashboard build" >&2
   exit 1
 fi
+uv_bin=${SPOT_UV:-uv}
+command -v "$uv_bin" >/dev/null || { echo "Install uv before installing Spot." >&2; exit 1; }
+"$uv_bin" lock --check --project "$source_dir"
 if ! id spot-vision >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin spot-vision
 fi
@@ -32,12 +35,11 @@ install -d -o root -g root -m 0755 /opt/spot-vision/releases
 "$source_dir/apps/vision/deploy/install-network.sh" "$source_dir"
 build_dir=$(mktemp -d /var/tmp/spot-release.XXXXXXXX)
 trap 'rm -rf "$build_dir"' EXIT
-python3 -m venv "$build_dir/build-env"
-"$build_dir/build-env/bin/python" -m pip install --upgrade pip
-CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" \
-  "$build_dir/build-env/bin/python" -m pip wheel --no-deps "$source_dir/apps/vision" -w "$build_dir/wheels"
+"$uv_bin" build --project "$source_dir" --package spot-vision --wheel \
+  --python python3 --no-python-downloads --out-dir "$build_dir/wheels" \
+  -Ccmake.define.SPOT_BUILD_CUDA=ON -Ccmake.define.SPOT_CUDA_ARCHITECTURES=87
 wheel_path=$(find "$build_dir/wheels" -maxdepth 1 -name 'spot_vision-*.whl' -print -quit)
-release_id=$("$build_dir/build-env/bin/python" - "$wheel_path" <<'PY'
+release_id=$(python3 - "$wheel_path" <<'PY'
 import json, sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as wheel:
     manifest = json.loads(wheel.read('spot_vision/build-manifest.json'))
@@ -56,9 +58,8 @@ if [[ -e "$release_dir" ]]; then
   exit 1
 fi
 install -d -o root -g root -m 0755 "$release_dir"
-python3 -m venv "$release_dir/.venv"
-"$release_dir/.venv/bin/python" -m pip install "$wheel_path" 'pyntcore>=2026.2.2,<2027' 'robotpy-wpimath>=2026.2.2,<2027' 'sdnotify>=0.3.2'
-"$release_dir/.venv/bin/python" -m pip freeze > "$release_dir/dependencies.txt"
+"$source_dir/apps/vision/deploy/install-wheel.sh" "$source_dir" "$wheel_path" "$release_dir/.venv"
+"$uv_bin" pip freeze --python "$release_dir/.venv/bin/python" > "$release_dir/dependencies.txt"
 "$release_dir/.venv/bin/spot-vision" verify-release --backend cuda > "$release_dir/verified-artifacts.json"
 cp "$wheel_path" "$release_dir/"
 chmod -R a-w "$release_dir"
