@@ -148,12 +148,14 @@ File `fd558256-f8c8-8184-8008-c139acc14eb0`, page
 `fd558256-f8c8-8184-8008-c139acc14eb1`. Native bridge inspection/export and
 repository SVG/JSON/tokens informed the implementation. The approved reference
 was read, not overwritten. No newer manual revision was identified in the
-inspection. The original plan and `gui-beta-design` working files were preserved.
+inspection. At that checkpoint, the original plan and editable design working
+files were preserved. The local mockup generators and portable exports have
+since been removed; the dated screenshots and native exports below remain.
 
-[Local comparison gallery](Visual%20Comparisons.html) places each light/dark
-reference beside its running fixture capture. The [reference manifest](../gui-beta-design/penpot-reference.json)
-resolves all named native boards. Fresh native exports used for detailed checks
-are retained under [references](references/). Screenshots are deterministic
+[Local comparison gallery](Visual%20Comparisons.html) retains light/dark fixture
+captures, with the native reference exports available for the detailed checks.
+Other original mockups remain linked through the historical Penpot file above.
+Native exports used for those checks are retained under [references](references/). Screenshots are deterministic
 development fixtures, visibly marked **SYNTHETIC GUI FIXTURE** and
 `development-fixture`; camera imagery/geometry are not physical acceptance data.
 

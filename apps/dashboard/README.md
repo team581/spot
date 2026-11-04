@@ -48,7 +48,7 @@ pnpm --filter spot-dashboard test:browser
 ```
 
 Vitest covers editing/history, geometry conventions, operation acknowledgements,
-and preview lifecycle. The retained alpha-tool tests still use `node:test`.
+and preview lifecycle. The legacy alpha GUI tools and their HTML-extraction tests have been retired.
 Playwright serves `dist/dashboard` through the real Python HTTP boundary with
 synthetic cameras. It exercises navigation, sessions, tuning, calibration, locks,
 network confirmation/rollback, stale frames, downloads, and imports. Some failure

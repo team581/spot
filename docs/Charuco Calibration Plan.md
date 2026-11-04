@@ -1,5 +1,11 @@
 # Four-camera ChArUco calibration
 
+Historical alpha calibration design and workflow. Its standalone wizard and
+prototype server have been retired. Use the installed dashboard's
+[calibration guide](../apps/docs/src/content/docs/operator/calibrate.md) for the
+current capture, independent validation, and acknowledged group-apply workflow.
+The measurements and alpha persistence behavior below are retained as design history.
+
 ## Team board and capture guide
 
 The wizard defaults to the team's 15×15 board: 30 mm squares, 22 mm markers,

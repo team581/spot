@@ -1,5 +1,10 @@
 # Spot beta: real-robot integration plan
 
+Historical October 4–7, 2026 planning record. Use the [documentation index](README.md)
+for current code and operating instructions. The old local GUI mockup assets and
+design-agent setup workflow have been retired; the interaction requirements below
+remain a record of the original design.
+
 **Review draft — October 4, 2026**
 
 **Updated October 7, 2026:** explicit startup, boot-time, Ethernet/power recovery and roboRIO–Jetson timestamp-sync requirements; approved Penpot revision 3 UI/UX, detailed control behavior and design-to-code handoff added.
@@ -243,7 +248,7 @@ Short cable interruptions, extended outages and repeated flapping follow these s
 
 ## 8. Production GUI and approved UI/UX
 
-The approved visual reference is **Spot Beta — GUI Reference**, revision 3, October 7, 2026, page **GUI reference · Beta**: [open Penpot](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1). The companion [GUI handoff](gui-beta-design/README.md) and [board ID manifest](gui-beta-design/penpot-reference.json) are stored alongside this plan in the repository workspace. Section 14 gives the required design-reference workflow for the implementation agent.
+The original visual reference was **Spot Beta — GUI Reference**, revision 3, October 7, 2026, page **GUI reference · Beta**: [open Penpot](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1). The local editable mockups and manifests have since been removed. The [October 8 verification report](beta-verification/Software%20Verification.md) retains the dated visual review and captured evidence.
 
 This section replaces the earlier GUI proposal. Follow the approved composition, terminology and interactions; preserve the configuration, timing, calibration and robot-safety contracts elsewhere in this plan. Penpot is a visual reference with illustrative data and navigation hotspots, not evidence that controls or backend behavior already work. Never copy its sample modes, ranges, mounts, network values, release hashes, rates or calibration results into production defaults.
 
@@ -280,7 +285,7 @@ Use semantic CSS tokens instead of ad hoc per-page colors. Baseline tokens:
 | Visualization blue | `#255A86` | `#88B9ED` |
 | Unavailable history icon | `#BFC5CC` | `#505B69` |
 
-Dark contextual accent text uses the lighter `#E9ABB3`; selected navigation/primary actions retain white foreground. [Light tokens](gui-beta-design/tokens.json) and [dark mappings](gui-beta-design/dark-tokens.json) include additional surfaces. Preserve camera pixels and logo colors; theme only the surrounding UI and vector visualization. Verify text/control contrast, hover/focus and disabled states in both themes rather than blindly mapping every white pixel to a dark color.
+Dark contextual accent text uses the lighter `#E9ABB3`; selected navigation/primary actions retain white foreground. The original light/dark palette used additional surface colors in the historical mockups. Preserve camera pixels and logo colors; theme only the surrounding UI and vector visualization. Verify text/control contrast, hover/focus and disabled states in both themes rather than blindly mapping every white pixel to a dark color.
 
 ### 8.3 Overview: glanceable camera tiles
 
@@ -483,18 +488,18 @@ Jetson validation uses the repository's dedicated SSH key and deployment procedu
 
 **Beta is complete when:** students can plug in supported cameras, name them to match code-defined cameras, calibrate multiple cameras, inspect streams/health, identify the running update, and obtain correctly timed, quality-controlled measurements in the offseason robot's estimator and reviewed trust system—with reusable configuration for the other 2026 robots.
 
-### 14.1 How the implementation agent must reference the design
+### 14.1 Historical visual reference
 
-**Read before GUI coding:** this plan, especially Sections 3–4, 8–10; [GUI handoff](gui-beta-design/README.md); [Penpot board manifest](gui-beta-design/penpot-reference.json); [light tokens](gui-beta-design/tokens.json); and [dark token mappings](gui-beta-design/dark-tokens.json). Open **Spot Beta — GUI Reference**, page **GUI reference · Beta**, using the Section 8 link. Record the inspected design revision, file/page IDs and any newer manual design changes in the implementation PR. Do not ask an agent to implement from a single preview image or the old Section 8 proposal.
+The original implementation used [Spot Beta — GUI Reference, revision 3](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1),
+October 7, 2026, file `fd558256-f8c8-8184-8008-c139acc14eb0`, page
+`fd558256-f8c8-8184-8008-c139acc14eb1`. This external reference remains design history;
+it is not a current agent setup or code-generation requirement. The local mockup
+generator, portable exports, tokens, and native-board manifest have been removed.
+Use the [dashboard development guide](../apps/dashboard/README.md) for the current
+implementation and behavior checks, and the [dated visual review](beta-verification/Software%20Verification.md)
+for the original comparison evidence.
 
-Reference identity:
-
-- Penpot file ID: `fd558256-f8c8-8184-8008-c139acc14eb0`.
-- Page ID: `fd558256-f8c8-8184-8008-c139acc14eb1`.
-- Baseline: revision 3, October 7, 2026; eleven light boards, eleven dark counterparts, two theme-popup boards.
-- Complete native shape IDs are in `gui-beta-design/penpot-reference.json`; resolve by board name, not canvas order or a transient current selection.
-
-| Implementation area | Required Penpot boards | Reuse and interpretation |
+| Implementation area | Original Penpot boards | Reuse and interpretation |
 | --- | --- | --- |
 | Shell and Overview | 01 Overview; Dark / 01 Overview | Inline metric typography, sidebar/logo/warnings; data from real camera state |
 | Live camera tuning and inspection | 02 Camera detail; 08 Compact camera; dark equivalents | Reuse `tools/alpha_dashboard.html` controls/viewer concepts; replace draft tuning with acknowledged live mutations |
@@ -506,19 +511,6 @@ Reference identity:
 | System | 10 System; dark equivalent | Compact runtime telemetry, faults and deployed/running identity |
 | Failure/control states | 11 States; dark equivalent | Implement state transitions; sample text is not fixed telemetry |
 | Theme popup | 12 Theme menu · Auto; Dark / 12 Theme menu · Auto | Three icon choices; preserve current route rather than following the prototype's Overview link |
-
-**Use the existing Penpot bridge on the development Mac.** MCP endpoint: `http://localhost:4401/mcp`; plugin manifest: `http://127.0.0.1:4400/manifest.json`. Setup/start/stop reference: `/Users/simonparker/Documents/Codex/2026-10-05/referenced-chatgpt-conversation-this-is-an/outputs/penpot-local/SETUP.md`. Check the existing server and that the browser plugin says **Connected**. If the Codex MCP entry is missing, register `codex mcp add penpot --url http://localhost:4401/mcp`, then reload MCP tools or start a new chat as required by the client. Reuse the installed bridge; do not install a second server. A remote implementation environment may not reach this Mac's localhost: state that limitation and use the repository-local reference assets rather than treating localhost as a public endpoint. Include the referenced design assets with the implementation handoff so another checkout can resolve these links.
-
-For agents with MCP access:
-
-1. Read `high_level_overview` before using Penpot tools in a fresh context; use `penpot_api_info` for the exact currently available APIs. Do not guess plugin method signatures.
-2. Inspect the named file/page and board nodes through `execute_code`; examine text, dimensions, spacing, fills, strokes, icon vectors and hierarchy for the page being implemented. Do not depend on persistent `storage` from the design session or the user's current selection.
-3. Export the relevant board with `export_shape` using its shape ID and PNG format. For example, light Camera detail is `4c4fbdcb-0121-801d-8008-c13a8ffae0f4`, dark Camera detail is `c33bbb28-4f6e-8044-8008-c1bdf86a7b0b`; get all other IDs from the manifest. Inspect the export alongside the matching light/dark state and compact board, rather than reconstructing a page from prose alone.
-4. Repeat for each page at the time it is built, including relevant states. Read-only inspection/export is sufficient; implementing the app does not authorize overwriting the approved Penpot reference. Propose any intentional design deviations in the PR with a reason and screenshot.
-
-**Fallback reference assets:** numbered light/dark/theme SVGs, `boards.json`, `dark-boards.json`, `theme-boards.json`, tokens and native PNG exports in `docs/gui-beta-design/`. The primitive JSON captures position, dimensions, text/font size/weight, colors and vectors; it is reference data, not a production rendering framework. Current revision 3 PNGs include Overview, Camera and Geometry plus dark Overview/Geometry and the dark theme popup. Some older Calibration/Docs PNGs predate the theme trigger; prefer the revision 3 SVG/JSON for complete structure if live Penpot is unavailable. Do not regenerate/import boards over Penpot manual edits: `build_design.py` creates portable references and can overwrite local generated assets, while Penpot is authoritative for later visual edits.
-
-**Resolve sources deliberately:** Section 8 is the interaction/terminology contract; live Penpot is the visual composition reference; the rest of this plan controls data ownership, safety, timing and calibration activation. Backend gates take precedence over a mock enabled button or sample green state. Preserve approved interactions even if a static board cannot demonstrate them. If a later manual design conflicts with this plan, record the conflict and resolve it before shipping the conflicting behavior; do not silently invent a new precedence rule. Illustrative images/tag drawings are not valid AprilTags, pose fixtures or measured geometry.
 
 ### 14.2 Design-to-code sequence and review evidence
 
@@ -552,6 +544,6 @@ Use focused interaction/integration tests for the stateful input, API, concurren
 ### Review references
 
 - Robot source: [team581/offseason-2026](https://github.com/team581/offseason-2026). Key reviewed paths: `offseason-bot/src/main/java/frc/robot/{Hardware.java,vision/,localization/Localization.java}`, `shared/src/main/java/com/team581/{localization/TrustFactor.java,config/CameraConfig.java,vision/}`.
-- GUI design: [Spot Beta — GUI Reference, revision 3](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1); local [handoff](gui-beta-design/README.md), [board IDs](gui-beta-design/penpot-reference.json) and reference assets under `docs/gui-beta-design/`.
-- Current Spot remote: [team581/buddy-2026](https://github.com/team581/buddy-2026). Key reviewed paths: `src/spot_vision/`, `proto/vision.proto`, `tools/{prototype_daemon.py,prototype_stream.py,alpha_calibration.py}`, `deploy/`, and `docs/Alpha Verification.md`.
+- Historical GUI design: [Spot Beta — GUI Reference, revision 3](https://design.penpot.app/#/workspace?team-id=3e981c57-46d6-803d-8008-be904f2a7c48&file-id=fd558256-f8c8-8184-8008-c139acc14eb0&page-id=fd558256-f8c8-8184-8008-c139acc14eb1); [October 8 visual verification](beta-verification/Software%20Verification.md) retains the captured review evidence.
+- Spot remote reviewed at this checkpoint: [team581/buddy-2026](https://github.com/team581/buddy-2026). Key reviewed paths: `src/spot_vision/`, `proto/vision.proto`, `tools/{prototype_daemon.py,prototype_stream.py,alpha_calibration.py}`, `deploy/`, and `docs/Alpha Verification.md`.
 - The existing specifications, calibration plan and project-status document provide historical intent; observed implementation and the October 4 verification report take precedence when those documents disagree.

@@ -1,6 +1,10 @@
 # Beta implementation and qualification
 
-Current robot architecture: [Offseason Spot Integration Simplification Plan](Offseason%20Spot%20Integration%20Simplification%20Plan.md), October 11, 2026. It supersedes the shared/hybrid portions of the [original beta plan](Spot%20Beta%20Robot%20Integration%20Plan.md); transport and hardware qualification gates still apply.
+Historical October 11, 2026 checkpoint. For current instructions and later
+commissioning evidence, use the [documentation index](README.md). The test counts
+and deployment statements below describe this checkpoint.
+
+Robot architecture at this checkpoint: [Offseason Spot Integration Simplification Plan](Offseason%20Spot%20Integration%20Simplification%20Plan.md), October 11, 2026. It supersedes the shared/hybrid portions of the [original beta plan](Spot%20Beta%20Robot%20Integration%20Plan.md); transport and hardware qualification gates still apply.
 
 Updated October 11, 2026. The offseason software refactor is integrated locally in both checkouts. [Integration results](Offseason%20Spot%20Integration%20Results.md) record the migration, tests, baseline scheduler prerequisite and remaining measured configuration gates. Fusion remains off. Nothing was deployed.
 

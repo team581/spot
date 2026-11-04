@@ -1,5 +1,12 @@
 # Test robot Pose3d with all four camera feeds
 
+Historical alpha workflow. The temporary GUI daemon and `probe_dashboard.py`
+launcher described below have been retired. Use the installed dashboard's
+[verification guide](../apps/docs/src/content/docs/operator/verify.md) and the
+[robot integration session](../apps/docs/src/content/docs/operator/robot-integration-session.md)
+for current operation. The original procedure is retained as context for earlier
+hardware observations, not as a supported launch command.
+
 Run this from a terminal on the Mac, starting in the Spot repository. The Orin's last verified Ethernet address was `192.168.69.170`; override it with `--host team581@<new-address>` if it changes. Have a printed **2026 REBUILT AprilTag** with an ID in `config/2026-rebuilt-welded.json` ready.
 
 ## Start the camera grid and pose publisher

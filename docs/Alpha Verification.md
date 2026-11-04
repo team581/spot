@@ -1,5 +1,10 @@
 # Alpha verification
 
+Historical October 4, 2026 evidence. The alpha/prototype GUI and its SSH launcher
+have been retired; commands below reproduce the workflow at that checkpoint.
+Use the [current operator guide](../apps/docs/src/content/docs/index.md) for setup
+and the [documentation index](README.md) for later commissioning records.
+
 ## Repeatable checks
 
 Install the host CPU native extension and testing extras using the setup in the

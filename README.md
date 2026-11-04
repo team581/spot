@@ -7,8 +7,8 @@ implementation, exposed to Python through pybind11.
 
 The current contract is the
 [offseason integration plan](docs/Offseason%20Spot%20Integration%20Simplification%20Plan.md).
-See [implementation and qualification status](docs/Beta%20Implementation%20Status.md)
-for completed software checks and remaining work. Beta uses a distinct v2
+See the [documentation index](docs/README.md) for current operator instructions
+and dated implementation/qualification evidence. Beta uses a distinct v2
 protocol, durable robot profiles, and local Java integration in
 `offseason-2026/offseason-bot/src/main/java/frc/robot/vision`. One Vision subsystem
 owns four fixed camera roles and alliance-hub selection; Localization owns fusion
@@ -17,8 +17,8 @@ commissioning gate. The service advertises runtime tag-policy support.
 The [original design](docs/Vision%20Solution%20(Spot)%20Specs.md) and
 [alpha verification](docs/Alpha%20Verification.md) provide historical context.
 
-The camera commands and Jetson NT server configuration below describe alpha
-development. They do not certify beta robot operation; beta robot mode uses the
+The config-file camera commands and NT server configuration below are headless
+development tools. They do not certify robot operation; beta robot mode uses the
 roboRIO as NT server and Jetson as client. See [v2 schema/API notes](apps/vision/proto/README.md).
 
 ## Local development
@@ -77,7 +77,7 @@ After a CUDA setup, preserve that selection with
 ## Beta setup and review
 
 The installed beta runs with `spot-vision beta --installation
-/etc/spot-vision/beta.json` and serves its offline GUI on port 5808. Use the
+/etc/spot-vision/beta.json` and serves its offline GUI on port 5800. Use the
 [operator guide](apps/docs/src/content/docs/operator/connect.md) for connection, code-defined camera
 names, calibration and verification; [deployment and rollback](apps/docs/src/content/docs/operator/deployment.md)
 describes immutable CUDA releases and explicit activation. Offline setup can use
@@ -122,19 +122,18 @@ tools; installed Jetson releases serve the bundled site without them.
 Build and install into a virtual environment:
 
 ```sh
-CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra systemd
+uv sync --locked --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON -Ccmake.define.SPOT_CUDA_ARCHITECTURES=87
 ```
 
 NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
 Install it for the default alpha configuration:
 
 ```sh
-CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra nt --extra systemd
+uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON -Ccmake.define.SPOT_CUDA_ARCHITECTURES=87
 ```
 
 The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
-pre-clone that revision and add `-DSPOT_CCCL_ROOT=/path/to/cccl` to
-`CMAKE_ARGS`.
+pre-clone that revision and add `-Ccmake.define.SPOT_CCCL_ROOT=/path/to/cccl` to the uv command.
 
 For a host-only Python installation with the production CPU detector and shared
 edge-geometry diagnostics, but without CUDA:
@@ -184,40 +183,24 @@ The tag geometry is copied from WPILib 2026.2.2's official
 [`2026-rebuilt-welded.json`](https://github.com/wpilibsuite/allwpilib/blob/v2026.2.2/apriltag/src/main/native/resources/edu/wpi/first/apriltag/2026-rebuilt-welded.json),
 which matches AdvantageScope's welded 2026 field model.
 
-For a step-by-step check of all four camera feeds and their Pose3d outputs at the
-same time, see the [Pose3d test guide](docs/Pose3d%20Test%20Guide.md).
+## Live preview and calibration
 
-For temporary four-camera alpha testing from the Mac checkout, run one command.
-It manages the installed Jetson service for the duration of the session, shows
-per-camera terminal telemetry, and opens the camera and pose dashboard automatically:
+Use the installed dashboard for live feeds, naming, tuning, geometry inspection,
+and ChArUco capture/validation. It shares camera ownership with the vision
+runtime. See the [connection guide](apps/docs/src/content/docs/operator/connect.md)
+and [calibration guide](apps/docs/src/content/docs/operator/calibrate.md).
+The old alpha viewer and standalone calibration web servers have been retired.
 
-```sh
-python3 apps/vision/tools/probe_dashboard.py --alpha
-```
-
-The normal pose publisher continues running while the wizard uses its shared camera
-frames, so no second process competes for the USB devices. The dashboard at `/`
-shows calibration status, live tag outlines and projected 3D orientation axes,
-and a field pose map. Its workspace controls save layout and overlay preferences
-in the browser. Open the wizard at `/calibration` or the simple grid at `/viewer`. This alpha web interface is never started by
-systemd and must only be used on a trusted network. See [`apps/vision/tools/README.md`](apps/vision/tools/README.md).
-
-## ChArUco calibration
-
-Install the contrib OpenCV dependency, serve the guided four-camera wizard,
-and capture a folder of sharp board views for each camera. The headless solver
-is also available for repeatable runs:
+For repeatable offline calibration from saved board images:
 
 ```sh
-python3 apps/vision/tools/calibration_ui.py
-.venv/bin/spot-vision calibrate-charuco --input-dir captures/camera-1 \
+uv run --no-sync spot-vision calibrate-charuco --input-dir captures/camera-1 \
   --output apps/vision/config/calibration-1.json --camera-id 1 --width 1280 --height 720
 ```
 
-Board dimensions, dictionary, distortion model, minimum frame count, and
-quality gates are adjustable in the wizard/CLI. See
-[`docs/Charuco Calibration Plan.md`](docs/Charuco%20Calibration%20Plan.md) for
-the objective, quality gates, JSON schema, and four-camera save behavior.
+Run `spot-vision calibrate-charuco --help` for board dimensions, dictionary, lens
+model, and quality gates. Historical alpha calibration files are not promoted
+into the installed application without matching physical identity and mode.
 
 ## Offline tools
 
@@ -238,7 +221,7 @@ Run fixed images through orientation correction, the native detector, pose
 solving, mount conversion, and protobuf serialization:
 
 ```sh
-PYTHONPATH=apps/vision/src .venv/bin/python -m pytest tests
+uv run --no-sync pytest apps/vision/tests
 .venv/bin/python -m spot_vision image-regression \
   --manifest apps/vision/tests/data/regression/manifest.json --backend cpu \
   --repeats 20 --output /tmp/spot-regression.json
@@ -292,10 +275,9 @@ required host-to-device CUDA transfer still occurs.
 
 ## Hardware validation still required
 
-The expanded test suite, repeatable live verifier, latest alpha results, and
-remaining checks are documented in [Alpha Verification](docs/Alpha%20Verification.md).
-`PYTHONPATH=apps/vision/src .venv/bin/python -m pytest` runs both the core and alpha-tool
-tests. Run `pnpm --filter spot-dashboard test` for the dashboard JavaScript tests.
+Historical alpha results are recorded in [Alpha Verification](docs/Alpha%20Verification.md).
+Use the [current qualification checklist](docs/beta-verification/Hardware%20Qualification.md)
+for remaining checks. `uv run --no-sync pytest` runs the retained Python tests. Run `pnpm --filter spot-dashboard test` for the dashboard JavaScript tests.
 
 CUDA execution and Linux UVC qualification require the target Orin. CPU detector,
 pose, fixture and local NT4/HTTP tests run on the development Mac.
