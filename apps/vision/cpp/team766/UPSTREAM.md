@@ -32,9 +32,9 @@ The required Team 766 AprilTag fork is vendored under `cpp/apriltag` and pinned
 at commit `67c0f842a1c24fb6a7527eba77cd5c10135cf8e6` (tag `3.3.0`). Its BSD-2-Clause
 license is retained in that directory.
 
-As in Team 766's build, NVIDIA CCCL 2.3.2 is required. CMake pins commit
-`64d3a5f0c1c83ed83be8c0a9a1f0cdb31f913e81`; an existing checkout can be
-supplied with `SPOT_CCCL_ROOT` to make builds network-independent.
+CCCL is provided by the CUDA toolkit package (`cudaPackages.cuda_cccl` in Nix)
+and discovered with `find_package(CCCL CONFIG REQUIRED)`. Spot no longer downloads
+a separate CCCL checkout.
 
 ## Distortion regression corrections
 

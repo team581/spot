@@ -57,20 +57,7 @@ if(SPOT_BUILD_CUDA)
   find_package(gflags REQUIRED)
   find_package(glog REQUIRED)
   find_package(Threads REQUIRED)
-  set(SPOT_CCCL_ROOT "" CACHE PATH "Optional pre-downloaded NVIDIA CCCL 2.3.2 root")
-  if(NOT SPOT_CCCL_ROOT)
-    include(FetchContent)
-    FetchContent_Declare(cccl_upstream
-      GIT_REPOSITORY https://github.com/NVIDIA/cccl.git
-      GIT_TAG 64d3a5f0c1c83ed83be8c0a9a1f0cdb31f913e81
-      GIT_SHALLOW TRUE
-    )
-    FetchContent_GetProperties(cccl_upstream)
-    if(NOT cccl_upstream_POPULATED)
-      FetchContent_Populate(cccl_upstream)
-    endif()
-    set(SPOT_CCCL_ROOT "${cccl_upstream_SOURCE_DIR}")
-  endif()
+  find_package(CCCL CONFIG REQUIRED)
   set(TEAM766_SOURCES
     cpp/team766/apriltag_detect.cu
     cpp/team766/apriltag_gpu.cu
@@ -89,9 +76,6 @@ if(SPOT_BUILD_CUDA)
   )
   target_include_directories(team766_apriltags_cuda PUBLIC
     cpp/team766
-    ${SPOT_CCCL_ROOT}/cub
-    ${SPOT_CCCL_ROOT}/thrust
-    ${SPOT_CCCL_ROOT}/libcudacxx/include
   )
   if(TARGET gflags::gflags)
     set(SPOT_GFLAGS_TARGET gflags::gflags)
@@ -100,6 +84,7 @@ if(SPOT_BUILD_CUDA)
   endif()
   target_link_libraries(team766_apriltags_cuda PUBLIC
     CUDA::cudart
+    CCCL::CCCL
     apriltag
     ${SPOT_GFLAGS_TARGET}
     glog::glog

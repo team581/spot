@@ -51,12 +51,6 @@ let
     '';
   });
   workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = self; };
-  cccl = pkgs.fetchFromGitHub {
-    owner = "NVIDIA";
-    repo = "cccl";
-    rev = "64d3a5f0c1c83ed83be8c0a9a1f0cdb31f913e81";
-    hash = "sha256-AaUcp/IZA3UZi8LrKwDkZHfWNMerwn7SQYa1Igkyjg8=";
-  };
   pythonSet =
     (pkgs.callPackage pyproject-nix.build.packages {
       python = pkgs.python312;
@@ -132,6 +126,7 @@ let
                 (old.buildInputs or [ ])
                 ++ lib.optionals cuda [
                   pkgs.cudaPackages.cuda_nvcc
+                  pkgs.cudaPackages.cuda_cccl
                   pkgs.cudaPackages.cuda_cudart
                   pkgs.gflags
                   pkgs.glog
@@ -139,16 +134,13 @@ let
               dontUseCmakeConfigure = true;
               env = (old.env or { }) // {
                 CMAKE_BUILD_PARALLEL_LEVEL = "2";
-                CMAKE_ARGS = lib.concatStringsSep " " (
-                  [
-                    "-DSPOT_BUILD_CUDA=${if cuda then "ON" else "OFF"}"
-                    "-DSPOT_CUDA_ARCHITECTURES=87"
-                    "-Dpybind11_DIR=${final.pythonPkgsBuildHost.pybind11}/${pkgs.python312.sitePackages}/pybind11/share/cmake/pybind11"
-                    "-DSPOT_DASHBOARD_DIR=${web}/dashboard"
-                    "-DSPOT_DOCS_DIR=${web}/jetson-docs"
-                  ]
-                  ++ lib.optional cuda "-DSPOT_CCCL_ROOT=${cccl}"
-                );
+                CMAKE_ARGS = lib.concatStringsSep " " [
+                  "-DSPOT_BUILD_CUDA=${if cuda then "ON" else "OFF"}"
+                  "-DSPOT_CUDA_ARCHITECTURES=87"
+                  "-Dpybind11_DIR=${final.pythonPkgsBuildHost.pybind11}/${pkgs.python312.sitePackages}/pybind11/share/cmake/pybind11"
+                  "-DSPOT_DASHBOARD_DIR=${web}/dashboard"
+                  "-DSPOT_DOCS_DIR=${web}/jetson-docs"
+                ];
               };
             });
             sdnotify = prev.sdnotify.overrideAttrs (old: {
