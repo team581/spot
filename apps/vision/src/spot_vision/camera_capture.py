@@ -208,6 +208,7 @@ class CameraCapture(threading.Thread):
                     image.flags.writeable = False
                     sequence += 1
                     driver = capture.last_sequence
+                    assert driver is not None
                     if previous_driver is not None:
                         self.counters.driver_sequence_gaps += max(0, (driver - previous_driver) - 1)
                     previous_driver = driver

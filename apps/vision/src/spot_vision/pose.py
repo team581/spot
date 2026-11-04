@@ -297,6 +297,7 @@ class PoseSolver:
     def _solve_single(self, detection: Detection) -> tuple[PoseCandidate, ...]:
         import cv2
 
+        assert self.layout is not None and self.camera_matrix is not None
         local_corners = _tag_corners(self.tag_sizes.get(detection.id, self.tag_size_m))
         result = cv2.solvePnPGeneric(
             local_corners,
@@ -333,6 +334,7 @@ class PoseSolver:
     def _solve_multi(self, detections: list[Detection]) -> tuple[PoseCandidate, ...]:
         import cv2
 
+        assert self.layout is not None and self.camera_matrix is not None
         object_points: list[np.ndarray] = []
         image_points: list[np.ndarray] = []
         for detection in detections:
@@ -384,6 +386,7 @@ class PoseSolver:
     ) -> float:
         import cv2
 
+        assert self.camera_matrix is not None
         projected = cv2.projectPoints(objects, rvec, tvec, self.camera_matrix, self.distortion)[
             0
         ].reshape(-1, 2)

@@ -219,6 +219,7 @@ class MjpegCapture:
                         np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_COLOR
                     )
                 if image is not None:
+                    assert metadata is not None
                     self.last_sequence, self.last_driver_timestamp_us, self.last_driver_flags = (
                         metadata
                     )

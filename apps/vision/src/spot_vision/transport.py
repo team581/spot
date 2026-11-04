@@ -112,6 +112,7 @@ class NtPublisher:
             if nt_config.server:
                 instance.setServer(nt_config.server)
             else:
+                assert nt_config.team is not None
                 instance.setServerTeam(int(nt_config.team))
             instance.startClient4(nt_config.identity)
         options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)

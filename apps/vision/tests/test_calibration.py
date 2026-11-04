@@ -126,3 +126,16 @@ def test_start_all_validates_whole_capture_group_before_starting(tmp_path):
     assert all(camera.running and camera.automatic for camera in calibration.cameras.values())
     calibration.command("pause-all", {"revision": "old"})
     assert not any(camera.running for camera in calibration.cameras.values())
+
+
+def test_activation_rejects_missing_intrinsics_before_committing_group(tmp_path):
+    import pytest
+
+    calibration, config = calibration_runtime(tmp_path)
+    calibration.cameras["b"].intrinsics = None
+    committed = []
+    config.calibration_group = lambda *args: committed.append(args)
+    with pytest.raises(ValueError, match="Every selected camera must pass"):
+        calibration.command("apply", {"identities": ["a", "b"], "revision": "old"})
+    assert not committed
+    assert config.state.generation == "old"

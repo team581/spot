@@ -65,11 +65,7 @@ Vite+ builds `dist/dashboard`, which CMake installs with the offline docs.
 See the [dashboard development guide](apps/dashboard/README.md) for hot reload,
 architecture, and browser behavior checks.
 
-ty checks the service against the Python 3.10 minimum. `ty-baseline.json` records
-existing type errors, including missing generated/native type information, so new
-errors fail checks without hiding an entire rule or module. Fix existing findings
-and then run `uv run --no-sync ty check --update-baseline` to shrink the baseline;
-review baseline changes rather than accepting new errors into it.
+ty checks the service against the Python 3.10 minimum without a diagnostic baseline.
 
 For Jetson deployment, use the [NixOS appliance configuration](nix/README.md).
 Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.

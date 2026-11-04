@@ -443,9 +443,10 @@ class ConfigurationService:
             }:
                 raise ConfigError("Unknown imported state fields")
             data = copy.deepcopy(self.state.data)
-            robot = self.manifest.profile.robot_id if self.manifest else None
-            if incoming.get("active_robot") != robot or robot is None:
+            manifest = self.manifest
+            if manifest is None or incoming.get("active_robot") != manifest.profile.robot_id:
                 raise ConfigError("Import requires the matching current robot profile")
+            robot = manifest.profile.robot_id
             profile = incoming.get("profiles", {}).get(robot)
             if not isinstance(profile, dict) or set(profile) - {
                 "manifest",
@@ -455,7 +456,7 @@ class ConfigurationService:
             }:
                 raise ConfigError("Imported robot profile is invalid")
             cached = parse_manifest(base64.b64decode(profile["manifest"], validate=True))
-            if cached.manifest_hash != self.manifest.manifest_hash:
+            if cached.manifest_hash != manifest.manifest_hash:
                 raise ConfigError("Imported code profile hash differs from current robot authority")
             validate_profile(profile)
             current = data["profiles"][robot]

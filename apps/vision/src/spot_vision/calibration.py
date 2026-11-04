@@ -254,12 +254,13 @@ class CalibrationManager:
             identities = payload["identities"]
             if not identities or len(set(identities)) != len(identities):
                 raise ConfigError("Select a non-empty distinct passing group")
-            records = []
+            records: list[dict] = []
             for identity in identities:
                 camera = self.cameras.get(identity)
                 if (
                     camera is None
                     or camera.solving
+                    or camera.intrinsics is None
                     or not camera.report
                     or not camera.report["accepted"]
                     or not camera.validation

@@ -217,6 +217,26 @@ def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(r
     assert app.configuration.profile_data()["bindings"]["front"]["identity"] == identity
 
 
+@pytest.mark.parametrize("disconnect_at", ["snapshot", "capture"])
+def test_disappearance_during_apply_does_not_open_capture(runtime, monkeypatch, disconnect_at):
+    app, identity, _, _ = runtime
+    app.workers.pop(identity).stop()
+    target = "snapshot" if disconnect_at == "snapshot" else "_camera_config"
+    owner = app.devices if disconnect_at == "snapshot" else app
+    original = getattr(owner, target)
+
+    def disconnect_after(*args):
+        result = original(*args)
+        app.devices._devices.clear()
+        return result
+
+    monkeypatch.setattr(owner, target, disconnect_after)
+    monkeypatch.setattr(app, "capture_factory", lambda *args: pytest.fail("Opened missing camera"))
+    with pytest.raises(ConfigError, match="no longer"):
+        app.apply(app.configuration.state, app.configuration.manifest)
+    assert identity not in app.workers
+
+
 def test_calibration_group_rebuild_failure_cannot_activate(runtime):
     app, identity, _, _ = runtime
     before = app.configuration.state

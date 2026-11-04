@@ -34,9 +34,6 @@ include = ["apps/**/*.py", "tools/**/*.py", "pyproject.toml"]
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
 
-[tool.ty]
-baseline = "ty-baseline.json"
-
 [tool.ty.environment]
 python-platform = "linux"
 python-version = "3.10"
