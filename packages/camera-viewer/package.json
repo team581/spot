@@ -14,7 +14,7 @@
 		"lint:fix": "vp lint --fix"
 	},
 	"devDependencies": {
-		"typescript": "7.1.0-beta",
+		"typescript": "7.1.0-dev.20261103.1",
 		"vite-plus": "1.4.0"
 	}
 }
