@@ -92,6 +92,12 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
+      - name: Mount Playwright browsers
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-playwright-browsers-ubuntu-2404-${{ runner.arch }}
+          path: ~/.cache/ms-playwright
+          commit: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       - run: pnpm --filter spot-dashboard exec playwright install --with-deps chromium
       - run: pnpm --filter spot-dashboard test:browser
       - name: Upload browser test results
