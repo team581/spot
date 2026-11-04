@@ -117,7 +117,7 @@ def test_180_degree_orientation_preserves_packed_yuyv_chroma_and_stride():
     assert orient_yuyv_frame(raw, replace(configured, image_rotation_deg=0)) is raw
 
 
-def test_capture_observer_receives_oriented_frames_without_detector_and_is_isolated(monkeypatch):
+def test_capture_slot_receives_oriented_frames_without_detector(monkeypatch):
     import threading
 
     from spot_vision.models import CameraCounters
@@ -142,16 +142,15 @@ def test_capture_observer_receives_oriented_frames_without_detector_and_is_isola
     monkeypatch.setattr(capture, "open_capture", lambda *_: (backend, False))
     received = []
 
-    def observer(packet):
-        received.append(packet)
-        if len(received) == 2:
-            stop.set()
-        raise RuntimeError("preview unavailable")
+    class RecordingSlot(LatestFrameSlot):
+        def put(self, packet):
+            received.append(packet)
+            if len(received) == 2:
+                stop.set()
+            return super().put(packet)
 
     counters = CameraCounters()
-    worker = capture.CaptureWorker(
-        configured, LatestFrameSlot(threading.Event()), counters, stop, observer
-    )
+    worker = capture.CaptureWorker(configured, RecordingSlot(threading.Event()), counters, stop)
     monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
     worker._capture_until_failure()
     assert [packet.sequence for packet in received] == [1, 2]
@@ -186,12 +185,14 @@ def test_capture_fps_counts_bursts_and_resets_on_reconnect(monkeypatch):
     counters = CameraCounters(fps_capture=999)
     observed_fps = []
 
-    def observer(packet):
-        observed_fps.append(counters.fps_capture)
-        if packet.sequence == len(timestamps):
-            stop.set()
+    class RecordingSlot(LatestFrameSlot):
+        def put(self, packet):
+            observed_fps.append(counters.fps_capture)
+            if packet.sequence == len(timestamps):
+                stop.set()
+            return super().put(packet)
 
-    worker = capture.CaptureWorker(configured, LatestFrameSlot(), counters, stop, observer)
+    worker = capture.CaptureWorker(configured, RecordingSlot(), counters, stop)
     monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
     worker._capture_until_failure()
     assert observed_fps[0] == 0

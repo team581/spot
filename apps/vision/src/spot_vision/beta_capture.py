@@ -7,6 +7,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -93,10 +94,10 @@ def write_controls(device: str, requested: dict[str, float]) -> dict[str, float]
 
 @dataclass
 class ControlRequest:
-    values: dict
+    values: dict[str, float]
     done: threading.Event
     error: Exception | None = None
-    result: dict | None = None
+    result: dict[str, float] | None = None
 
 
 class BetaCapture(threading.Thread):
@@ -105,7 +106,7 @@ class BetaCapture(threading.Thread):
         camera: CameraConfig,
         device: str,
         generation: str,
-        controls: dict,
+        controls: dict[str, float],
         observer,
         *,
         capture_factory=V4l2Capture,
@@ -113,7 +114,8 @@ class BetaCapture(threading.Thread):
     ) -> None:
         super().__init__(name=f"uvc-{camera.id[:12]}", daemon=True)
         self.camera, self.device, self.generation = camera, device, generation
-        self.requested, self.readback = controls.copy(), {}
+        self.requested = controls.copy()
+        self.readback: dict[str, float] = {}
         self.capabilities = None
         self.observer = observer
         self.capture_factory, self.control_writer = capture_factory, control_writer
@@ -143,7 +145,7 @@ class BetaCapture(threading.Thread):
         with self._lock:
             self.requested, self.readback, self.generation = (
                 values.copy(),
-                request.result,
+                cast(dict[str, float], request.result),
                 generation,
             )
             self.capabilities = getattr(request.result, "capabilities", self.capabilities)

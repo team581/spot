@@ -2,11 +2,24 @@ from __future__ import annotations
 
 from collections import deque
 from threading import Condition, Event, Lock
-from typing import Generic, TypeVar
+from typing import Generic, Protocol, TypeVar
 
-from .models import FramePacket
+from .models import DetectedFrame, FramePacket
 
 T = TypeVar("T")
+
+
+class Framed(Protocol):
+    @property
+    def frame(self) -> FramePacket: ...
+
+
+F = TypeVar("F", bound=Framed)
+
+
+class ResultQueue(Protocol):
+    def put(self, item: DetectedFrame) -> bool: ...
+    def get(self, timeout: float | None = None) -> DetectedFrame | None: ...
 
 
 class LatestFrameSlot:
@@ -80,7 +93,7 @@ class BoundedDropOldestQueue(Generic[T]):
             return len(self._items)
 
 
-class FairResultQueue(Generic[T]):
+class FairResultQueue(Generic[F]):
     """Bounded per-camera queues and round-robin delivery.
 
     A fast producer can replace only its own results. Offline cameras never
@@ -92,12 +105,12 @@ class FairResultQueue(Generic[T]):
             raise ValueError("positive capacity and unique camera IDs required")
         self.capacity = capacity
         self._ids = tuple(camera_ids)
-        self._queues: dict[str, deque[T]] = {key: deque() for key in camera_ids}
+        self._queues: dict[str, deque[F]] = {key: deque() for key in camera_ids}
         self._condition = Condition()
         self._cursor = 0
         self._closed = False
 
-    def put(self, item: T) -> bool:
+    def put(self, item: F) -> bool:
         with self._condition:
             if self._closed:
                 return False
@@ -109,7 +122,7 @@ class FairResultQueue(Generic[T]):
             self._condition.notify()
             return dropped
 
-    def get(self, timeout: float | None = None) -> T | None:
+    def get(self, timeout: float | None = None) -> F | None:
         with self._condition:
             if not any(self._queues.values()) and not self._closed:
                 self._condition.wait(timeout)

@@ -7,7 +7,7 @@ import time
 from .clock import FrameRateCounter
 from .models import CameraCounters, CameraState, DetectedFrame
 from .native import Detector
-from .queues import BoundedDropOldestQueue, LatestFrameSlot
+from .queues import LatestFrameSlot, ResultQueue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class FairDetectorScheduler(threading.Thread):
         slots: dict[str, LatestFrameSlot],
         detectors: dict[str, Detector],
         counters: dict[str, CameraCounters],
-        output: BoundedDropOldestQueue[DetectedFrame],
+        output: ResultQueue,
         wake_event: threading.Event,
         stop_event: threading.Event,
     ) -> None:

@@ -13,10 +13,56 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from .camera_controls import CONTROL_INFO, EXPOSURE_NAMES, HEADER
 from .config import ConfigError
 from .persistence import canonical_bytes, durable_replace
+
+
+class AdvertisedMode(TypedDict):
+    pixel_format: str
+    width: int
+    height: int
+    fps: float
+    verified: bool
+
+
+class ControlOption(TypedDict):
+    value: int
+    label: str
+
+
+class ControlCapability(TypedDict):
+    name: str
+    type: str
+    label: str
+    min: int
+    max: int
+    step: int
+    default: int | None
+    value: int
+    flags: str
+    options: list[ControlOption]
+    writable: bool
+    factor: int
+    unit: str
+
+
+class PortSlot(TypedDict):
+    display_id: str
+    identities: dict[str, str]
+
+
+class RegistryFields(TypedDict):
+    schema_version: int
+    display_ids: dict[str, str]
+    duplicate_serials: list[str]
+    next_id: int
+
+
+class RegistryData(RegistryFields, total=False):
+    port_slots: dict[str, PortSlot]
 
 
 @dataclass(frozen=True)
@@ -42,13 +88,13 @@ class PhysicalDevice:
     label: str
     nodes: tuple[str, ...]
     capture_node: str | None
-    modes: tuple[dict, ...] = ()
-    controls: tuple[dict, ...] = ()
+    modes: tuple[AdvertisedMode, ...] = ()
+    controls: tuple[ControlCapability, ...] = ()
     fault: str = ""
 
 
-def parse_modes(output: str) -> list[dict]:
-    modes = []
+def parse_modes(output: str) -> list[AdvertisedMode]:
+    modes: list[AdvertisedMode] = []
     pixel_format = None
     size = None
     for line in output.splitlines():
@@ -60,7 +106,7 @@ def parse_modes(output: str) -> list[dict]:
             size = int(match[1]), int(match[2])
         match = re.search(r"Interval: Discrete .*\(([0-9.]+) fps\)", line)
         if match and pixel_format and size:
-            mode = {
+            mode: AdvertisedMode = {
                 "pixel_format": pixel_format,
                 "width": size[0],
                 "height": size[1],
@@ -72,14 +118,14 @@ def parse_modes(output: str) -> list[dict]:
     return modes[:256]
 
 
-def parse_capability_controls(output: str) -> list[dict]:
+def parse_capability_controls(output: str) -> list[ControlCapability]:
     """Expose advertised controls, including optional unfamiliar UVC controls.
 
     Robot policy and the configuration service decide which can be changed.
     Discovery never writes hardware or infers control ranges from product names.
     """
-    controls: list[dict] = []
-    current = None
+    controls: list[ControlCapability] = []
+    current: ControlCapability | None = None
     for line in output.splitlines():
         match = HEADER.match(line)
         if match:
@@ -172,7 +218,12 @@ class DeviceRegistry:
         self.path = self.root / "devices.json"
         self._lock = threading.RLock()
         self.fault = ""
-        self.data = {"schema_version": 1, "display_ids": {}, "duplicate_serials": [], "next_id": 1}
+        self.data: RegistryData = {
+            "schema_version": 1,
+            "display_ids": {},
+            "duplicate_serials": [],
+            "next_id": 1,
+        }
         if self.path.exists():
             try:
                 raw = json.loads(self.path.read_bytes())

@@ -52,7 +52,7 @@ class AmbiguousSolver:
         return PoseSolution((worse, better), frozenset({8}))
 
 
-def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, caplog):
+def test_output_worker_publishes_tag_frame(tmp_path, caplog):
     camera = CameraConfig(
         "front",
         True,
@@ -82,13 +82,6 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
     publisher = MemoryPublisher()
     stop = threading.Event()
 
-    def observer(_frame):
-        raise RuntimeError("preview failed")
-
-    def result_observer(frame, solution, robot_pose):
-        assert frame is detected and not solution.candidates and robot_pose is None
-        raise RuntimeError("inspection failed")
-
     worker = OutputWorker(
         config,
         {"front": camera},
@@ -98,8 +91,6 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
         publisher,
         stop,
         0,
-        observer,
-        result_observer,
     )
     caplog.set_level(logging.DEBUG)
     worker.start()
@@ -111,15 +102,11 @@ def test_output_worker_isolates_observer_and_emits_prototype_frame(tmp_path, cap
     worker.join(1)
 
     assert len(publisher.frames) == 1
-    frame_record = next(
-        record
-        for record in caplog.records
-        if getattr(record, "prototype", {}).get("type") == "frame"
-    )
-    assert frame_record.prototype["camera_id"] == "front"
-    assert frame_record.prototype["tags"][0]["id"] == 8
-    assert any("frame observer failed" in record.message for record in caplog.records)
-    assert any("result observer failed" in record.message for record in caplog.records)
+    from spot_vision.proto import VisionFrame
+
+    message = VisionFrame.FromString(publisher.frames[0][1])
+    assert message.camera_id == "front"
+    assert message.tags[0].id == 8
 
 
 def test_output_worker_emits_one_selected_robot_pose_for_ambiguous_frame(tmp_path):

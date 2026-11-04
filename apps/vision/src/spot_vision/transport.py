@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from .config import CameraConfig, NtConfig, ServiceConfig
 from .models import CameraCounters, DetectedFrame, PoseCandidate, PoseSolution
@@ -33,7 +33,7 @@ def make_vision_frame(
     )
     for candidate in solution.candidates:
         pose = message.candidates.add()
-        pose.method = int(candidate.method)
+        pose.method = cast(vision_pb2.PoseCandidate.Method.ValueType, int(candidate.method))
         pose.x_m, pose.y_m, pose.z_m = (float(value) for value in candidate.translation)
         pose.qw, pose.qx, pose.qy, pose.qz = (float(value) for value in candidate.quaternion_wxyz)
         pose.reprojection_error_px = candidate.reprojection_error_px

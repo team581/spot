@@ -3,16 +3,15 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from .capture import CaptureWorker
 from .config import Calibration, ConfigError, ServiceConfig, load_calibration
 from .health import Watchdog, jetson_temperature_c
-from .models import CameraCounters, DetectedFrame, FramePacket, PoseCandidate, PoseSolution
+from .models import CameraCounters
 from .native import Detector, create_detector
 from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_robot_pose
-from .queues import BoundedDropOldestQueue, FairResultQueue, LatestFrameSlot
+from .queues import FairResultQueue, LatestFrameSlot, ResultQueue
 from .scheduler import FairDetectorScheduler
 from .transport import NtPublisher, make_vision_frame
 
@@ -26,13 +25,10 @@ class OutputWorker(threading.Thread):
         cameras: dict,
         counters: dict[str, CameraCounters],
         solvers: dict[str, PoseSolver],
-        queue: BoundedDropOldestQueue[DetectedFrame],
+        queue: ResultQueue,
         publisher: NtPublisher,
         stop_event: threading.Event,
         field_revision: int,
-        frame_observer: Callable[[FramePacket], None] | None = None,
-        result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None]
-        | None = None,
     ) -> None:
         super().__init__(name="pose-and-output", daemon=True)
         self.config = config
@@ -43,8 +39,6 @@ class OutputWorker(threading.Thread):
         self.publisher = publisher
         self.stop_event = stop_event
         self.field_revision = field_revision
-        self.frame_observer = frame_observer
-        self.result_observer = result_observer
         self.last_progress_monotonic = time.monotonic()
         self.robot_from_cameras = {
             camera_id: robot_from_camera_transform(
@@ -67,11 +61,6 @@ class OutputWorker(threading.Thread):
                 self.counters[camera_id].error = f"Pose solver: {exc}"
                 LOGGER.warning("camera %s pose solve failed: %s", camera_id, exc)
                 continue
-            if self.frame_observer is not None:
-                try:
-                    self.frame_observer(detected.frame)
-                except Exception:  # disposable debug observer must not affect output
-                    LOGGER.debug("frame observer failed for %s", camera_id, exc_info=True)
             total_ms = (time.monotonic_ns() - detected.frame.captured_monotonic_ns) / 1e6
             message = make_vision_frame(
                 self.config, self.cameras[camera_id], detected, solution, total_ms
@@ -89,11 +78,6 @@ class OutputWorker(threading.Thread):
                 temperature_c,
                 robot_pose,
             )
-            if self.result_observer is not None:
-                try:
-                    self.result_observer(detected, solution, robot_pose)
-                except Exception:
-                    LOGGER.debug("result observer failed for %s", camera_id, exc_info=True)
             LOGGER.debug(
                 "frame camera=%s sequence=%d tags=%d candidates=%d total_ms=%.3f",
                 camera_id,
@@ -101,51 +85,12 @@ class OutputWorker(threading.Thread):
                 len(message.tags),
                 len(message.candidates),
                 total_ms,
-                extra={
-                    "prototype": {
-                        "type": "frame",
-                        "camera_id": camera_id,
-                        "sequence": message.sequence,
-                        "state": self.counters[camera_id].state.value,
-                        "tags": [
-                            {
-                                "id": tag.id,
-                                "corners": list(tag.corners_xy_px),
-                                "hamming": tag.hamming,
-                                "decision_margin": tag.decision_margin,
-                            }
-                            for tag in message.tags
-                        ],
-                        "candidate_count": len(message.candidates),
-                        "capture_fps": self.counters[camera_id].fps_capture,
-                        "detect_fps": self.counters[camera_id].fps_detect,
-                        "timing": {
-                            "capture_to_detect_ms": message.timing.capture_to_detect_ms,
-                            "detect_ms": message.timing.detect_ms,
-                            "solve_ms": message.timing.solve_ms,
-                            "total_ms": message.timing.total_ms,
-                        },
-                        "drops": {
-                            "capture": self.counters[camera_id].capture_failures,
-                            "decode": self.counters[camera_id].decode_failures,
-                            "overwrite": self.counters[camera_id].overwritten_before_processing,
-                            "result_queue": self.counters[camera_id].result_queue_drops,
-                            "sequence": self.counters[camera_id].driver_sequence_gaps,
-                        },
-                        "temperature_c": temperature_c,
-                    }
-                },
             )
 
 
 @dataclass
 class VisionService:
     config: ServiceConfig
-    frame_observer: Callable[[FramePacket], None] | None = None
-    result_observer: Callable[[DetectedFrame, PoseSolution, PoseCandidate | None], None] | None = (
-        None
-    )
-    capture_observer: Callable[[FramePacket], None] | None = None
 
     def __post_init__(self) -> None:
         self.stop_event = threading.Event()
@@ -207,7 +152,6 @@ class VisionService:
                 self.slots[camera.id],
                 self.counters[camera.id],
                 self.stop_event,
-                self.capture_observer,
             )
             for camera in enabled
         ]
@@ -230,8 +174,6 @@ class VisionService:
             self.publisher,
             self.stop_event,
             self.field_revision,
-            self.frame_observer,
-            self.result_observer,
         )
         self.watchdog = Watchdog()
 
@@ -259,16 +201,6 @@ class VisionService:
                 LOGGER.debug(
                     "service status %s",
                     summary,
-                    extra={
-                        "prototype": {
-                            "type": "status",
-                            "temperature_c": jetson_temperature_c(),
-                            "cameras": {
-                                camera_id: counter.snapshot()
-                                for camera_id, counter in self.counters.items()
-                            },
-                        }
-                    },
                 )
                 now = time.monotonic()
                 failed = [

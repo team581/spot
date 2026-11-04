@@ -14,6 +14,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
+from typing import cast
 from urllib.parse import unquote, urlsplit
 
 from .config import ConfigError
@@ -191,6 +192,10 @@ class BetaHttpServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
+    @property
+    def spot_server(self) -> BetaHttpServer:
+        return cast(BetaHttpServer, self.server)
+
     server_version = "SpotBeta"
     protocol_version = "HTTP/1.1"
 
@@ -206,10 +211,10 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlsplit("http://" + host)
         if (
             (
-                parsed.hostname not in self.server.allowed_hosts
+                parsed.hostname not in self.spot_server.allowed_hosts
                 and parsed.hostname != self.connection.getsockname()[0]
                 and parsed.hostname
-                != getattr(getattr(self.server.runtime, "network", None), "snapshot", {}).get(
+                != getattr(getattr(self.spot_server.runtime, "network", None), "snapshot", {}).get(
                     "hostname"
                 )
             )
@@ -218,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
             or parsed.path
             or parsed.query
             or parsed.fragment
-            or (parsed.port or 80) != self.server.server_port
+            or (parsed.port or 80) != self.spot_server.server_port
         ):
             raise PermissionError("Host is not an installed Spot address")
         return host
@@ -256,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/session":
                 if self.headers.get("Sec-Fetch-Site") == "cross-site":
                     raise PermissionError("Same-origin browser session required")
-                session = self.server.session(self.headers.get("Cookie", ""), create=True)
+                session = self.spot_server.session(self.headers.get("Cookie", ""), create=True)
                 if session is None:
                     self._reply(
                         HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Browser session limit reached"}
@@ -267,14 +272,14 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 return
             if path in {"/api/status", "/health"}:
-                status = self.server.runtime.status()
+                status = self.spot_server.runtime.status()
                 self._reply(200, status)
                 return
-            session = self.server.session(self.headers.get("Cookie", ""))
+            session = self.spot_server.session(self.headers.get("Cookie", ""))
             if path in {"/api/export", "/api/support"}:
                 if not session:
                     raise PermissionError("Browser session required")
-                snapshot = json.loads(self.server.runtime.store.export())
+                snapshot = json.loads(self.spot_server.runtime.store.export())
                 if path == "/api/export":
                     self._reply(200, snapshot)
                 else:
@@ -282,15 +287,15 @@ class Handler(BaseHTTPRequestHandler):
                         200,
                         {
                             "schema_version": 2,
-                            "status": self.server.runtime.status(),
+                            "status": self.spot_server.runtime.status(),
                             "configuration": snapshot,
-                            "debug": self.server.runtime.debug,
+                            "debug": self.spot_server.runtime.debug,
                         },
                     )
                 return
             if path.startswith("/api/jobs/"):
-                with self.server._lock:
-                    job = self.server.jobs.get(path.removeprefix("/api/jobs/"))
+                with self.spot_server._lock:
+                    job = self.spot_server.jobs.get(path.removeprefix("/api/jobs/"))
                 if not session or not job or job[0] != session.id:
                     self._reply(404, {"error": "Job unavailable"})
                     return
@@ -310,21 +315,22 @@ class Handler(BaseHTTPRequestHandler):
                 if not re.fullmatch(r"[a-f0-9]{64}", identity):
                     raise ConfigError("Invalid physical camera identity")
                 now = time.monotonic()
-                with self.server._lock:
+                with self.spot_server._lock:
                     if now - session.previews.get(identity, 0) < 1 / 25:
                         self._reply(429, {"error": "Preview rate exceeded"})
                         return
                     session.previews[identity] = now
                 self._reply(
-                    200, self.server.runtime.frames.preview(identity, session.id + ":" + identity)
+                    200,
+                    self.spot_server.runtime.frames.preview(identity, session.id + ":" + identity),
                 )
                 return
             if path.startswith("/api/"):
                 self._reply(404, {"error": "Unknown endpoint"})
                 return
             relative = "index.html" if path in {"", "/"} else path.lstrip("/")
-            asset = (self.server.assets / relative).resolve()
-            if asset.is_relative_to(self.server.assets / "docs") and asset.is_dir():
+            asset = (self.spot_server.assets / relative).resolve()
+            if asset.is_relative_to(self.spot_server.assets / "docs") and asset.is_dir():
                 if not path.endswith("/"):
                     self.send_response(HTTPStatus.MOVED_PERMANENTLY)
                     self.send_header("Location", path + "/")
@@ -333,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 asset /= "index.html"
             if (
-                not asset.is_relative_to(self.server.assets)
+                not asset.is_relative_to(self.spot_server.assets)
                 or not asset.is_file()
                 or asset.stat().st_size > 4 * 1024 * 1024
             ):
@@ -343,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 asset.read_bytes(),
                 mime=mimetypes.guess_type(asset.name)[0] or "application/octet-stream",
-                docs=asset.is_relative_to(self.server.assets / "docs"),
+                docs=asset.is_relative_to(self.spot_server.assets / "docs"),
             )
         except (ConfigError, ValueError) as exc:
             self._reply(400, {"error": str(exc)})
@@ -359,7 +365,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ConfigError("Unknown mutation endpoint")
             if self.headers.get("Origin") != "http://" + host:
                 raise PermissionError("Same-origin request required")
-            session = self.server.session(self.headers.get("Cookie", ""))
+            session = self.spot_server.session(self.headers.get("Cookie", ""))
             if session is None or not secrets.compare_digest(
                 self.headers.get("X-Spot-CSRF", ""), session.csrf
             ):
@@ -400,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
             if length > MAX_BODY and operation != "import":
                 raise ConfigError("Request body size exceeded")
             validate_request(operation, payload)
-            job_id = self.server.enqueue(session, operation, payload, request_id)
+            job_id = self.spot_server.enqueue(session, operation, payload, request_id)
             self._reply(202, {"job_id": job_id, "state": "pending"})
         except (ConfigError, ValueError, TypeError) as exc:
             self.close_connection = True  # reject unread/oversized body safely

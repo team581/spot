@@ -43,7 +43,7 @@ def environment(monkeypatch):
 
     # Threads run normally; tests inject frames into their shared slots.
     class Capture(threading.Thread):
-        def __init__(self, camera, slot, counters, stop, observer):
+        def __init__(self, camera, slot, counters, stop):
             super().__init__(daemon=True)
             self.stop = stop
 

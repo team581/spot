@@ -10,6 +10,7 @@ import time
 from concurrent.futures import Future
 from dataclasses import asdict
 from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 
@@ -27,11 +28,23 @@ from .devices import DeviceManager, DeviceRegistry
 from .health import Watchdog
 from .models import DetectedFrame
 from .native import create_detector
+from .optical_modes import mode_supported, preview_mode, preview_modes
 from .persistence import StateSnapshot, StateStore, canonical_bytes, durable_replace
 from .pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
 from .proto import vision_v2_pb2 as wire
+from .runtime_status import StatusSnapshot, build_status
 from .system_metrics import SystemMetrics
-from .timing_qualification import timing_signature, validate_timing, validate_timing_evidence
+from .timing_qualification import validate_timing, validate_timing_evidence
+
+if TYPE_CHECKING:
+    from .beta_calibration import BetaCalibration
+    from .networking import NetworkClient
+
+
+class DebugState(TypedDict):
+    samples: list[dict]
+    deadline: float
+    last: float
 
 
 def pose_matrix(pose: wire.Pose) -> np.ndarray:
@@ -39,23 +52,6 @@ def pose_matrix(pose: wire.Pose) -> np.ndarray:
     result[:3, :3] = quaternion_to_matrix(np.array([pose.qw, pose.qx, pose.qy, pose.qz]))
     result[:3, 3] = [pose.x_m, pose.y_m, pose.z_m]
     return result
-
-
-def mode_supported(device, mode) -> bool:
-    fmt = (
-        "YUYV"
-        if mode.pixel_format in {"YUY2", "YUYV"}
-        else "MJPG"
-        if mode.pixel_format in {"MJPG", "MJPEG"}
-        else mode.pixel_format
-    )
-    return any(
-        m["width"] == mode.width
-        and m["height"] == mode.height
-        and m["pixel_format"] == fmt
-        and abs(m["fps"] - mode.fps) < 0.1
-        for m in device.modes
-    )
 
 
 def record_calibration(record: dict, camera: CameraConfig) -> Calibration:
@@ -72,28 +68,6 @@ def record_calibration(record: dict, camera: CameraConfig) -> Calibration:
     )
     calibration.validate_for(camera)
     return calibration
-
-
-def preview_modes(device):
-    return [
-        mode
-        for mode in device.modes
-        if mode["pixel_format"] in {"MJPG", "YUYV"}
-        and 16 <= mode["width"] <= 1920
-        and 16 <= mode["height"] <= 1080
-        and mode["width"] % 8 == 0
-        and mode["height"] % 8 == 0
-        and 0 < mode["fps"] <= 240
-        and mode["width"] * mode["height"] * mode["fps"] <= 640 * 480 * 240
-    ]
-
-
-def preview_mode(mode):
-    return wire.OpticalMode(
-        id="preview",
-        fps=round(mode["fps"]),
-        **{key: mode[key] for key in ("width", "height", "pixel_format")},
-    )
 
 
 class BetaRuntime:
@@ -129,14 +103,12 @@ class BetaRuntime:
         self.store = StateStore(state_root)
         self.frames = FrameHub()
         self._pipeline_lock, self._operation_lock = threading.RLock(), threading.RLock()
-        self.workers, self.detectors, self.solvers, self.roles, self.modes, self.calibrations = (
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-        )
+        self.workers: dict[str, BetaCapture] = {}
+        self.detectors: dict[str, BetaDetector] = {}
+        self.solvers: dict[str, PoseSolver] = {}
+        self.roles: dict[str, str] = {}
+        self.modes: dict[str, wire.OpticalMode] = {}
+        self.calibrations: dict[str, dict] = {}
         self.generation, self.faults, self.readbacks = "", {}, {}
         self._preview_failed = {}
         self.processing = processing or ProcessingPolicy()
@@ -167,9 +139,12 @@ class BetaRuntime:
         self.watchdog = Watchdog()
         self.fatal = ""
         self.release = {}
-        self.debug = {"samples": [], "deadline": 0.0, "last": 0.0}
-        self.calibration = None  # attached by installed application before starting
-        self.network = None
+        self.debug: DebugState = {"samples": [], "deadline": 0.0, "last": 0.0}
+        self.calibration: BetaCalibration | None = (
+            None  # attached by installed application before starting
+        )
+        self.network: NetworkClient | None = None
+        self.endpoint: dict = {}
 
     def submit(self, operation: str, payload: dict) -> Future:
         future = Future()
@@ -361,7 +336,7 @@ class BetaRuntime:
                 self.startup["enumeration_s"] or time.monotonic() - self.started
             )
             snapshot = self.devices.snapshot()[:32]
-            key = [(d["identity"], d["capture_node"], d["fault"]) for d in snapshot]
+            key: list[tuple] = [(d["identity"], d["capture_node"], d["fault"]) for d in snapshot]
             # A bounded advertised preview probe advances only after its owner
             # actually fails; healthy cameras never get reopened by discovery.
             key += [
@@ -677,7 +652,7 @@ class BetaRuntime:
                     continue
                 worker = self.workers.get(identity)
                 frame = worker.slot.take() if worker else None
-                if frame is None or frame.runtime_generation != self.generation:
+                if worker is None or frame is None or frame.runtime_generation != self.generation:
                     continue
                 try:
                     batch = self.detectors[identity].detect(frame.image)
@@ -903,307 +878,8 @@ class BetaRuntime:
             result.append("Processing overload · reduced cadence")
         return result
 
-    def status(self) -> dict:
-        config = self.configuration
-        try:
-            config.require_eligible()
-            lock_reason = ""
-        except ConfigError as exc:
-            lock_reason = str(exc)
-        devices = self.devices.snapshot()[:32]
-        manifest = config.manifest
-        definitions = list(manifest.profile.cameras) if manifest else []
-        bindings = config.profile_data().get("bindings", {}) if manifest else {}
-        by_identity = {b["identity"]: name for name, b in bindings.items()}
-        cameras = []
-        for device in devices:
-            identity = device["identity"]
-            name = by_identity.get(identity)
-            definition = next((c for c in definitions if c.name == name), None)
-            standalone_setup = not name and identity in config.state.data.get(
-                "standalone_cameras", {}
-            )
-            worker = self.workers.get(identity)
-            record = self.calibrations.get(identity)
-            capabilities = []
-            actual_capabilities = getattr(worker, "capabilities", None) if worker else None
-            for control in (
-                actual_capabilities if actual_capabilities is not None else device["controls"]
-            ):
-                policy = (
-                    next((c for c in definition.controls if c.name == control["name"]), None)
-                    if definition
-                    else None
-                )
-                factor = control["factor"]
-                capabilities.append(
-                    {
-                        **control,
-                        "min": control["min"] * factor,
-                        "max": control["max"] * factor,
-                        "step": control["step"] * factor,
-                        "value": worker.readback.get(control["name"], control["value"] * factor)
-                        if worker
-                        else control["value"] * factor,
-                        "allowed": bool(
-                            control["writable"]
-                            and (
-                                (
-                                    definition is not None
-                                    and (policy is None or policy.allow_override)
-                                )
-                                or standalone_setup
-                            )
-                        ),
-                        "default": policy.default_value if policy else None,
-                        "required": bool(policy and policy.required),
-                        "reason": ""
-                        if (definition is not None and (policy is None or policy.allow_override))
-                        or standalone_setup
-                        else "Pinned by robot code"
-                        if policy
-                        else "Not allowed by robot code",
-                    }
-                )
-                if identity in self.modes:
-                    capabilities[-1] = frame_limited_exposure(
-                        capabilities[-1],
-                        self.modes[identity].fps,
-                    )
-            camera = {
-                **device,
-                "name": name or device["display_id"],
-                "logical_name": name,
-                "standalone_setup": standalone_setup,
-                "required": bool(definition and definition.required),
-                "timing_signature": timing_signature(self.modes[identity], worker.readback)
-                if worker and identity in self.modes
-                else None,
-                "timestamp_qualified": bool(
-                    worker and getattr(worker, "timestamp_uncertainty_s", None)
-                ),
-                "present": True,
-                "connected": bool(worker and worker.verified),
-                "controls": capabilities,
-                "calibrated": bool(record),
-                "calibration_hash": record.get("hash", "") if record else "",
-                "warning": "Choose a code-defined name"
-                if not name
-                else "Calibration required"
-                if not record
-                else "",
-                "fault": (
-                    self.faults.get(identity, "")
-                    if self.faults.get(identity, "").startswith(("Processing", "Detector"))
-                    else worker.counters.error
-                    if worker
-                    else self.faults.get(identity, device["fault"])
-                ),
-                "metrics": {
-                    **worker.counters.snapshot(),
-                    "publish_age_s": time.monotonic() - worker.counters.last_publish_monotonic
-                    if worker.counters.last_publish_monotonic
-                    else None,
-                    "detect_age_s": time.monotonic() - worker.counters.last_detection_monotonic
-                    if worker.counters.last_detection_monotonic
-                    else None,
-                }
-                if worker
-                else {},
-                "processing": {
-                    **self.detectors[identity].snapshot(),
-                    "target_fps": self.processing_budget.targets.get(identity),
-                    "thermal_reduction": self.processing_budget.thermal,
-                    "overload_reduction": self.processing_budget.overloaded,
-                }
-                if identity in self.detectors
-                else {},
-                "age_s": None
-                if worker is None or worker.frame is None
-                else (time.monotonic_ns() - worker.frame.captured_monotonic_ns) / 1e9,
-                "mode_id": (
-                    mode_signature(self.modes[identity]) if not name else self.modes[identity].id
-                )
-                if identity in self.modes
-                else None,
-                "mode_signature": mode_signature(self.modes[identity])
-                if identity in self.modes
-                else None,
-                "allowed_modes": [
-                    {
-                        "id": m.id,
-                        "width": m.width,
-                        "height": m.height,
-                        "fps": m.fps,
-                        "pixel_format": m.pixel_format,
-                        "supported": mode_supported(self.devices.get(identity), m),
-                    }
-                    for m in definition.allowed_modes
-                ]
-                if definition
-                else [
-                    {"id": mode_signature(preview_mode(m)), **m, "supported": True}
-                    for m in preview_modes(self.devices.get(identity))
-                ],
-                "geometry": {
-                    "translation": [
-                        definition.robot_to_camera.x_m,
-                        definition.robot_to_camera.y_m,
-                        definition.robot_to_camera.z_m,
-                    ],
-                    "quaternion": [
-                        definition.robot_to_camera.qw,
-                        definition.robot_to_camera.qx,
-                        definition.robot_to_camera.qy,
-                        definition.robot_to_camera.qz,
-                    ],
-                }
-                if definition
-                else {"translation": [0, 0, 0], "quaternion": [1, 0, 0, 0], "placeholder": True}
-                if standalone_setup
-                else None,
-            }
-            processed = self.frames.results.get(identity)
-            if processed and worker:
-                detected = processed[0]
-                camera["metrics"].update(
-                    {
-                        "processed_sequence": detected.frame.sequence,
-                        "processed_capture_epoch": detected.frame.capture_epoch,
-                        "detect_ms": detected.batch.detect_ms,
-                        "capture_to_detect_ms": detected.capture_to_detect_ms,
-                        "tag_ids": [tag.id for tag in detected.batch.detections],
-                    }
-                )
-            camera["health"] = (
-                "Disabled"
-                if definition and not definition.enabled
-                else "Unassigned"
-                if not name
-                else "Configuration mismatch"
-                if not worker and self.faults.get(identity)
-                else "Recovering"
-                if not camera["connected"] or camera["fault"]
-                else "Calibration needed"
-                if not record
-                else "Recovering"
-                if camera["metrics"].get("detect_age_s") is None
-                or camera["metrics"]["detect_age_s"] > 0.5
-                else "No tags"
-                if processed and not processed[0].batch.detections
-                else "Ready"
-            )
-            cameras.append(camera)
-        for definition in definitions:
-            binding = bindings.get(definition.name, {})
-            if binding.get("identity") not in {d["identity"] for d in devices}:
-                missing_identity = binding.get("identity")
-                last_frame = self.frames.image(missing_identity)
-                selected = config.profile_data().get("modes", {}).get(definition.name)
-                mode = next(
-                    (m for m in definition.allowed_modes if m.id == selected),
-                    next(iter(definition.allowed_modes), None),
-                )
-                record = (
-                    config.state.data.get("calibrations", {}).get(
-                        missing_identity + ":" + mode_signature(mode)
-                    )
-                    if missing_identity and mode
-                    else None
-                )
-                cameras.append(
-                    {
-                        "identity": binding.get("identity", "missing:" + definition.name),
-                        "name": definition.name,
-                        "logical_name": definition.name,
-                        "required": definition.required,
-                        "health": "Missing" if definition.enabled else "Disabled",
-                        "timestamp_qualified": False,
-                        "present": False,
-                        "connected": False,
-                        "calibrated": bool(record),
-                        "calibration_hash": record.get("hash", "") if record else "",
-                        "warning": "Configured camera missing",
-                        "fault": "Disconnected",
-                        "controls": [],
-                        "metrics": {},
-                        "age_s": (time.monotonic_ns() - last_frame.captured_monotonic_ns) / 1e9
-                        if last_frame
-                        else None,
-                        "geometry": {
-                            "translation": [
-                                definition.robot_to_camera.x_m,
-                                definition.robot_to_camera.y_m,
-                                definition.robot_to_camera.z_m,
-                            ],
-                            "quaternion": [
-                                definition.robot_to_camera.qw,
-                                definition.robot_to_camera.qx,
-                                definition.robot_to_camera.qy,
-                                definition.robot_to_camera.qz,
-                            ],
-                        },
-                    }
-                )
-        sync = self.transport.clock.snapshot()
-        return {
-            "revision": config.state.generation,
-            "applied_generation": config.acknowledged_generation,
-            "cameras": cameras,
-            "names": [c.name for c in definitions],
-            "robot_id": manifest.profile.robot_id if manifest else None,
-            "fresh": config.fresh,
-            "lock_reason": lock_reason,
-            "standalone": config.standalone,
-            "connected": config.connected,
-            "clock": asdict(sync),
-            "faults": list(self.faults.values())
-            + self.processing_faults()
-            + ([self.devices.fault] if self.devices.fault else [])
-            + ([self.store.fault] if self.store.fault else []),
-            "uptime_s": time.monotonic() - self.started,
-            "system": self.system_metrics.snapshot.copy(),
-            "robot_decisions": getattr(self.transport, "robot_decisions", {}),
-            "startup": self.startup.copy(),
-            "release": self.release,
-            "calibration": self.calibration.status() if self.calibration else {},
-            "history": self.store.history(),
-            "network": copy.deepcopy(self.network.snapshot)
-            if self.network
-            else {"available": False},
-            "endpoint": {
-                **getattr(self, "endpoint", {}),
-                **(
-                    {"local_addresses": self.network.snapshot.get("local_addresses", [])}
-                    if self.network and self.network.snapshot.get("available")
-                    else {}
-                ),
-            },
-            "field": {
-                "length": manifest.profile.field.length_m,
-                "width": manifest.profile.field.width_m,
-                "tags": [
-                    {
-                        "id": tag.id,
-                        "size": tag.size_m,
-                        "translation": [
-                            tag.field_to_tag.x_m,
-                            tag.field_to_tag.y_m,
-                            tag.field_to_tag.z_m,
-                        ],
-                        "quaternion": [
-                            tag.field_to_tag.qw,
-                            tag.field_to_tag.qx,
-                            tag.field_to_tag.qy,
-                            tag.field_to_tag.qz,
-                        ],
-                    }
-                    for tag in manifest.profile.field.tags
-                ],
-            }
-            if manifest
-            else None,
-        }
+    def status(self) -> StatusSnapshot:
+        return build_status(self)
 
     def start(self) -> None:
         self.frames.start()

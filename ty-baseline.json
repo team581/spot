@@ -1,14 +1,6 @@
 {
   "version": 0,
   "files": {
-    "apps/vision/src/spot_vision/beta_app.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 4,
-        "endColumn": 20,
-        "lineCount": 1
-      }
-    ],
     "apps/vision/src/spot_vision/beta_calibration.py": [
       {
         "rule": "unresolved-attribute",
@@ -43,38 +35,6 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/beta_contract.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 30,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 38,
-        "endColumn": 51,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 14,
-        "endColumn": 27,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 31,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 34,
-        "endColumn": 50,
-        "lineCount": 1
-      }
-    ],
     "apps/vision/src/spot_vision/beta_processing.py": [
       {
         "rule": "unresolved-attribute",
@@ -92,38 +52,14 @@
     "apps/vision/src/spot_vision/beta_runtime.py": [
       {
         "rule": "unresolved-attribute",
-        "startColumn": 22,
-        "endColumn": 31,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 11,
-        "endColumn": 27,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
         "startColumn": 81,
         "endColumn": 96,
         "lineCount": 1
       },
       {
-        "rule": "unsupported-operator",
-        "startColumn": 12,
-        "endColumn": 13,
-        "lineCount": 7
-      },
-      {
         "rule": "unresolved-attribute",
         "startColumn": 34,
         "endColumn": 73,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 52,
-        "endColumn": 65,
         "lineCount": 1
       },
       {
@@ -163,60 +99,6 @@
         "lineCount": 1
       },
       {
-        "rule": "unresolved-attribute",
-        "startColumn": 20,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 20,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 20,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 32,
-        "endColumn": 47,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 32,
-        "endColumn": 47,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 32,
-        "endColumn": 47,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 28,
-        "endColumn": 43,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 41,
-        "endColumn": 62,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 16,
-        "endColumn": 37,
-        "lineCount": 1
-      },
-      {
         "rule": "invalid-argument-type",
         "startColumn": 32,
         "endColumn": 40,
@@ -227,123 +109,9 @@
         "startColumn": 42,
         "endColumn": 77,
         "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 11,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 45,
-        "endColumn": 74,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 12,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 11,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 19,
-        "endColumn": 58,
-        "lineCount": 1
       }
     ],
     "apps/vision/src/spot_vision/beta_transport.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 12,
-        "endColumn": 33,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 5,
-        "endColumn": 21,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 14,
-        "endColumn": 30,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 19,
-        "endColumn": 28,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 8,
-        "endColumn": 29,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 35,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 19,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 43,
-        "endColumn": 58,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 51,
-        "endColumn": 66,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 18,
-        "endColumn": 38,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 12,
-        "endColumn": 32,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 25,
-        "endColumn": 45,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 35,
-        "endColumn": 51,
-        "lineCount": 1
-      },
       {
         "rule": "unresolved-attribute",
         "startColumn": 12,
@@ -352,136 +120,8 @@
       },
       {
         "rule": "unresolved-attribute",
-        "startColumn": 9,
-        "endColumn": 20,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 18,
-        "endColumn": 29,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
         "startColumn": 12,
         "endColumn": 26,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/beta_web.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 39,
-        "endColumn": 64,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 35,
-        "endColumn": 54,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 38,
-        "endColumn": 61,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 26,
-        "endColumn": 45,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 25,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 22,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 38,
-        "endColumn": 57,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 38,
-        "endColumn": 57,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 37,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 38,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 26,
-        "endColumn": 42,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 38,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 25,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 36,
-        "endColumn": 54,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 41,
-        "endColumn": 59,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 42,
-        "endColumn": 60,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 22,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 40,
         "lineCount": 1
       }
     ],
@@ -530,200 +170,8 @@
     "apps/vision/src/spot_vision/configuration.py": [
       {
         "rule": "unresolved-attribute",
-        "startColumn": 25,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 40,
-        "endColumn": 53,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 23,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 27,
-        "endColumn": 42,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 33,
-        "endColumn": 48,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 32,
-        "endColumn": 47,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 18,
-        "endColumn": 31,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 40,
-        "endColumn": 53,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 21,
-        "endColumn": 34,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 35,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
         "startColumn": 39,
         "endColumn": 66,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/devices.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 16,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 29,
-        "endColumn": 59,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 41,
-        "endColumn": 53,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 19,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 27,
-        "endColumn": 32,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 28,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 81,
-        "endColumn": 93,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 24,
-        "endColumn": 49,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 24,
-        "endColumn": 49,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-assignment",
-        "startColumn": 20,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-assignment",
-        "startColumn": 20,
-        "endColumn": 77,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 23,
-        "endColumn": 28,
-        "lineCount": 1
-      },
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 23,
-        "endColumn": 38,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 27,
-        "endColumn": 51,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-assignment",
-        "startColumn": 20,
-        "endColumn": 54,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-assignment",
-        "startColumn": 20,
-        "endColumn": 75,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/native.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 17,
-        "endColumn": 43,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 8,
-        "endColumn": 33,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-import",
-        "startColumn": 22,
-        "endColumn": 42,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/persistence.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 72,
-        "endColumn": 83,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 63,
-        "endColumn": 74,
         "lineCount": 1
       }
     ],
@@ -765,40 +213,6 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/proto/__init__.py": [
-      {
-        "rule": "unresolved-import",
-        "startColumn": 24,
-        "endColumn": 37,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-import",
-        "startColumn": 39,
-        "endColumn": 55,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-import",
-        "startColumn": 57,
-        "endColumn": 71,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-import",
-        "startColumn": 73,
-        "endColumn": 84,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/queues.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 33,
-        "endColumn": 43,
-        "lineCount": 1
-      }
-    ],
     "apps/vision/src/spot_vision/regression.py": [
       {
         "rule": "invalid-argument-type",
@@ -813,57 +227,11 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/release.py": [
-      {
-        "rule": "unresolved-import",
-        "startColumn": 18,
-        "endColumn": 38,
-        "lineCount": 1
-      }
-    ],
-    "apps/vision/src/spot_vision/service.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 12,
-        "endColumn": 29,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 12,
-        "endColumn": 29,
-        "lineCount": 1
-      }
-    ],
     "apps/vision/src/spot_vision/transport.py": [
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 5,
-        "endColumn": 27,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 14,
-        "endColumn": 36,
-        "lineCount": 1
-      },
       {
         "rule": "invalid-argument-type",
         "startColumn": 43,
         "endColumn": 57,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 17,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "unresolved-attribute",
-        "startColumn": 17,
-        "endColumn": 39,
         "lineCount": 1
       }
     ],

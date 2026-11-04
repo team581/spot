@@ -92,3 +92,18 @@ pose solving, preserves excluded diagnostics (`tag-policy-excluded`), and emits
 an advancing no-pose observation for an empty selected set. Publication rechecks
 the current policy so in-flight solves cannot be relabeled after a change.
 There is no capture/detector restart or manifest mutation for tag selection.
+
+## Python type stubs
+
+The `.pyi` files beside the generated Python messages describe their dynamic
+fields for `ty`. Regenerate them from the repository root without changing the
+runtime `.py` files:
+
+```sh
+uv tool run --from grpcio-tools==1.85.1 --with mypy-protobuf==5.1.0 python -m grpc_tools.protoc \
+  -I apps/vision/proto --mypy_out=apps/vision/src/spot_vision/proto \
+  apps/vision/proto/vision.proto apps/vision/proto/vision_v2.proto
+```
+
+The workspace's development dependencies include the matching `types-protobuf`
+annotations used by these generated stubs.

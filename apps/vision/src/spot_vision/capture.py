@@ -7,7 +7,6 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -206,14 +205,12 @@ class CaptureWorker(threading.Thread):
         slot: LatestFrameSlot,
         counters: CameraCounters,
         stop_event: threading.Event,
-        frame_observer: Callable[[FramePacket], None] | None = None,
     ) -> None:
         super().__init__(name=f"capture-{camera.id}", daemon=True)
         self.camera = camera
         self.slot = slot
         self.counters = counters
         self.stop_event = stop_event
-        self.frame_observer = frame_observer
         self.controls = CameraControls(camera)
 
     def run(self) -> None:
@@ -282,13 +279,6 @@ class CaptureWorker(threading.Thread):
                 )
                 if self.slot.put(packet):
                     self.counters.overwritten_before_processing += 1
-                if self.frame_observer is not None:
-                    try:
-                        self.frame_observer(packet)
-                    except Exception:
-                        LOGGER.debug(
-                            "capture observer failed for %s", self.camera.id, exc_info=True
-                        )
                 self.counters.captured += 1
                 self.counters.last_capture_monotonic = now
                 self.counters.state = (

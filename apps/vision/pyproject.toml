@@ -36,6 +36,7 @@ cache-keys = [
   { file = "proto/*.proto" },
   { file = "tools/build_manifest.py" },
   { file = "src/spot_vision/**/*.py" },
+  { file = "src/spot_vision/**/*.pyi" },
   { file = "../../dist/dashboard/**/*" },
   { git = { commit = true } },
   { file = "../../dist/jetson-docs/**/*" },

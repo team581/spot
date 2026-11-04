@@ -21,7 +21,7 @@ MAX_STATE_BYTES = 16 * 1024 * 1024
 _GENERATION = re.compile(r"[a-f0-9]{32}\Z")
 
 
-def canonical_bytes(data: dict) -> bytes:
+def canonical_bytes(data: object) -> bytes:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
@@ -185,13 +185,13 @@ class StateStore:
             try:
                 apply(snapshot)
                 eligible()  # enabled/unknown state can change during application
-                if old.generation:
+                if old_pointer is not None:
                     durable_replace(self.root / "last-known-good.json", old_pointer)
                 durable_replace(self.root / "active.json", pointer)
             except BaseException:
                 # If rename succeeded but directory fsync failed, restore the
                 # previous pointer as well as runtime; never report success.
-                if old.generation:
+                if old_pointer is not None:
                     durable_replace(self.root / "active.json", old_pointer)
                 else:
                     (self.root / "active.json").unlink(missing_ok=True)

@@ -8,6 +8,7 @@ dev = [
     "sdnotify==0.3.2",
     "ty==0.0.96",
     "spot-vision[nt,systemd]",
+    "types-protobuf==7.35.1.20260906",
 ]
 
 [tool.uv.workspace]

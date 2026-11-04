@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
 from .config import Calibration, CameraConfig
 from .models import Detection, DetectionBatch
 from .uncertainty import distortion_factors
+
+if TYPE_CHECKING:
+    from ._spot_cuda import CpuDetector, CudaDetector
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ class Detector(Protocol):
 
 @dataclass
 class NativeDetector:
-    implementation: object
+    implementation: CpuDetector | CudaDetector
     calibration: Calibration | None = None
 
     def detect(self, frame: np.ndarray) -> DetectionBatch:
