@@ -118,7 +118,7 @@ def configure_controls(camera: CameraConfig, device: str) -> None:
         # intentionally expressed in microseconds.
         exposure_units = None if camera.exposure_us is None else max(1, camera.exposure_us // 100)
         if (
-            camera.exposure_us is not None
+            exposure_units is not None
             and not _set_control(device, "exposure_time_absolute", exposure_units)
             and not _set_control(device, "exposure_absolute", exposure_units)
         ):

@@ -81,7 +81,8 @@ class ControlError(RuntimeError):
 
 
 def parse_controls(output: str) -> list[dict]:
-    controls, current = [], None
+    controls: list[dict] = []
+    current: dict | None = None
     for line in output.splitlines():
         match = HEADER.match(line)
         if match:

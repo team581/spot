@@ -243,8 +243,12 @@ def load_config(path: str | Path) -> ServiceConfig:
                 config_revision=int(item.get("config_revision", 1)),
                 detector=detector,
                 image_rotation_deg=rotation,
-                robot_from_camera_translation=tuple(float(value) for value in translation),
-                robot_from_camera_rpy_deg=tuple(float(value) for value in rpy),
+                robot_from_camera_translation=(
+                    float(translation[0]),
+                    float(translation[1]),
+                    float(translation[2]),
+                ),
+                robot_from_camera_rpy_deg=(float(rpy[0]), float(rpy[1]), float(rpy[2])),
                 contrast=_image_control(item, "contrast", where),
                 sharpness=_image_control(item, "sharpness", where),
             )
@@ -311,7 +315,7 @@ def load_calibration(path: str | Path) -> Calibration:
         width=width,
         height=height,
         pixel_format=str(raw.get("pixel_format", "YUY2")),
-        camera_matrix=tuple(tuple(float(value) for value in row) for row in matrix),
+        camera_matrix=tuple((float(row[0]), float(row[1]), float(row[2])) for row in matrix),
         distortion=tuple(float(value) for value in distortion),
         reprojection_error_px=(
             None

@@ -216,9 +216,9 @@ class Runtime:
                     elif operation == "device/setup":
                         identity = payload["identity"]
                         worker, mode = self.workers.get(identity), self.modes.get(identity)
-                        if not worker or not worker.verified or mode is None:
-                            raise ConfigError("Wait for a verified camera preview")
                         device = self.devices.get(identity)
+                        if not worker or not worker.verified or mode is None or device is None:
+                            raise ConfigError("Wait for a verified camera preview")
                         defaults = {c["name"]: c["value"] * c["factor"] for c in device.controls}
                         result = self.configuration.setup_device(
                             identity,
@@ -354,10 +354,13 @@ class Runtime:
             self.stop_event.wait(1)
 
     def _camera_config(self, identity, mode, definition) -> CameraConfig:
+        device = self.devices.get(identity)
+        if device is None:
+            raise ConfigError("Camera is no longer connected")
         return CameraConfig(
             identity,
             True,
-            CameraSelector(device=self.devices.get(identity).capture_node),
+            CameraSelector(device=device.capture_node),
             mode.pixel_format,
             mode.width,
             mode.height,
@@ -404,6 +407,8 @@ class Runtime:
             definition = definitions.get(name)
             if definition and not definition.enabled:
                 continue
+            if physical is None:
+                raise ConfigError("Camera is no longer connected")
             if not physical.capture_node or physical.fault:
                 faults[identity] = physical.fault or "No capture node"
                 continue
@@ -588,9 +593,12 @@ class Runtime:
                             )
                         worker.generation = state.generation
                 else:
+                    physical = self.devices.get(identity)
+                    if physical is None or physical.capture_node is None:
+                        raise ConfigError("Camera capture node is no longer available")
                     worker = self.capture_factory(
                         camera,
-                        self.devices.get(identity).capture_node,
+                        physical.capture_node,
                         state.generation,
                         controls[identity],
                         self.frames.capture,
@@ -750,12 +758,15 @@ class Runtime:
         identity = record.get("identity") if isinstance(record, dict) else None
         worker = self.workers.get(identity)
         mode = self.modes.get(identity)
-        if not worker or not worker.verified or not mode:
+        if not isinstance(identity, str) or not worker or not worker.verified or not mode:
             raise ConfigError("Timing qualification requires a connected verified camera")
         validate_timing(record, identity, mode, worker.readback)
 
     def validate_import_profile(self, profile: dict) -> None:
-        definitions = {c.name: c for c in self.configuration.manifest.profile.cameras}
+        manifest = self.configuration.manifest
+        if manifest is None:
+            raise ConfigError("Import requires the current robot profile")
+        definitions = {c.name: c for c in manifest.profile.cameras}
         seen = set()
         for name, binding in profile.get("bindings", {}).items():
             if (

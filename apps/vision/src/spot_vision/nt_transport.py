@@ -11,6 +11,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -32,6 +33,9 @@ from .structs import (
     tag_ids,
     token,
 )
+
+if TYPE_CHECKING:
+    from ntcore import StructPublisher
 
 LOGGER = logging.getLogger(__name__)
 ROOT = "/Spot"
@@ -196,7 +200,7 @@ class NtTransport:
         )
         self._ack_publisher = AcknowledgementPublisher(self.instance, ROOT, options)
         self._health = self.instance.getStructTopic(f"{ROOT}/health", Heartbeat).publish(options)
-        self._observations: dict[str, object] = {}
+        self._observations: dict[str, StructPublisher] = {}
         self._listeners = [
             self.instance.addConnectionListener(True, self._connection_event),
             self.instance.addTimeSyncListener(False, self._sync_event),

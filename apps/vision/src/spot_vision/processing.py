@@ -125,6 +125,7 @@ class RecoveringDetector:
                 self.blocked_until = now + 1
                 raise
         try:
+            assert self.primary is not None
             result = self.primary.detect(image)
             self.error = ""
             return result
@@ -132,6 +133,7 @@ class RecoveringDetector:
             if self.backend == "cuda" and self.policy.fallback_to_cpu:
                 self._fallback(exc)
                 try:
+                    assert self.cpu is not None
                     return self.cpu.detect(image)
                 except Exception:
                     self.blocked_until = now + 1

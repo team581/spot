@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pytest
 
-from spot_vision.config import load_calibration
+from spot_vision.config import ConfigError, load_calibration
 from spot_vision.regression import run_image_regression
 
 DATA = Path(__file__).parent / "data" / "regression"
@@ -106,3 +106,21 @@ def test_regression_reports_accuracy_failure(tmp_path):
     report = run_image_regression(path, repeats=1)
     assert not report["passed"]
     assert "corner_error" in report["cases"][0]["failures"]
+
+
+@pytest.mark.parametrize("missing", ["field_layout", "calibration"])
+def test_regression_requires_layout_and_calibration(tmp_path, missing):
+    config = json.loads((DATA / "config.json").read_text())
+    config["field_layout"] = str(DATA.resolve() / "layout.json")
+    config["cameras"][0]["calibration"] = str(DATA.resolve() / "calibration.json")
+    if missing == "field_layout":
+        del config["field_layout"]
+    else:
+        del config["cameras"][0]["calibration"]
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    manifest = json.loads((DATA / "manifest.json").read_text())
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ConfigError, match="Image regression requires"):
+        run_image_regression(path)

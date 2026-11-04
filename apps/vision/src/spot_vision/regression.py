@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import load_calibration, load_config
+from .config import ConfigError, load_calibration, load_config
 from .models import DetectedFrame, FramePacket
 from .native import create_detector
 from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_robot_pose
@@ -30,6 +30,8 @@ def run_image_regression(
     manifest = json.loads(path.read_text())
     base = path.parent
     config = load_config(base / manifest["config"])
+    if config.field_layout is None:
+        raise ConfigError("Image regression requires a field layout")
     layout = FieldLayout.load(config.field_layout, config.field_revision)
     results = []
     for case in manifest["cases"]:
@@ -44,6 +46,8 @@ def run_image_regression(
                 camera.detector, backend=backend, decimate=decimate, fallback_to_cpu=False
             ),
         )
+        if camera.calibration is None:
+            raise ConfigError("Image regression requires camera calibration")
         calibration = load_calibration(camera.calibration)
         calibration.validate_for(camera)
         calibration = calibration.for_image_rotation(camera)
