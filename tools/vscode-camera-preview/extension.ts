@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { spawn } from 'node:child_process';
-const { discover } = require('../project.cjs');
+const { discover } = require('./project.cjs');
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('Spot Camera Preview');
   const panels = new Map<string, vscode.WebviewPanel>();
@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
     panels.set(key, panel);
     const nonce = require('node:crypto').randomBytes(16).toString('hex');
-    const asset = (name: string) => panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name));
+    const asset = (name: string) => panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name)).toString();
     panel.webview.html = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('preview.css')}"></head><body>
       <h2>Spot cameras</h2><p id="status">Building…</p><button id="refresh">Refresh</button><button id="output">Build output</button>
       <button data-view="reset">Reset</button><button data-view="top">Top</button><button data-view="front">Front</button><button data-view="side">Side</button>
