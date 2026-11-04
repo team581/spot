@@ -3,7 +3,13 @@ node_modules/**
 tsconfig.json
 test/**
 *.vsix
-package.cjs
+package.mts
 release.cjs
 *.vsix.sha256
 release-notes.txt
+media/preview.ts
+project.ts
+profile.ts
+webview.ts
+vite.config.ts
+tsconfig.webview.json

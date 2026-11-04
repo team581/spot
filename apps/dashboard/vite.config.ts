@@ -3,8 +3,6 @@ import react from '@vitejs/plugin-react';
 const backend = process.env.SPOT_BACKEND || 'http://127.0.0.1:5808';
 export default defineConfig({
 	plugins: [react()],
-	// The shared renderer is a linked CommonJS workspace also consumed by VS Code.
-	optimizeDeps: { include: ['@spot/camera-viewer'] },
 	build: { outDir: '../../dist/dashboard', emptyOutDir: true, assetsInlineLimit: 0 },
 	server: {
 		host: '127.0.0.1',

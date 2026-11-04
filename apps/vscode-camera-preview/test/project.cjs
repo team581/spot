@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { discover } = require('../project.cjs');
-test('discovers standalone and subproject wrappers with spaces', () => {
+const { discover } = require('../project.ts');
+void test('discovers standalone and subproject wrappers with spaces', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spot preview '));
 	try {
 		fs.writeFileSync(path.join(root, 'gradlew'), '');
@@ -20,8 +20,9 @@ test('discovers standalone and subproject wrappers with spaces', () => {
 		fs.rmSync(root, { recursive: true });
 	}
 });
-test('shared renderer handles several cameras, hidden cameras and empty scenes', () => {
-	const vm = require('node:vm');
+void test('shared renderer handles several cameras, hidden cameras and empty scenes', () => {
+	const { SpotViewer } = require('@spot/camera-viewer');
+	const withCanvasEnvironment = require('./helpers/canvas.cjs');
 	let labels = [];
 	const context = new Proxy(
 		{},
@@ -34,23 +35,20 @@ test('shared renderer handles several cameras, hidden cameras and empty scenes',
 		addEventListener() {},
 		removeEventListener() {},
 	};
-	const sandbox = {
-		ResizeObserver: class {
-			observe() {}
-			disconnect() {}
-		},
-		getComputedStyle: () => ({ getPropertyValue: () => '#888' }),
-		document: { documentElement: {} },
-	};
-	vm.runInNewContext(fs.readFileSync(require.resolve('@spot/camera-viewer'), 'utf8'), sandbox);
+
 	let mounts = ['front', 'left'].map((name) => ({ name, translation: [0.2, 0.1, 0.3], quaternion: [1, 0, 0, 0] }));
-	const viewer = new sandbox.SpotViewer(canvas, () => ({ inspection: true, mounts, selectedName: 'front' }));
-	viewer.draw();
-	assert.ok(labels.includes('front'));
-	assert.ok(labels.includes('left'));
-	labels = [];
-	mounts = [];
-	viewer.draw();
-	assert.ok(!labels.includes('front'));
-	viewer.destroy();
+	withCanvasEnvironment(
+		() => {
+			const viewer = new SpotViewer(canvas, () => ({ inspection: true, mounts, selectedName: 'front' }));
+			viewer.draw();
+			assert.ok(labels.includes('front'));
+			assert.ok(labels.includes('left'));
+			labels = [];
+			mounts = [];
+			viewer.draw();
+			assert.ok(!labels.includes('front'));
+			viewer.destroy();
+		},
+		() => '#888',
+	);
 });

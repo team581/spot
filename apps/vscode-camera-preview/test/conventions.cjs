@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const vm = require('node:vm');
+const withCanvasEnvironment = require('./helpers/canvas.cjs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../../..');
 const fixtures = JSON.parse(
@@ -37,22 +37,15 @@ function renderer(provider) {
 		addEventListener() {},
 		removeEventListener() {},
 	};
-	const sandbox = {
-		document: { documentElement: {} },
-		getComputedStyle: () => ({ getPropertyValue: (name) => name }),
-		ResizeObserver: class {
-			observe() {}
-			disconnect() {}
-		},
-	};
-	vm.runInNewContext(fs.readFileSync(require.resolve('@spot/camera-viewer'), 'utf8'), sandbox);
-	const viewer = new sandbox.SpotViewer(canvas, provider);
-	viewer.draw();
-	viewer.destroy();
+	withCanvasEnvironment(() => {
+		const viewer = new math.SpotViewer(canvas, provider);
+		viewer.draw();
+		viewer.destroy();
+	});
 	return paths;
 }
 for (const fixture of fixtures)
-	test(`Jetson vs preview: XYZ ${fixture.exported.translation}; Java RPY ${fixture.javaRollPitchYawDeg}`, () => {
+	void test(`Jetson vs preview: XYZ ${fixture.exported.translation}; Java RPY ${fixture.javaRollPitchYawDeg}`, () => {
 		const mount = fixture.exported;
 		const readback = previewGeometry(geometryValues(mount));
 		close(readback.translation, mount.translation);
@@ -80,7 +73,7 @@ for (const fixture of fixtures)
 			segment.points.forEach((point, j) => close(point, b[i].points[j]));
 		});
 	});
-test('the same signed pitch points in the same direction in Java and Jetson controls', () => {
+void test('the same signed pitch points in the same direction in Java and Jetson controls', () => {
 	for (const pitch of [-45, -20, 0, 20, 45]) {
 		const java = math.rotate(math.quaternion(0, pitch, 0), [1, 0, 0]);
 		const jetson = math.rotate(math.cameraQuaternion(0, pitch, 0), [1, 0, 0]);
@@ -88,7 +81,7 @@ test('the same signed pitch points in the same direction in Java and Jetson cont
 		assert.ok(pitch === 0 || Math.sign(jetson[2]) === -Math.sign(pitch));
 	}
 });
-test('30 inch drivebase footprint converts to metres and toggle/dimensions affect only its outline', () => {
+void test('30 inch drivebase footprint converts to metres and toggle/dimensions affect only its outline', () => {
 	const mount = fixtures[0].exported;
 	const render = (drivebase) =>
 		renderer(() => ({ inspection: true, mounts: [mount], selectedName: mount.name, drivebase }));

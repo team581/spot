@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{nonce}}';"
+		/>
+		<link rel="stylesheet" href="{{stylesheet}}" />
+	</head>
+	<body>
+		<h2>Spot cameras</h2>
+		<p id="status">Building…</p>
+		<button id="refresh">Refresh</button><button id="output">Build output</button>
+		<button data-view="reset">Reset</button><button data-view="top">Top</button><button data-view="front">Front</button
+		><button data-view="side">Side</button>
+		<fieldset class="drivebase-controls">
+			<legend>Drivebase footprint · visualization only</legend>
+			<label><input id="drivebase-visible" type="checkbox" checked /> Show drivebase</label>
+			<label>Length (+X) <input id="drivebase-length" type="number" min="1" max="240" step="1" value="30" /> in</label>
+			<label>Width (+Y) <input id="drivebase-width" type="number" min="1" max="240" step="1" value="30" /> in</label>
+			<span id="drivebase-size"></span><span id="drivebase-error" role="status"></span>
+		</fieldset>
+		<div id="cameras"></div>
+		<canvas
+			width="1000"
+			height="720"
+			tabindex="0"
+			aria-label="Camera mounts; arrows orbit, plus and minus zoom"
+		></canvas>
+		<pre id="details"></pre>
+		<p>
+			WPILib NWU: +X forward, +Y left, +Z up. Java and Jetson use WPILib pitch: positive points down; negative points
+			up. Image rotation does not rotate the mount.
+		</p>
+		<script nonce="{{nonce}}" src="{{script}}"></script>
+	</body>
+</html>

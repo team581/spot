@@ -4,14 +4,19 @@ export default defineConfig({
 		singleQuote: true,
 		useTabs: true,
 		printWidth: 120,
-		ignorePatterns: ['**/node_modules/**', '**/out/**', '**/.astro/**', 'apps/vscode-camera-preview/media/viewer.js'],
+		ignorePatterns: [
+			'**/node_modules/**',
+			'**/out/**',
+			'**/.astro/**',
+			'apps/vscode-camera-preview/media/preview.bundle.js',
+		],
 	},
 	lint: {
 		categories: {
 			correctness: 'error',
 			perf: 'error',
 		},
-		ignorePatterns: ['**/out/**', 'apps/vscode-camera-preview/media/viewer.js'],
+		ignorePatterns: ['**/out/**', 'apps/vscode-camera-preview/media/preview.bundle.js'],
 		rules: {
 			'no-await-in-loop': 'off',
 			'no-unused-expressions': [

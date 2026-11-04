@@ -1,6 +1,6 @@
 node_modules/
 out/
 *.vsix
-media/viewer.js
+media/preview.bundle.js
 *.vsix.sha256
 release-notes.txt

@@ -2,14 +2,18 @@
 	"name": "@spot/camera-viewer",
 	"version": "0.0.0",
 	"private": true,
-	"type": "commonjs",
-	"main": "./viewer.js",
-	"exports": "./viewer.js",
+	"type": "module",
+	"exports": "./src/index.ts",
 	"scripts": {
-		"check": "node --check viewer.js",
-		"format": "oxfmt --check",
-		"format:fix": "oxfmt",
-		"lint": "oxlint",
-		"lint:fix": "oxlint --fix"
+		"build": "vp pack",
+		"check": "vp check",
+		"format": "vp fmt --check",
+		"format:fix": "vp fmt",
+		"lint": "vp lint",
+		"lint:fix": "vp lint --fix"
+	},
+	"devDependencies": {
+		"typescript": "7.1.0-beta",
+		"vite-plus": "1.4.0"
 	}
 }

@@ -11,7 +11,7 @@
 		"format:fix": "vp fmt",
 		"lint": "vp lint",
 		"lint:fix": "vp lint --fix",
-		"test": "vp test && node --test tests/*.cjs",
+		"test": "vp test",
 		"test:browser": "playwright test"
 	},
 	"dependencies": {

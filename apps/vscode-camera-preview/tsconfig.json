@@ -1,13 +1,13 @@
 {
 	"compilerOptions": {
 		"target": "ES2022",
-		"module": "commonjs",
+		"module": "ESNext",
 		"outDir": "out",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
-		"allowJs": true,
-		"types": ["node", "vscode"]
+		"types": ["node", "vscode"],
+		"moduleResolution": "Bundler"
 	},
-	"include": ["extension.ts", "project.cjs"]
+	"include": ["extension.ts", "project.ts", "profile.ts", "webview.ts"]
 }

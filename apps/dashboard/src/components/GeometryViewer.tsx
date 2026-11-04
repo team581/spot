@@ -2,27 +2,8 @@ import { useEffect, useRef, useLayoutEffect } from 'react';
 import { useDashboard } from '../dashboard';
 import { usePreview, previewData } from './Feed';
 import { theme } from '../theme';
-import type { Camera, Frame, Geometry, Status } from '../types';
-import '@spot/camera-viewer';
-interface ViewerState {
-	camera?: Camera;
-	geometry?: Geometry | null;
-	field?: Status['field'];
-	data?: Frame;
-	inspection: boolean;
-}
-interface ViewerInstance {
-	draw: () => void;
-	reset: () => void;
-	destroy: () => void;
-}
-declare global {
-	var SpotViewer: {
-		new (canvas: HTMLCanvasElement, provider: () => ViewerState): ViewerInstance;
-		cameraAngles: (q: number[]) => number[];
-		cameraQuaternion: (yaw: number, pitch: number, roll: number) => number[];
-	};
-}
+import type { Camera, Geometry } from '../types';
+import { SpotViewer, type ViewerState } from '@spot/camera-viewer';
 export default function GeometryViewer({
 	camera: c,
 	inspection = false,
@@ -35,11 +16,10 @@ export default function GeometryViewer({
 	const { status } = useDashboard(),
 		preview = usePreview(c.identity),
 		canvas = useRef<HTMLCanvasElement>(null),
-		viewer = useRef<ViewerInstance | null>(null);
+		viewer = useRef<SpotViewer | null>(null);
 	const latest = useRef<ViewerState>({ inspection });
 	useLayoutEffect(() => {
 		latest.current = {
-			camera: c,
 			geometry: inspection ? geometry : preview.paused ? preview.held?.geometry : c.geometry,
 			field: preview.paused ? preview.held?.field : status.field,
 			data: previewData(preview),
@@ -48,7 +28,7 @@ export default function GeometryViewer({
 	});
 	useEffect(() => {
 		if (!canvas.current) return;
-		const instance = new globalThis.SpotViewer(canvas.current, () => latest.current);
+		const instance = new SpotViewer(canvas.current, () => latest.current);
 		viewer.current = instance;
 		instance.draw();
 		const unsubscribe = theme.subscribe(() => instance.draw());

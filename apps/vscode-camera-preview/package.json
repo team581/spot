@@ -4,12 +4,13 @@
 	"version": "0.1.2",
 	"description": "Offline preview of Spot robot camera configuration",
 	"publisher": "team581",
-	"main": "./out/extension.js",
+	"type": "module",
+	"main": "./out/extension.cjs",
 	"scripts": {
-		"package": "pnpm build && node package.cjs",
+		"package": "pnpm build && node package.mts",
 		"test": "node --test test/*.cjs",
-		"build": "tsc -p .",
-		"check": "tsc -p . --noEmit",
+		"build": "vp pack && NODE_ENV=production vp build",
+		"check": "tsc -p . --noEmit && tsc -p tsconfig.webview.json",
 		"format": "oxfmt --check",
 		"format:fix": "oxfmt",
 		"lint": "oxlint",
@@ -22,7 +23,8 @@
 		"@types/node": "22.20.5",
 		"@types/vscode": "1.90.0",
 		"@vscode/vsce": "4.0.0",
-		"typescript": "5.9.3"
+		"typescript": "5.9.3",
+		"vite-plus": "1.4.0"
 	},
 	"contributes": {
 		"commands": [

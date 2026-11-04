@@ -1,6 +1,6 @@
-const fs = require('node:fs');
-const path = require('node:path');
-function discover(file) {
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+export function discover(file: string) {
 	let dir = path.dirname(file);
 	while (true) {
 		if (fs.existsSync(path.join(dir, 'build.gradle'))) {
@@ -24,4 +24,3 @@ function discover(file) {
 		dir = parent;
 	}
 }
-module.exports = { discover };

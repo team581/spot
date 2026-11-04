@@ -1,10 +1,8 @@
 // Use the official VSIX packager; never publishes to the Marketplace.
-const fs = require('node:fs');
-const path = require('node:path');
-const cp = require('node:child_process');
-fs.copyFileSync(require.resolve('@spot/camera-viewer'), path.join(__dirname, 'media/viewer.js'));
-const version = require('./package.json').version;
-cp.execFileSync(
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+execFileSync(
 	process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
 	[
 		'exec',

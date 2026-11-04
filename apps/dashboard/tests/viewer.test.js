@@ -1,6 +1,6 @@
 import { test } from 'vite-plus/test';
 import assert from 'node:assert/strict';
-const { rotate, angles, quaternion, cameraAngles, cameraQuaternion, robotPose } = require('@spot/camera-viewer');
+import { rotate, angles, quaternion, cameraAngles, cameraQuaternion, robotPose } from '@spot/camera-viewer';
 const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
 
 test('WPILib camera Pitch lowers the lens at every yaw; negative Pitch raises it', () => {

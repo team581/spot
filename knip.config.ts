@@ -4,8 +4,8 @@ const config: KnipConfig = {
 	workspaces: {
 		'.': {},
 		'apps/dashboard': {
-			// Legacy alpha UI tests still run with node:test.
-			entry: ['tests/*.cjs', 'tests/*.test.js', 'tests/browser/*.ts'],
+			// Browser behavior tests are run separately by Playwright.
+			entry: ['tests/*.test.js', 'tests/browser/*.ts'],
 			project: ['src/**/*.{ts,tsx}', '*.ts', 'tests/**/*.{ts,js,cjs}'],
 		},
 		'apps/docs': {},
@@ -14,8 +14,8 @@ const config: KnipConfig = {
 			// Invoked through pnpm exec from the VSIX packaging helper.
 			ignoreDependencies: ['@vscode/vsce'],
 			// VS Code loads the extension; packaging and private releases are explicit scripts.
-			entry: ['release.cjs', 'media/*.js', 'test/*.cjs'],
-			project: ['*.{ts,cjs}', 'media/*.js', 'test/*.cjs'],
+			entry: ['release.cjs', 'test/*.cjs'],
+			project: ['*.{ts,mts,cjs}', 'media/*.ts', 'test/**/*.cjs'],
 		},
 	},
 };

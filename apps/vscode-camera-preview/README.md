@@ -6,9 +6,9 @@ See the [student guide](https://github.com/team581/spot-2026/blob/main/apps/docs
 
 ## Development
 
-Run `pnpm install` at the repository root, then `pnpm build` and `pnpm test` here. Run `python3 test/installer.py` from this directory to exercise the Gradle installer with fake editor/release commands. Java export tests live in both robot projects. The shared renderer is copied from `@spot/camera-viewer` during `pnpm package`.
+Run `pnpm install` at the repository root, then `pnpm build` and `pnpm test` here. Run `python3 test/installer.py` from this directory to exercise the Gradle installer with fake editor/release commands. Java export tests live in both robot projects. Vite+ bundles the typed shared renderer into the static webview script. The extension host is a CommonJS bundle targeting Node 20, compatible with the existing VS Code minimum.
 
-To debug, launch VS Code with `--extensionDevelopmentPath` pointing at this directory after compiling and copying `../../packages/camera-viewer/viewer.js` into `media/viewer.js` (packaging does this automatically). Open one of the supported robot projects in the development window.
+To debug, launch VS Code with `--extensionDevelopmentPath` pointing at this directory after running `pnpm build`. Open one of the supported robot projects in the development window.
 
 ## Private release procedure
 
