@@ -55,6 +55,15 @@ network confirmation/rollback, stale frames, downloads, and imports. Some failur
 and network scenarios intercept API responses; no tests change a machine's network.
 `SPOT_DASHBOARD_ASSETS` can point the browser suite at another built asset directory.
 
+The browser suite uses one worker because tests share the Python fixture's state.
+In CI, it writes `test-results/junit.xml` for
+[Blacksmith Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics),
+which automatically detects JUnit reports on the runner. The
+`dashboard-browser-results` CI artifact retains the report and failure traces for
+seven days. Open a downloaded trace with `pnpm --filter spot-dashboard exec playwright show-trace <trace.zip>`.
+CI browser runs have a five-minute global timeout so Playwright can stop a hung
+suite and emit its report.
+
 Run `pnpm build && pnpm build:jetson` before `mise run check:application` or a wheel
 build. CMake requires `dist/dashboard` and `dist/jetson-docs`, installs both, and
 bundles the emitted files in the application package. Python integration tests fetch

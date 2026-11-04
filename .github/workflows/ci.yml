@@ -94,3 +94,11 @@ jobs:
           cache: true
       - run: pnpm --filter spot-dashboard exec playwright install --with-deps chromium
       - run: pnpm --filter spot-dashboard test:browser
+      - name: Upload browser test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-browser-results
+          path: apps/dashboard/test-results
+          if-no-files-found: ignore
+          retention-days: 7

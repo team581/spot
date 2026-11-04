@@ -3,7 +3,12 @@ export default defineConfig({
 	testDir: './tests/browser',
 	workers: 1,
 	timeout: 20000,
-	use: { viewport: { width: 1440, height: 1000 } },
+	globalTimeout: process.env.CI ? 5 * 60 * 1000 : undefined,
+	reporter: process.env.CI ? [['list'], ['junit', { outputFile: 'test-results/junit.xml' }]] : 'list',
+	use: {
+		viewport: { width: 1440, height: 1000 },
+		trace: 'retain-on-failure',
+	},
 	projects: [
 		{ name: 'production', testMatch: '**/behavior.spec.ts', use: { baseURL: 'http://127.0.0.1:5818' } },
 		{ name: 'development', testMatch: '**/development.spec.ts', use: { baseURL: 'http://127.0.0.1:5815' } },
