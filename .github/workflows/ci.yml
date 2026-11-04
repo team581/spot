@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: useblacksmith/checkout@v1
-      - uses: voidzero-dev/setup-vp@v1.21.1
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
       - run: pnpm check
@@ -78,16 +78,16 @@ jobs:
         with:
           name: web-assets
           path: dist
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           python-version: '3.12'
-          version: '0.13.6'
+          version: '0.13.7'
       - uses: jdx/mise-action@v5
         with:
           install: false
       - run: mise run check:application
-      - uses: voidzero-dev/setup-vp@v1.21.1
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
       - run: pnpm --filter spot-dashboard exec playwright install --with-deps chromium
