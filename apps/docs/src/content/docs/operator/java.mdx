@@ -63,11 +63,11 @@ Qualify USB/compute throughput, visibility, correlation, partial outages, FPGA t
 
 | Field / limit      | Contract                                                                        |
 | ------------------ | ------------------------------------------------------------------------------- |
-| Topics / type      | `/Spot/v2` · `proto:spot.vision.v2.*` raw packets                               |
-| Schema             | `proto/vision_v2.proto`, installed under `spot_vision/schemas`                  |
+| Topics / type      | `/Spot` · native NT values and WPILib structs                                   |
+| Schema             | Published NT schemas; Python dataclasses and Java records                       |
 | Frame identity     | Session, generation, binding, calibration, mode, sequence and capture epoch     |
 | Robot timestamp    | NT sample time translated to FPGA time; local Jetson NT time is diagnostic only |
-| Bounds             | 64 KiB per observation · 32 cameras · 64 tags · 2 candidates                    |
+| Bounds             | 328 bytes per frame · 32 cameras · 64 field tags · 2 candidates                 |
 | Initial time gates | 250 ms max age · 5 ms future tolerance · 20 ms reorder watermark                |
 
 Reject stale, future, conflicting-domain, pre-reset, duplicate, old-epoch and mismatched packets. Do not clamp timestamps. Sentinels 0/1 require a verified NT server; actual roboRIO timing needs hardware qualification.

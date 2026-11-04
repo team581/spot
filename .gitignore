@@ -8,6 +8,7 @@ dist/
 __pycache__/
 .pytest_cache/
 .coverage
+hs_err_pid*.log
 apps/vision/cpp/cccl/
 wheelhouse/
 *.so

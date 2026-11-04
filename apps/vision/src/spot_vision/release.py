@@ -49,7 +49,7 @@ def installed_identity(*, backend: str, manifest_path: Path | None = None) -> di
         name: version(name)
         for name in (
             "spot-vision",
-            "protobuf",
+            "robotpy-wpiutil",
             "pyntcore",
             "numpy",
             "opencv-contrib-python-headless",
