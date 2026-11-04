@@ -1,7 +1,7 @@
 #ifndef FRC971_ORIN_LINE_FIT_FILTER_H_
 #define FRC971_ORIN_LINE_FIT_FILTER_H_
 
-#include <cub/iterator/transform_input_iterator.cuh>
+#include <cub/util_type.cuh>
 #include <cuda/std/tuple>
 
 #include "cuda_frc971.h"

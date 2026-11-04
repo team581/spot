@@ -8,8 +8,6 @@
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_segmented_sort.cuh>
 #include <cub/device/device_select.cuh>
-#include <cub/iterator/discard_output_iterator.cuh>
-#include <cub/iterator/transform_input_iterator.cuh>
 #include <vector>
 
 #include "apriltag_gpu.h"

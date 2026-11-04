@@ -1,4 +1,5 @@
 #include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cub/device/device_copy.cuh>
@@ -8,8 +9,7 @@
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_segmented_sort.cuh>
 #include <cub/device/device_select.cuh>
-#include <cub/iterator/discard_output_iterator.cuh>
-#include <cub/iterator/transform_input_iterator.cuh>
+#include <cub/iterator/arg_index_input_iterator.cuh>
 #include <vector>
 
 #include "apriltag_gpu.h"
@@ -844,18 +844,16 @@ void GpuDetector::Detect(const uint8_t *image) {
     cub::ArgIndexInputIterator<QuadBoundaryPoint *> value_index_input_iterator(
         sorted_union_marker_pair_device_.get());
     TransformQuadBoundaryPointToMinMaxExtents min_max;
-    cub::TransformInputIterator<MinMaxExtents,
-                                TransformQuadBoundaryPointToMinMaxExtents,
-                                cub::ArgIndexInputIterator<QuadBoundaryPoint *>>
-        value_input_iterator(value_index_input_iterator, min_max);
+    auto value_input_iterator =
+        thrust::make_transform_iterator(value_index_input_iterator, min_max);
 
     // Don't care about the output keys...
-    cub::DiscardOutputIterator<uint64_t> key_discard_iterator;
+    auto key_discard_iterator = thrust::make_discard_iterator();
 
     // Provide a mask to detect keys by rep01()
     MaskRep01 mask;
-    cub::TransformInputIterator<uint64_t, MaskRep01, QuadBoundaryPoint *>
-        key_input_iterator(sorted_union_marker_pair_device_.get(), mask);
+    auto key_input_iterator = thrust::make_transform_iterator(
+        sorted_union_marker_pair_device_.get(), mask);
 
     // Reduction operator.
     QuadBoundaryPointExtents reduce;
@@ -893,10 +891,8 @@ void GpuDetector::Detect(const uint8_t *image) {
     TransformZeroFilteredBlobSizes rewrite(
         min_tag_width_, reversed_border_, normal_border_,
         tag_detector_->qtp.min_cluster_pixels, max_april_tag_perimeter);
-    cub::TransformInputIterator<cub::KeyValuePair<long, MinMaxExtents>,
-                                TransformZeroFilteredBlobSizes,
-                                cub::ArgIndexInputIterator<MinMaxExtents *>>
-        input_iterator(value_index_input_iterator, rewrite);
+    auto input_iterator =
+        thrust::make_transform_iterator(value_index_input_iterator, rewrite);
 
     // Sum the counts of everything before us, and update the offset.
     SumPoints sum_points;
@@ -924,9 +920,8 @@ void GpuDetector::Detect(const uint8_t *image) {
         sorted_union_marker_pair_device_.get());
     RewriteToIndexPoint rewrite(extents_device_.get(), num_quads_host);
 
-    cub::TransformInputIterator<IndexPoint, RewriteToIndexPoint,
-                                cub::ArgIndexInputIterator<QuadBoundaryPoint *>>
-        input_iterator(value_index_input_iterator, rewrite);
+    auto input_iterator =
+        thrust::make_transform_iterator(value_index_input_iterator, rewrite);
 
     AddThetaToIndexPoint add_theta(extents_device_.get(), num_quads_host);
 
@@ -977,13 +972,12 @@ void GpuDetector::Detect(const uint8_t *image) {
     // extents.
     TransformLineFitPoint rewrite(decimated_image_device_.get(), width_ / 2,
                                   height_ / 2);
-    cub::TransformInputIterator<LineFitPoint, TransformLineFitPoint,
-                                IndexPoint *>
-        input_iterator(sorted_selected_blobs_device_.get(), rewrite);
+    auto input_iterator = thrust::make_transform_iterator(
+        sorted_selected_blobs_device_.get(), rewrite);
 
     MaskBlobIndex mask;
-    cub::TransformInputIterator<uint32_t, MaskBlobIndex, IndexPoint *>
-        key_iterator(sorted_selected_blobs_device_.get(), mask);
+    auto key_iterator = thrust::make_transform_iterator(
+        sorted_selected_blobs_device_.get(), mask);
 
     // Sum the counts of everything before us, and update the offset.
     SumLineFitPoints sum_points;
@@ -1055,17 +1049,16 @@ void GpuDetector::Detect(const uint8_t *image) {
     cub::ArgIndexInputIterator<Peak *> value_index_input_iterator(
         sorted_compressed_peaks_device_.get());
     TransformToPeakExtents transform_extents;
-    cub::TransformInputIterator<PeakExtents, TransformToPeakExtents,
-                                cub::ArgIndexInputIterator<Peak *>>
-        value_input_iterator(value_index_input_iterator, transform_extents);
+    auto value_input_iterator = thrust::make_transform_iterator(
+        value_index_input_iterator, transform_extents);
 
     // Don't care about the output keys...
-    cub::DiscardOutputIterator<uint32_t> key_discard_iterator;
+    auto key_discard_iterator = thrust::make_discard_iterator();
 
     // Provide a mask to detect keys by rep01()
     MaskPeakExtentsByBlobId mask;
-    cub::TransformInputIterator<uint32_t, MaskPeakExtentsByBlobId, Peak *>
-        key_input_iterator(sorted_compressed_peaks_device_.get(), mask);
+    auto key_input_iterator = thrust::make_transform_iterator(
+        sorted_compressed_peaks_device_.get(), mask);
 
     // Reduction operator.
     MergePeakExtents reduce;
