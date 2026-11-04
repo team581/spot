@@ -1,0 +1,652 @@
+[
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 1.0, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-0",
+			"quaternion": [1.0, 0.0, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 0.8660254037844387, 0.49999999999999994],
+			[0.0, -0.49999999999999994, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [30.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, 30.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-1",
+			"quaternion": [0.9659258262890683, 0.25881904510252074, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 0.8660254037844387, -0.49999999999999994],
+			[0.0, 0.49999999999999994, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [-30.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, -30.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-2",
+			"quaternion": [0.9659258262890683, -0.25881904510252074, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.8660254037844387, 0.0, -0.49999999999999994],
+			[0.0, 1.0, 0.0],
+			[0.49999999999999994, 0.0, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [0.0, 30.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 30.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-3",
+			"quaternion": [0.9659258262890683, 0.0, 0.25881904510252074, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.8660254037844387, 0.0, 0.49999999999999994],
+			[0.0, 1.0, 0.0],
+			[-0.49999999999999994, 0.0, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [0.0, -30.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, -30.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-4",
+			"quaternion": [0.9659258262890683, 0.0, -0.25881904510252074, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 1.0, 0.0],
+			[-1.0, 2.220446049250313e-16, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, 90.0],
+		"jetsonYawPitchRollDeg": [90.0, 0.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-5",
+			"quaternion": [0.7071067811865476, 0.0, 0.0, 0.7071067811865475],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, -1.0, 0.0],
+			[1.0, 2.220446049250313e-16, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, -90.0],
+		"jetsonYawPitchRollDeg": [-90.0, 0.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-6",
+			"quaternion": [0.7071067811865476, 0.0, 0.0, -0.7071067811865475],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.6123724356957945, 0.6123724356957946, -0.49999999999999994],
+			[-0.5435406430646871, 0.7853854057126624, 0.29619813272602386],
+			[0.5740762748423126, 0.09038674954636206, 0.8137976813493737]
+		],
+		"javaRollPitchYawDeg": [20.0, 30.0, 45.0],
+		"jetsonYawPitchRollDeg": [45.0, 30.0, 20.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-7",
+			"quaternion": [0.8960406691046214, 0.057422444727124135, 0.2996728585756033, 0.32250575186379116],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.6123724356957945, -0.6123724356957946, 0.5],
+			[0.7853854057126625, 0.543540643064687, -0.2961981327260239],
+			[-0.09038674954636201, 0.5740762748423126, 0.8137976813493737]
+		],
+		"javaRollPitchYawDeg": [-20.0, -30.0, -45.0],
+		"jetsonYawPitchRollDeg": [-45.0, -30.0, -20.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-8",
+			"quaternion": [0.8616424374573619, -0.25250451049522554, -0.17129691037750713, -0.40555042922825646],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[-0.8660254037844387, 9.71445146547012e-17, -0.5],
+			[-0.12940952255126048, -0.9659258262890683, 0.2241438680420134],
+			[-0.4829629131445341, 0.2588190451025208, 0.836516303737808]
+		],
+		"javaRollPitchYawDeg": [15.0, 30.0, 180.0],
+		"jetsonYawPitchRollDeg": [180.0, 30.0, 15.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-9",
+			"quaternion": [0.03378266443126188, -0.25660481229257065, 0.1260786200725191, 0.9576621969425486],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[-0.8660254037844387, -8.326672684688674e-17, 0.49999999999999994],
+			[-0.12940952255126023, -0.9659258262890684, -0.22414386804201333],
+			[0.48296291314453416, -0.25881904510252063, 0.836516303737808]
+		],
+		"javaRollPitchYawDeg": [-15.0, -30.0, -180.0],
+		"jetsonYawPitchRollDeg": [-180.0, -30.0, -15.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-10",
+			"quaternion": [-0.033782664431261766, -0.25660481229257065, 0.12607862007251905, -0.9576621969425486],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 0.0, -1.0],
+			[0.0, 1.0, 0.0],
+			[1.0, 0.0, 2.220446049250313e-16]
+		],
+		"javaRollPitchYawDeg": [0.0, 90.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 90.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-11",
+			"quaternion": [0.7071067811865476, 0.0, 0.7071067811865475, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 0.0, 1.0],
+			[0.0, 1.0, 0.0],
+			[-1.0, 0.0, 2.220446049250313e-16]
+		],
+		"javaRollPitchYawDeg": [0.0, -90.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, -90.0, 0.0],
+		"exported": {
+			"translation": [0.3, 0.4, 0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-12",
+			"quaternion": [0.7071067811865476, 0.0, -0.7071067811865475, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 1.0, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-13",
+			"quaternion": [1.0, 0.0, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 0.8660254037844387, 0.49999999999999994],
+			[0.0, -0.49999999999999994, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [30.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, 30.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-14",
+			"quaternion": [0.9659258262890683, 0.25881904510252074, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[1.0, 0.0, 0.0],
+			[0.0, 0.8660254037844387, -0.49999999999999994],
+			[0.0, 0.49999999999999994, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [-30.0, 0.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 0.0, -30.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-15",
+			"quaternion": [0.9659258262890683, -0.25881904510252074, 0.0, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.8660254037844387, 0.0, -0.49999999999999994],
+			[0.0, 1.0, 0.0],
+			[0.49999999999999994, 0.0, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [0.0, 30.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 30.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-16",
+			"quaternion": [0.9659258262890683, 0.0, 0.25881904510252074, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.8660254037844387, 0.0, 0.49999999999999994],
+			[0.0, 1.0, 0.0],
+			[-0.49999999999999994, 0.0, 0.8660254037844387]
+		],
+		"javaRollPitchYawDeg": [0.0, -30.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, -30.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-17",
+			"quaternion": [0.9659258262890683, 0.0, -0.25881904510252074, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 1.0, 0.0],
+			[-1.0, 2.220446049250313e-16, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, 90.0],
+		"jetsonYawPitchRollDeg": [90.0, 0.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-18",
+			"quaternion": [0.7071067811865476, 0.0, 0.0, 0.7071067811865475],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, -1.0, 0.0],
+			[1.0, 2.220446049250313e-16, 0.0],
+			[0.0, 0.0, 1.0]
+		],
+		"javaRollPitchYawDeg": [0.0, 0.0, -90.0],
+		"jetsonYawPitchRollDeg": [-90.0, 0.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-19",
+			"quaternion": [0.7071067811865476, 0.0, 0.0, -0.7071067811865475],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.6123724356957945, 0.6123724356957946, -0.49999999999999994],
+			[-0.5435406430646871, 0.7853854057126624, 0.29619813272602386],
+			[0.5740762748423126, 0.09038674954636206, 0.8137976813493737]
+		],
+		"javaRollPitchYawDeg": [20.0, 30.0, 45.0],
+		"jetsonYawPitchRollDeg": [45.0, 30.0, 20.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-20",
+			"quaternion": [0.8960406691046214, 0.057422444727124135, 0.2996728585756033, 0.32250575186379116],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[0.6123724356957945, -0.6123724356957946, 0.5],
+			[0.7853854057126625, 0.543540643064687, -0.2961981327260239],
+			[-0.09038674954636201, 0.5740762748423126, 0.8137976813493737]
+		],
+		"javaRollPitchYawDeg": [-20.0, -30.0, -45.0],
+		"jetsonYawPitchRollDeg": [-45.0, -30.0, -20.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-21",
+			"quaternion": [0.8616424374573619, -0.25250451049522554, -0.17129691037750713, -0.40555042922825646],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[-0.8660254037844387, 9.71445146547012e-17, -0.5],
+			[-0.12940952255126048, -0.9659258262890683, 0.2241438680420134],
+			[-0.4829629131445341, 0.2588190451025208, 0.836516303737808]
+		],
+		"javaRollPitchYawDeg": [15.0, 30.0, 180.0],
+		"jetsonYawPitchRollDeg": [180.0, 30.0, 15.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-22",
+			"quaternion": [0.03378266443126188, -0.25660481229257065, 0.1260786200725191, 0.9576621969425486],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[-0.8660254037844387, -8.326672684688674e-17, 0.49999999999999994],
+			[-0.12940952255126023, -0.9659258262890684, -0.22414386804201333],
+			[0.48296291314453416, -0.25881904510252063, 0.836516303737808]
+		],
+		"javaRollPitchYawDeg": [-15.0, -30.0, -180.0],
+		"jetsonYawPitchRollDeg": [-180.0, -30.0, -15.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-23",
+			"quaternion": [-0.033782664431261766, -0.25660481229257065, 0.12607862007251905, -0.9576621969425486],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 0.0, -1.0],
+			[0.0, 1.0, 0.0],
+			[1.0, 0.0, 2.220446049250313e-16]
+		],
+		"javaRollPitchYawDeg": [0.0, 90.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, 90.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-24",
+			"quaternion": [0.7071067811865476, 0.0, 0.7071067811865475, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	},
+	{
+		"worldAxes": [
+			[2.220446049250313e-16, 0.0, 1.0],
+			[0.0, 1.0, 0.0],
+			[-1.0, 0.0, 2.220446049250313e-16]
+		],
+		"javaRollPitchYawDeg": [0.0, -90.0, 0.0],
+		"jetsonYawPitchRollDeg": [0.0, -90.0, 0.0],
+		"exported": {
+			"translation": [-0.3, -0.4, -0.5],
+			"capture": [
+				{
+					"fps": 30,
+					"height": 480,
+					"width": 640,
+					"pixelFormat": "MJPEG"
+				}
+			],
+			"controls": [],
+			"name": "case-25",
+			"quaternion": [0.7071067811865476, 0.0, -0.7071067811865475, 0.0],
+			"required": true,
+			"imageRotationDeg": 0
+		}
+	}
+]
