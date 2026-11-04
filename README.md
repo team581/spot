@@ -31,7 +31,7 @@ mise run setup
 ```
 
 This installs the root pnpm workspace, builds the React dashboard and offline Astro/Starlight docs,
-and uses uv to install the application and published RobotPy AprilTag CPU detector in `.venv`.
+and uses uv to install the application and published NAPA CPU detector in `.venv`.
 No C++ compiler or CUDA installation is needed for ordinary CPU development.
 Python source stays editable.
 Run `pnpm build:jetson` after editing bundled docs. Setup is safe to rerun.
@@ -99,7 +99,7 @@ Vite+ builds `dist/dashboard`, which CMake installs with the offline docs.
 See the [dashboard development guide](apps/dashboard/README.md) for hot reload,
 architecture, and browser behavior checks.
 
-ty checks the service against the Python 3.10 minimum without a diagnostic baseline.
+ty checks the service against the Python 3.11 minimum without a diagnostic baseline.
 
 Vulture checks Python application code, tests, and tools at 60% confidence, including
 unused functions and classes. It runs in `mise run lint` and `mise run check:application`;
@@ -123,7 +123,7 @@ Do not regenerate the baseline to suppress new findings.
 
 For Jetson deployment, use the [NixOS appliance configuration](nix/README.md).
 Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.
-Python 3.14 is used for development; Python 3.10 remains
+Python 3.14 is used for development; Python 3.11 is
 the minimum supported runtime. Node is only required to build the dashboard and bundled docs.
 
 ## Application setup and review

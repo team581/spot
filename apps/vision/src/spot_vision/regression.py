@@ -42,9 +42,8 @@ def run_image_regression(
     for case in manifest["cases"]:
         case_config = load_config(base / case["config"]) if case.get("config") else config
         camera = case_config.camera(manifest["camera"])
-        # The imported GPU supports only 2x decimation. Record this explicitly
-        # rather than sending a CPU corpus setting into its fatal native CHECK.
-        decimate = 2.0 if backend == "cuda" else camera.detector.decimate
+        # CUDA requires 2x decimation; NAPA fits corners at full resolution.
+        decimate = 2.0 if backend == "cuda" else 1.0
         camera = replace(
             camera,
             detector=replace(camera.detector, backend=backend, decimate=decimate),
@@ -144,6 +143,8 @@ def run_image_regression(
                 "passed": not failures,
                 "failures": failures,
                 "detector_decimate": decimate,
+                "detector_min_tag_px": camera.detector.min_tag_px if backend == "cpu" else None,
+                "detector_min_contrast": camera.detector.min_contrast if backend == "cpu" else None,
                 "expected_ids": sorted(expected),
                 "detected_ids": sorted(found),
                 "max_corner_error_px": corner_error,

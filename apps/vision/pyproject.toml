@@ -7,11 +7,11 @@ name = "spot-vision"
 version = "0.2.1"
 description = "Jetson AprilTag vision service for Team 581"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
+  "napa-vision==0.5.1",
   "numpy>=1.26",
   "opencv-contrib-python-headless>=4.9",
-  "robotpy-apriltag>=2026.2.2,<2027",
   "robotpy-wpiutil>=2026.2.2,<2027",
   "robotpy-wpimath>=2026.2.2,<2027",
 ]

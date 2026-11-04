@@ -4,6 +4,33 @@ import numpy as np
 import pytest
 
 
+@pytest.mark.parametrize("quarter_turns", range(4))
+def test_cpu_preserves_canonical_corner_order_and_pixel_origin(quarter_turns):
+    from pathlib import Path
+
+    import cv2
+
+    from spot_vision.config import DetectorConfig
+    from spot_vision.native import CpuDetector
+
+    # The official artwork includes a one-cell white margin. Its black-square
+    # edges give independent, exact upstream AprilTag pixel coordinates.
+    artwork = cv2.imread(
+        str(Path(__file__).parent / "data/regression/official-tag4.png"),
+        cv2.IMREAD_GRAYSCALE,
+    )
+    image = np.full((480, 640), 255, dtype=np.uint8)
+    image[80:400, 160:480] = cv2.resize(artwork, (320, 320), interpolation=cv2.INTER_NEAREST)
+    expected = np.array([[192, 368], [448, 368], [448, 112], [192, 112]])
+    for _ in range(quarter_turns):
+        expected = np.column_stack((expected[:, 1], image.shape[1] - expected[:, 0]))
+        image = np.rot90(image).copy()
+    frame = cv2.cvtColor(cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2YUV_YUY2)
+    batch = CpuDetector(frame.shape[1], frame.shape[0], DetectorConfig()).detect(frame)
+    assert [tag.id for tag in batch.detections] == [4]
+    assert np.allclose(batch.detections[0].corners, expected, atol=0.05, rtol=0)
+
+
 def test_cpu_detection_with_calibration_does_not_require_native_extension(monkeypatch):
     import sys
     from dataclasses import replace

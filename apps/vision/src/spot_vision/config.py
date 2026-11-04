@@ -21,6 +21,8 @@ class DetectorConfig:
     threads: int = 1
     refine_edges: bool = True
     max_hamming: int = 2
+    min_tag_px: int = 16
+    min_contrast: int = 3
 
 
 @dataclass(frozen=True)

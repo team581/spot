@@ -21,13 +21,7 @@ _.log_message
 _.do_GET
 _.do_POST
 
-# RobotPy and pybind11 read these native configuration attributes.
-_.quadDecimate
-_.quadSigma
-_.numThreads
-_.refineEdges
-_.minClusterPixels
-_.criticalAngle
+# pybind11 reads these native configuration attributes.
 _.k1
 _.k2
 _.k3

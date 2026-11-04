@@ -38,7 +38,7 @@ if(SPOT_BUILD_CUDA)
   set_target_properties(apriltag PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
-    # RobotPy loads its own AprilTag library globally; keep the CUDA fork private.
+    # Keep the vendored CUDA fork's AprilTag symbols private.
     C_VISIBILITY_PRESET hidden
     POSITION_INDEPENDENT_CODE ON
   )

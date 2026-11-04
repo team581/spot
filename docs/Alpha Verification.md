@@ -64,7 +64,9 @@ unavailable endpoint or invalid request.
 
 For offline GPU accuracy on the Jetson, use the image-regression command from
 the README. It disables CPU fallback and uses the GPU's required decimation 2;
-each case records `detector_decimate`. CPU cases retain their configured value.
+each case records `detector_decimate`. NAPA CPU cases report 1 (full resolution)
+and record their sampling and contrast thresholds as `detector_min_tag_px` and
+`detector_min_contrast`.
 
 ## Results from 2026-10-04
 
@@ -88,11 +90,11 @@ each case records `detector_decimate`. CPU cases retain their configured value.
   discontinuities**.
 
 | Camera | Capture FPS | Detection FPS | Result queue drops during 120 s |
-| --- | ---: | ---: | ---: |
-| 1 | 106.3 | 64.2 | 1301 |
-| 2 | 15.2 | 13.9 | 284 |
-| 3 | 15.3 | 13.7 | 245 |
-| 4 | 14.2 | 13.1 | 199 |
+| ------ | ----------: | ------------: | ------------------------------: |
+| 1      |       106.3 |          64.2 |                            1301 |
+| 2      |        15.2 |          13.9 |                             284 |
+| 3      |        15.3 |          13.7 |                             245 |
+| 4      |        14.2 |          13.1 |                             199 |
 
 These measurements used the current mixed-resolution live configuration and
 active preview clients. Every camera progressed, but this does not establish

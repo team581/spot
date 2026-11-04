@@ -1,4 +1,4 @@
-"""Real pybind detector validation, buffer ownership and tag/no-tag transitions."""
+"""Real detector validation, buffer ownership and tag/no-tag transitions."""
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -46,10 +46,17 @@ def test_native_preserves_input_and_reports_original_pointer(detector):
     assert np.array_equal(image, original)
 
 
-@pytest.mark.parametrize("threads", [0, -1])
-def test_native_rejects_invalid_thread_count(threads):
-    options = DetectorConfig(threads=threads)
-    with pytest.raises(ValueError, match="threads"):
+@pytest.mark.parametrize("min_tag_px", [True, 7, 30001, 16.5])
+def test_cpu_rejects_invalid_minimum_tag_size(min_tag_px):
+    options = DetectorConfig(min_tag_px=min_tag_px)
+    with pytest.raises(ValueError, match="min_tag_px"):
+        CpuDetector(16, 8, options)
+
+
+@pytest.mark.parametrize("min_contrast", [True, 0, 256, 3.5])
+def test_cpu_rejects_invalid_minimum_contrast(min_contrast):
+    options = DetectorConfig(min_contrast=min_contrast)
+    with pytest.raises(ValueError, match="min_contrast"):
         CpuDetector(16, 8, options)
 
 

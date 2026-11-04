@@ -35,7 +35,7 @@ Build Spot as a native C++20 service with five boundaries:
 4. A versioned NT4 protobuf interface.
 5. A generic Java `VisionCamera` interface that lets Spot and Limelight run in parallel.
 
-Use the [Team 766 standalone fork of Team 971's CUDA detector](https://github.com/Team766/apriltags_cuda) as the first GPU backend, but do not adopt its full demo application or build graph. Its build currently pins old OpenCV and WPILib versions and builds several large dependencies from source. Extract or fork the detector behind a team-owned interface, pin the exact revision, and complete a license review before incorporating it. Keep [AprilTag 3](https://github.com/AprilRobotics/apriltag) as a CPU backend for golden-result comparison, development without CUDA, and degraded operation.
+Use the [Team 766 standalone fork of Team 971's CUDA detector](https://github.com/Team766/apriltags_cuda) as the first GPU backend, but do not adopt its full demo application or build graph. Its build currently pins old OpenCV and WPILib versions and builds several large dependencies from source. Extract or fork the detector behind a team-owned interface, pin the exact revision, and complete a license review before incorporating it. Use [NAPA](https://github.com/zwatx/NAPA) for CPU detection and development without CUDA. The CPU adapter preserves the shared AprilTag corner conventions; qualify accuracy against independent geometry fixtures and real camera footage.
 
 Run one `systemd`-supervised daemon. A single daemon shares one CUDA context and avoids multiplying GPU memory use as cameras are added. A capture failure must only restart that camera's pipeline; an unhandled process failure is recovered by `systemd`.
 

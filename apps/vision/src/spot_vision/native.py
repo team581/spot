@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from math import radians
 from threading import Lock
 from time import perf_counter
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
-from robotpy_apriltag import AprilTagDetector
+from napa_vision import NapaDetector
 
 from .config import Calibration, CameraConfig, DetectorConfig
 from .models import Detection, DetectionBatch
@@ -32,26 +31,16 @@ class CpuDetector:
     ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("dimensions must be positive")
-        if options.threads < 1:
-            raise ValueError("threads must be positive")
         self.width, self.height = width, height
         self.calibration = calibration
         self._lock = Lock()
         self._gray = np.empty((height, width), dtype=np.uint8)
-        self._detector = AprilTagDetector()
-        if not self._detector.addFamily(options.family, options.max_hamming):
-            raise ValueError("unsupported AprilTag family")
-        config = self._detector.getConfig()
-        config.quadDecimate = options.decimate
-        config.quadSigma = options.blur
-        config.numThreads = options.threads
-        config.refineEdges = options.refine_edges
-        self._detector.setConfig(config)
-        # WPILib's defaults reject small quads that the existing CPU detector accepts.
-        threshold = self._detector.getQuadThresholdParameters()
-        threshold.minClusterPixels = 5
-        threshold.criticalAngle = radians(10)
-        self._detector.setQuadThresholdParameters(threshold)
+        self._detector = NapaDetector(
+            family=options.family,
+            min_tag_px=options.min_tag_px,
+            max_hamming=options.max_hamming,
+            min_contrast=options.min_contrast,
+        )
 
     def detect(self, frame: np.ndarray) -> DetectionBatch:
         if frame.dtype != np.uint8:
@@ -67,13 +56,12 @@ class CpuDetector:
             detect_ms = (perf_counter() - start) * 1000
             detections = tuple(
                 Detection(
-                    id=item.getId(),
-                    corners=np.array(
-                        [(item.getCorner(i).x, item.getCorner(i).y) for i in range(4)],
-                        dtype=np.float64,
-                    ),
-                    hamming=item.getHamming(),
-                    decision_margin=item.getDecisionMargin(),
+                    id=item.tag_id,
+                    # Preserve upstream AprilTag's decoded order and pixel origin
+                    # for the existing pose solver and CUDA detection contract.
+                    corners=item.corners[[1, 0, 3, 2]] + 0.5,
+                    hamming=item.hamming,
+                    decision_margin=item.decision_margin,
                 )
                 for item in results
             )
@@ -88,7 +76,7 @@ class CpuDetector:
         return DetectionBatch(detections, detect_ms, int(frame.ctypes.data))
 
     def reset(self) -> None:
-        # RobotPy returns independent detections for each frame; no state needs clearing.
+        # NAPA returns independent detections for each frame; no state needs clearing.
         pass
 
 
