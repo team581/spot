@@ -1,3 +1,7 @@
+[tools]
+hk = "2.11.1"
+pkl = "0.31.1"
+
 [settings]
 idiomatic_version_file_enable_tools = ["node", "pnpm"]
 
@@ -8,6 +12,7 @@ run = [
   "pnpm build",
   "pnpm build:jetson",
   "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "hk install --mise",
 ]
 
 [tasks."jetson:ssh"]

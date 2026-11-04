@@ -8,6 +8,18 @@ permissions:
   contents: read
 
 jobs:
+  hooks:
+    name: Hook configuration
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - uses: useblacksmith/checkout@v1
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: hk pkl
+      - run: hk check --all --step pkl-format
+      - run: hk validate
+
   nix:
     name: Nix package (${{ matrix.system }})
     strategy:

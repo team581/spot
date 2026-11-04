@@ -1,0 +1,89 @@
+amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
+
+steps {
+  ["pkl-format"] = Builtins.pkl_format
+  ["hk-validate"] {
+    depends = "pkl-format"
+    glob = List("**/*.pkl", "**/PklProject")
+    check = "hk validate"
+  }
+  ["oxfmt"] = (Builtins.oxfmt) {
+    prefix = List("pnpm", "exec")
+    // Match the existing workspace formatting scope.
+    glob =
+      List(
+        "package.json",
+        "pnpm-workspace.yaml",
+        "knip.config.ts",
+        "vite.config.ts",
+        ".ox*.json",
+        ".vscode/**",
+        ".github/**",
+        "apps/dashboard/**",
+        "apps/docs/**",
+        "apps/vscode-camera-preview/**",
+        "packages/camera-viewer/**",
+      )
+  }
+  ["vp-lint"] = (Builtins.vp_lint) {
+    prefix = List("pnpm", "exec")
+    dir = "{{workspace}}"
+    glob =
+      List(
+        "apps/dashboard/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+        "packages/camera-viewer/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+      )
+  }
+  ["oxlint"] = (Builtins.ox_lint) {
+    prefix = List("pnpm", "exec")
+    workspace_indicator = "package.json"
+    dir = "{{workspace}}"
+    glob =
+      List(
+        "apps/docs/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,astro}",
+        "apps/vscode-camera-preview/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+      )
+  }
+  ["knip"] = (Builtins.knip) {
+    depends = List("vp-lint", "oxlint")
+    prefix = List("pnpm", "exec")
+    workspace_indicator = null
+    glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,astro}", "**/package.json", "pnpm*.yaml")
+    check = new Command { argv = List("knip", "--no-progress") }
+    // Removing exports and dependencies requires a separate review.
+    fix = null
+  }
+  ["typecheck"] {
+    depends = List("oxfmt", "vp-lint", "oxlint")
+    glob =
+      List(
+        "**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,astro}",
+        "**/package.json",
+        "**/tsconfig*.json",
+        "pnpm*.yaml",
+      )
+    check = "pnpm check"
+  }
+  ["ruff"] = (Builtins.ruff) {
+    prefix = List("uv", "run", "--no-sync")
+    glob = List("apps/**/*.py", "tools/**/*.py")
+  }
+  ["ruff-format"] = (Builtins.ruff_format) {
+    prefix = List("uv", "run", "--no-sync")
+    glob = List("apps/**/*.py", "tools/**/*.py")
+    depends = "ruff"
+  }
+  ["ty"] = (Builtins.ty) {
+    depends = "ruff"
+    prefix = List("uv", "run", "--no-sync")
+    glob = List("apps/vision/src/**/*.py", "**/pyproject.toml", "uv.lock")
+    check = new Command { argv = List("ty", "check") }
+  }
+  ["vulture"] {
+    depends = "ruff"
+    glob = List("**/*.py", "**/pyproject.toml", "uv.lock")
+    check = "uv run --no-sync vulture"
+  }
+}

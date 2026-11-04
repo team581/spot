@@ -36,6 +36,15 @@ No C++ compiler or CUDA installation is needed for ordinary CPU development.
 Python source stays editable.
 Run `pnpm build:jetson` after editing bundled docs. Setup is safe to rerun.
 
+Setup also installs this clone's hk pre-commit hook through mise. The hook formats
+and lints staged files, then runs the relevant workspace type and dead-code checks.
+It saves unstaged work while running and stages automatic fixes. Builds and tests
+remain explicit commands below. For an existing checkout, run `mise install` and
+`mise exec -- hk install --mise` to enable the hook without repeating setup.
+
+Run `hk check` to check changed files, `hk fix` to apply fixes without staging,
+or `hk check --all` to check the full repository using the hook configuration.
+
 ```sh
 mise run format
 mise run lint

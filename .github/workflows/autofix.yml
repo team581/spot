@@ -12,6 +12,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: useblacksmith/checkout@v1
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: hk pkl
+      - run: hk fix --all --step pkl-format
+        continue-on-error: true
+      - run: hk validate
+        continue-on-error: true
       - name: Mount Nix cache
         uses: useblacksmith/stickydisk@v1
         with:
