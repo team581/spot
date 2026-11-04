@@ -1,4 +1,4 @@
-"""Spot data models; transport uses typed NetworkTables topics."""
+"""Intermediate models for profile snapshots and NetworkTables struct construction."""
 
 from dataclasses import dataclass, field
 
@@ -132,11 +132,6 @@ class PoseCandidate:
 class TagObservation:
     id: int = 0
     corners_xy_px: list[float] = field(default_factory=list)
-    hamming: int = 0
-    decision_margin: float = 0.0
-    used_for_pose: bool = False
-    rejection_reason: str = ""
-    distortion_displacement_px: float | None = None
 
 
 @dataclass
@@ -173,20 +168,3 @@ class Observation:
     tags: list[TagObservation] = field(default_factory=list)
     timing: ProcessingTiming = field(default_factory=ProcessingTiming)
     tag_selection_generation: int = 0
-
-
-@dataclass
-class Health:
-    service_session: str = ""
-    sequence: int = 0
-    uptime_s: float = 0.0
-    sync_state: str = ""
-    offset_us: int = 0
-    sync_update_age_s: float = 0.0
-    connection_epoch: int = 0
-    sync_epoch: int = 0
-    discontinuities: int = 0
-    runtime_generation: str = ""
-    release_id: str = ""
-    native_hash: str = ""
-    faults: list[str] = field(default_factory=list)

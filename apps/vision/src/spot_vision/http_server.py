@@ -113,7 +113,6 @@ class BrowserSession:
 
 
 class HttpServer(ThreadingHTTPServer):
-    daemon_threads = True
     block_on_close = False
 
     def __init__(self, address, runtime, *, assets: Path | None = None, allowed_hosts=()):

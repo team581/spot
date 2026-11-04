@@ -35,6 +35,7 @@ def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
             result["processed"] and result["sequence"] == 1 and result["capture_epoch"] == "epoch"
         )
         assert result["tags"][0]["error_px"] == 0.2 and result["tags"][0]["distance_m"] == 2
+        assert result["tags"][0]["used"] and result["tags"][0]["reason"] == ""
         with pytest.raises(ValueError, match="limit"):
             hub.preview("one", "browser2")
     finally:

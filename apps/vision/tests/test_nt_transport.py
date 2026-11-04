@@ -19,7 +19,7 @@ from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseS
 from spot_vision.nt_transport import NtTransport, make_observation
 from spot_vision.persistence import StateStore
 from spot_vision.protocol import restore
-from spot_vision.structs import FrameResult
+from spot_vision.structs import FrameResult, Heartbeat, token
 
 
 @pytest.mark.parametrize("state", ["missing", "invalid", "expired", "synchronized"])
@@ -210,6 +210,28 @@ def test_robot_state_listener_can_lock_configuration_independently_of_apply(link
     wait_for(lambda: config._robot_state is not None and config._robot_state.enabled)
     with pytest.raises(ValueError, match="locked"):
         config.require_eligible()
+
+
+def test_heartbeat_reports_current_context_and_sync_loss_to_robot(link):
+    server, _, transport, config, *_ = link
+    subscriber = server.getStructTopic("/Spot/health", Heartbeat).subscribe(Heartbeat())
+    try:
+        handshake(link)
+        transport.heartbeat()
+        wait_for(lambda: subscriber.get().sequence == 1)
+        first = subscriber.get()
+        assert (first.serviceHigh, first.serviceLow) == token(transport.session)
+        assert (first.runtimeHigh, first.runtimeLow) == token(config.state.generation)
+        assert first.syncState == 1  # Synchronized
+        transport.clock.invalidate_jump()
+        transport.heartbeat()
+        wait_for(lambda: subscriber.get().sequence == 2)
+        second = subscriber.get()
+        assert second.syncState == 2  # Invalid
+        assert second.syncEpoch > first.syncEpoch
+        assert second.discontinuities == first.discontinuities + 1
+    finally:
+        subscriber.close()
 
 
 def test_golden_python_packets_round_trip_and_match_hashes():

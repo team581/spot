@@ -3,16 +3,16 @@
 # appears once even when several libraries/tests use it.
 
 # TypedDict keys are read through dictionary indexing, not attribute access.
-# See devices.py's ControlCapability and persistent DeviceRegistry schemas.
+# See devices.py's capability/registry schemas and runtime_status.StatusSnapshot.
 writable
 schema_version
 display_ids
 duplicate_serials
 next_id
 port_slots
+uptime_s
 
 # socketserver/http.server read these attributes and dispatch these methods.
-daemon_threads
 block_on_close
 server_version
 protocol_version
@@ -34,15 +34,11 @@ _.k3
 _.p1
 _.p2
 
-# Cross-language data-model fields populated by keyword and retained in
-# dataclass snapshots. Keep these aligned with the Java protocol models.
+# Profile fields are read by dataclass hashing and snapshot serialization.
+# ProfileSubscriber reads their NT values; SpotMetadata.java publishes them.
 fusion_enabled
 heading_enabled
 revised_trust_enabled
-used_for_pose
-rejection_reason
-release_id
-native_hash
 
 # make_wpistruct generates field access at runtime for the robot's wire format.
 # Removing these fields would change the shared Python/Java struct layouts.
@@ -63,13 +59,7 @@ captureToDetectMs
 detectMs
 solveMs
 totalMs
-serviceHigh
-serviceLow
-runtimeHigh
-runtimeLow
 uptime
-syncState
 offsetUs
 syncAge
 connectionEpoch
-syncEpoch

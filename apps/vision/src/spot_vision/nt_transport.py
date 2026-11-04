@@ -121,22 +121,10 @@ def make_observation(
                     distortion_displacement_px=candidate.distortion_factor_px,
                 )
             )
-    for detection in detections:
-        tag = wire.TagObservation(
-            id=detection.id,
-            corners_xy_px=detection.corners.reshape(-1).tolist(),
-            hamming=detection.hamming,
-            decision_margin=detection.decision_margin,
-            used_for_pose=detection.id in solution.used_tag_ids,
-            rejection_reason=(
-                "tag-policy-excluded"
-                if selection and detection.id not in selection.allowed_tag_ids
-                else solution.rejection_reasons.get(detection.id, "")
-            ),
-        )
-        message.tags.append(tag)
-        if detection.distortion_factor_px is not None:
-            tag.distortion_displacement_px = detection.distortion_factor_px
+    message.tags = [
+        wire.TagObservation(detection.id, detection.corners.reshape(-1).tolist())
+        for detection in detections
+    ]
     message.timing = copy.deepcopy(
         wire.ProcessingTiming(
             capture_to_detect_ms=detected.capture_to_detect_ms,
@@ -532,7 +520,7 @@ class NtTransport:
             )
             return True
 
-    def heartbeat(self, package_path: str = "", faults: list[str] | None = None) -> wire.Health:
+    def heartbeat(self) -> None:
         now_ns, local_us = time.monotonic_ns(), nt_now_us()
         if self._last_clock is not None:
             prior_ns, prior_us = self._last_clock
@@ -541,36 +529,21 @@ class NtTransport:
         self._last_clock = now_ns, local_us
         sync = self.clock.snapshot(now_ns)
         self._health_sequence += 1
-        message = wire.Health(
-            service_session=self.session,
-            sequence=self._health_sequence,
-            uptime_s=(now_ns - self.started_ns) / 1e9,
-            sync_state=sync.state,
-            offset_us=sync.offset_us or 0,
-            sync_update_age_s=sync.update_age_s or 0,
-            connection_epoch=sync.connection_epoch,
-            sync_epoch=sync.sync_epoch,
-            discontinuities=sync.discontinuities,
-            runtime_generation=self.configuration.state.generation,
-            release_id=package_path,
-            faults=faults or [],
-        )
         self._health.set(
             Heartbeat(
-                *token(message.service_session),
-                *token(message.runtime_generation),
-                message.sequence,
-                message.uptime_s,
-                SYNC_STATES.index(message.sync_state),
-                message.offset_us,
-                message.sync_update_age_s,
-                message.connection_epoch,
-                message.sync_epoch,
-                message.discontinuities,
+                *token(self.session),
+                *token(self.configuration.state.generation),
+                self._health_sequence,
+                (now_ns - self.started_ns) / 1e9,
+                SYNC_STATES.index(sync.state),
+                sync.offset_us or 0,
+                sync.update_age_s or 0,
+                sync.connection_epoch,
+                sync.sync_epoch,
+                sync.discontinuities,
             ),
             local_us,
         )
-        return message
 
     def close(self) -> None:
         if self._closed:

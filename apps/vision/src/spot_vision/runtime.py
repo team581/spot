@@ -944,8 +944,7 @@ class Runtime:
         if stalled:
             self.fatal = "Workers stalled: " + ", ".join(stalled)
             return False
-        faults = list(self.faults.values()) + self.processing_faults()
-        self.transport.heartbeat(self.software.get("package_path", ""), faults)
+        self.transport.heartbeat()
         sync = self.transport.clock.snapshot()
         for key, active in (
             ("nt_connection_s", self.configuration.connected),

@@ -69,15 +69,11 @@ def generate(root: Path) -> None:
         )
         if name != "empty":
             observation.tags.append(
-                wire.TagObservation(
-                    id=1, corners_xy_px=[10, 10, 50, 10, 50, 50, 10, 50], used_for_pose=True
-                )
+                wire.TagObservation(id=1, corners_xy_px=[10, 10, 50, 10, 50, 50, 10, 50])
             )
             if name == "multi":
                 observation.tags.append(
-                    wire.TagObservation(
-                        id=2, corners_xy_px=[60, 10, 100, 10, 100, 50, 60, 50], used_for_pose=True
-                    )
+                    wire.TagObservation(id=2, corners_xy_px=[60, 10, 100, 10, 100, 50, 60, 50])
                 )
             candidate = wire.PoseCandidate(
                 field_to_camera=wire.Pose(x_m=2.2, z_m=0.5, qw=1),
