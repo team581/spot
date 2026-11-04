@@ -45,7 +45,7 @@ let
         )
       }";
       fetcherVersion = 3;
-      hash = "sha256-TdMok6zDxqarKcfZxdpdB2R2UGmb360e7OB3SzQEo5w=";
+      hash = "sha256-G3ljahX+Nn9ciWykWW7Z+s+0tkZ1K/c5IY3RrZWzx60=";
     };
     buildPhase = ''
       runHook preBuild
