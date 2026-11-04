@@ -19,7 +19,7 @@ Production requests go directly to Python and keep its session/CSRF protection.
 For synthetic cameras without hardware, run this in another terminal:
 
 ```sh
-uv run --no-sync python apps/vision/tools/beta_ui_fixture.py --port 5808
+uv run --no-sync python apps/vision/tools/ui_fixture.py --port 5808
 ```
 
 ## Code ownership

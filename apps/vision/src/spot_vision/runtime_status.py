@@ -14,7 +14,7 @@ from .optical_modes import mode_supported, preview_mode, preview_modes
 from .timing_qualification import timing_signature
 
 if TYPE_CHECKING:
-    from .beta_runtime import BetaRuntime
+    from .runtime import Runtime
 
 
 class StatusSnapshot(TypedDict):
@@ -67,7 +67,7 @@ def camera_health(
     return "No tags" if no_tags else "Ready"
 
 
-def build_status(runtime: BetaRuntime) -> StatusSnapshot:
+def build_status(runtime: Runtime) -> StatusSnapshot:
     config = runtime.configuration
     try:
         config.require_eligible()

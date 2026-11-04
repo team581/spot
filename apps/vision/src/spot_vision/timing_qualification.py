@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from .beta_contract import content_hash
 from .config import ConfigError
+from .contract import content_hash
 from .persistence import canonical_bytes
 
 

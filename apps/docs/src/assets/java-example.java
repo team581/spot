@@ -10,7 +10,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /** Compiled offseason construction seam; configuration contains measured mounts and modes. */
-final class SpotBetaRobotExample {
+final class SpotRobotExample {
   static Vision create(
       NetworkTableInstance nt,
       String session,
@@ -32,5 +32,5 @@ final class SpotBetaRobotExample {
         alliance);
   }
 
-  private SpotBetaRobotExample() {}
+  private SpotRobotExample() {}
 }

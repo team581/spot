@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "backend": "cuda",
+  "processing": {
+    "fallback_to_cpu": false,
+    "max_fps": 30,
+    "degraded_fps": 5,
+    "thermal_fps": 10,
+    "thermal_enter_c": 80,
+    "thermal_exit_c": 75,
+    "gpu_retry_s": 30,
+    "gpu_max_retries": 3,
+    "utilization_budget": 0.8
+  },
+  "nt": {
+    "enabled": true,
+    "mode": "client",
+    "team": 581,
+    "identity": "spot-vision"
+  },
+  "http": {
+    "bind": "0.0.0.0",
+    "port": 5800,
+    "hostnames": ["spot.local"]
+  }
+}

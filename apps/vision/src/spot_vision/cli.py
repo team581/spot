@@ -31,9 +31,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--json-logs", action="store_true")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
-    beta = subcommands.add_parser("beta", help="run the installed robot-integrated beta and GUI")
-    beta.add_argument("--installation", default="/etc/spot-vision/beta.json")
-    beta.add_argument("--state-root", default="/var/lib/spot-vision")
+    run = subcommands.add_parser("run", help="run the installed robot-integrated service and GUI")
+    run.add_argument("--installation", default="/etc/spot-vision/installation.json")
+    run.add_argument("--state-root", default="/var/lib/spot-vision")
 
     health = subcommands.add_parser("check-health", help="check the running service")
     health.add_argument("--url", default="http://127.0.0.1:5800")
@@ -444,10 +444,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     configure_logging(args.verbose, args.json_logs)
     try:
-        if args.command == "beta":
-            from .beta_app import run_beta
+        if args.command == "run":
+            from .app import run
 
-            return run_beta(args)
+            return run(args)
         if args.command == "check-health":
             return _run_check_health(args)
         if args.command == "daemon":

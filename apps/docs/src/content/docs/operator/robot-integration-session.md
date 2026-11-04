@@ -4,7 +4,7 @@ title: 'Robot integration session'
 
 ## Session closeout — 18–19 October 2026
 
-**Ready for on-robot camera setup and tag detection. Pose fusion is not commissioned.** The software, camera assignments, network controls and automatic robot-profile updates were tested on the Jetson and roboRIO. All three cameras currently need valid beta intrinsics; the existing camera mounts are examples, not measurements. Keep `FUSION_ENABLED = false` until the remaining checks below pass.
+**Ready for on-robot camera setup and tag detection. Pose fusion is not commissioned.** The software, camera assignments, network controls and automatic robot-profile updates were tested on the Jetson and roboRIO. All three cameras currently need valid camera intrinsics; the existing camera mounts are examples, not measurements. Keep `FUSION_ENABLED = false` until the remaining checks below pass.
 
 ### Installed configuration
 
@@ -19,7 +19,7 @@ title: 'Robot integration session'
 | Exposure / gain / brightness | Front: 5,000 µs / 64 / 0; back: 5,000 µs / 64 / 0; side: 6,000 µs / 61 / −21                                         |
 | Java configuration           | `apps/robot-tester/src/main/java/frc/robot/vision/VisionConfig.java`; robot ID `apps/robot-tester`                   |
 | Profile hash                 | `53bd2c866f8ebce83e3cf90038570da7b254d284a1dc50fb84f4b07e45688e97`                                                   |
-| Saved installation settings  | `/etc/spot-vision/beta.json`; assignments and calibration live outside immutable application releases                |
+| Saved installation settings  | `/etc/spot-vision/installation.json`; assignments and calibration live outside immutable application releases        |
 
 Interface names and USB identities describe this Jetson. Preserve the camera sockets; after moving a camera to a different socket, verify the preview and assignment again. The basic tester is a vision-only harness, not the robot's drivetrain program. Use [Java integration](../java) when moving the integration into the actual robot project.
 

@@ -347,7 +347,7 @@ def main():
         for relative in [
             "apps/robot-tester/src/main/java/frc/robot/vision/VisionConfig.java",
             "apps/robot-tester/src/main/java/frc/robot/BenchConfig.java",
-            "apps/vision/config/beta-installation.json",
+            "apps/vision/config/installation.json",
         ]:
             path = ROOT / relative
             shutil.copy2(path, snapshots / path.name)

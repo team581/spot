@@ -19,18 +19,18 @@ Other decisions:
 - Keep fusion defaulting off and heading fusion suppressed. Removing hybrid support does not justify removing timestamp, identity, quality, or multi-camera ordering checks.
 - Prepare constructor seams and readable observations for simulation. Use the existing JUnit infrastructure for new unit/subsystem tests. Do not implement the proposed scenario runner, new Gradle test tasks, reporting framework, or diagnostic entrypoint.
 
-These decisions supersede the shared-first and hybrid robot integration portions of [the original beta plan](Spot%20Beta%20Robot%20Integration%20Plan.md). The Jetson transport and qualification requirements still apply.
+These decisions supersede the shared-first and hybrid robot integration portions of [the original Spot plan](Spot%20Robot%20Integration%20Plan.md). The Jetson transport and qualification requirements still apply.
 
 ## 2. Reviewed starting point
 
 Reviewed the following local Git snapshots without switching branches:
 
-| Repository/ref | Snapshot | Relevance |
-|---|---|---|
-| `spot-2026/main` | `7b1b1ee` | Protocol, Python service, golden packets, Java example, integration documentation |
-| `offseason-2026/spot-beta-integration` | `55ce1972` | Current robot integration branch; clean working tree at review |
-| `offseason-2026/origin/main` | `e429b593` | Existing unit tests and accepted subsystem ordering fix |
-| `offseason-2026/simple-headless-sim-test-runner` | `f1e02117` | Updated simple testing plan and existing headless fixture |
+| Repository/ref                                   | Snapshot   | Relevance                                                                         |
+| ------------------------------------------------ | ---------- | --------------------------------------------------------------------------------- |
+| `spot-2026/main`                                 | `7b1b1ee`  | Protocol, Python service, golden packets, Java example, integration documentation |
+| `offseason-2026/spot-beta-integration`           | `55ce1972` | Current robot integration branch; clean working tree at review                    |
+| `offseason-2026/origin/main`                     | `e429b593` | Existing unit tests and accepted subsystem ordering fix                           |
+| `offseason-2026/simple-headless-sim-test-runner` | `f1e02117` | Updated simple testing plan and existing headless fixture                         |
 
 The robot branch adds 28 changed files relative to its merge base with main. Most added lines are generated protobuf code. The architectural complexity comes from new shared helpers plus coordination in `Localization`, rather than generated code volume alone.
 
@@ -67,39 +67,39 @@ offseason-bot/src/main/java/frc/robot/vision/
     SpotProtos.java
 
 offseason-bot/src/test/java/frc/robot/vision/
-  BetaContractTest.java
+  RobotContractTest.java
   VisionProcessorTest.java
   CaptureHistoryTest.java
   MeasurementQueueTest.java
   TrustFactorTest.java
   VisionIntegrationTest.java
   SpotVisionIOTest.java
-  SpotBetaRobotExample.java
+  SpotRobotExample.java
   fixtures/                     # Only the small fakes used by these tests
 
-offseason-bot/src/test/resources/spot-beta/
+offseason-bot/src/test/resources/spot-robot/
   ... existing golden packets and fixture documentation ...
 ```
 
 The test class list describes coverage boundaries; create each class only when it contains useful tests. Production robot wiring remains in `Robot`, `Hardware`, `Localization`, and `HealthManager`; do not copy those entire subsystems into the vision folder.
 
-| Current file | Planned disposition |
-|---|---|
-| Shared `VisionPipeline` | Fold orchestration, reset, generation changes, release, and fusion acknowledgements into `Vision` |
-| Shared `VisionDiagnostics` | Fold cached camera counters/status into `Vision`; expose nested immutable status records and log them from `whileInState()` |
-| Shared `VisionIO` | Move locally; change to one input read per loop returning samples and health together |
-| Shared `SpotVisionIO` | Move locally; retain NT ownership, protocol parsing, bounded transport, and decision publishing |
-| Shared `VisionProcessor` | Move locally; retain explicit validation/math functions and decision reasons |
-| Shared `CaptureHistory`, `MeasurementQueue` | Move locally; preserve bounded storage and deterministic ordering |
-| Shared `VisionMeasurement` | Move to local `results/`; retain immutable pose/time/deviation/tag data |
-| Shared `VisionTrust` | Rename to local `TrustFactor`; make it the single offseason trust model |
-| Shared `VisionProfiles` | Rename to local `SpotProtocol`; keep protobuf conversion and content hashing out of subsystem logic |
-| Shared `VisionCamera` | Fold the small mount/policy record into `SpotCameraProfiles`; use fixed transforms and remove unused moving-mount providers from the offseason path |
-| Shared generated `SpotProtos` | Regenerate into local `generated/` with its Java namespace matching the folder |
-| Shared Spot tests/example/resources | Move to offseason test sources/resources; revise coverage to match the single-robot architecture |
-| Shared `LimelightVisionIO` | Delete the branch-added adapter; no offseason replacement |
-| Offseason `vision/limelight/`, `CameraConfigs` | Remove after deleting their live offseason references |
-| Existing shared `TagResult`, `OptionalTagResult`, game-piece results, `TrustFactor`, camera utilities | Leave unchanged for their existing consumers |
+| Current file                                                                                          | Planned disposition                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared `VisionPipeline`                                                                               | Fold orchestration, reset, generation changes, release, and fusion acknowledgements into `Vision`                                                   |
+| Shared `VisionDiagnostics`                                                                            | Fold cached camera counters/status into `Vision`; expose nested immutable status records and log them from `whileInState()`                         |
+| Shared `VisionIO`                                                                                     | Move locally; change to one input read per loop returning samples and health together                                                               |
+| Shared `SpotVisionIO`                                                                                 | Move locally; retain NT ownership, protocol parsing, bounded transport, and decision publishing                                                     |
+| Shared `VisionProcessor`                                                                              | Move locally; retain explicit validation/math functions and decision reasons                                                                        |
+| Shared `CaptureHistory`, `MeasurementQueue`                                                           | Move locally; preserve bounded storage and deterministic ordering                                                                                   |
+| Shared `VisionMeasurement`                                                                            | Move to local `results/`; retain immutable pose/time/deviation/tag data                                                                             |
+| Shared `VisionTrust`                                                                                  | Rename to local `TrustFactor`; make it the single offseason trust model                                                                             |
+| Shared `VisionProfiles`                                                                               | Rename to local `SpotProtocol`; keep protobuf conversion and content hashing out of subsystem logic                                                 |
+| Shared `VisionCamera`                                                                                 | Fold the small mount/policy record into `SpotCameraProfiles`; use fixed transforms and remove unused moving-mount providers from the offseason path |
+| Shared generated `SpotProtos`                                                                         | Regenerate into local `generated/` with its Java namespace matching the folder                                                                      |
+| Shared Spot tests/example/resources                                                                   | Move to offseason test sources/resources; revise coverage to match the single-robot architecture                                                    |
+| Shared `LimelightVisionIO`                                                                            | Delete the branch-added adapter; no offseason replacement                                                                                           |
+| Offseason `vision/limelight/`, `CameraConfigs`                                                        | Remove after deleting their live offseason references                                                                                               |
+| Existing shared `TagResult`, `OptionalTagResult`, game-piece results, `TrustFactor`, camera utilities | Leave unchanged for their existing consumers                                                                                                        |
 
 ### Migration comments
 
@@ -125,12 +125,12 @@ Update `proto/README.md`, the fixture copy destination, the compiled Java docume
 
 `SpotCameraProfiles` owns exactly these logical names, in stable order `left`, `right`, `front`, `back` for deterministic profile hashing:
 
-| Name | Planned placement/view | Mount inputs |
-|---|---|---|
-| `left` | Fixed to chassis, covering robot left | Measured robot-to-camera translation and rotation |
+| Name    | Planned placement/view                 | Mount inputs                                      |
+| ------- | -------------------------------------- | ------------------------------------------------- |
+| `left`  | Fixed to chassis, covering robot left  | Measured robot-to-camera translation and rotation |
 | `right` | Fixed to chassis, covering robot right | Measured robot-to-camera translation and rotation |
 | `front` | Fixed to chassis, covering robot front | Measured robot-to-camera translation and rotation |
-| `back` | Fixed to chassis, covering robot back | Measured robot-to-camera translation and rotation |
+| `back`  | Fixed to chassis, covering robot back  | Measured robot-to-camera translation and rotation |
 
 Supply each measured transform in robot NWU coordinates: +X forward, +Y left, +Z up, with actual yaw/pitch/roll. Outward-facing nominal yaw is +90° left, -90° right, 0° front, and 180° back, but these are placement intentions, not replacement measurements. Do not invent translation, height, tilt, optical mode, or calibration. Bind physical cameras to these names through the existing Spot naming workflow; the logical name does not encode a USB port or camera serial.
 
@@ -196,18 +196,18 @@ The current implementation requests hub tags in `RobotManager`'s `IDLE`, `PREPAR
 
 Carry forward the exact existing robot-code tag sets, checking they exist in the configured field layout:
 
-| Alliance | Own hub tag IDs |
-|---|---|
-| Red | `2, 3, 4, 5, 8, 9, 10, 11` |
-| Blue | `18, 19, 20, 21, 24, 25, 26, 27` |
+| Alliance | Own hub tag IDs                  |
+| -------- | -------------------------------- |
+| Red      | `2, 3, 4, 5, 8, 9, 10, 11`       |
+| Blue     | `18, 19, 20, 21, 24, 25, 26, 27` |
 
 These sets select the alliance's scoring structure, not whichever hub is active during the current match shift. Keep hub activity timing in `HubActivity`. Obtain alliance as an explicit cached/injected observation; if it is unknown, continue broad-tag acquisition and report that hub selection is waiting for alliance rather than silently choosing a hub. On alliance change, discard old selection evidence and reacquire.
 
-| State | Effective tag selection on every camera | Transition |
-|---|---|---|
-| `TAGS` | All tags in the configured field layout | `hubTagsRequest()` enters `WAITING_FOR_HUB_TAGS` |
-| `WAITING_FOR_HUB_TAGS` | All configured field tags | A fresh accepted pose using at least one own-hub tag on any of `left/right/front/back` enters `HUB_TAGS` |
-| `HUB_TAGS` | Only own-alliance hub IDs | Loss of qualifying hub evidence for 0.5 s returns to `WAITING_FOR_HUB_TAGS`; `tagsRequest()` returns to `TAGS` immediately |
+| State                  | Effective tag selection on every camera | Transition                                                                                                                 |
+| ---------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `TAGS`                 | All tags in the configured field layout | `hubTagsRequest()` enters `WAITING_FOR_HUB_TAGS`                                                                           |
+| `WAITING_FOR_HUB_TAGS` | All configured field tags               | A fresh accepted pose using at least one own-hub tag on any of `left/right/front/back` enters `HUB_TAGS`                   |
+| `HUB_TAGS`             | Only own-alliance hub IDs               | Loss of qualifying hub evidence for 0.5 s returns to `WAITING_FOR_HUB_TAGS`; `tagsRequest()` returns to `TAGS` immediately |
 
 ```mermaid
 stateDiagram-v2
@@ -227,7 +227,7 @@ The current v2 contract has no runtime tag filter. Implement the selection befor
 
 Extend existing messages with a robot-session-scoped positive `tag_selection_generation` and explicit `allowed_tag_ids` in `RobotState`, echo the applied generation in `Observation`, and advertise `tag_selection_supported` in the configuration acknowledgement. Use a small nested IO policy record and `setTagSelection(...)`; a single global selection applies to all four cameras. This is an enabled-time processing request, not a calibration/mount/control mutation, and it must not relax existing disabled-only configuration rules.
 
-In `ConfigurationService`, accept the policy only from fresh, increasing robot-state messages for the current robot session; validate sorted, unique IDs against the configured layout. Snapshot the policy at the frame's processing boundary. In `BetaRuntime._detect`, detect once, filter detections by that snapshot before `PoseSolver.solve`, and publish the applied generation with the resulting observation. Keep excluded detections available in diagnostics with `used_for_pose=false` and a tag-policy exclusion reason. If the filtered set is empty, publish a normal no-pose observation with advancing sequence. Do not restart capture/detectors or reapply the manifest whenever the requested tag mode changes.
+In `ConfigurationService`, accept the policy only from fresh, increasing robot-state messages for the current robot session; validate sorted, unique IDs against the configured layout. Snapshot the policy at the frame's processing boundary. In `Runtime._detect`, detect once, filter detections by that snapshot before `PoseSolver.solve`, and publish the applied generation with the resulting observation. Keep excluded detections available in diagnostics with `used_for_pose=false` and a tag-policy exclusion reason. If the filtered set is empty, publish a normal no-pose observation with advancing sequence. Do not restart capture/detectors or reapply the manifest whenever the requested tag mode changes.
 
 On a selection change, increment its generation, clear robot pending/prepared measurements from the previous policy, and preserve the ingestion watermark. Reject observations from an older selection, and in hub-only mode independently require every candidate's used tag ID to belong to the selected own-hub set. An in-flight broad-tag solve cannot be relabeled as hub-only. While awaiting application, expose pending selection and keep odometry/trust degradation working. On policy freshness loss, stop publishing policy-qualified robot pose candidates until a fresh current-session selection is available; preview and health can continue.
 
@@ -277,14 +277,14 @@ Remove the turret-to-vision dependency, `addTurretObservation()`, turret camera 
 
 Retain the existing health getters and dashboard indicators where useful, but derive them from the cached Spot status:
 
-| Observation | Meaning and behavior |
-|---|---|
-| No configured/enabled Spot cameras | Localization camera capability unavailable; use existing fallback behavior |
-| Current synchronized link, matching config/calibration, fresh camera frames with zero tags | Camera operational; no new pose evidence; trust ages normally |
-| One optional camera offline, another usable | Continue localization with the usable camera; expose partial camera health |
-| A required camera offline or invalid | Raise its fault and mark all-required-camera health false; continue using another valid camera when available |
-| No usable cameras or stale/invalid link | Localization capability unhealthy; use existing fallback request paths |
-| Pit functionality or operator vision disable | Existing operational override disables normal vision-assisted behavior |
+| Observation                                                                                | Meaning and behavior                                                                                          |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| No configured/enabled Spot cameras                                                         | Localization camera capability unavailable; use existing fallback behavior                                    |
+| Current synchronized link, matching config/calibration, fresh camera frames with zero tags | Camera operational; no new pose evidence; trust ages normally                                                 |
+| One optional camera offline, another usable                                                | Continue localization with the usable camera; expose partial camera health                                    |
+| A required camera offline or invalid                                                       | Raise its fault and mark all-required-camera health false; continue using another valid camera when available |
+| No usable cameras or stale/invalid link                                                    | Localization capability unhealthy; use existing fallback request paths                                        |
+| Pit functionality or operator vision disable                                               | Existing operational override disables normal vision-assisted behavior                                        |
 
 `isLocalizationHealthy()` describes operational capability, while `Localization.isTrustworthy()` describes pose confidence. Do not equate tag visibility, camera heartbeat, and trustworthy pose.
 
@@ -357,13 +357,13 @@ For existing unit tests, provide explicit ticks and a test clock rather than sle
 
 Prepare these seams now:
 
-| Seam | Current implementation work | Future runner use |
-|---|---|---|
-| `VisionIO` inputs/policy | Owned samples + current health/ack snapshot; injected session, enabled state, and versioned global tag selection | Script four-camera visibility, policy application delays, latency, duplicate packets, resets, calibration faults, and reconnects |
-| Capture source/history | Optional historical pose, motion/tilt, explicit timestamps | Fixed histories for math tests; real drivetrain history for headless integration |
-| Public cached status | Link/camera validity, evidence ages, queue depth/drop counts, last fusion | Typed observations with source time and validity |
-| Local trust getters/policy | No environment bypass; explicit evidence and degradation inputs | Readiness-loss/recovery checks through real manager APIs |
-| Lifecycle | Idempotent close/reset and one-shot drain | Fixture cleanup without private-field reflection |
+| Seam                       | Current implementation work                                                                                      | Future runner use                                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `VisionIO` inputs/policy   | Owned samples + current health/ack snapshot; injected session, enabled state, and versioned global tag selection | Script four-camera visibility, policy application delays, latency, duplicate packets, resets, calibration faults, and reconnects |
+| Capture source/history     | Optional historical pose, motion/tilt, explicit timestamps                                                       | Fixed histories for math tests; real drivetrain history for headless integration                                                 |
+| Public cached status       | Link/camera validity, evidence ages, queue depth/drop counts, last fusion                                        | Typed observations with source time and validity                                                                                 |
+| Local trust getters/policy | No environment bypass; explicit evidence and degradation inputs                                                  | Readiness-loss/recovery checks through real manager APIs                                                                         |
+| Lifecycle                  | Idempotent close/reset and one-shot drain                                                                        | Fixture cleanup without private-field reflection                                                                                 |
 
 Do not add scenario catalogs, custom temporal assertions, `DiagnosticRobot`, new report writers, new test source sets, or CI changes now. The existing drive fixture directly constructs a drivetrain, not a full `Vision`/`Localization` graph; it does not automatically exercise this code. Document the future composition boundary and leave the framework work on its own branch.
 
@@ -375,22 +375,22 @@ Move and adapt existing Spot contract tests first. Preserve Python/Java golden-p
 
 Add focused regression tests with independently specified expectations:
 
-| Area | Test cases and expected evidence |
-|---|---|
-| Geometry/validation | Known mount transform recovers a hand-computed robot pose; capture heading selects the expected IPPE candidate; missing history/mount and malformed pose reject |
-| Four static cameras | Exact `left/right/front/back` names; constant independent transforms; no joint history; identical known robot pose recovered from four differently oriented synthetic mounts; stable profile order |
-| Hub acquisition/selection | Red/blue exact sets; unknown alliance stays broad; own-hub accepted evidence on any of four cameras acquires hub mode; opponent/rejected evidence does not; all four use the same selected set |
-| Hub loss/handoff | A brief gap retains hub mode; 0.5 s loss restores broad acquisition; another camera maintains visibility; repeated requests do not reset timers; tag request exits immediately |
-| Applied policy | Spot filters before solving; mixed observations solve only from allowed tags; excluded tags remain diagnostic; old/in-flight policy generations reject; unsupported service is visible; empty selection result emits no pose |
-| Time/history | Interpolation endpoints, non-monotonic input rejection, capacity/time bounds, stale/future limits, reset cutoff, no current-pose fallback |
-| Queue | Different camera delays reorder across ticks; an offline camera does not block release; stable ties; overflow counters; second drain cannot replay a frame |
-| Session/recovery | New generation invalidates pending/prepared results; old packets arriving afterward cannot fuse; link loss blocks pending output; recovery requires fresh matching data |
-| Trust | Seeded versus unseeded history; physical motion degradation; estimator correction adds no travel penalty; collision edge applies once; rejected/shadow evidence has no benefit |
-| Correlated trust | Same synthetic evidence in one batch versus split batches gives the same conservative outcome; camera count alone does not improve confidence |
-| Fusion handoff | A known capture timestamp and deviation reaches the ingestion boundary once; ineligible measurements never acknowledge fusion or improve trust; all residual evidence predates batch fusion |
-| Health/fallback | Empty configuration, healthy zero-tag frames, optional/required failure, all cameras offline, operator/pit override, and recovery produce independently specified capability states |
-| Observation/logging | Cached getters do not read IO; timestamps/validity remain honest; an old fusion acknowledgement cannot mark a newer rejected observation fused |
-| Lifecycle | Reset before/after collection invalidates output; repeated close is safe; test-owned NT resources and scripted inputs are cleaned up |
+| Area                      | Test cases and expected evidence                                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Geometry/validation       | Known mount transform recovers a hand-computed robot pose; capture heading selects the expected IPPE candidate; missing history/mount and malformed pose reject                                                              |
+| Four static cameras       | Exact `left/right/front/back` names; constant independent transforms; no joint history; identical known robot pose recovered from four differently oriented synthetic mounts; stable profile order                           |
+| Hub acquisition/selection | Red/blue exact sets; unknown alliance stays broad; own-hub accepted evidence on any of four cameras acquires hub mode; opponent/rejected evidence does not; all four use the same selected set                               |
+| Hub loss/handoff          | A brief gap retains hub mode; 0.5 s loss restores broad acquisition; another camera maintains visibility; repeated requests do not reset timers; tag request exits immediately                                               |
+| Applied policy            | Spot filters before solving; mixed observations solve only from allowed tags; excluded tags remain diagnostic; old/in-flight policy generations reject; unsupported service is visible; empty selection result emits no pose |
+| Time/history              | Interpolation endpoints, non-monotonic input rejection, capacity/time bounds, stale/future limits, reset cutoff, no current-pose fallback                                                                                    |
+| Queue                     | Different camera delays reorder across ticks; an offline camera does not block release; stable ties; overflow counters; second drain cannot replay a frame                                                                   |
+| Session/recovery          | New generation invalidates pending/prepared results; old packets arriving afterward cannot fuse; link loss blocks pending output; recovery requires fresh matching data                                                      |
+| Trust                     | Seeded versus unseeded history; physical motion degradation; estimator correction adds no travel penalty; collision edge applies once; rejected/shadow evidence has no benefit                                               |
+| Correlated trust          | Same synthetic evidence in one batch versus split batches gives the same conservative outcome; camera count alone does not improve confidence                                                                                |
+| Fusion handoff            | A known capture timestamp and deviation reaches the ingestion boundary once; ineligible measurements never acknowledge fusion or improve trust; all residual evidence predates batch fusion                                  |
+| Health/fallback           | Empty configuration, healthy zero-tag frames, optional/required failure, all cameras offline, operator/pit override, and recovery produce independently specified capability states                                          |
+| Observation/logging       | Cached getters do not read IO; timestamps/validity remain honest; an old fusion acknowledgement cannot mark a newer rejected observation fused                                                                               |
+| Lifecycle                 | Reset before/after collection invalidates output; repeated close is safe; test-owned NT resources and scripted inputs are cleaned up                                                                                         |
 
 Use pure helpers for math/history/queue/trust tests. Subsystem tests inject fake IO and capture inputs, advance a manual clock, and exercise the production collection/handoff path through public lifecycle hooks. Reuse the project's native JUnit setup when HAL is needed. Do not construct a full `Hardware` graph merely to test trust or packet math.
 

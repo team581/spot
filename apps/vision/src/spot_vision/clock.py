@@ -43,7 +43,7 @@ class FrameRateCounter:
 def nt_now_us() -> int:
     """Return local NT time (NOT proof of synchronization).
 
-    The monotonic fallback is for offline alpha capture/replay only. Beta's
+    The monotonic fallback is for offline alpha capture/replay only. Spot's
     transport requires NTCore and a verified ClockGate before publishing.
     """
     try:

@@ -5,23 +5,23 @@ For current navigation, use the [documentation index](../README.md).
 
 Hardware evidence: [October 4 alpha verification](../Alpha%20Verification.md).
 
-Overall status: **Beta software implementation is complete in Spot and the shared
+Overall status: **Spot software implementation is complete in Spot and the shared
 robot integration. The installed GUI/calibration workflow, durable configuration,
 v2 transport/time gates, owned robot consumer, diagnostics and release/rollback
 tools are implemented and software-tested. Hardware qualification and fusion
-activation are deferred; no beta release has been deployed.**
+activation are deferred; no Spot release has been deployed.**
 
-The current requirements are in the [beta plan](../Spot%20Beta%20Robot%20Integration%20Plan.md).
-[Implementation status](../Beta%20Implementation%20Status.md) records current evidence.
-The [October 8 software verification](../beta-verification/Software%20Verification.md)
+The current requirements are in the [Spot plan](../Spot%20Robot%20Integration%20Plan.md).
+[Implementation status](../Implementation%20Status.md) records current evidence.
+The [October 8 software verification](../verification/Software%20Verification.md)
 records 421 Python, 17 JavaScript, 12 Java contract and 24 offseason regression
 tests, three robot-project compiles, the installed CPU Mac artifact and GUI comparison evidence. The
-[hardware checklist](../beta-verification/Hardware%20Qualification.md) retains every
+[hardware checklist](../verification/Hardware%20Qualification.md) retains every
 unperformed target-hardware gate; the offseason Spot profile awaits measured
 mounts, and fusion/heading/revised trust are off.
 The October 4 report supersedes the September hardware notes below, recording
 four-camera operation, live image verification, and 349 Python/eight JavaScript
-cases at that checkpoint. Those historical results do not establish beta timing,
+cases at that checkpoint. Those historical results do not establish Spot timing,
 physical accuracy, endurance or power-loss acceptance. Keep Python orchestration
 and the existing C++/CUDA detector; no language rewrite is planned.
 
@@ -55,24 +55,24 @@ This proves the deployed two-camera capture, processing, and NT4 visualization p
 
 ## Alpha target configuration notes (historical)
 
-| Item | Current state |
-| --- | --- |
-| Compute | NVIDIA Jetson Orin Nano 8 GB, device name `orin-1` |
-| Jetson software | L4T R36.4.3, CUDA 12.6 |
-| Python | 3.11.16 in `/home/team581/spot-2026/.venv311` |
-| OpenCV | 4.11.0 headless wheel; direct V4L2 fallback is active because this wheel has no GStreamer support |
-| Cameras | `1`: Swift USB camera (enumerates as `Generic USB Camera`, serial `200901010001`); `2`–`4`: Arducam OV9281 UC762. All four are enumerated on the Jetson |
-| Camera selectors | Camera 1 uses `/dev/v4l/by-id`; cameras 2–4 use distinct stable `/dev/v4l/by-path` USB-port selectors |
-| Configured modes | Camera 1: MJPEG 640×480 at 120 FPS (advertised 1280×720 and 1280×800 modes timed out in direct capture tests); cameras 2–4: MJPEG 1280×720 at 120 FPS |
-| Observed capture/detect rates | Approximately 25 FPS left and 48–50 FPS right during the latest check |
-| Exposure | Manual: camera 1 uses 5000 µs (the Swift minimum, UVC `exposure_time_absolute=50`); cameras 2–4 use 1000 µs (`exposure_time_absolute=10`) |
-| Gain | 20 |
-| Tag family | 36h11 |
-| Calibration | Camera 1 has provisional 640×480 intrinsics and needs a new calibration after replacement; cameras 2–4 retain their existing calibration files on the Jetson |
-| Camera extrinsics | Camera 1 uses `[0, +0.1, 0]`; cameras 2–4 currently use `[0, -0.1, 0]`; all use `[0, -20, 0]` degree RPY and remain provisional |
-| Field layout | Vendored WPILib 2026.2.2 welded REBUILT layout |
-| NT4 | Enabled as a server on the Orin; NT4 port 5810 and NT3 port 1735 |
-| Deployment | At the latest target check, `spot-vision.service` was enabled and active; checkout in `/home/team581/spot-2026`; `/opt/spot-vision` symlinks to it |
+| Item                          | Current state                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Compute                       | NVIDIA Jetson Orin Nano 8 GB, device name `orin-1`                                                                                                           |
+| Jetson software               | L4T R36.4.3, CUDA 12.6                                                                                                                                       |
+| Python                        | 3.11.16 in `/home/team581/spot-2026/.venv311`                                                                                                                |
+| OpenCV                        | 4.11.0 headless wheel; direct V4L2 fallback is active because this wheel has no GStreamer support                                                            |
+| Cameras                       | `1`: Swift USB camera (enumerates as `Generic USB Camera`, serial `200901010001`); `2`–`4`: Arducam OV9281 UC762. All four are enumerated on the Jetson      |
+| Camera selectors              | Camera 1 uses `/dev/v4l/by-id`; cameras 2–4 use distinct stable `/dev/v4l/by-path` USB-port selectors                                                        |
+| Configured modes              | Camera 1: MJPEG 640×480 at 120 FPS (advertised 1280×720 and 1280×800 modes timed out in direct capture tests); cameras 2–4: MJPEG 1280×720 at 120 FPS        |
+| Observed capture/detect rates | Approximately 25 FPS left and 48–50 FPS right during the latest check                                                                                        |
+| Exposure                      | Manual: camera 1 uses 5000 µs (the Swift minimum, UVC `exposure_time_absolute=50`); cameras 2–4 use 1000 µs (`exposure_time_absolute=10`)                    |
+| Gain                          | 20                                                                                                                                                           |
+| Tag family                    | 36h11                                                                                                                                                        |
+| Calibration                   | Camera 1 has provisional 640×480 intrinsics and needs a new calibration after replacement; cameras 2–4 retain their existing calibration files on the Jetson |
+| Camera extrinsics             | Camera 1 uses `[0, +0.1, 0]`; cameras 2–4 currently use `[0, -0.1, 0]`; all use `[0, -20, 0]` degree RPY and remain provisional                              |
+| Field layout                  | Vendored WPILib 2026.2.2 welded REBUILT layout                                                                                                               |
+| NT4                           | Enabled as a server on the Orin; NT4 port 5810 and NT3 port 1735                                                                                             |
+| Deployment                    | At the latest target check, `spot-vision.service` was enabled and active; checkout in `/home/team581/spot-2026`; `/opt/spot-vision` symlinks to it           |
 
 The camera mode and exposure values are working first-pass values, not final production tuning.
 
@@ -206,17 +206,17 @@ The raw live tag-detection, two-camera alpha deployment, and NT4 topic-delivery 
 
 ## Milestone Gates
 
-| Milestone | Status | Completion evidence |
-| --- | --- | --- |
-| Build native extension on Jetson | Complete | CUDA detector loads and runs on `orin-1` |
-| Capture frames from original two target cameras | Complete | Camera 1 OV2311 and camera 2 OV9281 frames concurrently reach their detection pipelines; cameras 3 and 4 still need capture validation |
-| Detect a known raw tag | Complete | Correct ID, zero hamming, strong margin, valid corners |
-| Reproduce and benchmark raw detection | In progress | Sustained probe log and latency distribution needed |
-| Produce calibrated camera pose | Software complete; hardware pending | Provisional intrinsics/extrinsics require measured replacements and live single/multi-tag pose tests |
-| Publish and receive alpha NT4 contract | Complete | Orin announced all 44 topics; external client and AdvantageScope recognized both typed `Pose3d` topics |
-| Display live robot pose on 2026 field | Pending physical target | 2026 field and sources are visible; no pose sample exists until a known tag enters a camera view |
-| Survive deployment/reconnect/endurance tests | In progress | Service restart passed; unplug, reboot, network-interruption, and 30-minute tests remain |
-| Robot shadow validation | Deferred | Begins after Jetson-side gates pass |
+| Milestone                                       | Status                              | Completion evidence                                                                                                                    |
+| ----------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Build native extension on Jetson                | Complete                            | CUDA detector loads and runs on `orin-1`                                                                                               |
+| Capture frames from original two target cameras | Complete                            | Camera 1 OV2311 and camera 2 OV9281 frames concurrently reach their detection pipelines; cameras 3 and 4 still need capture validation |
+| Detect a known raw tag                          | Complete                            | Correct ID, zero hamming, strong margin, valid corners                                                                                 |
+| Reproduce and benchmark raw detection           | In progress                         | Sustained probe log and latency distribution needed                                                                                    |
+| Produce calibrated camera pose                  | Software complete; hardware pending | Provisional intrinsics/extrinsics require measured replacements and live single/multi-tag pose tests                                   |
+| Publish and receive alpha NT4 contract          | Complete                            | Orin announced all 44 topics; external client and AdvantageScope recognized both typed `Pose3d` topics                                 |
+| Display live robot pose on 2026 field           | Pending physical target             | 2026 field and sources are visible; no pose sample exists until a known tag enters a camera view                                       |
+| Survive deployment/reconnect/endurance tests    | In progress                         | Service restart passed; unplug, reboot, network-interruption, and 30-minute tests remain                                               |
+| Robot shadow validation                         | Deferred                            | Begins after Jetson-side gates pass                                                                                                    |
 
 ## Updating This Document
 

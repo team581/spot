@@ -15,7 +15,7 @@ in
     settings = lib.mkOption {
       type = settingsFormat.type;
       default = { };
-      description = "Spot installation settings written to /etc/spot-vision/beta.json.";
+      description = "Spot installation settings written to /etc/spot-vision/installation.json.";
     };
     ethernetInterfaces = lib.mkOption {
       type = lib.types.listOf lib.types.str;
@@ -52,7 +52,7 @@ in
         "render"
       ];
     };
-    environment.etc."spot-vision/beta.json".source =
+    environment.etc."spot-vision/installation.json".source =
       settingsFormat.generate "spot-vision.json" cfg.settings;
     environment.systemPackages = [
       cfg.package
@@ -105,7 +105,7 @@ in
           "video"
           "render"
         ];
-        ExecStart = "${cfg.package}/bin/spot-vision --json-logs beta --installation /etc/spot-vision/beta.json";
+        ExecStart = "${cfg.package}/bin/spot-vision --json-logs run --installation /etc/spot-vision/installation.json";
         Restart = "on-failure";
         RestartSec = 1;
         WatchdogSec = 15;

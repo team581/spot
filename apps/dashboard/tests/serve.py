@@ -5,12 +5,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "vision/tools"))
-from beta_ui_fixture import FixtureRuntime
+from ui_fixture import FixtureRuntime
 
-from spot_vision.beta_web import BetaHttpServer
+from spot_vision.http_server import HttpServer
 
 assets = os.environ.get("SPOT_DASHBOARD_ASSETS")
-server = BetaHttpServer(
+server = HttpServer(
     ("127.0.0.1", 5818),
     FixtureRuntime(),
     assets=Path(assets) if assets else Path(__file__).resolve().parents[3] / "dist/dashboard",

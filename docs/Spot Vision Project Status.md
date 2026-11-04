@@ -8,7 +8,7 @@ historical plans and verification evidence.
 - The [robot integration session](../apps/docs/src/content/docs/operator/robot-integration-session.md)
   records the October 18–19 commissioning checkpoint and its remaining measured checks.
 - The [repository guide](../README.md) covers the current uv/pnpm workspace and local setup.
-- The [hardware qualification checklist](beta-verification/Hardware%20Qualification.md)
+- The [hardware qualification checklist](verification/Hardware%20Qualification.md)
   records acceptance work; source changes and local tests do not complete those gates.
 
 The previous status report is preserved as the

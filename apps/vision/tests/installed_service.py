@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 
 def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
-    from spot_vision import beta_app, beta_runtime, cli
+    from spot_vision import app, cli, runtime
     from spot_vision.devices import DeviceManager
 
     assert Path(sys.prefix).resolve() == environment.resolve()
@@ -32,7 +32,7 @@ def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
     )
     servers, errors = [], []
     created = threading.Event()
-    server_type = beta_app.BetaHttpServer
+    server_type = app.HttpServer
 
     def server(*args, **kwargs):
         instance = server_type(*args, **kwargs)
@@ -91,14 +91,14 @@ def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
     # Inject empty discovery so verification cannot acquire a developer's cameras.
     with (
         patch.object(
-            beta_runtime,
+            runtime,
             "DeviceManager",
             lambda registry: DeviceManager(registry, enumerate_fn=lambda: []),
         ),
-        patch.object(beta_app, "BetaHttpServer", server),
+        patch.object(app, "HttpServer", server),
     ):
         result = cli.main(
-            ["beta", "--installation", str(installation), "--state-root", str(work / "state")]
+            ["run", "--installation", str(installation), "--state-root", str(work / "state")]
         )
     inspector.join(15)
     assert not inspector.is_alive(), "Installed HTTP inspection did not finish"

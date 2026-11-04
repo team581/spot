@@ -52,7 +52,7 @@ If address controls are unavailable, the installation needs its network helper; 
 
 - [Name cameras](../name) to bind physical feeds to robot-code names.
 - [Tune a standalone camera](../tuning) or [calibrate](../calibrate) without a robot profile.
-- [Deploy Spot](../deployment) if the Jetson has no installed beta service.
+- [Deploy Spot](../deployment) if the Jetson has no installed application service.
 - [Recover a connection](../recovery) if a camera or robot link disappears.
 
 <details>
@@ -66,6 +66,6 @@ ssh -i ~/.ssh/spot_jetson_ed25519 team581@192.168.69.170
 
 For direct Ethernet, the development Mac uses `192.168.69.171/24` on its connected adapter. These maintenance addresses are separate from the robot NT endpoint.
 
-Installation settings live in `/etc/spot-vision/beta.json`. Defaults use team 581 discovery and HTTP port 5800. Set `nt.server` instead of `nt.team` for an explicit robot endpoint. The Network page changes Ethernet addresses through the installed network helper; it does not change the robot NT endpoint. The UI and saved calibration remain accessible without cameras or a robot; alpha development commands do not start this GUI.
+Installation settings live in `/etc/spot-vision/installation.json`. Defaults use team 581 discovery and HTTP port 5800. Set `nt.server` instead of `nt.team` for an explicit robot endpoint. The Network page changes Ethernet addresses through the installed network helper; it does not change the robot NT endpoint. The UI and saved calibration remain accessible without cameras or a robot; alpha development commands do not start this GUI.
 
 </details>

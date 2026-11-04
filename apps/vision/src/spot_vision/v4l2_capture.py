@@ -243,5 +243,5 @@ class MjpegCapture:
             self.streaming = False
 
 
-# Name used by the installed beta runtime; the alpha class name stays compatible.
+# Name used by the installed application runtime; the alpha class name stays compatible.
 V4l2Capture = MjpegCapture

@@ -1,7 +1,7 @@
 {
   "version": 0,
   "files": {
-    "apps/vision/src/spot_vision/beta_calibration.py": [
+    "apps/vision/src/spot_vision/calibration.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 36,
@@ -27,7 +27,7 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/beta_capture.py": [
+    "apps/vision/src/spot_vision/camera_capture.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 24,
@@ -35,7 +35,7 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/beta_processing.py": [
+    "apps/vision/src/spot_vision/processing.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 21,
@@ -49,7 +49,7 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/beta_runtime.py": [
+    "apps/vision/src/spot_vision/runtime.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 81,
@@ -111,7 +111,7 @@
         "lineCount": 1
       }
     ],
-    "apps/vision/src/spot_vision/beta_transport.py": [
+    "apps/vision/src/spot_vision/nt_transport.py": [
       {
         "rule": "unresolved-attribute",
         "startColumn": 12,

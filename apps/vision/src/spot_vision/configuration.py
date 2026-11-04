@@ -12,8 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import protocol_models as wire
-from .beta_contract import content_hash, parse_manifest, validate_manifest
 from .config import ConfigError
+from .contract import content_hash, parse_manifest, validate_manifest
 from .persistence import StateSnapshot, StateStore, canonical_bytes
 from .protocol import snapshot
 

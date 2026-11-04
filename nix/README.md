@@ -24,9 +24,13 @@ interface name during qualification.
 
 Spot runs as `spot-vision` with video/render access and a read-only system. The
 privileged Ethernet helper is a separate service using a group-restricted Unix
-socket. `/etc/spot-vision/beta.json` is generated from the module's
+socket. `/etc/spot-vision/installation.json` is generated from the module's
 `services.spot-vision.settings` option using `pkgs.formats.json`. Calibration, assignments, cached profiles, and diagnostics
 stay in `/var/lib/spot-vision`; generation changes do not erase them.
+
+The service starts with `spot-vision run --installation
+/etc/spot-vision/installation.json`. Custom launchers must use this command and
+settings path; NixOS generates both together on the next deployment.
 
 ## First installation
 

@@ -18,7 +18,7 @@ The [original design](<docs/Vision%20Solution%20(Spot)%20Specs.md>) and
 [alpha verification](docs/Alpha%20Verification.md) provide historical context.
 
 The config-file camera commands and NT server configuration below are headless
-development tools. They do not certify robot operation; beta robot mode uses the
+development tools. They do not certify robot operation; robot-integrated mode uses the
 roboRIO as NT server and Jetson as client. See the [transport notes](docs/NetworkTables.md).
 
 ## Local development
@@ -72,20 +72,20 @@ Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.
 Python 3.12 is used for development; Python 3.10 remains
 the minimum supported runtime. Node is only required to build the dashboard and bundled docs.
 
-## Beta setup and review
+## Application setup and review
 
-The installed beta runs with `spot-vision beta --installation
-/etc/spot-vision/beta.json` and serves its offline GUI on port 5800. Use the
+The installed application runs with `spot-vision run --installation
+/etc/spot-vision/installation.json` and serves its offline GUI on port 5800. Use the
 [operator guide](apps/docs/src/content/docs/operator/connect.md) for connection, code-defined camera
 names, calibration and verification; [deployment and rollback](apps/docs/src/content/docs/operator/deployment.md)
 describes NixOS test/switch deployments and generation rollback. Offline setup can use
 a cached robot profile, while current robot session/disabled eligibility gates
 mutations and valid output. Supply measured mounts in robot code before rollout.
 
-The [software verification report](docs/beta-verification/Software%20Verification.md)
+The [software verification report](docs/verification/Software%20Verification.md)
 contains the installed CPU host checks and light/dark GUI comparisons. Follow the
-[remaining hardware trials](docs/beta-verification/Hardware%20Qualification.md)
-before declaring beta robot-ready or enabling fusion, heading or revised trust.
+[remaining hardware trials](docs/verification/Hardware%20Qualification.md)
+before declaring Spot robot-ready or enabling fusion, heading or revised trust.
 
 See the [camera configuration reference](apps/docs/src/content/docs/operator/camera-configuration.md)
 for the SWYFT/Arducam pixel counts, Java settings, control values and units.
@@ -249,7 +249,7 @@ required host-to-device CUDA transfer still occurs.
 ## Hardware validation still required
 
 Historical alpha results are recorded in [Alpha Verification](docs/Alpha%20Verification.md).
-Use the [current qualification checklist](docs/beta-verification/Hardware%20Qualification.md)
+Use the [current qualification checklist](docs/verification/Hardware%20Qualification.md)
 for remaining checks. `uv run --no-sync pytest` runs the retained Python tests. Run `pnpm --filter spot-dashboard test` for the dashboard JavaScript tests.
 
 CUDA execution and Linux UVC qualification require the target Orin. CPU detector,

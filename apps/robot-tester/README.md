@@ -123,7 +123,7 @@ or configure transport to add cameras.
 
 Connect Jetson and roboRIO Ethernet, directly or through a switch, on a common
 subnet. The roboRIO program is the NT4 **server**. Configure the Jetson's installed
-beta service to connect to it; use an explicit `nt.server` address if team
+Spot service to connect to it; use an explicit `nt.server` address if team
 discovery is inappropriate for the home network. For this bench, use the Jetson's second Ethernet port for the MacBook on a separate
 management subnet. The agent configures and verifies routing/return access through
 the Jetson for roboRIO deployment and logs; the two ports are not automatically

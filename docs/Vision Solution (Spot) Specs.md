@@ -1,15 +1,15 @@
 # Spot Vision System Design Specification
 
-Status: historical design; superseded by the [reviewed beta contract](Spot%20Beta%20Robot%20Integration%20Plan.md)
+Status: historical design; superseded by the [reviewed Spot contract](Spot%20Robot%20Integration%20Plan.md)
 Primary target: Jetson Orin Nano 8GB with up to four prototype cameras  
 Primary function: FRC AprilTag localization  
 Design priority: reliability and observability before peak frame rate
 
-Use [beta implementation status](Beta%20Implementation%20Status.md) for current
+Use [Spot implementation status](Implementation%20Status.md) for current
 software and qualification evidence. The native-service recommendation, four-camera
 scope, first-generation transport and experimental uncertainty formulas below
-record original intent; they are not current beta operational requirements.
-Beta preserves Python orchestration/C++ detection, supports configured camera counts
+record original intent; they are not current Spot operational requirements.
+Spot preserves Python orchestration/C++ detection, supports configured camera counts
 within a measured resource budget, and assigns timing/quality ownership to robot code.
 
 ## 1. Goal and scope
@@ -454,17 +454,17 @@ Failure:
 
 ### 9.2 Benchmark matrix
 
-| Dimension | Cases |
-| --- | --- |
-| Detector | Team 766/971 CUDA; CPU AprilTag 3 |
-| Format | B0332 MJPEG; every enumerated uncompressed mode |
-| Resolution | 1280×800 and useful lower modes |
-| Cameras | one; two on same USB controller; separate controllers where possible |
-| Exposure | bright-field and dim-field manual settings |
-| Decimation | 1.0 and any optimized candidate |
-| Motion | stationary, translating, high angular velocity |
-| Tags | zero, one, multiple, near, maximum useful range |
-| Thermal | cold start through 30 minutes in the configured power mode |
+| Dimension  | Cases                                                                |
+| ---------- | -------------------------------------------------------------------- |
+| Detector   | Team 766/971 CUDA; CPU AprilTag 3                                    |
+| Format     | B0332 MJPEG; every enumerated uncompressed mode                      |
+| Resolution | 1280×800 and useful lower modes                                      |
+| Cameras    | one; two on same USB controller; separate controllers where possible |
+| Exposure   | bright-field and dim-field manual settings                           |
+| Decimation | 1.0 and any optimized candidate                                      |
+| Motion     | stationary, translating, high angular velocity                       |
+| Tags       | zero, one, multiple, near, maximum useful range                      |
+| Thermal    | cold start through 30 minutes in the configured power mode           |
 
 Measure capture/processed FPS, stage latencies, end-to-end latency, drops by cause, resource use, temperature, recall, false positives, corner error, and field-pose error.
 
@@ -496,17 +496,17 @@ The B0332 full-resolution YUY2 mode is exempt from 60 FPS only as a prototype co
 
 ## 11. Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| CUDA fork is hard to maintain/license | Pin a reviewed fork behind `FiducialDetector`; keep CPU AprilTag 3; avoid fork-specific application types. |
-| MJPEG damages long-range accuracy | Record MJPEG/YUYV comparisons; prefer USB3 GRAY8/YUYV hardware. |
-| Multiple cameras accumulate latency | One-frame slots, fair scheduling, bounded results, drop telemetry, and stale rejection. |
-| Clocks disagree | Use NT synchronized explicit timestamps; gate until synchronized; log offset changes. |
-| Wrong field/calibration creates plausible poses | Revision/hash handshake and hard output gate. |
-| Single-tag mirror pose is selected | Send both IPPE candidates; resolve with timestamped state or reject. |
-| Camera unplug crashes all capture | Per-camera recovery boundaries; `systemd` handles process failures. |
-| Filters hide useful data | Log every candidate, corner, terminal reason, and accepted measurement. |
-| Peak benchmark hides throttling | Require the full 30-minute robot-power stress test. |
+| Risk                                            | Mitigation                                                                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| CUDA fork is hard to maintain/license           | Pin a reviewed fork behind `FiducialDetector`; keep CPU AprilTag 3; avoid fork-specific application types. |
+| MJPEG damages long-range accuracy               | Record MJPEG/YUYV comparisons; prefer USB3 GRAY8/YUYV hardware.                                            |
+| Multiple cameras accumulate latency             | One-frame slots, fair scheduling, bounded results, drop telemetry, and stale rejection.                    |
+| Clocks disagree                                 | Use NT synchronized explicit timestamps; gate until synchronized; log offset changes.                      |
+| Wrong field/calibration creates plausible poses | Revision/hash handshake and hard output gate.                                                              |
+| Single-tag mirror pose is selected              | Send both IPPE candidates; resolve with timestamped state or reject.                                       |
+| Camera unplug crashes all capture               | Per-camera recovery boundaries; `systemd` handles process failures.                                        |
+| Filters hide useful data                        | Log every candidate, corner, terminal reason, and accepted measurement.                                    |
+| Peak benchmark hides throttling                 | Require the full 30-minute robot-power stress test.                                                        |
 
 ## 12. Sources
 
