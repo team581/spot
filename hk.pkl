@@ -2,6 +2,39 @@ amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.
 
 import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
 
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = (Builtins.check_conventional_commit) {
+        // Keep message paths containing spaces as a single argument.
+        check = new Command {
+          argv = List("hk", "util", "check-conventional-commit", "{{commit_msg_file}}")
+        }
+      }
+      ["commit-scope"] {
+        depends = "conventional-commit"
+        check = new Command {
+          argv =
+            List(
+              "awk",
+              "-F",
+              "[()]",
+              """
+              /^#/ { next }
+              /^[a-z]+[(]/ && $2 !~ /^(camera-viewer|dashboard|docs|nix|vision|vscode-camera-preview)$/ {
+                print "Unknown commit scope: " $2 ". See allowed scopes in hk.pkl." > "/dev/stderr"
+                exit 1
+              }
+              { exit }
+              """,
+              "{{commit_msg_file}}",
+            )
+        }
+      }
+    }
+  }
+}
+
 steps {
   ["pkl-format"] = Builtins.pkl_format
   ["hk-validate"] {

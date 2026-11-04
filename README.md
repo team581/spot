@@ -36,14 +36,37 @@ No C++ compiler or CUDA installation is needed for ordinary CPU development.
 Python source stays editable.
 Run `pnpm build:jetson` after editing bundled docs. Setup is safe to rerun.
 
-Setup also installs this clone's hk pre-commit hook through mise. The hook formats
+Setup also installs this clone's hk hooks through mise. The pre-commit hook formats
 and lints staged files, then runs the relevant workspace type and dead-code checks.
 It saves unstaged work while running and stages automatic fixes. Builds and tests
 remain explicit commands below. For an existing checkout, run `mise install` and
-`mise exec -- hk install --mise` to enable the hook without repeating setup.
+`mise exec -- hk install --mise` to enable the hooks without repeating setup.
 
 Run `hk check` to check changed files, `hk fix` to apply fixes without staging,
 or `hk check --all` to check the full repository using the hook configuration.
+
+The `commit-msg` hook enforces [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+`type(scope): description`, with an optional scope and `!` before the colon for
+breaking changes. Allowed types are `build`, `chore`, `ci`, `docs`, `feat`, `fix`,
+`perf`, `refactor`, `revert`, `style`, and `test`. Allowed scopes are `dashboard`,
+`docs`, `nix`, `vision`, `vscode-camera-preview`, and `camera-viewer`. Use `nix`
+for NixOS configuration, flakes, and Nix packaging. The list is defined in
+`hk.pkl`; update it when adding or renaming a workspace. For example:
+
+```text
+feat(dashboard): add camera status indicators
+fix(vision): reconnect cameras after a disconnect
+feat(camera-viewer)!: change the renderer options
+fix(nix): correct the Jetson service configuration
+chore: update development tools
+```
+
+For semantic versioning, `fix` indicates a patch, `feat` a minor release, and `!`
+or a `BREAKING CHANGE:` footer a major release. Other types do not imply a release
+by themselves. Unknown scopes such as `chore(typo): update tools` are rejected;
+omit the scope for repository-wide changes. hk also accepts Git-generated
+merge/revert messages and temporary autosquash commits.
+This validates messages; automated per-package releases require separate setup.
 
 ```sh
 mise run format
