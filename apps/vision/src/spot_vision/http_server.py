@@ -21,7 +21,7 @@ from .config import ConfigError
 
 MAX_BODY = 64 * 1024
 OPERATIONS = {
-    "network/apply": {"interface", "mode", "address"},
+    "network/apply": {"mode", "address"},
     "network/confirm": {"token"},
     "network/revert": {"token"},
     "device/setup": {"identity", "revision"},
@@ -48,7 +48,7 @@ OPERATIONS = {
     },
 }
 REQUIRED = {
-    "network/apply": {"interface", "mode", "address"},
+    "network/apply": {"mode", "address"},
     "network/confirm": {"token"},
     "network/revert": {"token"},
     "device/setup": {"identity", "revision"},

@@ -90,58 +90,69 @@ Human assistance is limited to unavailable physical capabilities: connect a spec
 
 ## Phase 1: discover and establish connectivity
 
-Use the Jetson's two Ethernet ports as two separate links. Either physical port may connect to either device. **Port A and port B below are logical roles assigned after discovery, not jack positions or interface numbers. Do not swap cables merely to match these labels.** The agreed topology is:
+The current NixOS configuration bridges both Ethernet sockets into one network.
+This topology supersedes the separate routed links used for the October evidence
+above; those results do not qualify the new bridge. Confirm the running generation
+has `br0` with both Ethernet adapters attached before using this procedure.
+
+Either socket can connect to the robot radio/router. For a direct two-cable bench,
+connect the laptop to either socket and the roboRIO to the other:
 
 ```mermaid
 flowchart LR
-  M[MacBook Ethernet adapter] --> J[Jetson: two Ethernet ports]
+  M[MacBook Ethernet adapter] --> J[Jetson Ethernet bridge]
   J --> R[roboRIO Ethernet]
 ```
 
-| Connection                               | Purpose                                                                     |
-| ---------------------------------------- | --------------------------------------------------------------------------- |
-| MacBook Ethernet adapter ↔ Jetson port A | Agent management: SSH, deployment to Jetson, Spot browser and log retrieval |
-| Jetson port B ↔ roboRIO Ethernet         | Robot NT4 transport and access to roboRIO through the Jetson                |
-| Three SWYFT cameras → Jetson USB         | Three simultaneous, independently identified camera streams                 |
+The bridge acts as a switch. The sockets provide the same Spot addresses and
+services, so no cable-to-role mapping is required. Keep the roboRIO disabled.
 
-Use normal Ethernet cables and each device's own power supply. No Ethernet switch, radio, USB-B cable or Wi-Fi is required. Keep both Ethernet cables connected during normal testing. Request a physical change only if the observed cabling differs from this setup. Keep the roboRIO disabled throughout the session.
+### Establish maintenance and robot access
 
-### Identify and configure both links
+The Nix default supplies maintenance access at `192.168.69.170/24`. Initially give
+the Mac's Ethernet adapter `192.168.69.171/24`, then use the shared maintenance key:
 
-Inspect the Mac's Ethernet adapter and both Jetson interfaces. Map each interface name/MAC address to its actual cable using link/address evidence; do not assume names such as `eth0`/`eth1`, left/right or top/bottom ordering, or that both ports form a switch. Assign the Mac-facing interface the management role (A) and the roboRIO-facing interface the robot role (B), even when the physical order is reversed. If existing evidence is insufficient, request one controlled cable identification action, then record the verified mapping before applying addresses/routes. The Jetson must have a distinct, non-overlapping subnet on each link. A direct cable supplies no DHCP server.
+```sh
+bash tools/jetson-ssh.sh
+```
 
-Example addresses for team 581, preserving the documented Jetson maintenance address:
+Open **Network → Jetson address** and choose the robot static address or DHCP.
+Every change retains the maintenance address. A direct roboRIO cable needs a
+static address because neither end provides DHCP. On a radio/router network,
+DHCP is also available when the router supplies it. Confirm the new address from
+the dashboard before the rollback countdown ends.
 
-| Device/interface              | Address             | Purpose                               |
-| ----------------------------- | ------------------- | ------------------------------------- |
-| MacBook Ethernet adapter      | `192.168.69.171/24` | Agent computer on the management link |
-| Jetson port A, facing MacBook | `192.168.69.170/24` | SSH/Spot management endpoint          |
-| Jetson port B, facing roboRIO | `10.5.81.10/24`     | Spot on the robot link                |
-| roboRIO Ethernet              | `10.5.81.2/24`      | NT4 server                            |
+Example addresses for team 581:
 
-Inspect existing addresses/routes first and adapt the example if it conflicts with the actual team or another connected network. Preserve working maintenance access and record the original settings plus rollback commands before making changes. Do not put both Jetson ports on the same subnet. Neither direct link needs to replace the Mac's normal internet default route.
+| Device                               | Address                                    | Purpose                                              |
+| ------------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
+| MacBook Ethernet adapter             | `192.168.69.171/24`                        | Spot maintenance access                              |
+| Same Mac adapter, additional address | An unused address such as `10.5.81.171/24` | Direct roboRIO deployment and Driver Station access  |
+| Jetson bridge                        | `192.168.69.170/24` plus `10.5.81.11/24`   | Maintenance and robot services through either socket |
+| roboRIO Ethernet                     | `10.5.81.2/24`                             | NT4 server                                           |
 
-Reach the Jetson from the Mac at `team581@192.168.69.170` using `~/.ssh/spot_jetson_ed25519`, as specified by the repository instructions. Establish this management connection first, then configure the robot-facing interface over that connection. If the Jetson's management interface needs initial setup and cannot be reached at its existing address, resolve that bootstrap access explicitly rather than assuming SSH already works.
+Inspect existing addresses first and choose unused addresses. Preserve the Mac's
+normal internet default route. The laptop needs an address on the robot subnet
+to use robot tools directly; reaching Spot's maintenance address alone does not
+establish robot-subnet connectivity. Bridge forwarding requires no Jetson IP
+forwarding, NAT, or custom return routes.
 
-Set the **installed** Spot installation config's `nt.mode` to `client`, `nt.server` to the roboRIO's robot-link address (`10.5.81.2` in this example), and remove `nt.team` when selecting explicit-server configuration. The roboRIO program runs the NT4 server. Robot camera settings still come from Java. Check the actual installed `http.port`; the repository example uses `5800`. Open Spot from the Mac using the Jetson management address and that port, for example `http://192.168.69.170:5800/`.
+### Verify the actual path
 
-### Establish agent access to the roboRIO through the Jetson
+From the Mac, verify SSH and HTTP access to Spot and WPILib deployment/Driver
+Station access to the roboRIO. Through the robot radio/router, use the same
+normal robot subnet. Keep the robot endpoint configuration separate from the
+Jetson's own address.
 
-The two Ethernet ports do not automatically relay traffic. Configure and verify a concrete path before attempting robot deployment or log collection. Prefer a routed path so normal WPILib deployment can run on the Mac:
+Follow [WPILib IP configuration](https://docs.wpilib.org/en/stable/docs/networking/networking-introduction/ip-configurations.html)
+and [roboRIO setup](https://docs.wpilib.org/en/stable/docs/software/roborio-info/roborio-web-dashboard.html)
+when configuring the controller. Request a physical/bootstrap action only when
+the required path cannot be established with the available tools.
 
-1. Verify that the Jetson can reach the roboRIO directly on the robot link.
-2. Add a specific Mac route for the robot subnet (`10.5.81.0/24`) through the Jetson's management address (`192.168.69.170`).
-3. Configure Jetson IPv4 forwarding and scoped firewall rules for traffic between these two links; preserve other interface/firewall behavior.
-4. Configure/verify the return path from the roboRIO to the Mac management subnet via the Jetson robot-link address (`10.5.81.10`). A Mac route alone is insufficient. Prefer a specific return route that preserves the roboRIO's existing gateway; record any required alternative.
-5. From the Mac, verify actual roboRIO SSH/deployment connectivity using its explicit Ethernet address, then perform the tester deployment. Do not rely on mDNS/broadcast discovery crossing a routed link. Verify the deployed robot program and NT4 listener afterward.
-
-Inspect the host networking tools and installed WPILib deployment configuration before selecting exact commands. Record each applied route/forwarding/firewall change and its rollback. Make the intended bench setup survive the planned restarts, or explicitly automate its reapplication and record that setup friction. Do not claim restart recovery if access only worked because of an undocumented temporary route.
-
-If routing/return-path configuration is unavailable, use an SSH relay through the Jetson instead. The agent must inspect which deployment connections are required and verify the actual deployment path; one forwarded SSH port does not establish that every WPILib tool works. For log retrieval, the agent can copy the roboRIO log into a staging directory on the Jetson and then fetch it over the management link. Keep credentials on their intended hosts; do not copy the Mac's private key to the Jetson. Prefer fixing the network path over asking the user to move cables or run deployment commands.
-
-Follow [WPILib IP configuration](https://docs.wpilib.org/en/stable/docs/networking/networking-introduction/ip-configurations.html) and [roboRIO setup](https://docs.wpilib.org/en/stable/docs/software/roborio-info/roborio-web-dashboard.html) if the controller is not imaged/configured for 2026. Request a physical/bootstrap action only when the agent cannot establish the prerequisite with its available tools.
-
-Checkpoint: record the two physical interface mappings, verified addresses, Mac route, roboRIO return path, forwarding/firewall state, SSH/HTTP/deployment reachability, actual service/config paths and rollback commands. Keep the Mac–Jetson management link up while testing interruptions of the Jetson–roboRIO link.
+Checkpoint: record the running Nix generation, bridge membership, current
+maintenance and robot addresses, saved NetworkManager override, SSH/HTTP/robot
+tool reachability, and rollback results. Qualify each socket individually and
+swap the bench cables before declaring port interchangeability verified.
 
 ## Phase 2: execute the integration checks
 
@@ -177,7 +188,7 @@ Execute the following checks in order, collecting evidence automatically. Record
 
 Treat **automatic start** and **automatic configuration** as two explicit acceptance checks. First inspect the installed boot mechanism before changing it. For a systemd installation, identify the actual unit and inspect its definition/drop-ins, enabled state, execution user, executable/release target, configuration/state paths, restart policy and current-boot journal. An already running process or `active` state alone does not prove boot startup. Record whether it was enabled/configured correctly before any repair. If missing or incorrect, fix persistent service installation/configuration using the repository deployment workflow, then retest a real Jetson boot.
 
-Automatic configuration means the Jetson restores its saved installation settings, two Ethernet interface roles/addresses and required forwarding/firewall rules, selected Spot release, USB-to-role bindings, capture requests/controls, and still-valid calibration/timing records. When the roboRIO is available, Spot automatically connects to its configured NT4 server and receives/applies the current Java profile. Verify actual applied profile/generation and camera readback, not just files on disk. Initial physical measurements, first-time binding or calibration are not automatically generated: once legitimately configured, they must survive boot and be reused where applicable. Invalidated evidence must produce an actionable prerequisite rather than a fabricated qualification.
+Automatic configuration means the Jetson restores its saved installation settings, Ethernet bridge membership, fixed maintenance address and confirmed robot-address profile, selected Spot release, USB-to-role bindings, capture requests/controls, and still-valid calibration/timing records. When the roboRIO is available, Spot automatically connects to its configured NT4 server and receives/applies the current Java profile. Verify actual applied profile/generation and camera readback, not just files on disk. Initial physical measurements, first-time binding or calibration are not automatically generated: once legitimately configured, they must survive boot and be reused where applicable. Invalidated evidence must produce an actionable prerequisite rather than a fabricated qualification.
 
 Execute these two startup orders with all three SWYFT cameras connected:
 

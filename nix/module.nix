@@ -17,10 +17,6 @@ in
       default = { };
       description = "Spot installation settings written to /etc/spot-vision/installation.json.";
     };
-    ethernetInterfaces = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      description = "Physical Ethernet interfaces advertised by Avahi.";
-    };
   };
   config = lib.mkIf cfg.enable {
     services.spot-vision.settings = {
@@ -37,12 +33,6 @@ in
         hostnames = lib.mkDefault [ "spot.local" ];
       };
     };
-    assertions = [
-      {
-        assertion = cfg.ethernetInterfaces != [ ];
-        message = "Spot requires at least one physical Ethernet interface for discovery.";
-      }
-    ];
     users.groups.spot-vision = { };
     users.users.spot-vision = {
       isSystemUser = true;
@@ -65,7 +55,6 @@ in
     services.avahi = {
       enable = true;
       hostName = "spot";
-      allowInterfaces = cfg.ethernetInterfaces;
       openFirewall = true;
       publish = {
         enable = true;
@@ -136,9 +125,15 @@ in
       };
     };
     systemd.services.spot-network = {
-      description = "Spot Ethernet configuration helper";
-      requires = [ "NetworkManager.service" ];
-      after = [ "NetworkManager.service" ];
+      description = "Spot Ethernet bridge configuration helper";
+      requires = [
+        "NetworkManager.service"
+        "NetworkManager-ensure-profiles.service"
+      ];
+      after = [
+        "NetworkManager.service"
+        "NetworkManager-ensure-profiles.service"
+      ];
       path = [
         pkgs.networkmanager
         pkgs.systemd

@@ -26,7 +26,6 @@
   services.spot-vision = {
     enable = true;
     package = (packageFor pkgs).spot;
-    ethernetInterfaces = [ "spot0" ];
     settings.nt.team = 581;
   };
   system.stateVersion = "26.05";

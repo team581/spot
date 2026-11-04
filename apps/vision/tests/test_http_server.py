@@ -247,14 +247,15 @@ def test_network_changes_use_existing_session_guards_and_strict_payloads(web):
     request, headers, submissions, server = web
     body = operation(
         operation="network/apply",
-        payload={"interface": "eth0", "mode": "static", "address": "10.5.81.11/24"},
+        payload={"mode": "static", "address": "10.5.81.11/24"},
     )
     assert request("POST", "/api/operations", body, {})[0] == 403
     assert request("POST", "/api/operations", body, headers)[0] == 202
     assert submissions[-1][0] == "network/apply"
     for payload in (
-        {"interface": "eth0", "mode": "static", "address": "10.5.81.255/24"},
-        {"interface": "eth0", "mode": "automatic", "address": "10.5.81.11/24"},
+        {"mode": "static", "address": "10.5.81.255/24"},
+        {"mode": "automatic", "address": "10.5.81.11/24"},
+        {"interface": "spot0", "mode": "static", "address": "10.5.81.11/24"},
     ):
         assert (
             request(

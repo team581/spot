@@ -32,7 +32,7 @@ QSPI firmware.
 
 ## Hardware configuration
 
-- The maintenance port at PCI path `platform-140a0000.pcie-pci-0008:01:00.0`
+- The port at PCI path `platform-140a0000.pcie-pci-0008:01:00.0`
   (`enP8p1s0` on Ubuntu) becomes `spot0`.
 - The second port at `platform-141e0000.pcie-pci-0007:01:00.0`
   (`enP7p1s0`) becomes `spot1`.
@@ -47,7 +47,9 @@ QSPI firmware.
 
 The installed system and `.#installer` import the same board module and
 maintenance access module. The installer authorizes the shared `team581` SSH
-key and supplies `192.168.69.170/24` on `spot0`, without a default route.
+key and supplies `192.168.69.170/24` on `br0`, without a default route.
+Both `spot0` and `spot1` are bridge members; either socket provides maintenance
+access. Bridge forwarding and cable swapping still require hardware qualification.
 It does not install the Spot application or automatically partition disks.
 
 ## Qualification

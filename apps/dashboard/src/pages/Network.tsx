@@ -5,14 +5,13 @@ export default function NetworkPage() {
 	const { status, mutate, announce } = useDashboard(),
 		network = status.network ?? {},
 		endpoint = status.endpoint ?? {};
-	const [port, setPort] = useState(''),
-		[mode, setMode] = useState('automatic'),
-		[address, setAddress] = useState(''),
+	const [mode, setMode] = useState(network.mode ?? 'automatic'),
+		[address, setAddress] = useState(network.address ?? ''),
 		[busy, setBusy] = useState(false),
 		[feedback, setFeedback] = useState(''),
 		[error, setError] = useState('');
 
-	const [restore, setRestore] = useState(false),
+	const [restore, setRestore] = useState(true),
 		[lastPending, setLastPending] = useState('');
 	const token = network.pending?.token ?? '';
 	if (lastPending !== token) {
@@ -20,10 +19,9 @@ export default function NetworkPage() {
 		if (lastPending && !token) setRestore(true);
 	}
 	if (restore && !busy && !network.pending) {
-		const selected = network.interfaces?.find((i) => i.interface === port);
-		if (selected && selected.mode !== 'unconfigured' && (selected.mode !== 'static' || selected.addresses.length)) {
-			setMode(selected.mode);
-			setAddress(selected.addresses[0] || '');
+		if (network.available && network.mode) {
+			setMode(network.mode);
+			setAddress(network.address ?? '');
 			setRestore(false);
 		}
 	}
@@ -103,13 +101,19 @@ export default function NetworkPage() {
 					{network.hostname ? (
 						<>
 							Find Spot on this local network:{' '}
-							<a href={`http://${network.hostname}:${location.port || 80}/`}>{network.hostname}</a>. The current IP
-							addresses are listed for each port.
+							<a href={`http://${network.hostname}:${location.port || 80}/`}>{network.hostname}</a>.
 						</>
 					) : (
 						'Local-name discovery is unavailable. Use one of the current IP addresses below.'
 					)}
 				</p>
+				<p>Either Ethernet port works. Both ports share these addresses and settings.</p>
+				<DataList
+					values={{
+						'Current addresses': network.addresses?.join(', ') || 'Unavailable',
+						'Maintenance address': network.maintenance_address || 'Unavailable',
+					}}
+				/>
 				<p className="lock">
 					{network.available
 						? (status.connected && status.lock_reason) || ''
@@ -118,8 +122,8 @@ export default function NetworkPage() {
 				{pending ? (
 					<div>
 						<p id="network-countdown" role="status">
-							Testing {pending.interface}. Automatic rollback in {pending.remaining_s} seconds.{' '}
-							{target ? <a href={target}>Open the new address</a> : 'Check the assigned DHCP address in the port list.'}
+							Testing network settings. Automatic rollback in {pending.remaining_s} seconds.{' '}
+							{target ? <a href={target}>Open the new address</a> : 'Check the assigned DHCP address above.'}
 						</p>
 						<button disabled={busy} onClick={() => void change('confirm', { token: pending.token })}>
 							Keep settings
@@ -133,39 +137,17 @@ export default function NetworkPage() {
 					onSubmit={(e) => {
 						e.preventDefault();
 						void change('apply', {
-							interface: port,
 							mode,
 							address: mode === 'static' ? address.trim() : '',
 						});
 					}}
 				>
-					<label htmlFor="network-interface">Ethernet port</label>
-					<select
-						id="network-interface"
-						value={port}
-						disabled={busy || Boolean(pending)}
-						onChange={(e) => {
-							setPort(e.target.value);
-							const selected = network.interfaces?.find((i) => i.interface === e.target.value);
-							if (selected) {
-								setMode(selected.mode === 'static' ? 'static' : 'automatic');
-								setAddress(selected.addresses[0] || '');
-							}
-						}}
-					>
-						<option value="">Choose a port</option>
-						{network.interfaces?.map((i) => (
-							<option key={i.interface} value={i.interface}>
-								{i.interface} · {i.addresses.join(', ') || 'No IPv4 address'} · {i.mode}
-							</option>
-						))}
-					</select>
 					<label htmlFor="network-mode">Address mode</label>
 					<select
 						id="network-mode"
 						value={mode}
 						disabled={busy || Boolean(pending)}
-						onChange={(e) => setMode(e.target.value)}
+						onChange={(e) => setMode(e.target.value === 'static' ? 'static' : 'automatic')}
 					>
 						<option value="automatic">Automatic (DHCP)</option>
 						<option value="static">Static</option>
@@ -180,14 +162,18 @@ export default function NetworkPage() {
 						disabled={mode !== 'static' || busy || Boolean(pending)}
 					/>
 					<p>
-						Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. Use a different subnet for each
-						Jetson port.
+						Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. The maintenance address stays
+						available through either port.
 					</p>
 					<button
 						className="primary"
 						type="submit"
 						disabled={
-							busy || !network.available || !port || Boolean(pending) || Boolean(status.connected && status.lock_reason)
+							busy ||
+							!network.available ||
+							(mode === 'static' && !address.trim()) ||
+							Boolean(pending) ||
+							Boolean(status.connected && status.lock_reason)
 						}
 					>
 						Apply for 90 seconds

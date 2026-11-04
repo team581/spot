@@ -10,7 +10,6 @@ import copy
 import ipaddress
 import json
 import os
-import re
 import socket
 import subprocess
 import threading
@@ -23,6 +22,8 @@ SOCKET = "/run/spot-network.sock"
 NM = "org.freedesktop.NetworkManager"
 NM_PATH = "/org/freedesktop/NetworkManager"
 MAX_MESSAGE = 8192
+SAVED_CONNECTION = "Spot Ethernet override"
+TRIAL_CONNECTION = "Spot Ethernet trial"
 
 
 class NetworkError(ValueError):
@@ -30,11 +31,9 @@ class NetworkError(ValueError):
 
 
 def validate_change(values):
-    if not isinstance(values, dict) or set(values) != {"interface", "mode", "address"}:
-        raise NetworkError("Choose an Ethernet port, address mode and IPv4 address")
-    interface, mode, address = (values[k] for k in ("interface", "mode", "address"))
-    if not isinstance(interface, str) or not re.fullmatch(r"[a-zA-Z0-9_.-]{1,15}", interface):
-        raise NetworkError("Invalid Ethernet port")
+    if not isinstance(values, dict) or set(values) != {"mode", "address"}:
+        raise NetworkError("Choose an address mode and IPv4 address")
+    mode, address = values["mode"], values["address"]
     if mode not in {"automatic", "static"}:
         raise NetworkError("Choose Automatic (DHCP) or Static")
     if not isinstance(address, str) or len(address) > 32:
@@ -80,7 +79,17 @@ def run(arguments, *, timeout=8):
 
 
 class NetworkManager:
-    def __init__(self, state=Path("/var/lib/spot-network/transaction.json"), runner=run):
+    def __init__(
+        self,
+        interface: str,
+        maintenance_address: str,
+        default_connection: str,
+        state=Path("/var/lib/spot-network/transaction.json"),
+        runner=run,
+    ):
+        self.interface = interface
+        self.maintenance_address = str(ipaddress.IPv4Interface(maintenance_address))
+        self.default_connection = default_connection
         self.state, self.run = state, runner
 
     def nm(self, *args, timeout=8):
@@ -110,65 +119,103 @@ class NetworkManager:
         return json.loads(reply)["data"]
 
     def rollback(self, checkpoint):
+        if checkpoint not in self.checkpoints():
+            return
         self.bus("CheckpointRollback", "o", checkpoint)
-        # NetworkManager 1.36 destroys a checkpoint as part of rollback.
         if checkpoint in self.checkpoints():
             self.bus("CheckpointDestroy", "o", checkpoint)
+
+    def connections(self):
+        return dict(
+            row.split(":", 1)
+            for row in self.nm("-t", "-f", "UUID,NAME", "connection", "show").splitlines()
+            if ":" in row
+        )
+
+    def delete_owned(self, identity):
+        if identity != self.default_connection and self.connections().get(identity) in {
+            SAVED_CONNECTION,
+            TRIAL_CONNECTION,
+        }:
+            self.nm("connection", "delete", "uuid", identity)
+
+    def save(self, pending):
+        self.state.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary = self.state.with_suffix(".next")
+        with temporary.open("w") as stream:
+            json.dump(pending, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        temporary.replace(self.state)
+
+    def commit(self, pending):
+        self.nm(
+            "connection",
+            "modify",
+            "uuid",
+            pending["connection_uuid"],
+            "connection.id",
+            SAVED_CONNECTION,
+            "connection.autoconnect",
+            "yes",
+        )
 
     def pending(self):
         if not self.state.exists():
             return None
         pending = json.loads(self.state.read_text())
         if pending["checkpoint"] not in self.checkpoints():
-            if not pending.get("confirm_requested"):
-                self.nm("connection", "delete", "uuid", pending["connection_uuid"])
-            self.state.unlink(missing_ok=True)
+            # Reconcile an interrupted confirmation only if its connection is
+            # still active. A timed-out trial must never become a boot default.
+            if pending.get("confirm_requested") and (
+                self.network()["connection_uuid"] == pending["connection_uuid"]
+            ):
+                self.commit(pending)
+                self.delete_owned(pending["previous_connection_uuid"])
+            else:
+                self.delete_owned(pending["connection_uuid"])
+            self.state.unlink()
             return None
         return pending
 
-    def interfaces(self):
-        active = {}
-        for row in self.nm(
-            "-t", "-f", "UUID,DEVICE", "connection", "show", "--active"
-        ).splitlines():
-            identity, _, device = row.partition(":")
-            active[device] = identity
+    def network(self):
         links = json.loads(self.run(["ip", "-json", "address", "show"]))
-        result = []
-        for link in links:
-            name = link["ifname"]
-            if not Path("/sys/class/net", name, "device").exists():
-                continue
-            if self.nm("-g", "GENERAL.TYPE", "device", "show", name) != "ethernet":
-                continue
-            identity = active.get(name)
-            method = (
-                self.nm("-g", "ipv4.method", "connection", "show", "uuid", identity)
-                if identity
-                else ""
+        link = next((link for link in links if link["ifname"] == self.interface), None)
+        if (
+            link is None
+            or self.nm("-g", "GENERAL.TYPE", "device", "show", self.interface) != "bridge"
+        ):
+            raise NetworkError("The configured Spot Ethernet bridge is unavailable")
+        identity = self.nm("-g", "GENERAL.CON-UUID", "device", "show", self.interface)
+        if not identity or identity == "--":
+            raise NetworkError("The Spot Ethernet bridge has no active connection")
+        method = self.nm("-g", "ipv4.method", "connection", "show", "uuid", identity)
+        configured = self.nm("-g", "ipv4.addresses", "connection", "show", "uuid", identity)
+        return {
+            "connection_uuid": identity,
+            "connected": "LOWER_UP" in link.get("flags", []),
+            "addresses": [
+                f"{a['local']}/{a['prefixlen']}"
+                for a in link.get("addr_info", [])
+                if a["family"] == "inet"
+            ],
+            "mode": "automatic" if method == "auto" else "static",
+            "address": next(
+                (
+                    a.strip()
+                    for a in configured.split(",")
+                    if a.strip() and a.strip() != self.maintenance_address
+                ),
+                "",
             )
-            result.append(
-                {
-                    "interface": name,
-                    "mac": link.get("address", ""),
-                    "connected": "LOWER_UP" in link.get("flags", []),
-                    "addresses": [
-                        f"{a['local']}/{a['prefixlen']}"
-                        for a in link.get("addr_info", [])
-                        if a["family"] == "inet"
-                    ],
-                    "mode": "automatic"
-                    if method == "auto"
-                    else "static"
-                    if method == "manual"
-                    else "unconfigured",
-                    "connection_uuid": identity,
-                }
-            )
-        return result
+            if method == "manual"
+            else "",
+        }
 
     def status(self):
         pending = self.pending()
+        network = self.network()
         hostname, discovery = "", "unavailable"
         try:
             reply = self.run(
@@ -187,137 +234,116 @@ class NetworkManager:
             discovery = "active"
         except NetworkError:
             pass
-        addresses = [
-            a["local"]
-            for link in json.loads(self.run(["ip", "-json", "address", "show"]))
-            for a in link.get("addr_info", [])
-            if a["family"] == "inet"
-        ]
         return {
             "available": True,
-            "interfaces": self.interfaces(),
             "hostname": hostname,
-            "local_addresses": addresses,
             "discovery": discovery,
-            "pending": (
-                {
-                    "token": pending["token"],
-                    "interface": pending["interface"],
-                    "address": pending["address"],
-                    "remaining_s": max(0, round(pending["deadline"] - time.monotonic())),
-                }
-                if pending
-                else None
-            ),
+            "maintenance_address": self.maintenance_address,
+            "addresses": network["addresses"],
+            "local_addresses": [address.split("/", 1)[0] for address in network["addresses"]],
+            "connected": network["connected"],
+            "mode": network["mode"],
+            "address": network["address"],
+            "pending": {
+                "token": pending["token"],
+                "address": pending["address"],
+                "remaining_s": max(0, round(pending["deadline"] - time.monotonic())),
+            }
+            if pending
+            else None,
         }
+
+    def require_ready(self, pending):
+        network = self.network()
+        addresses = network["addresses"]
+        ready = (
+            pending["address"] in addresses
+            if pending["mode"] == "static"
+            else any(address != self.maintenance_address for address in addresses)
+        )
+        if (
+            network["connection_uuid"] != pending["connection_uuid"]
+            or not network["connected"]
+            or self.maintenance_address not in addresses
+            or not ready
+        ):
+            raise NetworkError("Wait for both the maintenance and robot addresses, or revert")
 
     def apply(self, values):
         values = validate_change(values)
         if self.pending():
             raise NetworkError("Confirm or revert the pending network change first")
-        interfaces = self.interfaces()
-        selected = next((i for i in interfaces if i["interface"] == values["interface"]), None)
-        if selected is None:
-            raise NetworkError(
-                "Only a physical Ethernet port managed by NetworkManager can be changed"
-            )
+        selected = self.network()
+        profiles = self.connections()
+        previous = selected["connection_uuid"]
+        if previous != self.default_connection and profiles.get(previous) != SAVED_CONNECTION:
+            raise NetworkError("The active bridge connection is not managed by Spot")
+        if self.maintenance_address not in selected["addresses"]:
+            raise NetworkError("Restore the NixOS maintenance address before changing settings")
         if values["mode"] == "static":
-            network = ipaddress.IPv4Interface(values["address"]).network
-            # Also include Wi-Fi, bridges and VPN addresses in the overlap check.
+            address = ipaddress.IPv4Interface(values["address"])
+            if address.ip == ipaddress.IPv4Interface(self.maintenance_address).ip:
+                raise NetworkError("The maintenance address is fixed by NixOS")
             for link in json.loads(self.run(["ip", "-json", "address", "show"])):
-                if link["ifname"] == values["interface"]:
+                if link["ifname"] == self.interface:
                     continue
                 for a in link.get("addr_info", []):
-                    if a["family"] == "inet" and network.overlaps(
+                    if a["family"] == "inet" and address.network.overlaps(
                         ipaddress.IPv4Network(f"{a['local']}/{a['prefixlen']}", strict=False)
                     ):
-                        raise NetworkError(
-                            "This subnet overlaps another Jetson port; choose separate subnets"
-                        )
-        device = self.nm("-g", "GENERAL.DBUS-PATH", "device", "show", values["interface"])
-        checkpoint_at = time.monotonic()
-        checkpoint = self.bus("CheckpointCreate", "aouu", 1, device, 90, 0)[0]
-        identity, token = None, uuid.uuid4().hex
+                        raise NetworkError("This subnet overlaps another Jetson network")
+        for identity, name in profiles.items():
+            if name == TRIAL_CONNECTION:
+                self.delete_owned(identity)
+        identity, checkpoint = None, None
         try:
-            name = "Spot-" + values["interface"] + "-" + token[:8]
-            old = selected["connection_uuid"]
-            priority = (
-                int(
-                    self.nm(
-                        "-g", "connection.autoconnect-priority", "connection", "show", "uuid", old
-                    )
-                )
-                if old
-                else 0
+            # Clone only the Nix-owned template, including bridge/MAC/STP policy.
+            # The trial stays in memory until the operator confirms it.
+            self.nm(
+                "connection",
+                "clone",
+                "--temporary",
+                "uuid",
+                self.default_connection,
+                TRIAL_CONNECTION,
             )
-            if priority >= 999:
-                raise NetworkError(
-                    "Connection priority needs administrator review before another change"
-                )
-            if old:
-                self.nm("connection", "clone", "uuid", old, name)
-            else:
-                self.nm(
-                    "connection",
-                    "add",
-                    "type",
-                    "ethernet",
-                    "ifname",
-                    values["interface"],
-                    "con-name",
-                    name,
-                )
-            identity = self.nm("-g", "connection.uuid", "connection", "show", name)
+            identity = self.nm("-g", "connection.uuid", "connection", "show", TRIAL_CONNECTION)
+            addresses = [self.maintenance_address]
+            if values["mode"] == "static":
+                addresses.append(values["address"])
             self.nm(
                 "connection",
                 "modify",
+                "--temporary",
                 "uuid",
                 identity,
                 "connection.autoconnect",
                 "no",
-                "connection.interface-name",
-                values["interface"],
-                "802-3-ethernet.mac-address",
-                selected["mac"],
+                "connection.autoconnect-priority",
+                "100",
                 "ipv4.method",
                 "auto" if values["mode"] == "automatic" else "manual",
                 "ipv4.addresses",
-                values["address"],
-                "ipv4.gateway",
-                "",
-                "ipv4.dns",
-                "",
-                "ipv4.routes",
-                "",
-                "ipv4.never-default",
-                "yes",
-                "ipv4.ignore-auto-dns",
-                "yes",
-                "ipv6.never-default",
-                "yes",
-                "ipv6.ignore-auto-dns",
-                "yes",
-                "ipv4.dad-timeout",
-                "1500",
+                ",".join(addresses),
             )
+            device = self.nm("-g", "GENERAL.DBUS-PATH", "device", "show", self.interface)
+            checkpoint_at = time.monotonic()
+            checkpoint = self.bus("CheckpointCreate", "aouu", 1, device, 90, 0)[0]
             pending = {
                 **values,
-                "token": token,
+                "token": uuid.uuid4().hex,
                 "connection_uuid": identity,
-                "priority": priority + 1,
+                "previous_connection_uuid": previous,
                 "checkpoint": checkpoint,
                 "deadline": checkpoint_at + 90,
             }
-            self.state.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            temporary = self.state.with_suffix(".next")
-            temporary.write_text(json.dumps(pending))
-            temporary.chmod(0o600)
-            temporary.replace(self.state)
+            self.save(pending)
             self.nm("--wait", "45", "connection", "up", "uuid", identity, timeout=49)
         except Exception:
-            self.rollback(checkpoint)
+            if checkpoint:
+                self.rollback(checkpoint)
             if identity:
-                self.nm("connection", "delete", "uuid", identity)
+                self.delete_owned(identity)
             self.state.unlink(missing_ok=True)
             raise
         return self.status()
@@ -327,36 +353,17 @@ class NetworkManager:
         if not pending or token != pending["token"]:
             raise NetworkError("This network change expired or was already reverted")
         if keep:
-            current = next(
-                (i for i in self.interfaces() if i["interface"] == pending["interface"]), {}
-            )
-            if current.get("connection_uuid") != pending["connection_uuid"] or not current.get(
-                "addresses"
-            ):
-                raise NetworkError(
-                    "The selected port has no active IPv4 connection; revert or wait for rollback"
-                )
-            # Persist the user's confirmation before committing. If the helper
-            # restarts after CheckpointDestroy, status must not delete a kept profile.
+            self.require_ready(pending)
+            self.bus("CheckpointAdjustRollbackTimeout", "ou", pending["checkpoint"], 30)
+            pending["deadline"] = time.monotonic() + 30
             pending["confirm_requested"] = True
-            temporary = self.state.with_suffix(".next")
-            temporary.write_text(json.dumps(pending))
-            temporary.chmod(0o600)
-            temporary.replace(self.state)
-            self.nm(
-                "connection",
-                "modify",
-                "uuid",
-                pending["connection_uuid"],
-                "connection.autoconnect-priority",
-                str(pending["priority"]),
-                "connection.autoconnect",
-                "yes",
-            )
+            self.save(pending)
+            self.commit(pending)
             self.bus("CheckpointDestroy", "o", pending["checkpoint"])
+            self.delete_owned(pending["previous_connection_uuid"])
         else:
             self.rollback(pending["checkpoint"])
-            self.nm("connection", "delete", "uuid", pending["connection_uuid"])
+            self.delete_owned(pending["connection_uuid"])
         self.state.unlink(missing_ok=True)
         return self.status()
 
@@ -431,7 +438,7 @@ def serve():
     if os.geteuid() != 0 or os.environ.get("LISTEN_FDS") != "1":
         raise SystemExit("Run through spot-network.socket")
     listener = socket.socket(fileno=3)
-    manager = NetworkManager()
+    manager = NetworkManager(**json.loads(Path("/etc/spot-vision/network.json").read_text()))
     while True:
         connection, _ = listener.accept()
         with connection:

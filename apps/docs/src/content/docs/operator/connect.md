@@ -28,23 +28,24 @@ _Network shows the robot endpoint, local addresses, clock and profile. This exam
 
 ## Set the Jetson address
 
-Open **Network → Jetson address**. The port list shows each Ethernet interface and its current IP address. Pick the port you want to change.
+Open **Network → Jetson address**. Both Ethernet sockets share one network configuration. Use either socket for the robot network or a directly connected laptop. The page shows the current addresses and the fixed maintenance address.
 
 - **Automatic (DHCP)** gets an address from your router or robot network. It needs a DHCP server.
 - **Static** keeps the address you enter. For team 581, a free address such as **10.5.81.11/24** works on the robot subnet. Keep the roboRIO at its own address, usually **10.5.81.2**.
 
-Click **Apply for 90 seconds**. If needed, open the new address, then click **Keep settings**. If the connection fails or you do not confirm, Spot restores the previous connection automatically. **Revert now** restores it immediately. Confirmed settings survive a reboot.
+Click **Apply for 90 seconds**. If needed, open the new address, then click **Keep settings**. If the connection fails or you do not confirm, Spot restores the previous connection automatically. **Revert now** restores it without waiting for the timeout. Allow about 30 seconds for the Ethernet link to reconnect after applying or reverting settings. Confirmed settings survive a reboot.
 
 ```mermaid
 flowchart LR
-  A[Choose Ethernet port] --> B[Automatic or Static]
-  B --> C[Apply and check connection]
+  B[Automatic or Static] --> C[Apply and check connection]
   C --> D[Keep settings]
 ```
 
-For the two-cable bench, keep the Mac-facing port at **192.168.69.170/24** and change only the robot-facing port. The two ports must use different subnets. A cable directly to the roboRIO usually needs **Static** because neither end supplies DHCP. Wi-Fi and the internet default route are preserved.
+The maintenance address **192.168.69.170/24** remains on the shared Ethernet network during static and DHCP trials. A directly connected Mac can use **192.168.69.171/24** to reach it through either socket. First-time NixOS setup supplies maintenance access only; select the robot address here before connecting from a different subnet.
 
-**Find Spot:** open [spot.local:5800](http://spot.local:5800/) from the same local network. Network shows the actual local name and current IP addresses. If another device already uses `spot.local`, the displayed name may be `spot-2.local`. Discovery is advertised through the Jetson's Ethernet ports so a separate Jetson Wi-Fi link cannot divert name lookup from the robot or maintenance network. Local-name discovery does not cross routers or the Jetson's two Ethernet links; use the address on the link connected to your computer.
+For a two-cable bench, connect the laptop to either socket and the roboRIO to the other. The bridge connects them like a switch. A direct roboRIO cable usually needs **Static** because neither end supplies DHCP. To use robot deployment tools directly from the laptop, also give its Ethernet adapter an unused address on the robot subnet. Wi-Fi and the internet default route are preserved.
+
+**Find Spot:** open [spot.local:5800](http://spot.local:5800/) from the same local network. Network shows the actual local name and current IP addresses. If another device already uses `spot.local`, the displayed name may be `spot-2.local`. Discovery is advertised through the Ethernet bridge so a separate Jetson Wi-Fi link cannot divert name lookup. Local-name discovery does not cross routers; use an address on a subnet configured on your computer. Connecting two separate LANs to the sockets joins those LANs.
 
 If address controls are unavailable, the installation needs its network helper; see [deployment](../deployment). The **Jetson address** is separate from the **Robot endpoint**, which is the roboRIO NT server Spot connects to.
 

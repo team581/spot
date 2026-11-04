@@ -38,10 +38,26 @@ To refresh it locally with Determinate Nix, run `bash tools/update-pnpm-deps-has
 The Ethernet adapters are named `spot0` and `spot1` by PCI-path udev link rules.
 The Realtek port called `enP8p1s0` in Ubuntu becomes `spot0`; the Microchip port
 `enP7p1s0` becomes `spot1`. These names were verified in the live installer.
-A low-priority NetworkManager profile supplies `192.168.69.170/24`, without a
-default route. Confirmed GUI changes create higher-priority profiles and survive
-reboot. Avahi advertises `spot.local` on `spot0` only. Confirm the NIC driver and
-interface name during qualification.
+Both adapters join the `br0` Ethernet bridge, so either socket can connect to the
+robot network or a laptop. Nix supplies the fixed maintenance address
+`192.168.69.170/24` on the bridge, without a default route. Avahi advertises
+`spot.local` through the bridge. The ports share one Ethernet network; they are
+not isolated links. Spanning Tree Protocol is enabled for redundant cabling.
+
+The default profile supplies maintenance access only. For initial setup, put the
+computer on `192.168.69.0/24`, connect through either port, and use
+**Network → Jetson address** to choose the robot static IP or DHCP. Every trial
+retains the maintenance address and automatically rolls back after 90 seconds
+unless confirmed. Trials are memory-only. Confirmation saves one override at a
+fixed priority and removes the previous override; the Nix profile and both member
+profiles remain unchanged. The saved override survives reboot and Nix deployments.
+`/etc/spot-vision/network.json` supplies the helper's bridge name, maintenance
+address, and default profile UUID from the same Nix definitions.
+
+Before making this topology the boot default, use a test deployment to qualify
+both sockets individually, static and DHCP settings, timeout/revert recovery,
+and persistence across reboot and a Nix generation change. Existing installer
+evidence predates the bridge.
 
 Spot runs as `spot-vision` with video/render access and a read-only system. The
 privileged Ethernet helper is a separate service using a group-restricted Unix
