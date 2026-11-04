@@ -9,7 +9,7 @@ Build an immutable release, activate its ID, then verify the software actually r
 On the Jetson, prepare the build prerequisites in the repository README, then run:
 
 ```sh
-pnpm --dir docs-site install --frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm --dir docs-site build:jetson
 sudo deploy/install.sh /home/team581/spot-2026
 ```

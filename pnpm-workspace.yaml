@@ -1,0 +1,11 @@
+packages:
+  - docs-site
+  - tools/vscode-camera-preview
+
+minimumReleaseAgeExclude:
+  - '@team581/starlight-theme@0.0.0'
+  - pele@1.7.0
+
+# VSIX packaging does not sign extensions; skip the optional signing binary setup.
+allowBuilds:
+  '@vscode/vsce-sign': false

@@ -1,0 +1,29 @@
+{
+	"name": "spot",
+	"private": true,
+	"scripts": {
+		"build": "pnpm -r build",
+		"build:jetson": "pnpm --filter spot-docs build:jetson",
+		"check": "pnpm -r check",
+		"format": "oxfmt --check package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github src/spot_vision/web tools/tests && pnpm -r format",
+		"format:fix": "oxfmt package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github src/spot_vision/web tools/tests && pnpm -r format:fix",
+		"lint": "oxlint src/spot_vision/web tools/tests && pnpm -r lint",
+		"lint:fix": "oxlint --fix src/spot_vision/web tools/tests && pnpm -r lint:fix",
+		"knip": "knip",
+		"test": "node --test tools/tests/*.cjs && pnpm -r test"
+	},
+	"devDependencies": {
+		"knip": "6.42.0",
+		"oxfmt": "0.73.0",
+		"oxlint": "1.88.0",
+		"oxlint-tsgolint": "7.0.2004"
+	},
+	"devEngines": {
+		"runtime": {
+			"name": "node",
+			"version": "26.x",
+			"onFail": "warn"
+		}
+	},
+	"packageManager": "pnpm@12.16.1"
+}

@@ -1,10 +1,9 @@
 [build]
-  base = "docs-site"
-  command = "pnpm build"
-  publish = "../dist/docs"
+  command = "pnpm --filter spot-docs build"
+  publish = "dist/docs"
 
 [build.environment]
-  NODE_VERSION = "24"
+  NODE_VERSION = "26"
 
 [[headers]]
   for = "/*"

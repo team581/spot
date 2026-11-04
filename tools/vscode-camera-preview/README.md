@@ -6,13 +6,13 @@ See the [student guide](https://github.com/team581/spot-2026/blob/main/docs-site
 
 ## Development
 
-Run `npm ci`, `npm run compile`, and `npm test` here. Run `python3 test/installer.py` from this directory to exercise the Gradle installer with fake editor/release commands. Java export tests live in both robot projects. The real renderer is copied from Spot's dashboard during `npm run package`.
+Run `pnpm install` at the repository root, then `pnpm build` and `pnpm test` here. Run `python3 test/installer.py` from this directory to exercise the Gradle installer with fake editor/release commands. Java export tests live in both robot projects. The real renderer is copied from Spot's dashboard during `pnpm package`.
 
 To debug, launch VS Code with `--extensionDevelopmentPath` pointing at this directory after compiling and copying `../../src/spot_vision/web/viewer.js` into `media/viewer.js` (packaging does this automatically). Open one of the supported robot projects in the development window.
 
 ## Private release procedure
 
-1. Set the extension version in `package.json`; run tests and `npm run package`.
+1. Set the extension version in `package.json`; run tests and `pnpm package`.
 2. Authenticate GitHub CLI with access to the private Spot repository.
 3. Run `node release.cjs`. It verifies repository privacy, publishes the versioned VSIX and checksum, and pins both local robot-project manifests. It does not commit or push repository changes.
 4. Commit the implementation and updated manifests in both repositories so students obtain the approved release pin when pulling changes. A release alone does not advance student installations.
@@ -23,7 +23,7 @@ The first release may refer to a repository commit predating the extension sourc
 
 ## Coordinate regression tests
 
-`npm test` compares the actual Jetson dashboard geometry-form adapter and both shared-renderer modes against 26 positive/negative translation and rotation cases exported by real WPILib. It covers positive/negative pitch, roll and yaw, compound rotations, and ±90° pitch. The same numeric pitch has the same sign and direction in Java and Jetson inspection controls (positive down, negative up). The two paths must render identical camera geometry for equivalent poses.
+`pnpm test` compares the actual Jetson dashboard geometry-form adapter and both shared-renderer modes against 26 positive/negative translation and rotation cases exported by real WPILib. It covers positive/negative pitch, roll and yaw, compound rotations, and ±90° pitch. The same numeric pitch has the same sign and direction in Java and Jetson inspection controls (positive down, negative up). The two paths must render identical camera geometry for equivalent poses.
 
 Run `SpotCameraConventionTest` in both robot projects when changing coordinate handling. It verifies their exporter results and world-axis directions against the fixtures in `src/test/resources/spot-camera-conventions.json`. If intentionally changing those conventions, review the emitted `build/spot-camera-preview/convention-cases.json` before updating both fixtures and running the JS tests. Do not update the fixtures solely to silence a failing test.
 

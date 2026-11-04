@@ -1,0 +1,17 @@
+{
+	"categories": {
+		"correctness": "error",
+		"perf": "error"
+	},
+	"ignorePatterns": ["**/out/**", "tools/vscode-camera-preview/media/viewer.js"],
+	"rules": {
+		"no-await-in-loop": "off",
+		"no-unused-expressions": [
+			"error",
+			{
+				"allowShortCircuit": true,
+				"allowTernary": true
+			}
+		]
+	}
+}
