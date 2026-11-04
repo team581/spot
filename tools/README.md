@@ -185,7 +185,10 @@ when the connection is lost.
 
 ## Local verification
 
-Run the HTTP and CPU packaging checks after building the Jetson docs:
+Run `mise run setup` from the repository root after cloning. It installs the JS
+workspace, builds the Jetson docs, and compiles the CPU native module.
+
+Run all Python checks and the CPU packaging check after setup:
 
 ```sh
 mise run check:application
@@ -194,7 +197,7 @@ mise run check:application
 With the repository's full development environment, run all tests:
 
 ```sh
-.venv/bin/python -m pytest tools/tests tests
+mise run test
 ```
 
 Dashboard tests use synthetic observations, a fake local SSH executable, and a

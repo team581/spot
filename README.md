@@ -21,6 +21,45 @@ The camera commands and Jetson NT server configuration below describe alpha
 development. They do not certify beta robot operation; beta robot mode uses the
 roboRIO as NT server and Jetson as client. See [v2 schema/API notes](proto/README.md).
 
+## Local development
+
+Install mise and a C++ compiler (Xcode Command Line Tools on macOS), then run:
+
+```sh
+mise install
+mise run setup
+```
+
+This installs the root pnpm workspace, builds the offline Astro/Starlight docs,
+and uses uv to compile and install `_spot_cuda` with the CPU detector in `.venv`.
+No CUDA installation is needed for local development. Python source stays editable;
+`uv run` and `uv sync` rebuild the native module when its CMake/C++ inputs change.
+Run `pnpm build:jetson` after editing bundled docs. Setup is safe to rerun.
+
+```sh
+mise run format
+mise run lint
+mise run typecheck
+mise run test
+```
+
+Use `mise run format:fix` and `mise run lint:fix` to apply automatic fixes.
+JavaScript dependencies share the root `pnpm-lock.yaml`; run `pnpm install` from
+the root. Python dependencies and development tools use `uv.lock`.
+
+ty checks the service against the Python 3.10 minimum. `ty-baseline.json` records
+existing type errors, including missing generated/native type information, so new
+errors fail checks without hiding an entire rule or module. Fix existing findings
+and then run `uv run --no-sync ty check --update-baseline` to shrink the baseline;
+review baseline changes rather than accepting new errors into it.
+
+On a Jetson with the prerequisites below, use `mise run setup:jetson` to select
+CUDA explicitly. Plain local builds default to CPU. The production installer also
+selects CUDA explicitly. Python 3.12 is used for development; Python 3.10 remains
+the minimum supported runtime. Node is only required to build the bundled docs.
+After a CUDA setup, preserve that selection with
+`uv run -Ccmake.define.SPOT_BUILD_CUDA=ON ...` when syncing through uv.
+
 ## Beta setup and review
 
 The installed beta runs with `spot-vision beta --installation
@@ -69,14 +108,14 @@ tools; installed Jetson releases serve the bundled site without them.
 Build and install into a virtual environment:
 
 ```sh
-CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra systemd
+CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra systemd
 ```
 
 NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
 Install it for the default alpha configuration:
 
 ```sh
-CMAKE_ARGS="-DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra nt --extra systemd
+CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" uv sync --locked --extra nt --extra systemd
 ```
 
 The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,

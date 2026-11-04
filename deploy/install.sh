@@ -30,7 +30,7 @@ build_dir=$(mktemp -d /var/tmp/spot-release.XXXXXXXX)
 trap 'rm -rf "$build_dir"' EXIT
 python3 -m venv "$build_dir/build-env"
 "$build_dir/build-env/bin/python" -m pip install --upgrade pip
-CMAKE_ARGS=-DSPOT_CUDA_ARCHITECTURES=87 \
+CMAKE_ARGS="-DSPOT_BUILD_CUDA=ON -DSPOT_CUDA_ARCHITECTURES=87" \
   "$build_dir/build-env/bin/python" -m pip wheel --no-deps "$source_dir" -w "$build_dir/wheels"
 wheel_path=$(find "$build_dir/wheels" -maxdepth 1 -name 'spot_vision-*.whl' -print -quit)
 release_id=$("$build_dir/build-env/bin/python" - "$wheel_path" <<'PY'

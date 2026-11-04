@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(SPOT_BUILD_CUDA "Build the Team 766 CUDA detector" ON)
+option(SPOT_BUILD_CUDA "Build the Team 766 CUDA detector" OFF)
 option(SPOT_BUILD_CUDA_TESTS "Build upstream CUDA detector tests" OFF)
 set(SPOT_CUDA_ARCHITECTURES "87" CACHE STRING "CUDA architectures (Orin is 87)")
 

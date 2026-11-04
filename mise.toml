@@ -1,10 +1,52 @@
 [settings]
 idiomatic_version_file_enable_tools = ["node", "pnpm"]
 
-[tasks."check:application"]
-description = "Check HTTP integration and build the CPU wheel (requires build:jetson output)"
+[tools]
+uv = "0.13.6"
+
+[tasks.setup]
+description = "Install the JS workspace, bundle docs, and build the CPU native module"
 run = [
-  "uv sync --locked --no-install-project",
-  "uv run --no-sync python -m pytest tests/test_beta_web.py tools/tests/test_build_manifest.py",
+  "pnpm install --frozen-lockfile",
+  "pnpm build",
+  "pnpm build:jetson",
+  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+]
+
+[tasks."setup:jetson"]
+description = "Install dependencies and build the CUDA module on a Jetson with JetPack"
+run = [
+  "pnpm install --frozen-lockfile",
+  "pnpm build",
+  "pnpm build:jetson",
+  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON",
+]
+
+[tasks.format]
+run = ["pnpm format", "uv run --no-sync ruff format --check"]
+
+[tasks."format:fix"]
+run = ["pnpm format:fix", "uv run --no-sync ruff format"]
+
+[tasks.lint]
+run = ["pnpm lint", "pnpm knip", "uv run --no-sync ruff check"]
+
+[tasks."lint:fix"]
+run = ["pnpm lint:fix", "uv run --no-sync ruff check --fix"]
+
+[tasks.typecheck]
+run = ["pnpm check", "uv run --no-sync ty check"]
+
+[tasks.test]
+run = ["uv run --no-sync pytest", "pnpm test"]
+
+[tasks."check:application"]
+description = "Build the CPU module and run Python format, lint, type and integration checks"
+run = [
+  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "uv run --no-sync ruff format --check",
+  "uv run --no-sync ruff check",
+  "uv run --no-sync ty check",
+  "uv run --no-sync pytest",
   "uv build --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
 ]
