@@ -67,6 +67,26 @@ architecture, and browser behavior checks.
 
 ty checks the service against the Python 3.10 minimum without a diagnostic baseline.
 
+Vulture checks Python application code, tests, and tools at 60% confidence, including
+unused functions and classes. It runs in `mise run lint` and `mise run check:application`;
+run `mise run deadcode` for just this check. Existing findings are captured in
+[`vulture_whitelist.py`](vulture_whitelist.py), including unreviewed cleanup candidates
+and dynamically consumed names. The whitelist is parsed by Vulture, never executed.
+It suppresses names globally, not individual locations.
+
+To review the findings without the baseline:
+
+```sh
+uv run --no-sync vulture apps tools check_cameras.py --sort-by-size
+```
+
+This command exits with status 3 when it finds candidates. Tests count as usage;
+a passing scan does not prove that every definition is reachable in production.
+Review each candidate before deleting it: HTTP callbacks, serialized fields, and
+native-library attributes can appear unused. Remove obsolete whitelist entries as
+cleanup progresses, retain documented false positives, and rerun `mise run deadcode`.
+Do not regenerate the baseline to suppress new findings.
+
 For Jetson deployment, use the [NixOS appliance configuration](nix/README.md).
 Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.
 Python 3.12 is used for development; Python 3.10 remains
