@@ -113,6 +113,21 @@ as the guest: the guest reports its virtual disk capacity, not the remaining
 space on the Mac. A Linux container builder keeps Nix off the factory Ubuntu
 installation.
 
+The Linux builder also needs a case-sensitive Nix store. NVIDIA's multimedia
+archive contains both `NvBufSurface.h` and `nvbufsurface.h`. With a
+case-insensitive macOS `/nix` volume, Determinate's built-in Linux builder fails
+copying these headers with `File exists`. Build entirely inside a Linux
+container with its own `/nix`, rather than sharing the Mac's store. For the
+existing `spot-j401-builder` container on this Mac:
+
+```sh
+docker start spot-j401-builder
+docker exec -w /workspace spot-j401-builder \
+  nix --extra-experimental-features 'nix-command flakes' \
+  build path:.#packages.aarch64-linux.installer -L \
+  --max-jobs 1 --cores 8 --out-link /tmp/spot-installer
+```
+
 On this Mac's Docker compatibility layer, copying the ISO with `docker cp` via
 its result symlink produced an empty file. Streaming the resolved ISO with
 `docker exec ... cat` worked; compare its SHA-256 with the container's original
