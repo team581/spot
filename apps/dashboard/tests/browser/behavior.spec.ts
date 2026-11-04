@@ -369,6 +369,7 @@ test('mode and replacement operations use the camera identity and require feed c
 		route.fulfill({ json: { state: 'applied', revision: status.revision } }),
 	);
 	await page.goto('/#camera/' + status.cameras[0].identity);
+	await page.getByText('Advanced', { exact: true }).click();
 	await page.getByLabel('Capture resolution / rate').selectOption('1280x720');
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0]).toEqual(
@@ -377,6 +378,8 @@ test('mode and replacement operations use the camera identity and require feed c
 			payload: expect.objectContaining({ name: 'front-left', mode_id: '1280x720' }),
 		}),
 	);
+	// Applying a mode remounts the form; wait before interacting with the replacement controls.
+	await expect(page.getByRole('button', { name: 'Replace camera', exact: true })).toBeHidden();
 	await page.getByText('Advanced', { exact: true }).click();
 	await page.getByRole('button', { name: 'Replace camera', exact: true }).click();
 	await expect(page.locator('#page-feedback')).toContainText('Identify the replacement feed');
