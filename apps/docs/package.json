@@ -19,7 +19,7 @@
 		"@astrojs/markdown-satteri": "0.4.4",
 		"@astrojs/mdx": "8.1.0",
 		"@astrojs/starlight": "0.42.6",
-		"@team581/starlight-theme": "0.0.0",
+		"@team581/starlight-theme": "1.0.0",
 		"astro": "7.4.0",
 		"pele": "1.7.0"
 	},
