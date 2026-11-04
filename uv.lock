@@ -793,12 +793,13 @@ dependencies = [
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opencv-contrib-python-headless" },
     { name = "protobuf" },
+    { name = "robotpy-wpimath" },
+    { name = "robotpy-wpiutil" },
 ]
 
 [package.optional-dependencies]
 nt = [
     { name = "pyntcore" },
-    { name = "robotpy-wpimath" },
 ]
 systemd = [
     { name = "sdnotify" },
@@ -810,7 +811,8 @@ requires-dist = [
     { name = "opencv-contrib-python-headless", specifier = ">=4.9" },
     { name = "protobuf", specifier = ">=7.35.1" },
     { name = "pyntcore", marker = "extra == 'nt'", specifier = ">=2026.2.2,<2027" },
-    { name = "robotpy-wpimath", marker = "extra == 'nt'", specifier = ">=2026.2.2,<2027" },
+    { name = "robotpy-wpimath", specifier = ">=2026.2.2,<2027" },
+    { name = "robotpy-wpiutil", specifier = ">=2026.2.2,<2027" },
     { name = "sdnotify", marker = "extra == 'systemd'", specifier = ">=0.3.2" },
 ]
 provides-extras = ["nt", "systemd"]
