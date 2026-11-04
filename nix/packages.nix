@@ -37,7 +37,7 @@ let
     pnpmDeps = pkgs.fetchPnpmDeps {
       inherit (finalAttrs) pname version src;
       fetcherVersion = 3;
-      hash = "sha256-DpBVDBNuY+h2skrrpWZVFmnHpP2e9J6Fh9zOlN3oNg4=";
+      hash = "sha256-TdMok6zDxqarKcfZxdpdB2R2UGmb360e7OB3SzQEo5w=";
     };
     buildPhase = ''
       runHook preBuild
