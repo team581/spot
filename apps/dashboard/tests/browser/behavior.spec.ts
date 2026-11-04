@@ -12,6 +12,11 @@ test.beforeEach(async ({ page, context }) => {
 	});
 });
 
+test.afterEach(async ({ page }) => {
+	// Finish in-flight route handlers before their response bodies are disposed.
+	await page.unrouteAll({ behavior: 'wait' });
+});
+
 test('navigation, images, detections, pause and geometry inspection', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
