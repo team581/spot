@@ -52,10 +52,8 @@ layout = {1: [0.0, 0.0, 0.6], 2: [0.0, 1.35, 0.85]}
     + "\n"
 )
 config = {
-    "schema_version": 1,
     "field_layout": "layout.json",
     "tag_size_m": SIZE,
-    "nt": {"enabled": False},
     "cameras": [
         {
             "id": "front",
@@ -64,7 +62,7 @@ config = {
             "height": 800,
             "fps": 60,
             "calibration": "calibration.json",
-            "detector": {"backend": "cpu", "decimate": 1.0, "fallback_to_cpu": False},
+            "detector": {"backend": "cpu", "decimate": 1.0},
         }
     ],
 }

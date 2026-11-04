@@ -8,7 +8,7 @@ import hashlib
 import struct
 from dataclasses import dataclass, field
 
-from wpimath.geometry import Pose3d, Quaternion, Rotation3d, Translation2d, Translation3d
+from wpimath.geometry import Pose3d, Quaternion, Rotation3d, Translation3d
 from wpiutil.wpistruct import double, int32, int64, make_wpistruct
 
 from . import protocol_models as data
@@ -92,20 +92,6 @@ class FieldTag:
     id: int32 = 0
     pose: Pose3d = field(default_factory=Pose3d)
     size: double = 0.0
-
-
-@make_wpistruct(name="SpotTagDetection")
-@dataclass
-class TagDetection:
-    id: int32 = 0
-    topLeft: Translation2d = field(default_factory=Translation2d)
-    topRight: Translation2d = field(default_factory=Translation2d)
-    bottomRight: Translation2d = field(default_factory=Translation2d)
-    bottomLeft: Translation2d = field(default_factory=Translation2d)
-    hamming: int32 = 0
-    decisionMargin: double = 0.0
-    usedForPose: bool = False
-    distortion: double = 0.0
 
 
 def token(value: str) -> tuple[int, int]:

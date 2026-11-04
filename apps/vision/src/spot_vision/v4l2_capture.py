@@ -93,7 +93,7 @@ def _buffer(index=0):
     return _Buffer(index=index, type=1, memory=1)  # VIDEO_CAPTURE, MMAP
 
 
-class MjpegCapture:
+class V4l2Capture:
     """OpenCV-compatible read/release interface; no hidden, unbounded read loop."""
 
     def __init__(self, cv2, camera, device: str, timeout: float = 1.0) -> None:
@@ -107,8 +107,6 @@ class MjpegCapture:
         self.bytes_per_line = self.width * 2
         self.negotiated_fps = None
         self.last_sequence = None
-        self.last_driver_timestamp_us = None
-        self.last_driver_flags = None
         self.fd = -1
         self.buffers = []
         self.streaming = False
@@ -174,7 +172,7 @@ class MjpegCapture:
             if not ready:
                 return False, None
             latest = None
-            metadata = None
+            sequence = None
             # Bounded draining keeps latency low without chasing arriving frames
             # forever. Requeue before decoding so USB never waits on image work.
             for _ in range(len(self.buffers)):
@@ -200,12 +198,7 @@ class MjpegCapture:
                             and len(data) >= self.bytes_per_line * self.height
                         ):
                             latest = data
-                            metadata = (
-                                buffer.sequence,
-                                buffer.timestamp.seconds * 1_000_000
-                                + buffer.timestamp.microseconds,
-                                buffer.flags,
-                            )
+                            sequence = buffer.sequence
                 finally:
                     _ioctl(self.fd, 15, buffer)  # QBUF, including damaged frames
             if latest is not None:
@@ -219,10 +212,8 @@ class MjpegCapture:
                         np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_COLOR
                     )
                 if image is not None:
-                    assert metadata is not None
-                    self.last_sequence, self.last_driver_timestamp_us, self.last_driver_flags = (
-                        metadata
-                    )
+                    assert sequence is not None
+                    self.last_sequence = sequence
                     return True, image
         return False, None
 
@@ -242,7 +233,3 @@ class MjpegCapture:
             os.close(self.fd)
             self.fd = -1
             self.streaming = False
-
-
-# Name used by the installed application runtime; the alpha class name stays compatible.
-V4l2Capture = MjpegCapture

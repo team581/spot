@@ -163,7 +163,6 @@ def test_runtime_tuning_retains_single_capture_owner_and_detector(runtime):
             identity,
             1,
             1,
-            1,
             time.monotonic_ns(),
             np.zeros((480, 640, 2), np.uint8),
             "capture",
@@ -514,7 +513,6 @@ def test_status_reports_detection_latency_with_frame_identity(runtime):
     frame = FramePacket(
         identity,
         17,
-        19,
         1,
         time.monotonic_ns(),
         np.zeros((480, 640, 2), np.uint8),

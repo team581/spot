@@ -12,7 +12,7 @@ from spot_vision.models import DetectedFrame, Detection, DetectionBatch, FramePa
 def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
     hub = FrameHub(max_clients=1)
     packet = FramePacket(
-        "one", 1, 1, 1, time.monotonic_ns(), np.zeros((8, 8, 2), np.uint8), "epoch", "generation"
+        "one", 1, 1, time.monotonic_ns(), np.zeros((8, 8, 2), np.uint8), "epoch", "generation"
     )
     detection = Detection(1, np.array([[1, 1], [5, 1], [5, 5], [1, 5]], float), 0, 100)
     detected = DetectedFrame(packet, DetectionBatch((detection,), 1), 1)
@@ -44,10 +44,10 @@ def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
 def test_disconnected_bound_image_retains_age_but_unbound_snapshots_are_pruned():
     hub = FrameHub()
     packet = FramePacket(
-        "bound", 1, 1, 1, time.monotonic_ns() - 1_000_000_000, np.zeros((8, 8, 2), np.uint8)
+        "bound", 1, 1, time.monotonic_ns() - 1_000_000_000, np.zeros((8, 8, 2), np.uint8)
     )
     hub.capture(packet)
-    hub.capture(FramePacket("extra", 1, 1, 1, 1, packet.image))
+    hub.capture(FramePacket("extra", 1, 1, 1, packet.image))
     hub.encoded = {
         "bound": {
             "image": "last",

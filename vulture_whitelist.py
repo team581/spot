@@ -1,101 +1,75 @@
-# Vulture baseline for existing findings; this file is parsed, never executed.
-# Entries include unreviewed cleanup candidates and dynamic/native API usage.
-# Remove entries as findings are reviewed; do not regenerate to hide new findings.
-# Vulture matches names globally, so the locations below are review hints only.
-# See README.md for the command to view findings without this baseline.
+# Reviewed dynamic API usage; Vulture parses this file without executing it.
+# Keep actual dead code out of this list. Names match globally, so each name
+# appears once even when several libraries/tests use it.
 
-_.last_capture_monotonic  # unused attribute (apps/vision/src/spot_vision/camera_capture.py:231)
-_.last_capture_monotonic  # unused attribute (apps/vision/src/spot_vision/capture.py:283)
-source_path  # unused variable (apps/vision/src/spot_vision/config.py:82)
-writable  # unused variable (apps/vision/src/spot_vision/devices.py:47)
-display_ids  # unused variable (apps/vision/src/spot_vision/devices.py:59)
-duplicate_serials  # unused variable (apps/vision/src/spot_vision/devices.py:60)
-next_id  # unused variable (apps/vision/src/spot_vision/devices.py:61)
-port_slots  # unused variable (apps/vision/src/spot_vision/devices.py:65)
-daemon_threads  # unused variable (apps/vision/src/spot_vision/http_server.py:116)
-block_on_close  # unused variable (apps/vision/src/spot_vision/http_server.py:117)
-server_version  # unused variable (apps/vision/src/spot_vision/http_server.py:199)
-protocol_version  # unused variable (apps/vision/src/spot_vision/http_server.py:200)
-_.close_connection  # unused attribute (apps/vision/src/spot_vision/http_server.py:359)
-_.close_connection  # unused attribute (apps/vision/src/spot_vision/http_server.py:412)
-_.close_connection  # unused attribute (apps/vision/src/spot_vision/http_server.py:415)
-_.close_connection  # unused attribute (apps/vision/src/spot_vision/http_server.py:418)
-METHOD_UNKNOWN  # unused variable (apps/vision/src/spot_vision/models.py:21)
-last_capture_monotonic  # unused variable (apps/vision/src/spot_vision/models.py:102)
-_.quadDecimate  # unused attribute (apps/vision/src/spot_vision/native.py:48)
-_.quadSigma  # unused attribute (apps/vision/src/spot_vision/native.py:49)
-_.numThreads  # unused attribute (apps/vision/src/spot_vision/native.py:50)
-_.refineEdges  # unused attribute (apps/vision/src/spot_vision/native.py:51)
-_.minClusterPixels  # unused attribute (apps/vision/src/spot_vision/native.py:55)
-_.criticalAngle  # unused attribute (apps/vision/src/spot_vision/native.py:56)
-_.k1  # unused attribute (apps/vision/src/spot_vision/native.py:183)
-_.k2  # unused attribute (apps/vision/src/spot_vision/native.py:183)
-_.k3  # unused attribute (apps/vision/src/spot_vision/native.py:183)
-_.p1  # unused attribute (apps/vision/src/spot_vision/native.py:183)
-_.p2  # unused attribute (apps/vision/src/spot_vision/native.py:183)
-applied_monotonic_ns  # unused variable (apps/vision/src/spot_vision/nt_transport.py:48)
-_.last_error  # unused attribute (apps/vision/src/spot_vision/nt_transport.py:182)
-_.last_error  # unused attribute (apps/vision/src/spot_vision/nt_transport.py:305)
-_.last_error  # unused attribute (apps/vision/src/spot_vision/nt_transport.py:307)
-fusion_enabled  # unused variable (apps/vision/src/spot_vision/protocol_models.py:68)
-heading_enabled  # unused variable (apps/vision/src/spot_vision/protocol_models.py:69)
-revised_trust_enabled  # unused variable (apps/vision/src/spot_vision/protocol_models.py:70)
-release_id  # unused variable (apps/vision/src/spot_vision/protocol_models.py:190)
-native_hash  # unused variable (apps/vision/src/spot_vision/protocol_models.py:191)
-_.readbacks  # unused attribute (apps/vision/src/spot_vision/runtime.py:112)
-reprojectionError  # unused variable (apps/vision/src/spot_vision/structs.py:32)
-averageDistance  # unused variable (apps/vision/src/spot_vision/structs.py:33)
-imageArea  # unused variable (apps/vision/src/spot_vision/structs.py:34)
-imageSpread  # unused variable (apps/vision/src/spot_vision/structs.py:35)
-contextHigh  # unused variable (apps/vision/src/spot_vision/structs.py:42)
-contextLow  # unused variable (apps/vision/src/spot_vision/structs.py:43)
-captureHigh  # unused variable (apps/vision/src/spot_vision/structs.py:44)
-captureLow  # unused variable (apps/vision/src/spot_vision/structs.py:45)
-captureLocalNtUs  # unused variable (apps/vision/src/spot_vision/structs.py:48)
-timestampSource  # unused variable (apps/vision/src/spot_vision/structs.py:49)
-timestampUncertainty  # unused variable (apps/vision/src/spot_vision/structs.py:50)
-observedTags  # unused variable (apps/vision/src/spot_vision/structs.py:51)
-alternate  # unused variable (apps/vision/src/spot_vision/structs.py:54)
-captureToDetectMs  # unused variable (apps/vision/src/spot_vision/structs.py:55)
-detectMs  # unused variable (apps/vision/src/spot_vision/structs.py:56)
-solveMs  # unused variable (apps/vision/src/spot_vision/structs.py:57)
-totalMs  # unused variable (apps/vision/src/spot_vision/structs.py:58)
-serviceHigh  # unused variable (apps/vision/src/spot_vision/structs.py:75)
-serviceLow  # unused variable (apps/vision/src/spot_vision/structs.py:76)
-runtimeHigh  # unused variable (apps/vision/src/spot_vision/structs.py:77)
-runtimeLow  # unused variable (apps/vision/src/spot_vision/structs.py:78)
-uptime  # unused variable (apps/vision/src/spot_vision/structs.py:80)
-syncState  # unused variable (apps/vision/src/spot_vision/structs.py:81)
-offsetUs  # unused variable (apps/vision/src/spot_vision/structs.py:82)
-syncAge  # unused variable (apps/vision/src/spot_vision/structs.py:83)
-connectionEpoch  # unused variable (apps/vision/src/spot_vision/structs.py:84)
-syncEpoch  # unused variable (apps/vision/src/spot_vision/structs.py:85)
-topLeft  # unused variable (apps/vision/src/spot_vision/structs.py:101)
-topRight  # unused variable (apps/vision/src/spot_vision/structs.py:102)
-bottomRight  # unused variable (apps/vision/src/spot_vision/structs.py:103)
-bottomLeft  # unused variable (apps/vision/src/spot_vision/structs.py:104)
-decisionMargin  # unused variable (apps/vision/src/spot_vision/structs.py:106)
-usedForPose  # unused variable (apps/vision/src/spot_vision/structs.py:107)
-_.pose_type  # unused attribute (apps/vision/src/spot_vision/transport.py:106)
-_.last_driver_timestamp_us  # unused attribute (apps/vision/src/spot_vision/v4l2_capture.py:110)
-_.last_driver_flags  # unused attribute (apps/vision/src/spot_vision/v4l2_capture.py:111)
-_.last_driver_flags  # unused attribute (apps/vision/src/spot_vision/v4l2_capture.py:223)
-_.last_driver_timestamp_us  # unused attribute (apps/vision/src/spot_vision/v4l2_capture.py:223)
-kw  # unused variable (apps/vision/tests/test_capture_failures.py:78)
-kw  # unused variable (apps/vision/tests/test_cli_integration.py:74)
-_.k1  # unused attribute (apps/vision/tests/test_image_regression.py:29)
-_.k2  # unused attribute (apps/vision/tests/test_image_regression.py:29)
-_.k3  # unused attribute (apps/vision/tests/test_image_regression.py:29)
-_.p1  # unused attribute (apps/vision/tests/test_image_regression.py:29)
-_.p2  # unused attribute (apps/vision/tests/test_image_regression.py:29)
-_.k1  # unused attribute (apps/vision/tests/test_image_regression.py:47)
-_.k2  # unused attribute (apps/vision/tests/test_image_regression.py:47)
-_.k3  # unused attribute (apps/vision/tests/test_image_regression.py:47)
-_.p1  # unused attribute (apps/vision/tests/test_image_regression.py:47)
-_.p2  # unused attribute (apps/vision/tests/test_image_regression.py:48)
-kw  # unused variable (apps/vision/tests/test_networking.py:164)
-_.log_message  # unused method (apps/vision/src/spot_vision/http_server.py:206)
-_.log_message  # unused method (apps/vision/tests/test_health_checks.py:107)
-_.do_GET  # unused method (apps/vision/tests/test_health_checks.py:95)
-_.do_POST  # unused method (apps/vision/src/spot_vision/http_server.py:361)
-_.do_GET  # unused method (apps/vision/src/spot_vision/http_server.py:257)
+# TypedDict keys are read through dictionary indexing, not attribute access.
+# See devices.py's ControlCapability and persistent DeviceRegistry schemas.
+writable
+schema_version
+display_ids
+duplicate_serials
+next_id
+port_slots
+
+# socketserver/http.server read these attributes and dispatch these methods.
+daemon_threads
+block_on_close
+server_version
+protocol_version
+_.close_connection
+_.log_message
+_.do_GET
+_.do_POST
+
+# RobotPy and pybind11 read these native configuration attributes.
+_.quadDecimate
+_.quadSigma
+_.numThreads
+_.refineEdges
+_.minClusterPixels
+_.criticalAngle
+_.k1
+_.k2
+_.k3
+_.p1
+_.p2
+
+# Cross-language data-model fields populated by keyword and retained in
+# dataclass snapshots. Keep these aligned with the Java protocol models.
+fusion_enabled
+heading_enabled
+revised_trust_enabled
+used_for_pose
+rejection_reason
+release_id
+native_hash
+
+# make_wpistruct generates field access at runtime for the robot's wire format.
+# Removing these fields would change the shared Python/Java struct layouts.
+reprojectionError
+averageDistance
+imageArea
+imageSpread
+contextHigh
+contextLow
+captureHigh
+captureLow
+captureLocalNtUs
+timestampSource
+timestampUncertainty
+observedTags
+alternate
+captureToDetectMs
+detectMs
+solveMs
+totalMs
+serviceHigh
+serviceLow
+runtimeHigh
+runtimeLow
+uptime
+syncState
+offsetUs
+syncAge
+connectionEpoch
+syncEpoch

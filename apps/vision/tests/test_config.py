@@ -43,7 +43,6 @@ def test_load_config_defaults_and_relative_paths(tmp_path):
     assert config.camera("front").width == 1280
     assert config.camera("front").calibration == (tmp_path / "front.json").resolve()
     assert config.field_layout == (tmp_path / "field.json").resolve()
-    assert config.result_queue_capacity == 32
 
 
 def test_load_config_robot_extrinsics(tmp_path):
@@ -71,11 +70,10 @@ def test_invalid_robot_extrinsics_are_rejected(tmp_path):
         load_config(path)
 
 
-def test_alpha_config_loads_welded_layout_mounts_and_provisional_calibrations():
+def test_diagnostic_config_loads_welded_layout_mounts_and_provisional_calibrations():
     root = Path(__file__).resolve().parents[1]
     config = load_config(root / "config" / "spot.json")
     assert [camera.id for camera in config.cameras] == ["1", "2", "3", "4"]
-    assert config.nt.enabled and config.nt.mode == "server"
     assert config.camera("1").selector.by_id == "usb-Generic_USB_Camera_200901010001-video-index0"
     assert config.camera("2").selector.by_path.endswith("0:2.3:1.0-video-index0")
     assert config.camera("3").selector.by_path.endswith("0:2.1:1.0-video-index0")

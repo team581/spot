@@ -17,8 +17,8 @@ commissioning gate. The service advertises runtime tag-policy support.
 The [original design](<docs/Vision%20Solution%20(Spot)%20Specs.md>) and
 [alpha verification](docs/Alpha%20Verification.md) provide historical context.
 
-The config-file camera commands and NT server configuration below are headless
-development tools. They do not certify robot operation; robot-integrated mode uses the
+The config-file camera commands below are headless development tools and do not
+publish NetworkTables topics. They do not certify robot operation; the installed service uses the
 roboRIO as NT server and Jetson as client. See the [transport notes](docs/NetworkTables.md).
 
 ## Local development
@@ -69,9 +69,9 @@ ty checks the service against the Python 3.10 minimum without a diagnostic basel
 
 Vulture checks Python application code, tests, and tools at 60% confidence, including
 unused functions and classes. It runs in `mise run lint` and `mise run check:application`;
-run `mise run deadcode` for just this check. Existing findings are captured in
-[`vulture_whitelist.py`](vulture_whitelist.py), including unreviewed cleanup candidates
-and dynamically consumed names. The whitelist is parsed by Vulture, never executed.
+run `mise run deadcode` for just this check. Reviewed dynamic API usage and shared
+protocol fields are documented in [`vulture_whitelist.py`](vulture_whitelist.py).
+The whitelist is parsed by Vulture, never executed.
 It suppresses names globally, not individual locations.
 
 To review the findings without the baseline:
@@ -153,20 +153,12 @@ decision margin, FPS, timing, and drops:
 .venv/bin/spot-vision probe --config apps/vision/config/spot.json --camera 1
 ```
 
-Run the service:
-
-```sh
-.venv/bin/spot-vision daemon --config apps/vision/config/spot.json
-```
-
-The alpha configuration starts an NT4 server on the Jetson. For each camera,
-`/Spot/1/output/robot_pose` through `/Spot/4/output/robot_pose` are typed
-WPILib `Pose3d` topics. Add all four topics to an AdvantageScope 3D Field tab and
-select the 2026 REBUILT field. A frame with two or more known tags is solved
-jointly from all tag corners and emits one pose; single-tag IPPE ambiguity is
-retained in the local diagnostics while the lowest-error candidate is used
-for the typed pose. The calibration files shipped in `apps/vision/config/` are explicitly
-provisional and should be replaced after camera calibration.
+The probe uses the installed service's bounded V4L2 capture owner and verified
+control writes. Detector failures are reported without switching backends.
+Start a local robot-integrated service with `spot-vision run --installation
+apps/vision/config/installation.json --state-root /tmp/spot-state`; it serves the dashboard and connects to
+the roboRIO's NT4 server. The calibration files shipped in `apps/vision/config/`
+are provisional and should be replaced after camera calibration.
 Set each mount's `image_rotation_deg` to `0` or `180` in `apps/vision/config/spot.json`.
 Spot corrects capture frames before detection, pose solving, and preview,
 and transforms raw-sensor calibration intrinsics into the corrected pixel frame.
@@ -222,7 +214,7 @@ uv run --no-sync pytest apps/vision/tests
   --repeats 20 --output /tmp/spot-regression.json
 ```
 
-On the Orin, repeat with `--backend cuda`. CUDA regression disables CPU fallback
+On the Orin, repeat with `--backend cuda`. CUDA regression never selects CPU fallback
 so a failed GPU cannot masquerade as a passing GPU test. The checked-in synthetic
 PNG fixtures cover central/peripheral distortion, multiple tags, rotated sensor
 capture, and no tags. Their independent OpenCV projection oracle and generator
@@ -234,14 +226,15 @@ truth to the manifest as they become available.
 
 `TagObservation.distortion_factor_px` is the mean raw-to-undistorted corner
 pixel displacement; it is absent without calibration. Pose candidates include
-mean distortion and camera-to-tag distance. The alpha NT outputs expose the same
+mean distortion and camera-to-tag distance. The frame structs expose these
 candidate metrics alongside Pose3d. The roboRIO retains responsibility for tuning
 standard deviations and resolving heading; the reference inflation formula is
 in `spot_vision.uncertainty.standard_deviations` and the design contract.
 Refinement fits edges in ideal coordinates and returns raw corners so decoding,
 previews and solvePnP continue using the same pixel frame. Nonzero calibration
-coefficients beyond the CUDA refiner's five-coefficient model cause an explicit
-CPU fallback (or an error when fallback is disabled).
+coefficients beyond the CUDA refiner's five-coefficient model cause an error.
+The installed runtime alone owns optional CPU fallback and bounded GPU retries;
+recording diagnostics and regression checks always use the requested backend.
 
 The CUDA decode refinement follows this coordinate path:
 
@@ -262,8 +255,8 @@ FMAPs is not a prerequisite.
 
 ## Important buffer behavior
 
-Live GStreamer capture yields a packed `uint8` NumPy array with shape
-`(height, width, 2)`. The pybind11 layer validates the exact strides and passes
+Live capture uses bounded V4L2 reads and provides owned, read-only packed `uint8`
+NumPy arrays with shape `(height, width, 2)`. The pybind11 layer validates the exact strides and passes
 that pointer directly to Team 766's detector while retaining the Python object
 and releasing the GIL. This removes a Python-to-C++ copy. The detector's
 required host-to-device CUDA transfer still occurs.

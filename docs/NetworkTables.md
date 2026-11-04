@@ -20,7 +20,7 @@ NT4 server and Spot connects as a client. There is one current contract under
 Python structs are ordinary dataclasses decorated with `make_wpistruct` in
 `apps/vision/src/spot_vision/structs.py`. Java uses small records with WPILib
 `Struct` implementations in `frc.robot.vision.structs`. Geometry uses WPILib's
-existing `Pose3d`, `Transform3d` and `Translation2d` layouts. NT publishes the
+existing `Pose3d` and `Transform3d` layouts. NT publishes the
 schemas automatically. No generated bindings or schema compiler are required.
 
 ## Frames
@@ -78,12 +78,11 @@ geometry decoding. Wire geometry retains float64 precision.
 JSON profile snapshots are local Jetson storage and desktop test inputs. The
 roboRIO does not parse JSON to receive configuration or vision results.
 
-## Headless development
+## Local diagnostics
 
-The config-file service publishes pose-estimate and tag-detection struct arrays
-under `/Spot/<camera>/output`, plus ordinary diagnostic topics. In this development
-stream, pose tag-mask bits index the accompanying detection order. Production
-robot consumption uses the atomic frame topic described above.
+Config-file camera and recording commands run locally without publishing NT
+topics. Fixed-image regression serializes the same frame structs as the installed
+service. Live `probe` uses the same bounded V4L2 capture owner.
 
 The browser continues to use the Jetson's HTTP/JSON API. It does not decode NT
 structs.

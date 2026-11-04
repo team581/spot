@@ -45,7 +45,6 @@ ROOT = "/Spot"
 class ObservationContext:
     acknowledgement: wire.Acknowledgement
     camera: wire.CameraGeneration
-    applied_monotonic_ns: int
     timestamp_uncertainty_s: float | None
 
 
@@ -179,7 +178,6 @@ class NtTransport:
         self._closed = False
         self._config = config
         self._last_resync_ns = 0
-        self.last_error = ""
         self.withheld = 0
         self._robot_decisions, self._decisions_at = {}, 0.0
         self.instance = instance or ntcore.NetworkTableInstance.create()
@@ -302,9 +300,7 @@ class NtTransport:
                 validate_manifest(manifest)
                 self.configuration.accept_manifest(manifest)
                 self.acknowledge()
-                self.last_error = ""
             except (ConfigError, RuntimeError, OSError) as exc:
-                self.last_error = str(exc)
                 self._publish_rejection(str(exc))
         # Also handles robot states arriving just before the fresh manifest.
         for sample in self._robot_state.readQueue():
@@ -471,9 +467,7 @@ class NtTransport:
                 return None
             copied_ack = copy.deepcopy(ack)
             copied_camera = next(c for c in copied_ack.cameras if c.camera_name == camera_name)
-            return ObservationContext(
-                copied_ack, copied_camera, self._ack_applied_ns, uncertainty_s
-            )
+            return ObservationContext(copied_ack, copied_camera, uncertainty_s)
 
     def publish(self, observation: wire.Observation, captured_ns: int) -> bool:
         validate_observation(observation)

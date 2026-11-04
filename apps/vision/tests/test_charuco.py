@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from spot_vision.calibration_session import CalibrationSession
+from spot_vision.calibration_session import CameraSession
 from spot_vision.charuco import CalibrationOptions, CharucoBoardConfig, calibrate, write_calibration
 
 
@@ -29,17 +29,6 @@ def test_write_calibration_is_valid_json(tmp_path):
     assert not list(target.parent.glob("*.tmp*"))
 
 
-def test_session_start_stop_and_save_gate(tmp_path):
-    session = CalibrationSession(["1", "2"], tmp_path)
-    session.start(mode="auto")
-    assert all(item["running"] for item in session.status().values())
-    session.stop("1")
-    assert not session.status()["1"]["running"]
-    with pytest.raises(ValueError, match="calibration results"):
-        session.save({}, {}, override=False)
-    session.close()
-
-
 def sample(points=None, ids=None):
     import numpy as np
 
@@ -54,33 +43,31 @@ def sample(points=None, ids=None):
     )
 
 
-def test_auto_capture_compares_matching_corners_to_last_accepted_view(tmp_path, monkeypatch):
-    import numpy as np
-
-    import spot_vision.calibration_session as module
-
-    session = CalibrationSession(["1"], tmp_path, {"1": lambda: np.zeros((480, 640))})
-    session.start(mode="auto")
+def test_auto_capture_compares_matching_corners_to_last_accepted_view():
+    camera = CameraSession("1")
+    options = CalibrationOptions()
     frame = sample()
-    monkeypatch.setattr(module, "detect_frame", lambda *_: frame)
-    session.tick("1")
-    session.tick("1")
-    assert len(session.cameras["1"].samples) == 1
+    camera.last_detection = frame
+    assert camera.accept(options, automatic=True)
+    assert not camera.accept(options, automatic=True)
+    assert len(camera.samples) == 1
     # Newly visible corners and changed ID ordering must not count as motion.
     frame = sample([[130, 130], [100, 130], [130, 100], [100, 100], [400, 400]], [3, 2, 1, 0, 4])
-    session.tick("1")
-    assert len(session.cameras["1"].samples) == 1
+    camera.last_detection = frame
+    assert not camera.accept(options, automatic=True)
+    assert len(camera.samples) == 1
     # Movement accumulates relative to the saved frame, not each preview.
     frame = sample(sample().image_points + 10)
-    session.tick("1")
-    assert len(session.cameras["1"].samples) == 1
+    camera.last_detection = frame
+    assert not camera.accept(options, automatic=True)
+    assert len(camera.samples) == 1
     frame = sample(sample().image_points + 20)
-    session.tick("1")
-    assert len(session.cameras["1"].samples) == 2
-    frame = None
-    session.tick("1")
-    assert len(session.cameras["1"].samples) == 2
-    session.close()
+    camera.last_detection = frame
+    assert camera.accept(options, automatic=True)
+    assert len(camera.samples) == 2
+    camera.last_detection = None
+    assert not camera.accept(options, automatic=True)
+    assert len(camera.samples) == 2
 
 
 def test_auto_capture_accepts_scale_rotation_and_disjoint_board_regions():
@@ -97,20 +84,18 @@ def test_auto_capture_accepts_scale_rotation_and_disjoint_board_regions():
     assert frame_motion(sample(ids=[10, 11, 12, 13]), previous) > 0.025
 
 
-def test_coverage_tracks_accepted_views_and_capture_limit(tmp_path):
-    session = CalibrationSession(["1"], tmp_path)
-    session.configure(CharucoBoardConfig(), CalibrationOptions(min_frames=3, max_frames=3))
-    camera = session.cameras["1"]
+def test_coverage_tracks_accepted_views_and_capture_limit():
+    camera = CameraSession("1")
+    options = CalibrationOptions(min_frames=3, max_frames=3)
     camera.last_detection = sample([[50, 50], [80, 50], [50, 80], [80, 80]])
     for _ in range(3):
-        assert session.capture("1")
-    assert not session.capture("1")
-    state = session.status()["1"]
+        assert camera.accept(options)
+    assert not camera.accept(options)
+    state = camera.coverage(CharucoBoardConfig())
     assert state["coverage_particles"]
     assert state["coverage_progress"] == 0
     assert state["coverage_good_fraction"] == 0
-    assert state["frames"] == 3
-    session.close()
+    assert len(camera.samples) == 3
 
 
 def test_team_board_default_detects_all_rows_and_rejects_small_dictionary():
@@ -199,41 +184,19 @@ def test_coverage_requires_local_variety_and_does_not_reward_cropping():
     assert coverage_state(frames[:3], board)["coverage_good_fraction"] == 0
 
 
-def test_auto_capture_skips_over_90_percent_green_but_allows_manual(tmp_path, monkeypatch):
+def test_auto_capture_skips_over_90_percent_green_but_allows_manual(monkeypatch):
     import numpy as np
 
-    session = CalibrationSession(["1"], tmp_path)
-    camera = session.cameras["1"]
+    camera = CameraSession("1")
+    board, options = CharucoBoardConfig(), CalibrationOptions()
     grid = np.ones((12, 12))
     grid[0, 0] = 0
     monkeypatch.setattr(camera, "coverage", lambda _: {"coverage_grid": grid.tolist()})
     points = [[300, 300]] * 10 + [[1, 1]]
     camera.last_detection = sample(points, list(range(11)))
-    assert not camera.accept(session.options, automatic=True, board=session.board)
+    assert not camera.accept(options, automatic=True, board=board)
     assert not camera.samples and "Already green" in camera.capture_reason
     camera.last_detection = sample([[300, 300]] * 9 + [[1, 1]], list(range(10)))
-    assert camera.accept(session.options, automatic=True, board=session.board)
+    assert camera.accept(options, automatic=True, board=board)
     camera.last_detection = sample(points, list(range(11)))
-    assert session.capture("1")
-    session.close()
-
-
-def test_auto_compute_readiness_requires_frames_coverage_diversity_and_green(tmp_path, monkeypatch):
-    session = CalibrationSession(["1"], tmp_path)
-    session.start(mode="auto")
-    camera = session.cameras["1"]
-    camera.samples = [sample() for _ in range(15)]
-    monkeypatch.setattr(camera, "coverage", lambda _: {"coverage_good_fraction": 0.9})
-    assert not session.ready("1")  # Repeated views cannot satisfy diversity.
-    import spot_vision.calibration_session as module
-
-    monkeypatch.setattr(module, "_diversity", lambda _: 1)
-    assert session.ready("1")
-    camera.samples.pop()
-    assert not session.ready("1")
-    camera.samples.append(sample())
-    monkeypatch.setattr(camera, "coverage", lambda _: {"coverage_good_fraction": 0.89})
-    assert not session.ready("1")
-    camera.samples = [sample() for _ in range(session.options.max_frames)]
-    assert session.ready("1")
-    session.close()
+    assert camera.accept(options)

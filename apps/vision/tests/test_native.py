@@ -1,35 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-
-from spot_vision.models import DetectionBatch
-from spot_vision.native import FallbackDetector
-
-
-class FakeDetector:
-    def __init__(self, fail=False):
-        self.fail = fail
-        self.calls = 0
-
-    def detect(self, frame):
-        self.calls += 1
-        if self.fail:
-            raise RuntimeError("detector failure")
-        return DetectionBatch((), 1.0)
-
-    def reset(self):
-        self.calls = 0
-
-
-def test_recoverable_cuda_failure_switches_permanently_to_cpu():
-    primary = FakeDetector(fail=True)
-    fallback = FakeDetector()
-    detector = FallbackDetector(primary, fallback)
-    frame = np.zeros((8, 8, 2), dtype=np.uint8)
-    detector.detect(frame)
-    detector.detect(frame)
-    assert primary.calls == 1
-    assert fallback.calls == 2
+import pytest
 
 
 def test_cpu_detection_with_calibration_does_not_require_native_extension(monkeypatch):
@@ -58,18 +30,16 @@ def test_cpu_detection_with_calibration_does_not_require_native_extension(monkey
     assert np.allclose([d.distortion_factor_px for d in batch.detections], expected)
 
 
-def test_extended_lens_model_uses_cpu_without_constructing_cuda(monkeypatch, cuda_native):
+def test_extended_lens_model_is_rejected_before_constructing_cuda(monkeypatch, cuda_native):
     from dataclasses import replace
     from pathlib import Path
 
     from spot_vision.config import load_calibration, load_config
-    from spot_vision.native import CpuDetector, create_detector
+    from spot_vision.native import create_detector
 
     root = Path(__file__).parent / "data" / "regression"
     camera = load_config(root / "config.json").camera("front")
-    camera = replace(
-        camera, detector=replace(camera.detector, backend="cuda", fallback_to_cpu=True)
-    )
+    camera = replace(camera, detector=replace(camera.detector, backend="cuda"))
     calibration = replace(
         load_calibration(camera.calibration),
         distortion=(-0.18, 0.04, 0.006, -0.008, 0.01, 0.1, 0.0, 0.0),
@@ -79,11 +49,24 @@ def test_extended_lens_model_uses_cpu_without_constructing_cuda(monkeypatch, cud
         raise AssertionError("unsupported coefficients must not reach CUDA refinement")
 
     monkeypatch.setattr(cuda_native, "CudaDetector", unexpected_cuda, raising=False)
-    result = create_detector(camera, calibration)
-    assert isinstance(result, CpuDetector)
-    assert result.calibration == calibration
-    import pytest
-
-    camera = replace(camera, detector=replace(camera.detector, fallback_to_cpu=False))
     with pytest.raises(RuntimeError, match="five-coefficient"):
         create_detector(camera, calibration)
+
+
+def test_cuda_initialization_failure_propagates_without_constructing_cpu(monkeypatch, cuda_native):
+    from dataclasses import replace
+    from pathlib import Path
+
+    from spot_vision import native
+    from spot_vision.config import load_config
+
+    camera = load_config(Path(__file__).parent / "data/regression/config.json").camera("front")
+    camera = replace(camera, detector=replace(camera.detector, backend="cuda", decimate=2.0))
+
+    def fail(*_):
+        raise RuntimeError("GPU initialization failed")
+
+    monkeypatch.setattr(cuda_native, "CudaDetector", fail)
+    monkeypatch.setattr(native, "CpuDetector", lambda *_: pytest.fail("CPU fallback constructed"))
+    with pytest.raises(RuntimeError, match="GPU initialization failed"):
+        native.create_detector(camera, None)

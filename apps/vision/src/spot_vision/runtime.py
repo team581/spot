@@ -109,7 +109,7 @@ class Runtime:
         self.roles: dict[str, str] = {}
         self.modes: dict[str, wire.OpticalMode] = {}
         self.calibrations: dict[str, dict] = {}
-        self.generation, self.faults, self.readbacks = "", {}, {}
+        self.generation, self.faults = "", {}
         self._preview_failed = {}
         self.processing = processing or ProcessingPolicy()
         self.processing_budget = ProcessingBudget(self.processing)
@@ -370,8 +370,7 @@ class Runtime:
             False,
             None,
             0,
-            1,
-            DetectorConfig(backend=self.backend, fallback_to_cpu=False),
+            DetectorConfig(backend=self.backend),
             image_rotation_deg=definition.image_rotation_deg if definition else 0,
         )
 

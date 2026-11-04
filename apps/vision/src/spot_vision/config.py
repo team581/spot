@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +15,6 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class DetectorConfig:
     backend: str = "cuda"
-    fallback_to_cpu: bool = True
     family: str = "tag36h11"
     decimate: float = 2.0
     blur: float = 0.0
@@ -49,7 +48,6 @@ class CameraConfig:
     auto_exposure: bool
     calibration: Path | None
     timestamp_correction_us: int
-    config_revision: int
     detector: DetectorConfig
     image_rotation_deg: int = 0
     # Transform from the camera's WPILib/NWU frame to robot frame.  The
@@ -71,15 +69,11 @@ class NtConfig:
 
 
 @dataclass(frozen=True)
-class ServiceConfig:
-    schema_version: int
+class DiagnosticConfig:
     field_layout: Path | None
     field_revision: int
     tag_size_m: float
-    result_queue_capacity: int
-    nt: NtConfig
     cameras: tuple[CameraConfig, ...]
-    source_path: Path = field(compare=False)
 
     def camera(self, camera_id: str) -> CameraConfig:
         for camera in self.cameras:
@@ -153,7 +147,7 @@ def _path(base: Path, value: str | None) -> Path | None:
     return path if path.is_absolute() else (base / path).resolve()
 
 
-def load_config(path: str | Path) -> ServiceConfig:
+def load_config(path: str | Path) -> DiagnosticConfig:
     source = Path(path).resolve()
     try:
         raw = json.loads(source.read_text())
@@ -240,7 +234,6 @@ def load_config(path: str | Path) -> ServiceConfig:
                 auto_exposure=bool(item.get("auto_exposure", False)),
                 calibration=_path(source.parent, item.get("calibration")),
                 timestamp_correction_us=int(item.get("timestamp_correction_us", 0)),
-                config_revision=int(item.get("config_revision", 1)),
                 detector=detector,
                 image_rotation_deg=rotation,
                 robot_from_camera_translation=(
@@ -254,25 +247,11 @@ def load_config(path: str | Path) -> ServiceConfig:
             )
         )
 
-    nt_raw = raw.get("nt", {})
-    nt = NtConfig(**nt_raw)
-    if nt.mode not in {"client", "server"}:
-        raise ConfigError("nt.mode must be client or server")
-    if nt.enabled and nt.mode == "client" and nt.server is None and nt.team is None:
-        raise ConfigError("NT client requires nt.server or nt.team")
-
-    capacity = int(raw.get("result_queue_capacity", 32))
-    if capacity < 1:
-        raise ConfigError("result_queue_capacity must be positive")
-    return ServiceConfig(
-        schema_version=int(raw.get("schema_version", 1)),
+    return DiagnosticConfig(
         field_layout=_path(source.parent, raw.get("field_layout")),
         field_revision=int(raw.get("field_revision", 0)),
         tag_size_m=float(raw.get("tag_size_m", 0.1651)),
-        result_queue_capacity=capacity,
-        nt=nt,
         cameras=tuple(cameras),
-        source_path=source,
     )
 
 
@@ -328,7 +307,5 @@ def load_calibration(path: str | Path) -> Calibration:
 
 def file_revision(path: Path) -> int:
     digest = hashlib.sha256(path.read_bytes()).digest()
-    # Protobuf carries this as uint64, but NetworkTables integer topics are
-    # signed int64. Keep automatic revisions non-negative and portable across
-    # both transports while retaining 63 bits of the content hash.
+    # Keep automatic revisions in the non-negative signed int64 range.
     return int.from_bytes(digest[:8], "big", signed=False) & ((1 << 63) - 1)

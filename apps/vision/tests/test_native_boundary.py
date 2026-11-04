@@ -9,7 +9,7 @@ import pytest
 
 from spot_vision.cli import _recording_frames
 from spot_vision.config import DetectorConfig, load_config
-from spot_vision.native import CpuDetector, FallbackDetector
+from spot_vision.native import CpuDetector
 
 DATA = Path(__file__).parent / "data/regression"
 
@@ -74,55 +74,16 @@ def test_independent_native_detectors_can_run_concurrently():
         assert list(pool.map(detect, range(4))) == [[[1]] * 3] * 4
 
 
-def test_reset_allows_primary_retry_after_permanent_fallback():
-    class Detector:
-        failed = True
-        calls = 0
-
-        def detect(self, frame):
-            self.calls += 1
-            if self.failed:
-                raise RuntimeError("GPU fault")
-            return frame
-
-        def reset(self):
-            self.failed = False
-
-    primary, fallback = Detector(), Detector()
-    fallback.failed = False
-    detector = FallbackDetector(primary, fallback)
-    assert detector.detect("first") == "first"
-    assert detector.using_fallback
-    detector.reset()
-    assert not detector.using_fallback
-    assert detector.detect("second") == "second"
-    assert primary.calls == 2 and fallback.calls == 1
-
-
-def test_fallback_error_is_visible_to_scheduler():
-    class Broken:
-        def detect(self, _):
-            raise RuntimeError("CPU also failed")
-
-    detector = FallbackDetector(Broken(), Broken())
-    with pytest.raises(RuntimeError, match="CPU also failed"):
-        detector.detect(None)
-    assert detector.using_fallback
-
-
 @pytest.mark.parametrize("decimate", [1.0, 1.5, 3.0, 4.0])
-@pytest.mark.parametrize("fallback", [False, True])
 def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
-    monkeypatch, cuda_native, decimate, fallback
+    monkeypatch, cuda_native, decimate
 ):
     from spot_vision.native import create_detector
 
     camera = load_config(DATA / "config.json").camera("front")
     camera = replace(
         camera,
-        detector=replace(
-            camera.detector, backend="cuda", decimate=decimate, fallback_to_cpu=fallback
-        ),
+        detector=replace(camera.detector, backend="cuda", decimate=decimate),
     )
     monkeypatch.setattr(
         cuda_native,
@@ -130,9 +91,5 @@ def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
         lambda *_: pytest.fail("fatal constructor reached"),
         raising=False,
     )
-    if fallback:
-        result = create_detector(camera, None)
-        assert isinstance(result, CpuDetector)
-    else:
-        with pytest.raises(RuntimeError, match="requires decimate=2"):
-            create_detector(camera, None)
+    with pytest.raises(RuntimeError, match="requires decimate=2"):
+        create_detector(camera, None)

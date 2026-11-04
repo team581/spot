@@ -2,26 +2,14 @@
 
 from __future__ import annotations
 
-import secrets
-import shutil
-import threading
-import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 
 from .charuco import (
     CalibrationOptions,
-    CalibrationReport,
     CharucoBoardConfig,
     CharucoFrame,
-    _diversity,
-    calibrate,
-    detect_frame,
-    make_board,
-    write_calibration,
 )
 
 
@@ -139,16 +127,9 @@ def coverage_state(samples: list[CharucoFrame], board: CharucoBoardConfig, size:
 @dataclass
 class CameraSession:
     camera_id: str
-    source: Callable[[], np.ndarray] | None = None
-    running: bool = False
-    mode: str = "manual"
-    last_frame: np.ndarray | None = None
     last_detection: CharucoFrame | None = None
     samples: list[CharucoFrame] = field(default_factory=list)
-    report: CalibrationReport | None = None
-    error: str | None = None
     capture_reason: str = "Show the board"
-    calibrating: bool = False
     motion: float = 0.0
     coverage_cache: dict = field(default_factory=dict)
     coverage_cache_key: tuple | None = None
@@ -160,25 +141,12 @@ class CameraSession:
             self.coverage_cache_key = key
         return self.coverage_cache
 
-    def tick(self, board: CharucoBoardConfig, options: CalibrationOptions) -> CharucoFrame | None:
-        if not self.running or self.source is None:
-            return self.last_detection
-        self.last_frame = self.source()
-        self.last_detection = detect_frame(self.last_frame, board, options)
-        if self.mode == "auto" and self.last_detection is not None:
-            self.accept(options, automatic=True, board=board)
-        elif self.last_detection is None:
-            self.capture_reason = "Show more sharp board corners"
-        return self.last_detection
-
     def accept(
         self,
         options: CalibrationOptions,
         automatic: bool = False,
         board: CharucoBoardConfig | None = None,
     ) -> bool:
-        if self.calibrating:
-            return False
         if self.last_detection is None:
             self.capture_reason = "No usable board detected"
             return False
@@ -204,156 +172,5 @@ class CameraSession:
                 self.capture_reason = "Move or tilt the board for the next view"
                 return False
         self.samples.append(self.last_detection)
-        self.report = None
         self.capture_reason = "Captured new view"
         return True
-
-
-class CalibrationSession:
-    def __init__(
-        self,
-        cameras: list[str],
-        root: str | Path,
-        sources: dict[str, Callable[[], np.ndarray]] | None = None,
-    ):
-        self.id = secrets.token_urlsafe(12)
-        self.root = Path(root) / self.id
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.cameras = {
-            camera_id: CameraSession(camera_id, (sources or {}).get(camera_id))
-            for camera_id in cameras
-        }
-        self.board = CharucoBoardConfig()
-        self.options = CalibrationOptions()
-        self.created = time.monotonic()
-        self._lock = threading.RLock()
-
-    def configure(self, board: CharucoBoardConfig, options: CalibrationOptions) -> None:
-        board.validate()
-        options.validate()
-        make_board(board)  # Fail before starting capture for undersized dictionaries.
-        self.board, self.options = board, options
-
-    def start(self, camera_id: str | None = None, mode: str = "manual") -> None:
-        if mode not in {"manual", "auto"}:
-            raise ValueError("mode must be manual or auto")
-        with self._lock:
-            for camera in self.cameras.values():
-                if camera_id is None or camera.camera_id == camera_id:
-                    if camera.calibrating:
-                        raise RuntimeError("camera is calibrating")
-                    camera.mode, camera.running, camera.error = mode, True, None
-
-    def stop(self, camera_id: str | None = None) -> None:
-        with self._lock:
-            for camera in self.cameras.values():
-                if camera_id is None or camera.camera_id == camera_id:
-                    camera.running = False
-
-    def capture(self, camera_id: str) -> bool:
-        with self._lock:
-            return self.cameras[camera_id].accept(self.options)
-
-    def tick(self, camera_id: str) -> CharucoFrame | None:
-        with self._lock:
-            camera = self.cameras[camera_id]
-            if not camera.running or camera.source is None:
-                return camera.last_detection
-            board, options = self.board, self.options
-        # Detection runs independently of preview requests and status polling.
-        frame = camera.source()
-        detection = detect_frame(frame, board, options)
-        with self._lock:
-            if self.cameras[camera_id] is not camera or not camera.running:
-                return None
-            camera.last_frame, camera.last_detection, camera.error = frame, detection, None
-            if camera.mode == "auto" and detection is not None:
-                camera.accept(options, automatic=True, board=board)
-            elif detection is None:
-                camera.capture_reason = "Show more sharp board corners"
-            return detection
-
-    def restart(self, camera_id: str) -> None:
-        with self._lock:
-            old = self.cameras[camera_id]
-            self.cameras[camera_id] = CameraSession(
-                camera_id, old.source, running=True, mode=old.mode
-            )
-
-    def ready(self, camera_id: str) -> bool:
-        with self._lock:
-            camera = self.cameras[camera_id]
-            return (
-                camera.running
-                and camera.mode == "auto"
-                and not camera.calibrating
-                and camera.report is None
-                and len(camera.samples) >= self.options.min_frames
-                and max(f.coverage for f in camera.samples) >= self.options.min_coverage
-                and _diversity(camera.samples) >= self.options.min_diversity
-                and (
-                    camera.coverage(self.board)["coverage_good_fraction"] >= 0.90
-                    or len(camera.samples) >= self.options.max_frames
-                )
-            )
-
-    def compute(self, camera_id: str) -> tuple[dict | None, CalibrationReport]:
-        with self._lock:
-            camera = self.cameras[camera_id]
-            if camera.calibrating:
-                raise RuntimeError("camera is already calibrating")
-            camera.running = False
-            camera.calibrating = True
-            camera.error = None
-            samples, board, options = list(camera.samples), self.board, self.options
-        # OpenCV may take seconds: status and other cameras must remain responsive.
-        try:
-            result, report = calibrate(samples, board, options)
-            with self._lock:
-                camera.report = report
-            return result, report
-        except Exception as exc:
-            with self._lock:
-                camera.error = f"Calibration failed: {exc}"
-            raise
-        finally:
-            with self._lock:
-                camera.calibrating = False
-
-    def save(self, results: dict[str, dict], paths: dict[str, str], override: bool = False) -> None:
-        with self._lock:
-            if not results:
-                raise ValueError("no calibration results supplied")
-            for camera_id, result in results.items():
-                report = self.cameras[camera_id].report
-                if report is None or (not report.accepted and not override):
-                    raise ValueError(f"camera {camera_id} has not passed validation")
-            for camera_id, result in results.items():
-                result = dict(result)
-                result["camera_id"] = camera_id
-                write_calibration(paths[camera_id], result)
-
-    def status(self) -> dict:
-        with self._lock:
-            return {
-                camera_id: {
-                    "running": camera.running,
-                    "calibrating": camera.calibrating,
-                    "frames": len(camera.samples),
-                    "detected": camera.last_detection is not None,
-                    "coverage": 0
-                    if camera.last_detection is None
-                    else camera.last_detection.coverage,
-                    **camera.coverage(self.board),
-                    "mode": camera.mode,
-                    "capture_reason": camera.capture_reason,
-                    "motion": camera.motion if np.isfinite(camera.motion) else None,
-                    "report": None if camera.report is None else camera.report.__dict__,
-                    "error": camera.error,
-                }
-                for camera_id, camera in self.cameras.items()
-            }
-
-    def close(self) -> None:
-        self.stop()
-        shutil.rmtree(self.root, ignore_errors=True)

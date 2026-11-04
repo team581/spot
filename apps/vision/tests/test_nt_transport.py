@@ -164,7 +164,6 @@ def test_nt_exchange_handshake_withhold_and_no_tag_server_timestamp(link):
     frame = FramePacket(
         "front",
         1,
-        1,
         nt_now_us(),
         captured_ns,
         np.zeros((480, 640, 2), dtype=np.uint8),
@@ -287,7 +286,6 @@ def test_policy_change_rejects_inflight_solve_and_expiry_without_reapplying_mani
     context = transport.context("front", captured, None)
     frame = FramePacket(
         "front",
-        1,
         1,
         nt_now_us(),
         captured,

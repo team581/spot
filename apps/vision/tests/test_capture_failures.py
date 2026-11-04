@@ -1,37 +1,11 @@
-"""Device selection, backend fallback and capture retry regressions."""
+"""Persistent device selection and camera enumeration regressions."""
 
-import threading
-from dataclasses import replace
 from types import SimpleNamespace
 
-import cv2
-import numpy as np
 import pytest
 
 from spot_vision import capture
-from spot_vision.config import CameraConfig, CameraSelector, DetectorConfig
-from spot_vision.models import CameraCounters, CameraState
-from spot_vision.queues import LatestFrameSlot
-
-
-def camera(**changes):
-    base = CameraConfig(
-        "front",
-        True,
-        CameraSelector(device="/dev/fake"),
-        "YUY2",
-        16,
-        8,
-        60,
-        None,
-        None,
-        False,
-        None,
-        27,
-        1,
-        DetectorConfig(backend="cpu"),
-    )
-    return replace(base, **changes)
+from spot_vision.config import CameraSelector
 
 
 @pytest.mark.parametrize(
@@ -75,7 +49,7 @@ def test_serial_selection_supports_by_id_and_udev_fallback(monkeypatch, udev):
     monkeypatch.setattr(
         capture.subprocess,
         "run",
-        lambda args, **kw: SimpleNamespace(
+        lambda args, **_kw: SimpleNamespace(
             stdout="ID_SERIAL_SHORT=serial581\n"
             if args[-1] == "--name=/dev/video2"
             else "OTHER=1\n"
@@ -112,106 +86,3 @@ def test_enumeration_error_handling(monkeypatch, mode):
             capture.CameraError, match="required" if mode == "missing_tool" else "disconnected"
         ):
             capture.enumerate_camera("/dev/fake")
-
-
-@pytest.mark.parametrize("opened", [(True, False), (False, True), (False, False)])
-def test_backend_fallback_releases_failed_handles_and_requests_bounded_buffers(monkeypatch, opened):
-    handles = []
-
-    class Handle:
-        def __init__(self, index):
-            self.index, self.released, self.properties = index, False, {}
-
-        def isOpened(self):
-            return opened[self.index]
-
-        def set(self, key, value):
-            self.properties[key] = value
-
-        def release(self):
-            self.released = True
-
-    def make(*_):
-        handle = Handle(len(handles))
-        handles.append(handle)
-        return handle
-
-    monkeypatch.setattr(cv2, "VideoCapture", make)
-    if not any(opened):
-        with pytest.raises(capture.CameraError, match="could not open"):
-            capture.open_capture(cv2, camera(), "/dev/fake")
-        assert all(handle.released for handle in handles)
-    else:
-        handle, bgr = capture.open_capture(cv2, camera(), "/dev/fake")
-        assert bgr == (not opened[0])
-        if bgr:
-            assert handles[0].released
-            assert handle.properties[cv2.CAP_PROP_BUFFERSIZE] == 1
-            assert handle.properties[cv2.CAP_PROP_CONVERT_RGB] == 1
-        else:
-            assert handle.properties[cv2.CAP_PROP_CONVERT_RGB] == 0
-
-
-@pytest.mark.parametrize("failure", ["no_frame", "bad_shape", "wrong_dtype"])
-def test_capture_failure_always_releases_camera_and_tracks_decode_errors(monkeypatch, failure):
-    class Handle:
-        released = False
-
-        def read(self):
-            if failure == "no_frame":
-                return False, None
-            return True, np.zeros(
-                (8, 16, 3) if failure == "bad_shape" else (8, 16, 2),
-                dtype=np.uint8 if failure == "bad_shape" else np.float32,
-            )
-
-        def release(self):
-            self.released = True
-
-    handle = Handle()
-    monkeypatch.setattr(capture, "resolve_device", lambda _: "/dev/fake")
-    monkeypatch.setattr(capture, "configure_controls", lambda *_: None)
-    monkeypatch.setattr(capture, "open_capture", lambda *_: (handle, False))
-    counters = CameraCounters()
-    worker = capture.CaptureWorker(camera(), LatestFrameSlot(), counters, threading.Event())
-    monkeypatch.setattr(worker.controls, "reapply", lambda _: None)
-    with pytest.raises(capture.CameraError):
-        worker._capture_until_failure()
-    assert handle.released
-    assert counters.captured == 0 and counters.decode_failures == int(failure != "no_frame")
-
-
-def test_reconnect_backoff_is_bounded_and_stops_promptly(monkeypatch):
-    class Stop:
-        delays = []
-
-        def is_set(self):
-            return False
-
-        def wait(self, delay):
-            self.delays.append(delay)
-            return len(self.delays) == 9
-
-    stop = Stop()
-    counters = CameraCounters()
-    worker = capture.CaptureWorker(camera(), LatestFrameSlot(), counters, stop)
-
-    def fail():
-        raise capture.CameraError("USB unplugged")
-
-    monkeypatch.setattr(worker, "_capture_until_failure", fail)
-    worker.run()
-    assert stop.delays == [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 5.0, 5.0, 5.0]
-    assert counters.capture_failures == 9 and counters.reconnects == 8
-    assert counters.state == CameraState.RETRY_WAIT
-
-
-def test_disabled_capture_does_not_touch_device(monkeypatch):
-    worker = capture.CaptureWorker(
-        camera(enabled=False), LatestFrameSlot(), CameraCounters(), threading.Event()
-    )
-    monkeypatch.setattr(
-        worker, "_capture_until_failure", lambda: pytest.fail("disabled device opened")
-    )
-    worker.run()
-    assert worker.counters.state == CameraState.DISABLED

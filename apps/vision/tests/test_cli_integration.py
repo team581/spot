@@ -71,7 +71,7 @@ def test_failed_regression_command_returns_one_and_retains_report(monkeypatch, t
     from spot_vision import regression
 
     report = {"passed": False, "cases": [{"failures": ["tag_ids"]}]}
-    monkeypatch.setattr(regression, "run_image_regression", lambda *a, **kw: report)
+    monkeypatch.setattr(regression, "run_image_regression", lambda *a, **_kw: report)
     path = tmp_path / "failure.json"
     assert cli.main(["image-regression", "--manifest", "unused", "--output", str(path)]) == 1
     assert json.loads(path.read_text()) == report
@@ -178,7 +178,6 @@ def test_compare_forbids_gpu_fallback_and_reports_id_mismatches(monkeypatch, cap
     monkeypatch.setattr(cli, "create_detector", detector)
     result = cli.main(command("compare", "--input", str(DATA / "center.png"), "--frames", "1"))
     assert result == int(mismatch)
-    assert not cameras[0].detector.fallback_to_cpu
     assert [camera.detector.backend for camera in cameras] == ["cuda", "cpu"]
     report = json.loads(capsys.readouterr().out)
     assert report["id_mismatches"] == int(mismatch)
@@ -227,10 +226,15 @@ def test_charuco_requires_destination_and_paired_config_camera(tmp_path, extra):
 
 
 @pytest.mark.parametrize("mode", ["frame", "worker_exit", "interrupt"])
-def test_probe_shuts_down_capture_on_success_exit_and_interrupt(monkeypatch, capsys, mode):
+@pytest.mark.parametrize("auto_exposure", [False, True])
+def test_probe_shuts_down_capture_on_success_exit_and_interrupt(
+    monkeypatch, capsys, mode, auto_exposure
+):
+    import threading
     import time
 
-    from spot_vision.models import FramePacket
+    from spot_vision.models import CameraCounters, FramePacket
+    from spot_vision.queues import LatestFrameSlot
 
     instances = []
     image = next(
@@ -238,28 +242,55 @@ def test_probe_shuts_down_capture_on_success_exit_and_interrupt(monkeypatch, cap
             DATA / "center.png", load_config(DATA / "config.json").camera("front")
         )
     )
+    config = load_config(DATA / "config.json")
+    camera = replace(config.camera("front"), auto_exposure=auto_exposure, exposure_us=5000, gain=7)
+    monkeypatch.setattr(cli, "load_config", lambda _: replace(config, cameras=(camera,)))
 
     class Capture:
-        joined = False
+        stopped = False
 
-        def __init__(self, camera, slot, counters, stop):
-            self.slot, self.stop = slot, stop
+        def __init__(self, camera, device, generation, controls, observer):
+            assert device == "/dev/fake" and generation == "probe"
+            expected = (
+                {"exposure_auto": 3, "gain": 7}
+                if auto_exposure
+                else {
+                    "exposure_auto": 1,
+                    "exposure_time_absolute": 5000,
+                    "gain": 7,
+                }
+            )
+            assert controls == expected
+            self.slot = LatestFrameSlot()
+            self.counters = CameraCounters()
+            self.ready = threading.Event()
+            self.verified = False
             instances.append(self)
 
         def start(self):
             if mode != "worker_exit":
-                self.slot.put(FramePacket("front", 7, 7, 1234, time.monotonic_ns(), image))
+                self.slot.put(FramePacket("front", 7, 1234, time.monotonic_ns(), image))
+                self.verified = True
+            self.ready.set()
 
         def is_alive(self):
             return False
 
-        def join(self, timeout):
-            assert timeout == 3
-            self.joined = True
+        def stop(self):
+            self.slot.close()
+            self.stopped = True
 
-    monkeypatch.setattr(cli, "CaptureWorker", Capture)
+    monkeypatch.setattr(cli, "CameraCapture", Capture)
     monkeypatch.setattr(cli, "resolve_device", lambda _: "/dev/fake")
     monkeypatch.setattr(cli, "enumerate_camera", lambda _: "camera modes")
+    monkeypatch.setattr(
+        cli,
+        "_run",
+        lambda _: (
+            "exposure_auto 0x009a0901 (menu) : min=0 max=3 default=3 value=3\n"
+            "exposure_time_absolute 0x009a0902 (int) : min=1 max=5000 step=1 value=50"
+        ),
+    )
     if mode == "interrupt":
 
         def interrupt(_):
@@ -267,7 +298,7 @@ def test_probe_shuts_down_capture_on_success_exit_and_interrupt(monkeypatch, cap
 
         monkeypatch.setattr(cli, "create_detector", lambda *_: SimpleNamespace(detect=interrupt))
     assert cli.main(command("probe", "--frames", "1")) == (2 if mode == "worker_exit" else 0)
-    assert instances[0].stop.is_set() and instances[0].joined
+    assert instances[0].stopped
     if mode == "frame":
         report = json.loads(capsys.readouterr().out.splitlines()[-1])
         assert report["sequence"] == 7 and [tag["id"] for tag in report["tags"]] == [1]

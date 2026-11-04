@@ -125,7 +125,6 @@ def test_image_rotation_and_mount_transform_recover_robot_pose():
         False,
         None,
         0,
-        1,
         DetectorConfig(),
         image_rotation_deg=180,
         robot_from_camera_translation=(0.0, 0.1, 0.0),

@@ -215,7 +215,6 @@ class CameraCapture(threading.Thread):
                     packet = FramePacket(
                         self.camera.id,
                         sequence,
-                        driver,
                         local_us + correction,
                         captured_ns + correction * 1000,
                         image,
@@ -228,7 +227,6 @@ class CameraCapture(threading.Thread):
                         self.counters.overwritten_before_processing += 1
                     self.counters.captured += 1
                     self.counters.fps_capture = rate.update(captured_ns / 1e9)
-                    self.counters.last_capture_monotonic = captured_ns / 1e9
                     self.counters.state, self.counters.error = CameraState.RUNNING, ""
                     self.verified = True
                     self.ready.set()

@@ -20,7 +20,6 @@ def camera_config(name="front", backend="cuda"):
         False,
         None,
         0,
-        1,
         DetectorConfig(backend=backend),
     )
 

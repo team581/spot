@@ -8,12 +8,15 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+from wpiutil.wpistruct import pack, unpack
 
+from . import protocol_models as wire
 from .config import ConfigError, load_calibration, load_config
 from .models import DetectedFrame, FramePacket
 from .native import create_detector
+from .nt_transport import ObservationContext, make_observation
 from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_robot_pose
-from .transport import make_vision_frame
+from .structs import FrameResult, result_value, tag_ids
 
 
 def run_image_regression(
@@ -33,6 +36,8 @@ def run_image_regression(
     if config.field_layout is None:
         raise ConfigError("Image regression requires a field layout")
     layout = FieldLayout.load(config.field_layout, config.field_revision)
+    # Struct tag masks use the ordered field IDs. Geometry is solved above this boundary.
+    field = wire.FieldLayout(tags=[wire.FieldTag(id=tag_id) for tag_id in layout.tags])
     results = []
     for case in manifest["cases"]:
         case_config = load_config(base / case["config"]) if case.get("config") else config
@@ -42,9 +47,7 @@ def run_image_regression(
         decimate = 2.0 if backend == "cuda" else camera.detector.decimate
         camera = replace(
             camera,
-            detector=replace(
-                camera.detector, backend=backend, decimate=decimate, fallback_to_cpu=False
-            ),
+            detector=replace(camera.detector, backend=backend, decimate=decimate),
         )
         if camera.calibration is None:
             raise ConfigError("Image regression requires camera calibration")
@@ -66,17 +69,19 @@ def run_image_regression(
                     camera.robot_from_camera_translation, camera.robot_from_camera_rpy_deg
                 ),
             )
-            frame = FramePacket(camera.id, 1, 1, 1000, time.monotonic_ns(), image)
-            message = make_vision_frame(
-                config,
-                camera,
+            frame = FramePacket(camera.id, 1, 1000, time.monotonic_ns(), image)
+            # Synthetic captures have exact timestamps; this is not hardware timing evidence.
+            message = make_observation(
                 DetectedFrame(frame, batch, 0),
                 solution,
+                ObservationContext(
+                    wire.Acknowledgement(),
+                    wire.CameraGeneration(camera_name=camera.id, calibration_valid=True),
+                    0.0,
+                ),
                 (time.perf_counter_ns() - started) / 1e6,
             )
-            from .protocol import restore, snapshot
-
-            wire = restore(type(message), snapshot(message))
+            result = unpack(FrameResult, pack(result_value(message, (0, 0), field)))
             timings.append(
                 [(time.perf_counter_ns() - started) / 1e6, batch.detect_ms, solution.solve_ms]
             )
@@ -125,9 +130,12 @@ def run_image_regression(
                     failures.append("translation_error")
                 if reprojection_error > case["max_reprojection_error_px"]:
                     failures.append("reprojection_error")
-            if len(wire.candidates) != len(solution.candidates) or not solution.used_tag_ids:
+            if (
+                result.candidateCount != len(solution.candidates)
+                or set(tag_ids(result.primary.tagMask, field)) != solution.used_tag_ids
+            ):
                 failures.append("pose_transport")
-        elif wire.candidates or pose is not None:
+        elif result.candidateCount or pose is not None:
             failures.append("unexpected_pose")
         timing = np.asarray(timings)
         results.append(

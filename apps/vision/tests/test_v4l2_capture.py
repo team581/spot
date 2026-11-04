@@ -8,7 +8,7 @@ from spot_vision import v4l2_capture as module
 
 
 def capture(monkeypatch, packets):
-    source = module.MjpegCapture.__new__(module.MjpegCapture)
+    source = module.V4l2Capture.__new__(module.V4l2Capture)
     source.fd, source.timeout, source.streaming = 9, 0.1, True
     source.buffers = [b"\xff\xd8first\xff\xd9", b"\xff\xd8latest\xff\xd9"]
     operations = []
@@ -99,7 +99,7 @@ def test_failed_setup_closes_device(monkeypatch):
 
     monkeypatch.setattr(module, "_ioctl", ioctl)
     with pytest.raises(RuntimeError, match="two USB buffers"):
-        module.MjpegCapture(None, SimpleNamespace(width=640, height=480, fps=120), "/dev/test")
+        module.V4l2Capture(None, SimpleNamespace(width=640, height=480, fps=120), "/dev/test")
     assert closed == [9]
 
 

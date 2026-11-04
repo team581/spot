@@ -161,7 +161,7 @@ def test_confirm_rejects_missing_ipv4_and_revert_still_works(tmp_path):
 
 
 def test_checkpoint_property_accepts_empty_actual_busctl_array(tmp_path):
-    manager = NetworkManager(tmp_path / "pending", lambda *a, **kw: '{"type":"ao","data":[]}')
+    manager = NetworkManager(tmp_path / "pending", lambda *a, **_kw: '{"type":"ao","data":[]}')
     assert manager.checkpoints() == []
 
 

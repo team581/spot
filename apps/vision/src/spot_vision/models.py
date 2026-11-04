@@ -8,17 +8,13 @@ import numpy as np
 
 
 class CameraState(str, Enum):
-    DISABLED = "DISABLED"
     DISCOVERING = "DISCOVERING"
     CONFIGURING = "CONFIGURING"
     RUNNING = "RUNNING"
-    NO_TARGETS = "NO_TARGETS"
     RETRY_WAIT = "RETRY_WAIT"
-    CONFIG_MISMATCH = "CONFIG_MISMATCH"
 
 
 class PoseMethod(IntEnum):
-    METHOD_UNKNOWN = 0
     MULTI_TAG_SQPNP = 1
     SINGLE_TAG_IPPE_SQUARE = 2
 
@@ -43,7 +39,6 @@ class DetectionBatch:
 class FramePacket:
     camera_id: str
     sequence: int
-    camera_frame_sequence: int
     capture_timestamp_us: int
     captured_monotonic_ns: int
     image: np.ndarray
@@ -99,7 +94,6 @@ class CameraCounters:
     configuration_error: str = ""
     fps_capture: float = 0.0
     fps_detect: float = 0.0
-    last_capture_monotonic: float = 0.0
     last_detection_monotonic: float = 0.0
 
     def snapshot(self) -> dict[str, Any]:

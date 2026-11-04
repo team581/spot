@@ -4,7 +4,6 @@ import argparse
 import json
 import logging
 import sys
-import threading
 import time
 from collections.abc import Iterator
 from dataclasses import replace
@@ -13,14 +12,14 @@ from urllib.request import urlopen
 
 import numpy as np
 
-from .capture import CaptureWorker, enumerate_camera, orient_yuyv_frame, resolve_device
+from .camera_capture import CameraCapture
+from .capture import enumerate_camera, orient_yuyv_frame, resolve_device
 from .config import ConfigError, load_calibration, load_config
+from .devices import _run, parse_capability_controls
 from .logging_utils import configure_logging
-from .models import CameraCounters, DetectionBatch
+from .models import DetectionBatch
 from .native import create_detector
 from .pose import FieldLayout, PoseSolver
-from .queues import LatestFrameSlot
-from .service import VisionService
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,9 +40,6 @@ def _parser() -> argparse.ArgumentParser:
     health.add_argument(
         "--robot", action="store_true", help="require disabled robot and camera readiness"
     )
-
-    daemon = subcommands.add_parser("daemon", help="run the complete vision service")
-    daemon.add_argument("--config", required=True)
 
     probe = subcommands.add_parser("probe", help="run headless live tag detection")
     probe.add_argument("--config", required=True)
@@ -145,18 +141,44 @@ def _run_probe(args) -> int:
     device = resolve_device(camera.selector)
     print(enumerate_camera(device), flush=True)
     detector = create_detector(camera, _calibration(camera))
-    stop = threading.Event()
-    slot = LatestFrameSlot()
-    counters = CameraCounters()
-    worker = CaptureWorker(camera, slot, counters, stop)
+    capabilities = {
+        c["name"]: c
+        for c in parse_capability_controls(
+            _run(["v4l2-ctl", "--device", device, "--list-ctrls-menus"])
+        )
+    }
+    controls = {}
+    auto = next((name for name in ("exposure_auto", "auto_exposure") if name in capabilities), None)
+    if auto:
+        controls[auto] = 3 if camera.auto_exposure else 1
+    if not camera.auto_exposure and camera.exposure_us is not None:
+        exposure = next(
+            (
+                name
+                for name in ("exposure_time_absolute", "exposure_absolute")
+                if name in capabilities
+            ),
+            None,
+        )
+        if exposure is None:
+            raise ConfigError("camera does not expose a supported manual exposure control")
+        controls[exposure] = camera.exposure_us
+    for name in ("gain", "contrast", "sharpness"):
+        value = getattr(camera, name)
+        if value is not None:
+            controls[name] = value
+    worker = CameraCapture(camera, device, "probe", controls, lambda _: None)
+    worker.timestamp_correction_us = camera.timestamp_correction_us
     worker.start()
     processed = 0
     try:
         while args.frames == 0 or processed < args.frames:
-            frame = slot.take()
+            frame = worker.slot.take()
             if frame is None:
+                if worker.ready.is_set() and not worker.verified:
+                    raise RuntimeError(worker.counters.error or "capture worker exited")
                 if not worker.is_alive():
-                    raise RuntimeError(counters.error or "capture worker exited")
+                    raise RuntimeError(worker.counters.error or "capture worker exited")
                 time.sleep(0.005)
                 continue
             started = time.perf_counter_ns()
@@ -167,8 +189,8 @@ def _run_probe(args) -> int:
                     frame.sequence,
                     batch,
                     total_ms,
-                    counters.fps_capture,
-                    counters.overwritten_before_processing,
+                    worker.counters.fps_capture,
+                    worker.counters.overwritten_before_processing,
                 ),
                 flush=True,
             )
@@ -176,9 +198,7 @@ def _run_probe(args) -> int:
     except KeyboardInterrupt:
         pass
     finally:
-        stop.set()
-        slot.close()
-        worker.join(timeout=3.0)
+        worker.stop()
     return 0
 
 
@@ -236,7 +256,7 @@ def _run_compare(args) -> int:
     camera = config.camera(args.camera)
     calibration = _calibration(camera)
     gpu = create_detector(
-        replace(camera, detector=replace(camera.detector, backend="cuda", fallback_to_cpu=False)),
+        replace(camera, detector=replace(camera.detector, backend="cuda")),
         calibration,
     )
     cpu = create_detector(
@@ -450,10 +470,6 @@ def main(argv: list[str] | None = None) -> int:
             return run(args)
         if args.command == "check-health":
             return _run_check_health(args)
-        if args.command == "daemon":
-            service = VisionService(load_config(args.config))
-            service.run_forever()
-            return 0
         if args.command == "probe":
             return _run_probe(args)
         if args.command == "camera-modes":

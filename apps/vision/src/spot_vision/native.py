@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, replace
 from math import radians
 from threading import Lock
@@ -16,8 +15,6 @@ from .uncertainty import distortion_factors
 
 if TYPE_CHECKING:
     from ._spot_cuda import CudaDetector
-
-LOGGER = logging.getLogger(__name__)
 
 
 class Detector(Protocol):
@@ -125,28 +122,6 @@ class NativeDetector:
         self.implementation.reset()
 
 
-@dataclass
-class FallbackDetector:
-    primary: Detector
-    fallback: Detector
-    using_fallback: bool = False
-
-    def detect(self, frame: np.ndarray) -> DetectionBatch:
-        if self.using_fallback:
-            return self.fallback.detect(frame)
-        try:
-            return self.primary.detect(frame)
-        except Exception:
-            LOGGER.exception("CUDA detector failed; switching permanently to CPU fallback")
-            self.using_fallback = True
-            return self.fallback.detect(frame)
-
-    def reset(self) -> None:
-        self.primary.reset()
-        self.fallback.reset()
-        self.using_fallback = False
-
-
 def create_detector(camera: CameraConfig, calibration: Calibration | None) -> Detector:
     if camera.detector.backend == "cpu":
         return CpuDetector(camera.width, camera.height, camera.detector, calibration)
@@ -181,27 +156,14 @@ def create_detector(camera: CameraConfig, calibration: Calibration | None) -> De
         matrix.cy = calibration.camera_matrix[1][2]
         values = calibration.distortion + (0.0,) * (5 - len(calibration.distortion))
         distortion.k1, distortion.k2, distortion.p1, distortion.p2, distortion.k3 = values[:5]
-    fallback = (
-        CpuDetector(camera.width, camera.height, camera.detector, calibration)
-        if camera.detector.fallback_to_cpu
-        else None
+    # The imported CUDA refinement supports five coefficients. Never silently
+    # truncate a different lens model or select a different backend here.
+    if calibration is not None and any(calibration.distortion[5:]):
+        raise RuntimeError("CUDA edge refinement supports only the five-coefficient lens model")
+    # Reject unsupported decimation before the upstream constructor's fatal CHECK.
+    if camera.detector.decimate != 2.0:
+        raise RuntimeError("CUDA detector requires decimate=2")
+    return NativeDetector(
+        native.CudaDetector(camera.width, camera.height, matrix, distortion, options),
+        calibration,
     )
-    try:
-        # The imported CUDA refinement supports five coefficients. Never silently
-        # truncate rational/thin-prism/tilted-sensor models to a different lens.
-        if calibration is not None and any(calibration.distortion[5:]):
-            raise RuntimeError("CUDA edge refinement supports only the five-coefficient lens model")
-        # The upstream constructor uses a fatal CHECK for this constraint.
-        # Reject it here so the configured CPU fallback can still recover.
-        if camera.detector.decimate != 2.0:
-            raise RuntimeError("CUDA detector requires decimate=2")
-        primary = NativeDetector(
-            native.CudaDetector(camera.width, camera.height, matrix, distortion, options),
-            calibration,
-        )
-    except Exception:
-        if fallback is None:
-            raise
-        LOGGER.exception("CUDA detector initialization failed; using CPU fallback")
-        return fallback
-    return primary if fallback is None else FallbackDetector(primary, fallback)

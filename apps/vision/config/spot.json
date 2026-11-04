@@ -1,15 +1,7 @@
 {
-  "schema_version": 1,
   "field_layout": "2026-rebuilt-welded.json",
   "field_revision": 0,
   "tag_size_m": 0.1651,
-  "result_queue_capacity": 32,
-  "nt": {
-    "enabled": true,
-    "mode": "server",
-    "server": null,
-    "identity": "spot-vision"
-  },
   "cameras": [
     {
       "id": "1",
@@ -33,10 +25,8 @@
         "rotation_rpy_deg": [0.0, -20.0, 0.0]
       },
       "timestamp_correction_us": 0,
-      "config_revision": 6,
       "detector": {
         "backend": "cuda",
-        "fallback_to_cpu": true,
         "family": "tag36h11",
         "decimate": 2.0,
         "blur": 0.0,
@@ -64,10 +54,8 @@
         "rotation_rpy_deg": [0.0, -20.0, 0.0]
       },
       "timestamp_correction_us": 0,
-      "config_revision": 2,
       "detector": {
         "backend": "cuda",
-        "fallback_to_cpu": true,
         "family": "tag36h11",
         "decimate": 2.0,
         "blur": 0.0,
@@ -95,10 +83,8 @@
         "rotation_rpy_deg": [0.0, -20.0, 0.0]
       },
       "timestamp_correction_us": 0,
-      "config_revision": 2,
       "detector": {
         "backend": "cuda",
-        "fallback_to_cpu": true,
         "family": "tag36h11",
         "decimate": 2.0,
         "blur": 0.0,
@@ -126,10 +112,8 @@
         "rotation_rpy_deg": [0.0, -20.0, 0.0]
       },
       "timestamp_correction_us": 0,
-      "config_revision": 2,
       "detector": {
         "backend": "cuda",
-        "fallback_to_cpu": true,
         "family": "tag36h11",
         "decimate": 2.0,
         "blur": 0.0,

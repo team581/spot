@@ -76,8 +76,6 @@ class RecoveringDetector:
         self.retries, self.next_attempt, self.error = 0, 0.0, ""
         self.blocked_until = 0.0
         self.primary, self.cpu = None, None
-        # The alpha factory's permanent fallback is deliberately disabled here.
-        self.camera = replace(camera, detector=replace(camera.detector, fallback_to_cpu=False))
         try:
             self.primary = factory(self.camera, calibration)
         except Exception as exc:
