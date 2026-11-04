@@ -85,6 +85,18 @@ The helper copies the key to a temporary file with mode `0600`, uses it for SSH,
 then removes the copy. This works after a Git checkout with mode `0644` too.
 `nix run path:.#ssh` provides the equivalent packaged command.
 
+Set `SPOT_HOST` to use a different IP address or hostname with either SSH helper
+or the deployment command:
+
+```sh
+export SPOT_HOST=spot.local
+bash tools/jetson-ssh.sh
+nix run .#deploy -- test
+```
+
+The default is `192.168.69.170`. IPv6 link-local addresses must include the local
+interface scope, for example `SPOT_HOST=fe80::1234%en7` on a Mac.
+
 For a direct cable, configure the Mac Ethernet adapter as `192.168.69.171/24`.
 Open `http://192.168.69.170:5800/` or `http://spot.local:5800/` for the dashboard.
 

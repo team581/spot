@@ -72,7 +72,7 @@
               key=$(mktemp)
               trap 'rm -f "$key"' EXIT
               install -m 0600 ${./nix/maintenance_ed25519} "$key"
-              ssh -i "$key" -o IdentitiesOnly=yes team581@192.168.69.170 "$@"
+              ssh -i "$key" -o IdentitiesOnly=yes "team581@''${SPOT_HOST:-192.168.69.170}" "$@"
             '';
           };
           jetson-deploy = pkgs.writeShellApplication {
@@ -87,10 +87,11 @@
               trap 'rm -f "$key"' EXIT
               install -m 0600 ${./nix/maintenance_ed25519} "$key"
               export NIX_SSHOPTS="-i $key -o IdentitiesOnly=yes"
+              host="team581@''${SPOT_HOST:-192.168.69.170}"
               if [ "$#" -eq 0 ]; then set -- test; fi
               nixos-rebuild "$@" --flake "$PWD#spot" \
-                --build-host team581@192.168.69.170 \
-                --target-host team581@192.168.69.170 --sudo
+                --build-host "$host" \
+                --target-host "$host" --sudo
             '';
           };
         }
