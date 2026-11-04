@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .proto import vision_v2_pb2 as wire
+from . import protocol_models as wire
 
 
 def mode_supported(device, mode) -> bool:

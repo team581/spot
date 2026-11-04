@@ -3,12 +3,12 @@ from types import SimpleNamespace
 import pytest
 
 from beta_fixtures import manifest
+from spot_vision import protocol_models as wire
 from spot_vision.beta_processing import solve_tag_selection
 from spot_vision.config import ConfigError
 from spot_vision.configuration import ConfigurationService, TagSelection
 from spot_vision.models import PoseSolution
 from spot_vision.persistence import StateStore
-from spot_vision.proto import vision_v2_pb2 as wire
 
 
 def configured(tmp_path):
@@ -90,23 +90,22 @@ def test_mixed_detection_filters_before_solving_and_retains_exclusions():
     assert not unavailable.candidates and len(calls) == 1
 
 
-def test_additive_policy_golden_packets_preserve_legacy_bytes():
-    import hashlib
-    import json
+def test_policy_struct_fixture_preserves_selection_generation_and_mask():
     from pathlib import Path
 
+    from wpiutil.wpistruct import unpack
+
+    from spot_vision.protocol import restore
+    from spot_vision.structs import FrameResult, RobotStatus, token
+
     root = Path(__file__).parent / "data/beta"
-    expectations = json.loads((root / "policy-expectations.json").read_text())
-    for name, expected in expectations.items():
-        assert hashlib.sha256((root / f"{name}.bin").read_bytes()).hexdigest() == expected
     data = (root / "policy-state.bin").read_bytes()
-    assert data.hex() == "0a07726f626f742d311001180720032a020102"
-    request = wire.RobotState.FromString(data)
-    assert request.tag_selection_generation == 3 and list(request.allowed_tag_ids) == [1, 2]
-    assert request.SerializeToString() == data
-    ack = (root / "policy-ack.bin").read_bytes()
-    observation = (root / "policy-multi.bin").read_bytes()
-    assert ack == (root / "ack.bin").read_bytes() + bytes.fromhex("6801")
-    assert observation == (root / "multi.bin").read_bytes() + bytes.fromhex("c80103")
-    assert wire.Acknowledgement.FromString(ack).tag_selection_supported
-    assert wire.Observation.FromString(observation).tag_selection_generation == 3
+    request = unpack(RobotStatus, data)
+    assert (request.sessionHigh, request.sessionLow) == token("robot-1")
+    assert request.enabled and request.sequence == 7
+    assert request.selectionGeneration == 3 and request.allowedTags == 3
+    ack = restore(wire.Acknowledgement, (root / "policy-ack.json").read_bytes())
+    assert ack.tag_selection_supported
+    observation = unpack(FrameResult, (root / "policy-multi.bin").read_bytes())
+    assert observation.tagSelectionGeneration == 3
+    assert observation.primary.tagMask == 3

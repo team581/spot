@@ -11,10 +11,11 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from . import protocol_models as wire
 from .beta_contract import content_hash, parse_manifest, validate_manifest
 from .config import ConfigError
 from .persistence import StateSnapshot, StateStore, canonical_bytes
-from .proto import vision_v2_pb2 as wire
+from .protocol import snapshot
 
 
 def mode_signature(mode: wire.OpticalMode) -> str:
@@ -124,8 +125,7 @@ class ConfigurationService:
             self._selection_valid = valid
             if valid:
                 self._selection = TagSelection(state.tag_selection_generation, ids)
-            self._robot_state = wire.RobotState()
-            self._robot_state.CopyFrom(state)
+            self._robot_state = copy.deepcopy(state)
             self._robot_updated = time.monotonic() if now is None else now
 
     def tag_selection(self, now: float | None = None) -> TagSelection | None:
@@ -270,20 +270,15 @@ class ConfigurationService:
                 raise ConfigError("fresh robot manifest requires current NT connection")
             # A re-sent same profile/session still establishes fresh authority
             # after reconnect. Cached hash equality is never a handshake.
-            if (
-                self.fresh
-                and self.manifest is not None
-                and manifest.SerializeToString() == self.manifest.SerializeToString()
-            ):
+            if self.fresh and self.manifest is not None and manifest == self.manifest:
                 return self.state
-            target = wire.Manifest()
-            target.CopyFrom(manifest)
+            target = copy.deepcopy(manifest)
             data = copy.deepcopy(self.state.data)
             profiles = data.setdefault("profiles", {})
             profile = profiles.setdefault(
                 target.profile.robot_id, {"bindings": {}, "settings": {}, "modes": {}}
             )
-            profile["manifest"] = base64.b64encode(target.SerializeToString()).decode()
+            profile["manifest"] = base64.b64encode(snapshot(target)).decode()
             names = {camera.name for camera in target.profile.cameras}
             # Removed definitions cannot silently bind a later, unrelated role.
             for key in ("bindings", "settings", "modes"):

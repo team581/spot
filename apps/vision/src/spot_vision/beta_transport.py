@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import math
@@ -13,15 +14,27 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .beta_contract import MAX_TAGS, content_hash, parse_manifest, validate_observation
+from . import protocol_models as wire
+from .beta_contract import MAX_TAGS, content_hash, validate_observation
 from .clock import ClockGate, nt_now_us
 from .config import ConfigError, NtConfig
 from .configuration import ConfigurationService, TagSelection
 from .models import DetectedFrame, PoseSolution
-from .proto import vision_v2_pb2 as wire
+from .nt_metadata import AcknowledgementPublisher
+from .protocol import ProfileSubscriber
+from .structs import (
+    SYNC_STATES,
+    FrameResult,
+    Heartbeat,
+    RobotStatus,
+    frame_context,
+    result_value,
+    tag_ids,
+    token,
+)
 
 LOGGER = logging.getLogger(__name__)
-ROOT = "/Spot/v2"
+ROOT = "/Spot"
 
 
 @dataclass(frozen=True)
@@ -42,7 +55,6 @@ def make_observation(
 ) -> wire.Observation:
     ack, camera, frame = context.acknowledgement, context.camera, detected.frame
     message = wire.Observation(
-        schema_version=2,
         tag_selection_generation=selection.generation if selection else 0,
         robot_id=ack.robot_id,
         robot_session=ack.robot_session,
@@ -94,20 +106,22 @@ def make_observation(
                 for c in corners
             )
             spread = float(np.prod(np.ptp(points, axis=0))) if len(points) else 0
-            message.candidates.add(
-                field_to_camera=pose,
-                method=int(candidate.method),
-                tag_ids=candidate.tag_ids,
-                reprojection_error_px=candidate.reprojection_error_px,
-                average_tag_distance_m=candidate.average_tag_distance_m,
-                image_area_fraction=min(1.0, area / (w * h)),
-                image_spread_fraction=min(1.0, spread / (w * h)),
-                distortion_displacement_px=candidate.distortion_factor_px,
+            message.candidates.append(
+                wire.PoseCandidate(
+                    field_to_camera=pose,
+                    method=int(candidate.method),
+                    tag_ids=list(candidate.tag_ids),
+                    reprojection_error_px=candidate.reprojection_error_px,
+                    average_tag_distance_m=candidate.average_tag_distance_m,
+                    image_area_fraction=min(1.0, area / (w * h)),
+                    image_spread_fraction=min(1.0, spread / (w * h)),
+                    distortion_displacement_px=candidate.distortion_factor_px,
+                )
             )
     for detection in detections:
-        tag = message.tags.add(
+        tag = wire.TagObservation(
             id=detection.id,
-            corners_xy_px=detection.corners.reshape(-1),
+            corners_xy_px=detection.corners.reshape(-1).tolist(),
             hamming=detection.hamming,
             decision_margin=detection.decision_margin,
             used_for_pose=detection.id in solution.used_tag_ids,
@@ -117,9 +131,10 @@ def make_observation(
                 else solution.rejection_reasons.get(detection.id, "")
             ),
         )
+        message.tags.append(tag)
         if detection.distortion_factor_px is not None:
             tag.distortion_displacement_px = detection.distortion_factor_px
-    message.timing.CopyFrom(
+    message.timing = copy.deepcopy(
         wire.ProcessingTiming(
             capture_to_detect_ms=detected.capture_to_detect_ms,
             detect_ms=detected.batch.detect_ms,
@@ -152,6 +167,7 @@ class BetaNtTransport:
         self.started_ns = time.monotonic_ns()
         self._lock = threading.RLock()
         self._ack: wire.Acknowledgement | None = None
+        self._frame_contexts: dict[str, tuple[int, int]] = {}
         self._ack_applied_ns = 0
         self._connection_after_us = 0
         self._health_sequence = 0
@@ -167,21 +183,19 @@ class BetaNtTransport:
         options = ntcore.PubSubOptions(
             keepDuplicates=True, sendAll=True, periodic=0.005, pollStorage=32
         )
-        self._manifest = self.instance.getRawTopic(f"{ROOT}/robot/manifest").subscribe(
-            "proto:spot.vision.v2.Manifest", b"", options
+        self._manifest = self.instance.getStringTopic(f"{ROOT}/robot/manifest").subscribe(
+            "", options
         )
-        self._robot_state = self.instance.getRawTopic(f"{ROOT}/robot/state").subscribe(
-            "proto:spot.vision.v2.RobotState", b"", options
-        )
+        self._robot_session = self.instance.getStringTopic(f"{ROOT}/robot/session").subscribe("")
+        self._profile = ProfileSubscriber(self.instance, ROOT)
+        self._robot_state = self.instance.getStructTopic(
+            f"{ROOT}/robot/state", RobotStatus
+        ).subscribe(RobotStatus(), options)
         self._decisions = self.instance.getStringTopic(f"{ROOT}/robot/decisions").subscribe(
             "", ntcore.PubSubOptions(periodic=1.0, pollStorage=2)
         )
-        self._ack_publisher = self.instance.getRawTopic(f"{ROOT}/config/ack").publish(
-            "proto:spot.vision.v2.Acknowledgement", options
-        )
-        self._health = self.instance.getRawTopic(f"{ROOT}/health").publish(
-            "proto:spot.vision.v2.Health", options
-        )
+        self._ack_publisher = AcknowledgementPublisher(self.instance, ROOT, options)
+        self._health = self.instance.getStructTopic(f"{ROOT}/health", Heartbeat).publish(options)
         self._observations: dict[str, object] = {}
         self._listeners = [
             self.instance.addConnectionListener(True, self._connection_event),
@@ -219,16 +233,30 @@ class BetaNtTransport:
         self.clock.update(offset if data.valid else None, data.rtt2, data.valid)
 
     def _state_event(self, event) -> None:
+        from wpiutil.wpistruct import unpack
+
         try:
             value = event.data.value
-            if value.time() < self._connection_after_us:
-                return
-            payload = value.getRaw()
-            if len(payload) > 1024:
-                return
-            self.configuration.robot_state(wire.RobotState.FromString(payload))
-        except Exception:
-            LOGGER.debug("invalid robot state packet", exc_info=True)
+            if value.time() >= self._connection_after_us:
+                self._apply_robot_state(unpack(RobotStatus, value.getRaw()))
+        except (ValueError, RuntimeError):
+            LOGGER.debug("invalid robot state struct", exc_info=True)
+
+    def _apply_robot_state(self, value: RobotStatus) -> None:
+        manifest = self.configuration.manifest
+        if manifest is None or (value.sessionHigh, value.sessionLow) != token(
+            manifest.robot_session
+        ):
+            return
+        self.configuration.robot_state(
+            wire.RobotState(
+                manifest.robot_session,
+                value.enabled,
+                value.sequence,
+                value.selectionGeneration,
+                tag_ids(value.allowedTags, manifest.profile.field),
+            )
+        )
 
     def poll(self) -> None:
         """Called by runtime supervisor; potentially expensive apply is off HTTP."""
@@ -261,7 +289,13 @@ class BetaNtTransport:
             if sync.state != "Synchronized" or sample.time < self._connection_after_us:
                 continue
             try:
-                manifest = parse_manifest(sample.value)
+                session = self._robot_session.get()
+                if not session or not sample.value:
+                    continue
+                manifest = wire.Manifest(self._profile.read(), session, sample.value)
+                from .beta_contract import validate_manifest
+
+                validate_manifest(manifest)
                 self.configuration.accept_manifest(manifest)
                 self.acknowledge()
                 self.last_error = ""
@@ -270,9 +304,9 @@ class BetaNtTransport:
                 self._publish_rejection(str(exc))
         # Also handles robot states arriving just before the fresh manifest.
         for sample in self._robot_state.readQueue():
-            if sample.time >= self._connection_after_us and len(sample.value) <= 1024:
+            if sample.time >= self._connection_after_us:
                 try:
-                    self.configuration.robot_state(wire.RobotState.FromString(sample.value))
+                    self._apply_robot_state(sample.value)
                 except Exception:
                     LOGGER.debug("invalid robot state packet", exc_info=True)
 
@@ -379,7 +413,6 @@ class BetaNtTransport:
                 self._ack = None
                 return
             ack = wire.Acknowledgement(
-                schema_version=2,
                 robot_id=manifest.profile.robot_id,
                 robot_session=manifest.robot_session,
                 manifest_hash=manifest.manifest_hash,
@@ -394,8 +427,12 @@ class BetaNtTransport:
             )
             if self._ack is None or self._ack != ack:
                 self._ack = ack
+                self._frame_contexts = {
+                    camera.camera_name: frame_context(ack, camera.camera_name)
+                    for camera in ack.cameras
+                }
                 self._ack_applied_ns = time.monotonic_ns()
-                self._ack_publisher.set(ack.SerializeToString())
+                self._ack_publisher.set(ack)
 
     def invalidate_configuration(self) -> None:
         # Every application attempt, including rollback, establishes a fresh
@@ -406,9 +443,7 @@ class BetaNtTransport:
 
     def _publish_rejection(self, error: str) -> None:
         self._ack_publisher.set(
-            wire.Acknowledgement(
-                schema_version=2, service_session=self.session, applied=False, error=error
-            ).SerializeToString()
+            wire.Acknowledgement(service_session=self.session, applied=False, error=error)
         )
 
     def context(
@@ -430,8 +465,7 @@ class BetaNtTransport:
             camera = next((c for c in ack.cameras if c.camera_name == camera_name), None)
             if camera is None or not camera.binding_id:
                 return None
-            copied_ack = wire.Acknowledgement()
-            copied_ack.CopyFrom(ack)
+            copied_ack = copy.deepcopy(ack)
             copied_camera = next(c for c in copied_ack.cameras if c.camera_name == camera_name)
             return ObservationContext(
                 copied_ack, copied_camera, self._ack_applied_ns, uncertainty_s
@@ -484,14 +518,20 @@ class BetaNtTransport:
                 return False
             publisher = self._observations.get(observation.camera_name)
             if publisher is None:
-                publisher = self.instance.getRawTopic(
-                    f"{ROOT}/{observation.camera_name}/observations"
+                publisher = self.instance.getStructTopic(
+                    f"{ROOT}/{observation.camera_name}/observations", FrameResult
                 ).publish(
-                    "proto:spot.vision.v2.Observation",
                     self.ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005),
                 )
                 self._observations[observation.camera_name] = publisher
-            publisher.set(observation.SerializeToString(), observation.capture_local_nt_us)
+            publisher.set(
+                result_value(
+                    observation,
+                    self._frame_contexts[observation.camera_name],
+                    manifest.profile.field,
+                ),
+                observation.capture_local_nt_us,
+            )
             return True
 
     def heartbeat(
@@ -506,7 +546,6 @@ class BetaNtTransport:
         sync = self.clock.snapshot(now_ns)
         self._health_sequence += 1
         message = wire.Health(
-            schema_version=2,
             service_session=self.session,
             sequence=self._health_sequence,
             uptime_s=(now_ns - self.started_ns) / 1e9,
@@ -521,7 +560,21 @@ class BetaNtTransport:
             native_hash=native_hash,
             faults=faults or [],
         )
-        self._health.set(message.SerializeToString(), local_us)
+        self._health.set(
+            Heartbeat(
+                *token(message.service_session),
+                *token(message.runtime_generation),
+                message.sequence,
+                message.uptime_s,
+                SYNC_STATES.index(message.sync_state),
+                message.offset_us,
+                message.sync_update_age_s,
+                message.connection_epoch,
+                message.sync_epoch,
+                message.discontinuities,
+            ),
+            local_us,
+        )
         return message
 
     def close(self) -> None:
@@ -532,6 +585,8 @@ class BetaNtTransport:
             self.instance.removeListener(listener)
         for resource in [
             self._manifest,
+            self._robot_session,
+            self._profile,
             self._decisions,
             self._robot_state,
             self._ack_publisher,

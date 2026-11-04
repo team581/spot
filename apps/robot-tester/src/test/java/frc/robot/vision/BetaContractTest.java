@@ -3,6 +3,8 @@ package frc.robot.vision;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.data.Offset.offset;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.google.common.collect.ImmutableList;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
@@ -11,21 +13,26 @@ import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.networktables.TimestampedRaw;
-import frc.robot.vision.generated.SpotProtos;
+import frc.robot.vision.data.*;
 import frc.robot.vision.results.VisionMeasurement;
+import frc.robot.vision.structs.FrameResult;
+import frc.robot.vision.structs.RobotStatus;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 final class BetaContractTest {
-  private static SpotProtos.Acknowledgement ack() throws IOException {
-    return SpotProtos.Acknowledgement.parseFrom(fixture("ack"));
+  private static Acknowledgement ack() throws IOException {
+    return model("ack", Acknowledgement.class);
   }
 
   private static byte[] fixture(String name) throws IOException {
-    try (var input = BetaContractTest.class.getResourceAsStream("/spot-beta/" + name + ".bin")) {
+    String extension = name.endsWith("ack") || name.equals("manifest") ? ".json" : ".bin";
+    try (var input = BetaContractTest.class.getResourceAsStream("/spot-beta/" + name + extension)) {
       if (input == null) {
         throw new IOException("fixture missing: " + name);
       }
@@ -33,8 +40,8 @@ final class BetaContractTest {
     }
   }
 
-  private static SpotProtos.Manifest manifest() throws IOException {
-    return SpotProtos.Manifest.parseFrom(fixture("manifest"));
+  private static Manifest manifest() throws IOException {
+    return model("manifest", Manifest.class);
   }
 
   private static VisionMeasurement measurement(String source, double timestamp) {
@@ -51,10 +58,16 @@ final class BetaContractTest {
         1.);
   }
 
+  private static <T> T model(String name, Class<T> type) throws IOException {
+    return new ObjectMapper()
+        .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+        .readValue(fixture(name), type);
+  }
+
   private static VisionProcessor processor() throws IOException {
     var mount = new Transform3d(new Translation3d(.2, 0, .5), new Rotation3d());
     return new VisionProcessor(
-        manifest().getProfile(),
+        manifest().profile(),
         ImmutableList.of(SpotCameraProfiles.Camera.fixed("front", mount)),
         timestamp ->
             Optional.of(
@@ -64,26 +77,14 @@ final class BetaContractTest {
   }
 
   private static VisionIO.Sample sample(String name) throws IOException {
-    return new VisionIO.Sample(SpotProtos.Observation.parseFrom(fixture(name)), 10.05);
-  }
-
-  @Test
-  void additivePolicyBytesAgreeWithoutChangingLegacyFixtures() throws IOException {
-    var bytes = fixture("policy-state");
-    assertThat(java.util.HexFormat.of().formatHex(bytes))
-        .isEqualTo("0a07726f626f742d311001180720032a020102");
-    var state = SpotProtos.RobotState.parseFrom(bytes);
-    assertThat(state.getTagSelectionGeneration()).isEqualTo(3);
-    assertThat(state.getAllowedTagIdsList()).containsExactly(1, 2);
-    assertThat(state.toByteArray()).containsExactly(bytes);
-    var ack = SpotProtos.Acknowledgement.parseFrom(fixture("policy-ack"));
-    assertThat(ack.getTagSelectionSupported()).isTrue();
-    assertThat(ack.toBuilder().clearTagSelectionSupported().build().toByteArray())
-        .containsExactly(fixture("ack"));
-    var observation = SpotProtos.Observation.parseFrom(fixture("policy-multi"));
-    assertThat(observation.getTagSelectionGeneration()).isEqualTo(3);
-    assertThat(observation.toBuilder().clearTagSelectionGeneration().build().toByteArray())
-        .containsExactly(fixture("multi"));
+    var frame =
+        FrameResult.struct.unpack(ByteBuffer.wrap(fixture(name)).order(ByteOrder.LITTLE_ENDIAN));
+    var acknowledgement = ack();
+    return new VisionIO.Sample(
+        SpotFrames.observation(
+            frame, acknowledgement, acknowledgement.cameras().get(0), manifest().profile()),
+        10.05,
+        frame);
   }
 
   @Test
@@ -107,16 +108,27 @@ final class BetaContractTest {
   @ParameterizedTest
   void imageAreaConditioningKeepsUncertaintyWithinItsIntendedBounds(
       double imageAreaFraction, double expectedFactor) throws IOException {
-    var observation = sample("multi").observation().toBuilder().setTimestampUncertaintyS(1e-12);
-    observation.getCandidatesBuilder(0).setImageAreaFraction(.02);
+    var observation =
+        TestRecords.with(sample("multi").observation(), "timestampUncertaintyS", 1e-12);
+    observation =
+        TestRecords.with(
+            observation,
+            "candidates",
+            java.util.List.of(
+                TestRecords.with(observation.candidates().get(0), "imageAreaFraction", .02)));
     var baseline =
         processor()
-            .process(new VisionIO.Sample(observation.build(), 10.05), ack(), 10.1, false)
+            .process(new VisionIO.Sample(observation, 10.05), ack(), 10.1, false)
             .measurement()
             .orElseThrow();
-    observation.getCandidatesBuilder(0).setImageAreaFraction(imageAreaFraction);
-    var result =
-        processor().process(new VisionIO.Sample(observation.build(), 10.05), ack(), 10.1, false);
+    observation =
+        TestRecords.with(
+            observation,
+            "candidates",
+            java.util.List.of(
+                TestRecords.with(
+                    observation.candidates().get(0), "imageAreaFraction", imageAreaFraction)));
+    var result = processor().process(new VisionIO.Sample(observation, 10.05), ack(), 10.1, false);
     assertThat(result.reason()).isEqualTo(VisionProcessor.Reason.ACCEPTED);
     assertThat(result.measurement().orElseThrow().stdX())
         .isCloseTo(baseline.stdX() * expectedFactor, offset(1e-9));
@@ -149,7 +161,7 @@ final class BetaContractTest {
   void missingHistoryNeverSubstitutesCurrentPoseOrJointAngle() throws IOException {
     var processor =
         new VisionProcessor(
-            manifest().getProfile(),
+            manifest().profile(),
             ImmutableList.of(),
             timestamp -> Optional.empty(),
             VisionProcessor.Policy.conservative());
@@ -157,7 +169,7 @@ final class BetaContractTest {
         .isEqualTo(VisionProcessor.Reason.HISTORY);
     processor =
         new VisionProcessor(
-            manifest().getProfile(),
+            manifest().profile(),
             ImmutableList.of(new SpotCameraProfiles.Camera("front", null, null)),
             timestamp -> Optional.of(new VisionProcessor.CaptureState(Pose2d.kZero, 0, 0, 0, 0, 0)),
             VisionProcessor.Policy.conservative());
@@ -183,11 +195,11 @@ final class BetaContractTest {
   @Test
   void pythonAndJavaAgreeOnPacketsHashesAndCoordinateUnits() throws IOException {
     var manifest = manifest();
-    assertThat(manifest.toByteArray()).containsExactly(fixture("manifest"));
-    assertThat(SpotProtocol.hash(manifest.getProfile())).isEqualTo(manifest.getManifestHash());
-    assertThat(SpotProtocol.hash(manifest.getProfile().getField())).isEqualTo(ack().getFieldHash());
+    assertThat(SpotProtocol.hash(manifest.profile())).isEqualTo(manifest.manifestHash());
+    assertThat(SpotProtocol.hash(manifest.profile().field())).isEqualTo(ack().fieldHash());
     for (String name : ImmutableList.of("empty", "multi", "ippe", "ambiguous")) {
-      assertThat(sample(name).observation().toByteArray()).containsExactly(fixture(name));
+      assertThat(fixture(name)).hasSize(328);
+      assertThat(sample(name).frame().sequence()).isEqualTo(1);
     }
     var accepted = processor().process(sample("multi"), ack(), 10.1, false);
     assertThat(accepted.reason()).isEqualTo(VisionProcessor.Reason.ACCEPTED);
@@ -197,6 +209,30 @@ final class BetaContractTest {
     assertThat(measurement.timestamp()).isEqualTo(10.05);
     assertThat(measurement.stdX()).isPositive();
     assertThat(measurement.stdHeading()).isEqualTo(1e6);
+  }
+
+  @Test
+  void pythonPolicyStructUsesTheSameFieldLayoutAndGeneration() throws IOException {
+    var bytes = fixture("policy-state");
+    assertThat(bytes).hasSize(RobotStatus.struct.getSize());
+    var state = RobotStatus.struct.unpack(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
+    assertThat(state.selectionGeneration()).isEqualTo(3);
+    assertThat(state.allowedTags()).isEqualTo(3);
+    assertThat(state.enabled()).isTrue();
+    assertThat(state.sequence()).isEqualTo(7);
+    var session = SpotProtocol.token("robot-1");
+    assertThat(state.sessionHigh()).isEqualTo(session[0]);
+    assertThat(state.sessionLow()).isEqualTo(session[1]);
+    var ack = model("policy-ack", Acknowledgement.class);
+    assertThat(ack.tagSelectionSupported()).isTrue();
+    var frame =
+        FrameResult.struct.unpack(
+            ByteBuffer.wrap(fixture("policy-multi")).order(ByteOrder.LITTLE_ENDIAN));
+    assertThat(frame.tagSelectionGeneration()).isEqualTo(3);
+    assertThat(frame.primary().tagMask()).isEqualTo(3);
+    var context = SpotProtocol.frameContext(ack, "front");
+    assertThat(frame.contextHigh()).isEqualTo(context[0]);
+    assertThat(frame.contextLow()).isEqualTo(context[1]);
   }
 
   @Test
@@ -240,11 +276,7 @@ final class BetaContractTest {
         .isEqualTo(VisionProcessor.Reason.STALE);
     assertThat(processor.process(sample("multi"), ack(), 10., false).reason())
         .isEqualTo(VisionProcessor.Reason.FUTURE);
-    var observation = sample("multi").observation().toBuilder().setSchemaVersion(99).build();
-    assertThat(
-            processor.process(new VisionIO.Sample(observation, 10.05), ack(), 10.1, false).reason())
-        .isEqualTo(VisionProcessor.Reason.SCHEMA);
-    observation = sample("multi").observation().toBuilder().setRuntimeGeneration("old").build();
+    var observation = TestRecords.with(sample("multi").observation(), "runtimeGeneration", "old");
     assertThat(
             processor.process(new VisionIO.Sample(observation, 10.05), ack(), 10.1, false).reason())
         .isEqualTo(VisionProcessor.Reason.CONFIGURATION);

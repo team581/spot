@@ -1,23 +1,27 @@
-"""Regenerate synthetic Python/Java golden packets from the v2 schema.
+"""Regenerate synthetic Python/Java WPILib struct fixtures.
 
 Run with PYTHONPATH=apps/vision/src:apps/vision/tests. No hardware values or acceptance evidence.
 """
 
+import copy
 import json
+from dataclasses import asdict
 from pathlib import Path
 
-from google.protobuf.json_format import MessageToDict
+from wpiutil.wpistruct import pack
 
 from beta_fixtures import manifest
+from spot_vision import protocol_models as wire
 from spot_vision.beta_contract import content_hash
-from spot_vision.proto import vision_v2_pb2 as wire
+from spot_vision.protocol import snapshot
+from spot_vision.structs import RobotStatus, frame_context, result_value, token
 
 
 def generate(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     message = manifest()
-    (root / "manifest.bin").write_bytes(message.SerializeToString(deterministic=True))
-    (root / "profile.json").write_text(json.dumps(MessageToDict(message), indent=2) + "\n")
+    (root / "manifest.json").write_bytes(snapshot(message))
+    (root / "profile.json").write_text(json.dumps(asdict(message), indent=2) + "\n")
     camera = wire.CameraGeneration(
         camera_name="front",
         binding_id="usb-a",
@@ -28,7 +32,6 @@ def generate(root: Path) -> None:
         optical_signature="fixed-lens-1",
     )
     ack = wire.Acknowledgement(
-        schema_version=2,
         robot_id=message.profile.robot_id,
         robot_session=message.robot_session,
         manifest_hash=message.manifest_hash,
@@ -40,10 +43,9 @@ def generate(root: Path) -> None:
         cameras=[camera],
         applied=True,
     )
-    (root / "ack.bin").write_bytes(ack.SerializeToString(deterministic=True))
+    (root / "ack.json").write_bytes(snapshot(ack))
     for name in ("empty", "multi", "ippe", "ambiguous"):
         observation = wire.Observation(
-            schema_version=2,
             robot_id=ack.robot_id,
             robot_session=ack.robot_session,
             service_session=ack.service_session,
@@ -66,14 +68,18 @@ def generate(root: Path) -> None:
             timestamp_uncertainty_s=0.003,
         )
         if name != "empty":
-            observation.tags.add(
-                id=1, corners_xy_px=[10, 10, 50, 10, 50, 50, 10, 50], used_for_pose=True
+            observation.tags.append(
+                wire.TagObservation(
+                    id=1, corners_xy_px=[10, 10, 50, 10, 50, 50, 10, 50], used_for_pose=True
+                )
             )
             if name == "multi":
-                observation.tags.add(
-                    id=2, corners_xy_px=[60, 10, 100, 10, 100, 50, 60, 50], used_for_pose=True
+                observation.tags.append(
+                    wire.TagObservation(
+                        id=2, corners_xy_px=[60, 10, 100, 10, 100, 50, 60, 50], used_for_pose=True
+                    )
                 )
-            candidate = observation.candidates.add(
+            candidate = wire.PoseCandidate(
                 field_to_camera=wire.Pose(x_m=2.2, z_m=0.5, qw=1),
                 method=1 if name == "multi" else 2,
                 tag_ids=[1, 2] if name == "multi" else [1],
@@ -82,11 +88,12 @@ def generate(root: Path) -> None:
                 image_area_fraction=0.04,
                 image_spread_fraction=0.1,
             )
+            observation.candidates.append(candidate)
             if name != "multi":
                 import math
 
-                alternative = observation.candidates.add()
-                alternative.CopyFrom(candidate)
+                alternative = copy.deepcopy(candidate)
+                observation.candidates.append(alternative)
                 yaw = 0.7
                 if name == "ambiguous":
                     candidate.field_to_camera.qw = math.cos(0.1 / 2)
@@ -94,25 +101,25 @@ def generate(root: Path) -> None:
                     yaw = -0.1
                 alternative.field_to_camera.qw = math.cos(yaw / 2)
                 alternative.field_to_camera.qz = math.sin(yaw / 2)
-        (root / f"{name}.bin").write_bytes(observation.SerializeToString(deterministic=True))
-    # Additive fixtures: legacy packet bytes above remain exactly unchanged.
-    # Wire keys 4/5 (state), 13 (ack) and 25 (observation) are independently specified.
-    import hashlib
-
-    policy = {
-        "policy-state": bytes.fromhex("0a07726f626f742d311001180720032a020102"),
-        "policy-ack": (root / "ack.bin").read_bytes() + bytes.fromhex("6801"),
-        "policy-multi": (root / "multi.bin").read_bytes() + bytes.fromhex("c80103"),
-    }
-    expected = {
-        "policy-state": "7c903e4842083328dfb7daacbb70d088c3b67450b0fd504177005e1e04ea1756",
-        "policy-ack": "feb74098499600e8fff3b803fa8f21db22975d6d768fe7a7c356b446bb6eab7e",
-        "policy-multi": "652a7c40d45b001baaaf6993d84cca694312a84123dc80e7d88f2bfece3cae1d",
-    }
-    for name, payload in policy.items():
-        assert hashlib.sha256(payload).hexdigest() == expected[name]
-        (root / f"{name}.bin").write_bytes(payload)
-    (root / "policy-expectations.json").write_text(json.dumps(expected, indent=2) + "\n")
+        (root / f"{name}.bin").write_bytes(
+            pack(
+                result_value(
+                    observation, frame_context(ack, observation.camera_name), message.profile.field
+                )
+            )
+        )
+        if name == "multi":
+            multi = copy.deepcopy(observation)
+    policy_ack = copy.deepcopy(ack)
+    policy_ack.tag_selection_supported = True
+    (root / "policy-ack.json").write_bytes(snapshot(policy_ack))
+    multi.tag_selection_generation = 3
+    (root / "policy-multi.bin").write_bytes(
+        pack(
+            result_value(multi, frame_context(policy_ack, multi.camera_name), message.profile.field)
+        )
+    )
+    (root / "policy-state.bin").write_bytes(pack(RobotStatus(*token("robot-1"), True, 7, 3, 3)))
     (root / "README.md").write_text(
         "# Synthetic beta golden packets\n\n"
         "Generated by `apps/vision/tools/generate_beta_fixtures.py`; not real measurements.\n"
@@ -121,11 +128,9 @@ def generate(root: Path) -> None:
         "Transport fixture capture time is 10.05 FPGA seconds.\n"
         "The diagnostic local clock value inside the packet is a different epoch.\n"
         "IPPE alternatives are 0 and 0.7 rad; ambiguous alternatives are ±0.1 rad.\n"
-        "Policy fixtures add support=true to ack and generation=3 to multi.\n"
-        "policy-state: robot-1, enabled, sequence=7, generation=3, IDs=[1,2].\n"
-        "Its bytes are 0a07726f626f742d311001180720032a020102.\n"
-        "Ack suffix is 6801; observation suffix is c80103. SHA-256 values are\n"
-        "pinned independently in the generator and policy-expectations.json.\n"
+        "Binary frames use SpotFrameResult (328 bytes); state uses SpotRobotStatus.\n"
+        "JSON files are desktop test inputs and Jetson snapshots, never NT robot payloads.\n"
+        "Policy state: robot-1, enabled, sequence=7, generation=3, tag mask=3.\n"
     )
 
 
