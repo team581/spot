@@ -178,7 +178,7 @@ class VisionService:
         self.watchdog = Watchdog()
 
     def start(self) -> None:
-        self.publisher.publish_global(self.config.schema_version)
+        self.publisher.publish_global()
         for camera_id, camera in self.cameras.items():
             calibration = self.calibrations[camera_id]
             self.publisher.publish_calibration_status(

@@ -2,16 +2,19 @@
 package frc.robot.vision;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
-import com.google.protobuf.InvalidProtocolBufferException;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.PubSubOption;
-import edu.wpi.first.networktables.RawPublisher;
 import edu.wpi.first.networktables.RawSubscriber;
 import edu.wpi.first.networktables.StringPublisher;
+import edu.wpi.first.networktables.StringSubscriber;
+import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.networktables.TimestampedRaw;
-import frc.robot.vision.generated.SpotProtos;
+import edu.wpi.first.util.struct.StructBuffer;
+import frc.robot.vision.data.*;
 import frc.robot.vision.results.VisionMeasurement;
+import frc.robot.vision.structs.FrameResult;
+import frc.robot.vision.structs.Heartbeat;
+import frc.robot.vision.structs.RobotStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +22,7 @@ import java.util.OptionalDouble;
 
 /** NT4 robot server adapter; transport bytes and metadata stay atomic. */
 public final class SpotVisionIO implements VisionIO {
-  public static final String ROOT = "/Spot/v2";
+  public static final String ROOT = "/Spot";
   // A reconnect needs a newly timestamped profile; cached authority stays invalid.
   private static final double MANIFEST_PERIOD_S = .1;
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -47,18 +50,27 @@ public final class SpotVisionIO implements VisionIO {
   }
 
   private final NetworkTableInstance instance;
-  private final SpotProtos.Manifest manifest;
-  private final RawPublisher manifestPublisher;
-  private final RawPublisher statePublisher;
-  private final RawSubscriber ackSubscriber;
+  private final Manifest manifest;
+  private final String fieldHash;
+  private final StringPublisher manifestPublisher;
+  private final StringPublisher sessionPublisher;
+  private final StructPublisher<RobotStatus> statePublisher;
+  private final StringSubscriber ackSubscriber;
   private final RawSubscriber healthSubscriber;
+  private final StructBuffer<FrameResult> frameBuffer = StructBuffer.create(FrameResult.struct);
+  private final StructBuffer<Heartbeat> healthBuffer = StructBuffer.create(Heartbeat.struct);
+  private final SpotMetadata metadata;
+  private final long[] sessionToken;
+  private final Map<String, long[]> frameContexts = new HashMap<>();
   private final StringPublisher decisionsPublisher;
   private final Map<String, Map<String, Object>> decisions = new HashMap<>();
   private double lastDecisionPublish = Double.NEGATIVE_INFINITY;
   private final Map<String, RawSubscriber> cameras = new HashMap<>();
-  private SpotProtos.Acknowledgement acknowledgement =
-      SpotProtos.Acknowledgement.getDefaultInstance();
-  private SpotProtos.Health lastHealth = SpotProtos.Health.getDefaultInstance();
+  private Acknowledgement acknowledgement =
+      new Acknowledgement("", "", "", "", 0L, 0L, "", "", java.util.List.of(), false, "", false);
+  private frc.robot.vision.data.Health lastHealth =
+      new frc.robot.vision.data.Health(
+          "", 0L, 0.0, "", 0L, 0.0, 0L, 0L, 0L, "", "", "", java.util.List.of());
   private double lastHealthTimestamp = Double.NEGATIVE_INFINITY;
   private double lastPublish = Double.NEGATIVE_INFINITY;
   private double resetTimestamp = Double.NEGATIVE_INFINITY;
@@ -71,38 +83,53 @@ public final class SpotVisionIO implements VisionIO {
   private boolean effectiveFusion;
   private boolean closed;
 
-  public SpotVisionIO(NetworkTableInstance instance, SpotProtos.Profile profile, String session) {
+  public SpotVisionIO(NetworkTableInstance instance, Profile profile, String session) {
     this.instance = instance;
-    this.manifest =
-        SpotProtos.Manifest.newBuilder()
-            .setProfile(profile)
-            .setRobotSession(session)
-            .setManifestHash(SpotProtocol.hash(profile))
-            .build();
+    this.manifest = new Manifest(profile, session, SpotProtocol.hash(profile));
+    fieldHash = SpotProtocol.hash(profile.field());
+    metadata = new SpotMetadata(instance, ROOT);
+    metadata.publish(profile);
+    sessionToken = SpotProtocol.token(session);
+    sessionPublisher = instance.getStringTopic(ROOT + "/robot/session").publish();
+    sessionPublisher.set(session);
     manifestPublisher =
         instance
-            .getRawTopic(ROOT + "/robot/manifest")
+            .getStringTopic(ROOT + "/robot/manifest")
             .publish(
-                "proto:spot.vision.v2.Manifest",
                 PubSubOption.sendAll(true),
                 PubSubOption.keepDuplicates(true),
                 PubSubOption.periodic(.02));
     statePublisher =
         instance
-            .getRawTopic(ROOT + "/robot/state")
+            .getStructTopic(ROOT + "/robot/state", RobotStatus.struct)
             .publish(
-                "proto:spot.vision.v2.RobotState",
                 PubSubOption.sendAll(true),
                 PubSubOption.keepDuplicates(true),
                 PubSubOption.periodic(.02));
-    ackSubscriber = subscribe(ROOT + "/config/ack", "Acknowledgement", 16);
-    healthSubscriber = subscribe(ROOT + "/health", "Health", 16);
+    ackSubscriber = instance.getStringTopic(ROOT + "/config/ack").subscribe("");
+    healthSubscriber =
+        instance
+            .getRawTopic(ROOT + "/health")
+            .subscribe(
+                Heartbeat.struct.getTypeString(),
+                new byte[0],
+                PubSubOption.sendAll(true),
+                PubSubOption.keepDuplicates(true),
+                PubSubOption.pollStorage(16));
     decisionsPublisher =
         instance.getStringTopic(ROOT + "/robot/decisions").publish(PubSubOption.periodic(1.0));
-    for (var camera : profile.getCamerasList()) {
+    for (var camera : profile.cameras()) {
       cameras.put(
-          camera.getName(),
-          subscribe(ROOT + "/" + camera.getName() + "/observations", "Observation", 16));
+          camera.name(),
+          instance
+              .getRawTopic(ROOT + "/" + camera.name() + "/observations")
+              .subscribe(
+                  FrameResult.struct.getTypeString(),
+                  new byte[0],
+                  PubSubOption.sendAll(true),
+                  PubSubOption.keepDuplicates(true),
+                  PubSubOption.pollStorage(16),
+                  PubSubOption.periodic(.005)));
     }
   }
 
@@ -110,8 +137,10 @@ public final class SpotVisionIO implements VisionIO {
   public void close() {
     if (closed) return;
     closed = true;
+    metadata.close();
     decisionsPublisher.close();
     manifestPublisher.close();
+    sessionPublisher.close();
     statePublisher.close();
     ackSubscriber.close();
     healthSubscriber.close();
@@ -124,7 +153,7 @@ public final class SpotVisionIO implements VisionIO {
     return malformed;
   }
 
-  public SpotProtos.Manifest manifest() {
+  public Manifest manifest() {
     return manifest;
   }
 
@@ -147,8 +176,8 @@ public final class SpotVisionIO implements VisionIO {
           double captured = (double) values.get("capture_fpga_s");
           if (now - captured <= .5
               && captured <= now + .005
-              && acknowledgement.getRuntimeGeneration().equals(values.get("runtime_generation"))
-              && acknowledgement.getServiceSession().equals(values.get("service_session"))
+              && acknowledgement.runtimeGeneration().equals(values.get("runtime_generation"))
+              && acknowledgement.serviceSession().equals(values.get("service_session"))
               && selection != null
               && Long.valueOf(selection.generation())
                   .equals(values.get("tag_selection_generation"))) {
@@ -160,15 +189,15 @@ public final class SpotVisionIO implements VisionIO {
           JSON.writeValueAsString(
               Map.of(
                   "robot_session",
-                  manifest.getRobotSession(),
+                  manifest.robotSession(),
                   "manifest_hash",
-                  manifest.getManifestHash(),
+                  manifest.manifestHash(),
                   "fusion_enabled",
                   effectiveFusion,
                   "heading_enabled",
-                  manifest.getProfile().getHeadingEnabled(),
+                  manifest.profile().headingEnabled(),
                   "revised_trust_enabled",
-                  manifest.getProfile().getRevisedTrustEnabled(),
+                  manifest.profile().revisedTrustEnabled(),
                   "cameras",
                   fresh)));
     } catch (java.io.IOException exception) {
@@ -183,23 +212,31 @@ public final class SpotVisionIO implements VisionIO {
     var health = health(now);
     for (var camera : cameras.entrySet()) {
       for (var sample : camera.getValue().readQueue()) {
-        if (!health.available() || sample.value.length > 65536) {
+        if (!health.available()) {
           continue;
         }
         try {
-          var observation = SpotProtos.Observation.parseFrom(sample.value);
+          if (sample.value.length != FrameResult.struct.getSize())
+            throw new IllegalArgumentException("Incorrect frame struct size");
+          var frame = frameBuffer.read(sample.value);
           var timestamp = captureTimestamp(sample, serverMode());
+          var context = frameContexts.get(camera.getKey());
           if (timestamp.isEmpty()
               || timestamp.getAsDouble() <= resetTimestamp
-              || !observation.getCameraName().equals(camera.getKey())
-              || !observation.getServiceSession().equals(acknowledgement.getServiceSession())
-              || !observation.getRuntimeGeneration().equals(acknowledgement.getRuntimeGeneration())
-              || observation.getConnectionEpoch() != acknowledgement.getConnectionEpoch()
-              || observation.getSyncEpoch() != acknowledgement.getSyncEpoch()) {
+              || context == null
+              || frame.contextHigh() != context[0]
+              || frame.contextLow() != context[1]) {
             continue;
           }
-          result.add(new Sample(observation, timestamp.getAsDouble()));
-        } catch (InvalidProtocolBufferException exception) {
+          var applied =
+              acknowledgement.cameras().stream()
+                  .filter(c -> c.cameraName().equals(camera.getKey()))
+                  .findFirst()
+                  .orElseThrow();
+          var observation =
+              SpotFrames.observation(frame, acknowledgement, applied, manifest.profile());
+          result.add(new Sample(observation, timestamp.getAsDouble(), frame));
+        } catch (IllegalArgumentException exception) {
           malformed++;
         }
       }
@@ -210,22 +247,22 @@ public final class SpotVisionIO implements VisionIO {
   @Override
   public void reportDecision(Sample sample, VisionProcessor.Decision decision) {
     var observation = sample.observation();
-    if (!cameras.containsKey(observation.getCameraName())) {
+    if (!cameras.containsKey(observation.cameraName())) {
       return;
     }
     var values = new HashMap<String, Object>();
     values.put("state", decision.reason().name());
     values.put("fused", false);
-    values.put("capture_epoch", observation.getCaptureEpoch());
-    values.put("sequence", observation.getSequence());
+    values.put("capture_epoch", observation.captureEpoch());
+    values.put("sequence", observation.sequence());
     values.put("capture_fpga_s", sample.captureFpgaSeconds());
-    values.put("service_session", observation.getServiceSession());
-    values.put("runtime_generation", observation.getRuntimeGeneration());
-    values.put("connection_epoch", observation.getConnectionEpoch());
-    values.put("sync_epoch", observation.getSyncEpoch());
-    values.put("tag_selection_generation", observation.getTagSelectionGeneration());
+    values.put("service_session", observation.serviceSession());
+    values.put("runtime_generation", observation.runtimeGeneration());
+    values.put("connection_epoch", observation.connectionEpoch());
+    values.put("sync_epoch", observation.syncEpoch());
+    values.put("tag_selection_generation", observation.tagSelectionGeneration());
     values.put("frame_id", decision.measurement().map(VisionMeasurement::frameId).orElse(""));
-    decisions.put(observation.getCameraName(), values);
+    decisions.put(observation.cameraName(), values);
   }
 
   @Override
@@ -252,17 +289,17 @@ public final class SpotVisionIO implements VisionIO {
     String reason = "";
     if (!serverMode()) {
       reason = "Robot must be NT server";
-    } else if (!acknowledgement.getApplied()) {
+    } else if (!acknowledgement.applied()) {
       reason = "Waiting for configuration acknowledgement";
-    } else if (!acknowledgement.getTagSelectionSupported()) {
+    } else if (!acknowledgement.tagSelectionSupported()) {
       reason = "Spot service does not support tag selection";
     } else if (now - lastHealthTimestamp > .5 || lastHealthTimestamp > now + .005) {
       reason = "Spot heartbeat stale";
-    } else if (!lastHealth.getSyncState().equals("Synchronized")
-        || !lastHealth.getServiceSession().equals(acknowledgement.getServiceSession())
-        || lastHealth.getSyncEpoch() != acknowledgement.getSyncEpoch()
-        || lastHealth.getConnectionEpoch() != acknowledgement.getConnectionEpoch()
-        || !lastHealth.getRuntimeGeneration().equals(acknowledgement.getRuntimeGeneration())) {
+    } else if (!lastHealth.syncState().equals("Synchronized")
+        || !lastHealth.serviceSession().equals(acknowledgement.serviceSession())
+        || lastHealth.syncEpoch() != acknowledgement.syncEpoch()
+        || lastHealth.connectionEpoch() != acknowledgement.connectionEpoch()
+        || !lastHealth.runtimeGeneration().equals(acknowledgement.runtimeGeneration())) {
       reason = "Waiting for synchronized current session";
     }
     return new Health(reason.isEmpty(), reason, acknowledgement, lastHealth);
@@ -272,90 +309,79 @@ public final class SpotVisionIO implements VisionIO {
     return instance.getNetworkMode().contains(NetworkTableInstance.NetworkMode.kServer);
   }
 
-  private RawSubscriber subscribe(String topic, String type, int capacity) {
-    return instance
-        .getRawTopic(topic)
-        .subscribe(
-            "proto:spot.vision.v2." + type,
-            new byte[0],
-            PubSubOption.sendAll(true),
-            PubSubOption.keepDuplicates(true),
-            PubSubOption.pollStorage(capacity),
-            PubSubOption.periodic(.005));
-  }
-
   private void update(double now, boolean robotEnabled) {
     if (!serverMode()) {
       return;
     }
     statePublisher.set(
-        SpotProtos.RobotState.newBuilder()
-            .setRobotSession(manifest.getRobotSession())
-            .setEnabled(robotEnabled)
-            .setTagSelectionGeneration(selection == null ? 0 : selection.generation())
-            .addAllAllowedTagIds(selection == null ? ImmutableList.of() : selection.allowedTagIds())
-            .setSequence(++stateSequence)
-            .build()
-            .toByteArray());
+        new RobotStatus(
+            sessionToken[0],
+            sessionToken[1],
+            robotEnabled,
+            ++stateSequence,
+            selection == null ? 0 : selection.generation(),
+            selection == null
+                ? 0
+                : SpotProtocol.tagMask(selection.allowedTagIds(), manifest.profile().field())));
     if (now - lastPublish >= MANIFEST_PERIOD_S) {
-      manifestPublisher.set(manifest.toByteArray());
+      manifestPublisher.set(manifest.manifestHash());
       lastPublish = now;
     }
-    for (var sample : ackSubscriber.readQueue()) {
-      if (sample.value.length > 65536) {
-        malformed++;
-        continue;
-      }
-      try {
-        var candidate = SpotProtos.Acknowledgement.parseFrom(sample.value);
-        if (candidate.getApplied()
-            && candidate.getSchemaVersion() == 2
-            && candidate.getRobotSession().equals(manifest.getRobotSession())
-            && candidate.getRobotId().equals(manifest.getProfile().getRobotId())
-            && candidate.getManifestHash().equals(manifest.getManifestHash())
-            && candidate.getFieldHash().equals(SpotProtocol.hash(manifest.getProfile().getField()))
-            && !candidate.getServiceSession().isEmpty()
-            && !candidate.getRuntimeGeneration().isEmpty()
-            && candidate.getConnectionEpoch() > 0
-            && candidate.getSyncEpoch() > 0
-            && candidate.getCamerasCount() <= 32) {
-          acknowledgement = candidate;
-        } else {
-          acknowledgement = SpotProtos.Acknowledgement.getDefaultInstance();
-        }
-      } catch (InvalidProtocolBufferException exception) {
-        malformed++;
-      }
-    }
+    metadata
+        .acknowledgement(ackSubscriber.get())
+        .ifPresent(candidate -> {
+          if (candidate.applied()
+              && candidate.robotSession().equals(manifest.robotSession())
+              && candidate.robotId().equals(manifest.profile().robotId())
+              && candidate.manifestHash().equals(manifest.manifestHash())
+              && candidate.fieldHash().equals(fieldHash)
+              && !candidate.serviceSession().isEmpty()
+              && !candidate.runtimeGeneration().isEmpty()
+              && candidate.connectionEpoch() > 0
+              && candidate.syncEpoch() > 0
+              && candidate.cameras().size() <= 32) {
+            if (!candidate.equals(acknowledgement)) {
+              acknowledgement = candidate;
+              frameContexts.clear();
+              for (var camera : candidate.cameras()) {
+                frameContexts.put(
+                    camera.cameraName(), SpotProtocol.frameContext(candidate, camera.cameraName()));
+              }
+            }
+          } else {
+            acknowledgement =
+                new Acknowledgement(
+                    "", "", "", "", 0L, 0L, "", "", java.util.List.of(), false, "", false);
+            frameContexts.clear();
+          }
+        });
     for (var sample : healthSubscriber.readQueue()) {
-      if (sample.value.length > 65536) {
-        malformed++;
-        continue;
-      }
+      if (!acknowledgement.applied()) continue;
       try {
-        var health = SpotProtos.Health.parseFrom(sample.value);
+        if (sample.value.length != Heartbeat.struct.getSize())
+          throw new IllegalArgumentException("Incorrect heartbeat struct size");
+        var health = SpotFrames.health(healthBuffer.read(sample.value), acknowledgement);
         var timestamp = captureTimestamp(sample, serverMode());
-        if (health.getSchemaVersion() != 2
-            || timestamp.isEmpty()
-            || health.getSequence() == 0
-            || (health.getServiceSession().equals(lastHealth.getServiceSession())
-                && health.getSequence() <= lastHealth.getSequence())) {
+        if (timestamp.isEmpty()
+            || health.sequence() == 0
+            || (health.serviceSession().equals(lastHealth.serviceSession())
+                && health.sequence() <= lastHealth.sequence())) {
           continue;
         }
         lastHealth = health;
         lastHealthTimestamp = timestamp.getAsDouble();
-      } catch (InvalidProtocolBufferException exception) {
+      } catch (IllegalArgumentException exception) {
         malformed++;
       }
     }
     var currentGeneration =
-        acknowledgement.getServiceSession()
+        acknowledgement.serviceSession()
             + "/"
-            + acknowledgement.getRuntimeGeneration()
+            + acknowledgement.runtimeGeneration()
             + "/"
-            + acknowledgement.getConnectionEpoch()
+            + acknowledgement.connectionEpoch()
             + "/"
-            + acknowledgement.getSyncEpoch();
+            + acknowledgement.syncEpoch();
     if (!generation.equals(currentGeneration)) {
       generation = currentGeneration;
       decisions.clear();

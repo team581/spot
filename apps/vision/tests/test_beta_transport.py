@@ -8,15 +8,18 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from wpiutil.wpistruct import getSize, pack, unpack
 
-from beta_fixtures import manifest
+from beta_fixtures import RobotPublisher, StatePublisher, manifest
+from spot_vision import protocol_models as wire
 from spot_vision.beta_transport import BetaNtTransport, make_observation
 from spot_vision.clock import nt_now_us
 from spot_vision.config import NtConfig
 from spot_vision.configuration import ConfigurationService
 from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 from spot_vision.persistence import StateStore
-from spot_vision.proto import vision_v2_pb2 as wire
+from spot_vision.protocol import restore
+from spot_vision.structs import FrameResult
 
 
 @pytest.mark.parametrize("state", ["missing", "invalid", "expired", "synchronized"])
@@ -87,16 +90,11 @@ def link(tmp_path):
     transport = BetaNtTransport(
         NtConfig(server="127.0.0.1"), configuration, lambda: [camera], instance=client
     )
-    profile = server.getRawTopic("/Spot/v2/robot/manifest").publish(
-        "proto:spot.vision.v2.Manifest",
-        ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005),
-    )
-    state = server.getRawTopic("/Spot/v2/robot/state").publish(
-        "proto:spot.vision.v2.RobotState",
-        ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005),
-    )
-    observation = server.getRawTopic("/Spot/v2/front/observations").subscribe(
-        "proto:spot.vision.v2.Observation", b"", ntcore.PubSubOptions(sendAll=True, pollStorage=32)
+    options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)
+    profile = RobotPublisher(server, options)
+    state = StatePublisher(server, options)
+    observation = server.getStructTopic("/Spot/front/observations", FrameResult).subscribe(
+        FrameResult(), ntcore.PubSubOptions(sendAll=True, pollStorage=32)
     )
     client.setServer("127.0.0.1", port)
     yield server, client, transport, configuration, applied, profile, state, observation
@@ -125,18 +123,32 @@ def handshake(link):
     client.startClient4("spot-beta-test")
 
     def step():
-        publisher.set(manifest().SerializeToString())
+        publisher.set(manifest())
         state.set(
             wire.RobotState(
                 robot_session="robot-1",
                 sequence=1,
                 tag_selection_generation=1,
                 allowed_tag_ids=[1, 2],
-            ).SerializeToString()
+            )
         )
         transport.poll()
 
     wait_for(lambda: config.fresh and transport._ack is not None, step)
+
+
+def test_partial_native_profile_waits_for_a_complete_matching_snapshot(link):
+    _, client, transport, config, applied, publisher, _, _ = link
+    client.startClient4("partial-profile-test")
+    publisher.session.set("robot-1")
+    publisher.header.set(manifest().manifest_hash)
+    wait_for(client.isConnected, transport.poll)
+    for _ in range(10):
+        transport.poll()
+        time.sleep(0.01)
+    assert not config.fresh and not applied
+    handshake(link)
+    assert config.fresh and len(applied) == 1
 
 
 def test_nt_exchange_handshake_withhold_and_no_tag_server_timestamp(link):
@@ -163,10 +175,10 @@ def test_nt_exchange_handshake_withhold_and_no_tag_server_timestamp(link):
         detected, PoseSolution(), context, 1, selection=_config.tag_selection()
     )
     assert not message.candidates and transport.publish(message, captured_ns)
-    wait_for(lambda: bool(subscriber.get()))
+    wait_for(lambda: subscriber.get().sequence == 1)
     packet = subscriber.getAtomic()
-    decoded = wire.Observation.FromString(packet.value)
-    assert decoded.sequence == 1 and not decoded.candidates
+    decoded = packet.value
+    assert decoded.sequence == 1 and decoded.candidateCount == 0
     expected = frame.capture_timestamp_us + client.getServerTimeOffset()
     assert packet.time == expected
     # The server-local stamp and explicit server stamp agree for a remote value.
@@ -195,25 +207,23 @@ def test_disconnect_expiry_and_reconnect_require_new_ack_and_new_frames(link):
 def test_robot_state_listener_can_lock_configuration_independently_of_apply(link):
     _, _, _transport, config, _, _, publisher, _ = link
     handshake(link)
-    publisher.set(
-        wire.RobotState(robot_session="robot-1", enabled=True, sequence=2).SerializeToString()
-    )
+    publisher.set(wire.RobotState(robot_session="robot-1", enabled=True, sequence=2))
     wait_for(lambda: config._robot_state is not None and config._robot_state.enabled)
     with pytest.raises(ValueError, match="locked"):
         config.require_eligible()
 
 
 def test_golden_python_packets_round_trip_and_match_hashes():
-    from spot_vision.beta_contract import content_hash, validate_observation
+    from spot_vision.beta_contract import content_hash
 
     root = Path(__file__).parent / "data/beta"
-    golden = wire.Manifest.FromString((root / "manifest.bin").read_bytes())
+    golden = restore(wire.Manifest, (root / "manifest.json").read_bytes())
     assert golden.manifest_hash == content_hash(golden.profile)
     for name in ("empty", "multi", "ippe", "ambiguous"):
         data = (root / f"{name}.bin").read_bytes()
-        message = wire.Observation.FromString(data)
-        validate_observation(message)
-        assert message.SerializeToString(deterministic=True) == data
+        message = unpack(FrameResult, data)
+        assert getSize(FrameResult) == len(data) == 328
+        assert pack(message) == data
 
 
 def test_robot_decision_diagnostics_are_bounded_current_and_cleared_on_apply(link):
@@ -223,7 +233,7 @@ def test_robot_decision_diagnostics_are_bounded_current_and_cleared_on_apply(lin
 
     server, _, transport, config, *_ = link
     handshake(link)
-    publisher = server.getStringTopic("/Spot/v2/robot/decisions").publish(
+    publisher = server.getStringTopic("/Spot/robot/decisions").publish(
         ntcore.PubSubOptions(periodic=0.005, sendAll=True)
     )
     try:
@@ -294,7 +304,7 @@ def test_policy_change_rejects_inflight_solve_and_expiry_without_reapplying_mani
             sequence=2,
             tag_selection_generation=2,
             allowed_tag_ids=[2],
-        ).SerializeToString()
+        )
     )
     wait_for(
         lambda: config.tag_selection() is not None and config.tag_selection().generation == 2,

@@ -70,7 +70,9 @@ def run_image_regression(
                 solution,
                 (time.perf_counter_ns() - started) / 1e6,
             )
-            wire = type(message).FromString(message.SerializeToString())
+            from .protocol import restore, snapshot
+
+            wire = restore(type(message), snapshot(message))
             timings.append(
                 [(time.perf_counter_ns() - started) / 1e6, batch.detect_ms, solution.solve_ms]
             )

@@ -23,6 +23,7 @@ from spot_vision.models import (
     PoseMethod,
     PoseSolution,
 )
+from spot_vision.protocol import restore
 from spot_vision.queues import BoundedDropOldestQueue
 from spot_vision.service import OutputWorker
 from spot_vision.transport import MemoryPublisher
@@ -102,9 +103,9 @@ def test_output_worker_publishes_tag_frame(tmp_path, caplog):
     worker.join(1)
 
     assert len(publisher.frames) == 1
-    from spot_vision.proto import VisionFrame
+    from spot_vision.headless_models import VisionFrame
 
-    message = VisionFrame.FromString(publisher.frames[0][1])
+    message = restore(VisionFrame, publisher.frames[0][1])
     assert message.camera_id == "front"
     assert message.tags[0].id == 8
 

@@ -7,7 +7,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Transform3d;
-import frc.robot.vision.generated.SpotProtos;
+import frc.robot.vision.data.*;
 import frc.robot.vision.results.VisionMeasurement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,7 +58,6 @@ public final class VisionProcessor {
   public enum Reason {
     ACCEPTED,
     NO_TAGS,
-    SCHEMA,
     CONFIGURATION,
     CALIBRATION,
     TIMESTAMP,
@@ -91,10 +90,9 @@ public final class VisionProcessor {
     for (var observation : observations) {
       long correlated =
           observations.stream()
-              .filter(
-                  other ->
-                      MathUtil.isNear(other.timestamp(), observation.timestamp(), .02)
-                          && other.tagIds().stream().anyMatch(observation.tagIds()::contains))
+              .filter(other ->
+                  MathUtil.isNear(other.timestamp(), observation.timestamp(), .02)
+                      && other.tagIds().stream().anyMatch(observation.tagIds()::contains))
               .map(VisionMeasurement::source)
               .distinct()
               .count();
@@ -119,30 +117,24 @@ public final class VisionProcessor {
     return Math.abs(candidate.toPose2d().getRotation().minus(history.getRotation()).getRadians());
   }
 
-  private static boolean validPose(SpotProtos.Pose pose) {
-    double[] values = {
-      pose.getXM(),
-      pose.getYM(),
-      pose.getZM(),
-      pose.getQw(),
-      pose.getQx(),
-      pose.getQy(),
-      pose.getQz()
-    };
+  private static boolean validPose(Pose pose) {
+    double[] values = {pose.xM(), pose.yM(), pose.zM(), pose.qw(), pose.qx(), pose.qy(), pose.qz()};
     for (double value : values) {
       if (!Double.isFinite(value)) {
         return false;
       }
     }
     double norm =
-        pose.getQw() * pose.getQw()
-            + pose.getQx() * pose.getQx()
-            + pose.getQy() * pose.getQy()
-            + pose.getQz() * pose.getQz();
+        pose.qw() * pose.qw()
+            + pose.qx() * pose.qx()
+            + pose.qy() * pose.qy()
+            + pose.qz() * pose.qz();
     return MathUtil.isNear(norm, 1.0, 1e-6);
   }
 
-  private final SpotProtos.Profile profile;
+  private final Profile profile;
+  private final String profileHash;
+  private final String fieldHash;
   private final Map<String, SpotCameraProfiles.Camera> cameras;
   private final History history;
   private final Policy policy;
@@ -158,20 +150,17 @@ public final class VisionProcessor {
   private String generation = "";
 
   public VisionProcessor(
-      SpotProtos.Profile profile,
-      List<SpotCameraProfiles.Camera> cameras,
-      History history,
-      Policy policy) {
+      Profile profile, List<SpotCameraProfiles.Camera> cameras, History history, Policy policy) {
     this.profile = profile;
+    this.profileHash = SpotProtocol.hash(profile);
+    this.fieldHash = SpotProtocol.hash(profile.field());
     this.cameras = new HashMap<>();
     for (var camera : cameras) {
       this.cameras.put(camera.name(), camera);
     }
     this.history = history;
     this.policy = policy;
-    knownTags =
-        Set.copyOf(
-            profile.getField().getTagsList().stream().map(SpotProtos.FieldTag::getId).toList());
+    knownTags = Set.copyOf(profile.field().tags().stream().map(FieldTag::id).toList());
   }
 
   public void newGeneration(String identity) {
@@ -184,50 +173,45 @@ public final class VisionProcessor {
   }
 
   public Decision process(
-      VisionIO.Sample sample, SpotProtos.Acknowledgement ack, double now, boolean initialization) {
+      VisionIO.Sample sample, Acknowledgement ack, double now, boolean initialization) {
     var observation = sample.observation();
     double timestamp = sample.captureFpgaSeconds();
-    if (observation.getSchemaVersion() != 2 || observation.getSerializedSize() > 65536) {
-      return Decision.reject(Reason.SCHEMA);
-    }
-    if (!ack.getApplied()
-        || ack.getSchemaVersion() != 2
-        || !ack.getManifestHash().equals(SpotProtocol.hash(profile))
-        || !observation.getRobotId().equals(profile.getRobotId())
-        || !observation.getRobotSession().equals(ack.getRobotSession())
-        || !observation.getServiceSession().equals(ack.getServiceSession())
-        || !observation.getManifestHash().equals(ack.getManifestHash())
-        || !observation.getFieldHash().equals(ack.getFieldHash())
-        || !observation.getFieldHash().equals(SpotProtocol.hash(profile.getField()))
-        || !observation.getRuntimeGeneration().equals(ack.getRuntimeGeneration())
-        || observation.getConnectionEpoch() != ack.getConnectionEpoch()
-        || observation.getSyncEpoch() != ack.getSyncEpoch()) {
+    if (!ack.applied()
+        || !ack.manifestHash().equals(profileHash)
+        || !observation.robotId().equals(profile.robotId())
+        || !observation.robotSession().equals(ack.robotSession())
+        || !observation.serviceSession().equals(ack.serviceSession())
+        || !observation.manifestHash().equals(ack.manifestHash())
+        || !observation.fieldHash().equals(ack.fieldHash())
+        || !observation.fieldHash().equals(fieldHash)
+        || !observation.runtimeGeneration().equals(ack.runtimeGeneration())
+        || observation.connectionEpoch() != ack.connectionEpoch()
+        || observation.syncEpoch() != ack.syncEpoch()) {
       return Decision.reject(Reason.CONFIGURATION);
     }
     var cameraGeneration =
-        ack.getCamerasList().stream()
-            .filter(camera -> camera.getCameraName().equals(observation.getCameraName()))
+        ack.cameras().stream()
+            .filter(camera -> camera.cameraName().equals(observation.cameraName()))
             .findFirst();
     if (cameraGeneration.isEmpty()) {
       return Decision.reject(Reason.CONFIGURATION);
     }
     var applied = cameraGeneration.orElseThrow();
     var definition =
-        profile.getCamerasList().stream()
-            .filter(camera -> camera.getName().equals(observation.getCameraName()))
+        profile.cameras().stream()
+            .filter(camera -> camera.name().equals(observation.cameraName()))
             .findFirst();
     if (definition.isEmpty()
-        || !definition.orElseThrow().getEnabled()
-        || !observation.getBindingId().equals(applied.getBindingId())
-        || observation.getBindingGeneration() != applied.getBindingGeneration()
-        || !observation.getCalibrationHash().equals(applied.getCalibrationHash())
-        || !observation.getModeId().equals(applied.getModeId())
-        || !observation.getOpticalSignature().equals(applied.getOpticalSignature())
-        || definition.orElseThrow().getAllowedModesList().stream()
-            .noneMatch(
-                mode ->
-                    mode.getId().equals(observation.getModeId())
-                        && mode.getOpticalSignature().equals(observation.getOpticalSignature()))) {
+        || !definition.orElseThrow().enabled()
+        || !observation.bindingId().equals(applied.bindingId())
+        || observation.bindingGeneration() != applied.bindingGeneration()
+        || !observation.calibrationHash().equals(applied.calibrationHash())
+        || !observation.modeId().equals(applied.modeId())
+        || !observation.opticalSignature().equals(applied.opticalSignature())
+        || definition.orElseThrow().allowedModes().stream()
+            .noneMatch(mode ->
+                mode.id().equals(observation.modeId())
+                    && mode.opticalSignature().equals(observation.opticalSignature()))) {
       return Decision.reject(Reason.CONFIGURATION);
     }
     if (!Double.isFinite(now) || !Double.isFinite(timestamp) || timestamp <= 0) {
@@ -236,67 +220,62 @@ public final class VisionProcessor {
     if (timestamp <= resetTimestamp) {
       return Decision.reject(Reason.RESET);
     }
-    if (timestamp > now + profile.getFutureToleranceS()) {
+    if (timestamp > now + profile.futureToleranceS()) {
       return Decision.reject(Reason.FUTURE);
     }
-    if (now - timestamp > profile.getMaxAgeS()) {
+    if (now - timestamp > profile.maxAgeS()) {
       return Decision.reject(Reason.STALE);
     }
-    if (observation.getCaptureEpoch().isEmpty()
-        || observation.getSequence() <= 0
-        || observation.getTagsCount() > 64
-        || observation.getCandidatesCount() > 2) {
+    if (observation.captureEpoch().isEmpty()
+        || observation.sequence() <= 0
+        || observation.tags().size() > 64
+        || observation.candidates().size() > 2) {
       return Decision.reject(Reason.MALFORMED);
     }
-    var timing = observation.getTiming();
+    var timing = observation.timing();
     for (double value :
         new double[] {
-          timing.getCaptureToDetectMs(),
-          timing.getDetectMs(),
-          timing.getSolveMs(),
-          timing.getTotalMs()
+          timing.captureToDetectMs(), timing.detectMs(), timing.solveMs(), timing.totalMs()
         }) {
       if (!Double.isFinite(value) || value < 0) {
         return Decision.reject(Reason.MALFORMED);
       }
     }
     Set<Integer> observedTags = new HashSet<>();
-    for (var tag : observation.getTagsList()) {
-      if (tag.getCornersXyPxCount() != 8
-          || tag.getCornersXyPxList().stream().anyMatch(value -> !Double.isFinite(value))
-          || !observedTags.add(tag.getId())) {
+    for (var tag : observation.tags()) {
+      if (!observedTags.add(tag.id())) {
         return Decision.reject(Reason.MALFORMED);
       }
     }
-    String epoch = observation.getServiceSession() + "/" + observation.getCaptureEpoch();
-    String key = observation.getCameraName() + "/" + epoch;
+    String epoch = observation.serviceSession() + "/" + observation.captureEpoch();
+    String key = observation.cameraName() + "/" + epoch;
     if (retiredEpochs.contains(key)) {
       return Decision.reject(Reason.OLD_EPOCH);
     }
-    String previousEpoch = currentEpoch.put(observation.getCameraName(), epoch);
+    String previousEpoch = currentEpoch.put(observation.cameraName(), epoch);
     if (previousEpoch != null && !previousEpoch.equals(epoch)) {
-      retiredEpochs.add(observation.getCameraName() + "/" + previousEpoch);
+      retiredEpochs.add(observation.cameraName() + "/" + previousEpoch);
       if (retiredEpochs.size() > 128) {
         // Bounded memory: a wildly flapping camera remains rejected until a new
         // service/runtime handshake, rather than forgetting an old epoch.
-        currentEpoch.put(observation.getCameraName(), previousEpoch);
+        currentEpoch.put(observation.cameraName(), previousEpoch);
         return Decision.reject(Reason.OLD_EPOCH);
       }
     }
-    long sequence = observation.getSequence();
+    long sequence = observation.sequence();
     if (sequence <= lastSequence.getOrDefault(key, 0L)) {
       return Decision.reject(Reason.DUPLICATE);
     }
     lastSequence.put(key, sequence);
-    if (!applied.getCalibrationValid()
-        || !observation.getCalibrationValid()
-        || applied.getCalibrationHash().isEmpty()) {
+    if (!applied.calibrationValid()
+        || !observation.calibrationValid()
+        || applied.calibrationHash().isEmpty()) {
       return Decision.reject(Reason.CALIBRATION);
     }
-    var camera = cameras.get(observation.getCameraName());
+    var camera = cameras.get(observation.cameraName());
     var policy =
         camera == null || camera.qualityPolicy() == null ? this.policy : camera.qualityPolicy();
-    double timeUncertainty = observation.getTimestampUncertaintyS();
+    double timeUncertainty = observation.timestampUncertaintyS();
     if (!Double.isFinite(timeUncertainty)
         || timeUncertainty <= 0
         || timeUncertainty > policy.maxTimestampUncertaintyS()
@@ -304,10 +283,10 @@ public final class VisionProcessor {
                 "read-completion-local-nt",
                 "driver-exposure-start-local-nt",
                 "driver-exposure-end-local-nt")
-            .contains(observation.getTimestampSource())) {
+            .contains(observation.timestampSource())) {
       return Decision.reject(Reason.TIMESTAMP);
     }
-    if (observation.getCandidatesCount() == 0) {
+    if (observation.candidates().size() == 0) {
       return Decision.reject(Reason.NO_TAGS);
     }
     var captured = history.at(timestamp);
@@ -322,63 +301,57 @@ public final class VisionProcessor {
       return Decision.reject(Reason.MOUNT_HISTORY);
     }
     var alternatives = new ArrayList<Pose3d>();
-    for (var candidate : observation.getCandidatesList()) {
-      if (!validPose(candidate.getFieldToCamera())
-          || candidate.getTagIdsCount() == 0
-          || candidate.getTagIdsCount() > 64
-          || new HashSet<>(candidate.getTagIdsList()).size() != candidate.getTagIdsCount()
-          || !Double.isFinite(candidate.getAverageTagDistanceM())
-          || candidate.getAverageTagDistanceM() <= 0
-          || !Double.isFinite(candidate.getReprojectionErrorPx())
-          || candidate.getReprojectionErrorPx() < 0
-          || !Double.isFinite(candidate.getImageAreaFraction())
-          || candidate.getImageAreaFraction() <= 0
-          || candidate.getImageAreaFraction() > 1
-          || !Double.isFinite(candidate.getImageSpreadFraction())
-          || candidate.getImageSpreadFraction() < 0
-          || candidate.getImageSpreadFraction() > 1
-          || !Sets.immutableEnumSet(
-                  SpotProtos.PoseCandidate.Method.MULTI_TAG_SQPNP,
-                  SpotProtos.PoseCandidate.Method.SINGLE_TAG_IPPE_SQUARE)
-              .contains(candidate.getMethod())) {
+    for (var candidate : observation.candidates()) {
+      if (!validPose(candidate.fieldToCamera())
+          || candidate.tagIds().size() == 0
+          || candidate.tagIds().size() > 64
+          || new HashSet<>(candidate.tagIds()).size() != candidate.tagIds().size()
+          || !Double.isFinite(candidate.averageTagDistanceM())
+          || candidate.averageTagDistanceM() <= 0
+          || !Double.isFinite(candidate.reprojectionErrorPx())
+          || candidate.reprojectionErrorPx() < 0
+          || !Double.isFinite(candidate.imageAreaFraction())
+          || candidate.imageAreaFraction() <= 0
+          || candidate.imageAreaFraction() > 1
+          || !Double.isFinite(candidate.imageSpreadFraction())
+          || candidate.imageSpreadFraction() < 0
+          || candidate.imageSpreadFraction() > 1
+          || !Sets.immutableEnumSet(PoseMethod.MULTI_TAG_SQPNP, PoseMethod.SINGLE_TAG_IPPE_SQUARE)
+              .contains(candidate.method())) {
         return Decision.reject(Reason.MALFORMED);
       }
-      if (!knownTags.containsAll(candidate.getTagIdsList())) {
+      if (!knownTags.containsAll(candidate.tagIds())) {
         return Decision.reject(Reason.UNKNOWN_TAG);
       }
-      if (!observedTags.containsAll(candidate.getTagIdsList())) {
+      if (!observedTags.containsAll(candidate.tagIds())) {
         return Decision.reject(Reason.MALFORMED);
       }
-      if (candidate.getMethod() != observation.getCandidates(0).getMethod()
-          || (candidate.getMethod() == SpotProtos.PoseCandidate.Method.SINGLE_TAG_IPPE_SQUARE
-              && (candidate.getTagIdsCount() != 1
-                  || !candidate
-                      .getTagIdsList()
-                      .equals(observation.getCandidates(0).getTagIdsList())))) {
+      if (candidate.method() != observation.candidates().get(0).method()
+          || (candidate.method() == PoseMethod.SINGLE_TAG_IPPE_SQUARE
+              && (candidate.tagIds().size() != 1
+                  || !candidate.tagIds().equals(observation.candidates().get(0).tagIds())))) {
         return Decision.reject(Reason.MALFORMED);
       }
-      var fieldCamera = SpotProtocol.pose(candidate.getFieldToCamera());
-      for (int tagId : candidate.getTagIdsList()) {
+      var fieldCamera = SpotProtocol.pose(candidate.fieldToCamera());
+      for (int tagId : candidate.tagIds()) {
         var tag =
-            profile.getField().getTagsList().stream()
-                .filter(value -> value.getId() == tagId)
+            profile.field().tags().stream()
+                .filter(value -> value.id() == tagId)
                 .findFirst()
                 .orElseThrow();
-        var cameraToTag = new Transform3d(fieldCamera, SpotProtocol.pose(tag.getFieldToTag()));
+        var cameraToTag = new Transform3d(fieldCamera, SpotProtocol.pose(tag.fieldToTag()));
         if (cameraToTag.getX() <= .05) {
           return Decision.reject(Reason.MALFORMED);
         }
       }
-      if (candidate.getReprojectionErrorPx() > policy.maxResidualPx()) {
+      if (candidate.reprojectionErrorPx() > policy.maxResidualPx()) {
         return Decision.reject(Reason.RESIDUAL);
       }
       alternatives.add(
-          SpotProtocol.pose(candidate.getFieldToCamera())
-              .transformBy(mount.orElseThrow().inverse()));
+          SpotProtocol.pose(candidate.fieldToCamera()).transformBy(mount.orElseThrow().inverse()));
     }
     int selected = 0;
-    if (observation.getCandidates(0).getMethod()
-        == SpotProtos.PoseCandidate.Method.SINGLE_TAG_IPPE_SQUARE) {
+    if (observation.candidates().get(0).method() == PoseMethod.SINGLE_TAG_IPPE_SQUARE) {
       if (alternatives.size() != 2) {
         return Decision.reject(Reason.AMBIGUOUS);
       }
@@ -389,14 +362,14 @@ public final class VisionProcessor {
         return Decision.reject(Reason.AMBIGUOUS);
       }
       selected = a <= b ? 0 : 1;
-    } else if (alternatives.size() != 1 || observation.getCandidates(0).getTagIdsCount() < 2) {
+    } else if (alternatives.size() != 1 || observation.candidates().get(0).tagIds().size() < 2) {
       return Decision.reject(Reason.MALFORMED);
     }
     var robot = alternatives.get(selected);
     if (robot.getX() < -.25
-        || robot.getX() > profile.getField().getLengthM() + .25
+        || robot.getX() > profile.field().lengthM() + .25
         || robot.getY() < -.25
-        || robot.getY() > profile.getField().getWidthM() + .25) {
+        || robot.getY() > profile.field().widthM() + .25) {
       return Decision.reject(Reason.FIELD_BOUNDS);
     }
     var state = captured.orElseThrow();
@@ -418,9 +391,9 @@ public final class VisionProcessor {
             robot.getRotation().getY(), state.pitchRad(), policy.maxTiltErrorRad())) {
       return Decision.reject(Reason.ROBOT_TILT);
     }
-    var candidate = observation.getCandidates(selected);
-    double range = candidate.getAverageTagDistanceM();
-    double conditioning = MathUtil.clamp(Math.sqrt(.02 / candidate.getImageAreaFraction()), 1., 4.);
+    var candidate = observation.candidates().get(selected);
+    double range = candidate.averageTagDistanceM();
+    double conditioning = MathUtil.clamp(Math.sqrt(.02 / candidate.imageAreaFraction()), 1., 4.);
     // Count benefit capped at sqrt(3). Overlapping simultaneous cameras are
     // additionally inflated by correlation policy at source collection.
     double sigma =
@@ -429,9 +402,9 @@ public final class VisionProcessor {
                 policy.rangeSquaredCoefficient()
                     * range
                     * range
-                    / Math.sqrt(Math.min(3, candidate.getTagIdsCount())))
+                    / Math.sqrt(Math.min(3, candidate.tagIds().size())))
             * conditioning
-            * (1 + candidate.getReprojectionErrorPx() / policy.maxResidualPx());
+            * (1 + candidate.reprojectionErrorPx() / policy.maxResidualPx());
     sigma =
         Math.hypot(
             sigma,
@@ -446,24 +419,24 @@ public final class VisionProcessor {
     }
     var measurement =
         new VisionMeasurement(
-            observation.getCameraName(),
+            observation.cameraName(),
             key
                 + "/"
-                + observation.getRuntimeGeneration()
+                + observation.runtimeGeneration()
                 + "/"
-                + observation.getConnectionEpoch()
+                + observation.connectionEpoch()
                 + "/"
-                + observation.getSyncEpoch()
+                + observation.syncEpoch()
                 + "/"
-                + observation.getTagSelectionGeneration()
+                + observation.tagSelectionGeneration()
                 + "/"
                 + sequence,
             robot.toPose2d(),
             timestamp,
             sigma,
             sigma,
-            profile.getHeadingEnabled() ? Math.max(.2, sigma / range) : 1e6,
-            candidate.getTagIdsList(),
+            profile.headingEnabled() ? Math.max(.2, sigma / range) : 1e6,
+            candidate.tagIds(),
             innovation,
             normalized);
     return new Decision(Reason.ACCEPTED, Optional.of(measurement));
