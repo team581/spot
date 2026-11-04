@@ -15,6 +15,19 @@ run = [
   "hk install --mise",
 ]
 
+[tasks.dev]
+description = "Run the dashboard with synthetic cameras at http://127.0.0.1:5815"
+depends = ["dev:backend", "dev:dashboard"]
+
+[tasks."dev:backend"]
+description = "Run the synthetic vision backend without hardware"
+run = "uv run --no-sync python apps/vision/tools/ui_fixture.py --port 5808"
+
+[tasks."dev:dashboard"]
+description = "Run the dashboard development server"
+env = { SPOT_BACKEND = "http://127.0.0.1:5808" }
+run = "pnpm --filter spot-dashboard dev"
+
 [tasks."jetson:ssh"]
 description = "SSH to Spot using the repository's shared maintenance key"
 run = "bash tools/jetson-ssh.sh"
