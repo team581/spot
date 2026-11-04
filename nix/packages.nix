@@ -35,7 +35,15 @@ let
       pkgs.pnpmConfigHook
     ];
     pnpmDeps = pkgs.fetchPnpmDeps {
-      inherit (finalAttrs) pname version src;
+      inherit (finalAttrs) version src;
+      # A changed lockfile must fetch fresh dependencies even while the old hash is pinned.
+      pname = "${finalAttrs.pname}-${
+        builtins.hashString "sha256" (
+          builtins.readFile ../pnpm-lock.yaml
+          + builtins.readFile ../pnpm-workspace.yaml
+          + builtins.readFile ../flake.lock
+        )
+      }";
       fetcherVersion = 3;
       hash = "sha256-TdMok6zDxqarKcfZxdpdB2R2UGmb360e7OB3SzQEo5w=";
     };

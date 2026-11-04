@@ -10,6 +10,11 @@ list. Nix builds the CUDA extension, dashboard, and offline docs. Its store
 replaces the old release directories, installer, mutable service files, and
 activation symlink.
 
+CI refreshes the pnpm dependency cache hash before Nix builds. The existing
+autofix.ci workflow commits hash updates back to dependency branches, including
+Renovate branches. No manual hash update is needed after changing dependencies.
+To refresh it locally with Determinate Nix, run `bash tools/update-pnpm-deps-hash.sh`.
+
 ## Configuration
 
 - `hosts/spot/configuration.nix`: board, disks, networking, access, and Spot.
