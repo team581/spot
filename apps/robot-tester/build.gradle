@@ -31,7 +31,7 @@ wpi.java.debugJni = false
 dependencies {
     annotationProcessor wpi.java.deps.wpilibAnnotations()
     implementation wpi.java.deps.wpilib()
-    implementation 'com.google.guava:guava:33.6.0-jre'
+    implementation 'com.google.guava:guava:33.7.2-jre'
     roborioDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.roborio)
     roborioRelease wpi.java.deps.wpilibJniRelease(wpi.platforms.roborio)
     nativeDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.desktop)
@@ -59,7 +59,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 // Offline camera preview; intentionally independent of build/install tasks.
-dependencies { implementation 'com.google.code.gson:gson:2.11.0' }
+dependencies { implementation 'com.google.code.gson:gson:2.15.0' }
 tasks.register('exportSpotCameraPreview', JavaExec) {
     dependsOn tasks.named('classes')
     classpath = sourceSets.main.runtimeClasspath
