@@ -1,6 +1,7 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
+#include <thrust/iterator/transform_output_iterator.h>
 
 #include <cub/device/device_copy.cuh>
 #include <cub/device/device_radix_sort.cuh>
@@ -19,7 +20,6 @@
 //#include "aos/time/time.h"
 #include "labeling_allegretti_2019_BKE.h"
 #include "threshold.h"
-#include "transform_output_iterator.h"
 
 namespace frc971::apriltag {
 namespace {
@@ -925,8 +925,8 @@ void GpuDetector::Detect(const uint8_t *image) {
 
     AddThetaToIndexPoint add_theta(extents_device_.get(), num_quads_host);
 
-    TransformOutputIterator<IndexPoint, IndexPoint, AddThetaToIndexPoint>
-        output_iterator(selected_blobs_device_.get(), add_theta);
+    auto output_iterator = thrust::make_transform_output_iterator(
+        selected_blobs_device_.get(), add_theta);
 
     NonzeroBlobs select_blobs(selected_extents_device_.get());
 
