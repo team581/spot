@@ -3,6 +3,15 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
+
+
+def wall_time_available() -> bool:
+    """Only trust wall time after synchronization, not a plausible RTC date."""
+    try:
+        return Path("/run/systemd/timesync/synchronized").exists() and time.time() > 1704067200
+    except OSError:
+        return False
 
 
 class FrameRateCounter:

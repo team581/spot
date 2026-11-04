@@ -33,7 +33,7 @@ class StatusSnapshot(TypedDict):
     system: dict
     robot_decisions: dict
     startup: dict
-    release: dict
+    software: dict
     calibration: dict
     history: list[dict]
     network: dict
@@ -316,7 +316,7 @@ def build_status(runtime: BetaRuntime) -> StatusSnapshot:
         "system": runtime.system_metrics.snapshot.copy(),
         "robot_decisions": getattr(runtime.transport, "robot_decisions", {}),
         "startup": runtime.startup.copy(),
-        "release": runtime.release,
+        "software": runtime.software,
         "calibration": runtime.calibration.status() if runtime.calibration else {},
         "history": runtime.store.history(),
         "network": copy.deepcopy(runtime.network.snapshot)

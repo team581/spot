@@ -9,6 +9,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
+from urllib.request import urlopen
 
 import numpy as np
 
@@ -34,10 +35,12 @@ def _parser() -> argparse.ArgumentParser:
     beta.add_argument("--installation", default="/etc/spot-vision/beta.json")
     beta.add_argument("--state-root", default="/var/lib/spot-vision")
 
-    verify = subcommands.add_parser(
-        "verify-release", help="verify installed Python/native identity"
+    health = subcommands.add_parser("check-health", help="check the running service")
+    health.add_argument("--url", default="http://127.0.0.1:5800")
+    health.add_argument("--timeout", type=int, default=120)
+    health.add_argument(
+        "--robot", action="store_true", help="require disabled robot and camera readiness"
     )
-    verify.add_argument("--backend", choices=("cpu", "cuda"), default="cuda")
 
     daemon = subcommands.add_parser("daemon", help="run the complete vision service")
     daemon.add_argument("--config", required=True)
@@ -389,6 +392,53 @@ def _run_charuco(args) -> int:
     return 0
 
 
+def _check_health_status(status: dict, package_path: str, *, robot: bool) -> None:
+    if status["software"]["package_path"] != package_path:
+        raise ConfigError("Running service uses a different package")
+    if not robot:
+        return
+    if (
+        not status["fresh"]
+        or status["clock"]["state"] != "Synchronized"
+        or status["applied_generation"] != status["revision"]
+    ):
+        raise ConfigError("Robot profile/synchronization acknowledgement pending")
+    if status["lock_reason"]:
+        raise ConfigError("Disabled robot required for readiness check")
+    required = [
+        camera
+        for camera in status["cameras"]
+        if camera.get("required") and camera.get("health") != "Disabled"
+    ]
+    if not required or any(
+        not camera["connected"]
+        or not camera["calibrated"]
+        or not camera.get("timestamp_qualified")
+        or camera.get("metrics", {}).get("detect_age_s") is None
+        or camera["metrics"]["detect_age_s"] > 0.5
+        for camera in required
+    ):
+        raise ConfigError("Required camera/mode/calibration/timing readiness pending")
+
+
+def _run_check_health(args) -> int:
+    if not 1 <= args.timeout <= 300:
+        raise ConfigError("Timeout must be 1–300 seconds")
+    deadline = time.monotonic() + args.timeout
+    error = "Readiness timeout"
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(args.url.rstrip("/") + "/health", timeout=2) as response:
+                status = json.load(response)
+            _check_health_status(status, str(Path(sys.prefix).resolve()), robot=args.robot)
+            print(json.dumps(status["software"], indent=2))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError, ConfigError) as exc:
+            error = str(exc)
+            time.sleep(0.5)
+    raise ConfigError(error)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -398,11 +448,8 @@ def main(argv: list[str] | None = None) -> int:
             from .beta_app import run_beta
 
             return run_beta(args)
-        if args.command == "verify-release":
-            from .release import installed_identity
-
-            print(json.dumps(installed_identity(backend=args.backend), indent=2))
-            return 0
+        if args.command == "check-health":
+            return _run_check_health(args)
         if args.command == "daemon":
             service = VisionService(load_config(args.config))
             service.run_forever()

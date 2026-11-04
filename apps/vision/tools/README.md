@@ -9,7 +9,7 @@ been retired; historical evidence may still refer to them.
 ## Headless camera and recording diagnostics
 
 Run these from the repository root after `mise run setup` (CPU) or
-`mise run setup:jetson` (CUDA). Supply the relevant configuration and camera ID:
+the [NixOS package](../../../nix/README.md) (CUDA). Supply the relevant configuration and camera ID:
 
 ```sh
 uv run --no-sync spot-vision camera-modes --config apps/vision/config/spot.json --camera 1
@@ -64,7 +64,6 @@ The fixture supplies synthetic cameras to the real HTTP boundary. See the
 `generate_beta_fixtures.py` regenerates synthetic WPILib struct packets used by
 Python and Java tests. See the [transport guide](../../../docs/NetworkTables.md) before changing
 schemas or golden packets; these fixtures are not measured hardware evidence.
-`build_manifest.py` records the exact native and web artifacts during CMake builds.
 
 ### Operator documentation
 

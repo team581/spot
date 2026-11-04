@@ -534,9 +534,7 @@ class BetaNtTransport:
             )
             return True
 
-    def heartbeat(
-        self, release_id: str = "", native_hash: str = "", faults: list[str] | None = None
-    ) -> wire.Health:
+    def heartbeat(self, package_path: str = "", faults: list[str] | None = None) -> wire.Health:
         now_ns, local_us = time.monotonic_ns(), nt_now_us()
         if self._last_clock is not None:
             prior_ns, prior_us = self._last_clock
@@ -556,8 +554,7 @@ class BetaNtTransport:
             sync_epoch=sync.sync_epoch,
             discontinuities=sync.discontinuities,
             runtime_generation=self.configuration.state.generation,
-            release_id=release_id,
-            native_hash=native_hash,
+            release_id=package_path,
             faults=faults or [],
         )
         self._health.set(

@@ -55,7 +55,7 @@ def calibration_runtime(tmp_path):
     )
     runtime = SimpleNamespace(
         configuration=config,
-        release={"wall_time_available": False},
+        software={},
         workers={},
         validate_calibration=lambda _: None,
     )

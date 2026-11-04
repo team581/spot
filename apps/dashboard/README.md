@@ -57,7 +57,7 @@ and network scenarios intercept API responses; no tests change a machine's netwo
 
 Run `pnpm build && pnpm build:jetson` before `mise run check:application` or a wheel
 build. CMake requires `dist/dashboard` and `dist/jetson-docs`, installs both, and
-hashes the emitted files in the release manifest. Python integration tests fetch
+bundles the emitted files in the application package. Python integration tests fetch
 every installed JS/CSS chunk from a different working directory. CI runs these
 checks and the browser suite. Camera hardware, CUDA, and live Ethernet changes
 remain Jetson acceptance checks.

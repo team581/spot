@@ -138,7 +138,7 @@ class BetaRuntime:
         ]
         self.watchdog = Watchdog()
         self.fatal = ""
-        self.release = {}
+        self.software = {}
         self.debug: DebugState = {"samples": [], "deadline": 0.0, "last": 0.0}
         self.calibration: BetaCalibration | None = (
             None  # attached by installed application before starting
@@ -935,9 +935,7 @@ class BetaRuntime:
             self.fatal = "Workers stalled: " + ", ".join(stalled)
             return False
         faults = list(self.faults.values()) + self.processing_faults()
-        self.transport.heartbeat(
-            self.release.get("release_id", ""), self.release.get("native_sha256", ""), faults
-        )
+        self.transport.heartbeat(self.software.get("package_path", ""), faults)
         sync = self.transport.clock.snapshot()
         for key, active in (
             ("nt_connection_s", self.configuration.connected),

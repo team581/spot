@@ -43,7 +43,7 @@ def test_service_starts_with_the_built_dashboard(tmp_path, monkeypatch):
     runtime = SimpleNamespace(start=Mock(), close=Mock(), watchdog=SimpleNamespace(ready=ready))
     network = SimpleNamespace(worker=SimpleNamespace(start=Mock()), close=Mock())
     monkeypatch.setattr(beta_app, "local_addresses", lambda: ["127.0.0.1"])
-    monkeypatch.setattr(beta_app, "installed_identity", lambda **kwargs: {})
+    monkeypatch.setattr(beta_app, "software_info", lambda: {})
     monkeypatch.setattr(beta_app, "BetaRuntime", lambda *args, **kwargs: runtime)
     monkeypatch.setattr(beta_app, "BetaCalibration", lambda runtime: None)
     monkeypatch.setattr(beta_app, "NetworkClient", lambda: network)

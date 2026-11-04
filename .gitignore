@@ -16,6 +16,8 @@ wheelhouse/
 *.pyc
 /prototype-runs/
 /bench-runs/
+/result
+/result-*
 
 # Astro build state and dependencies.
 node_modules/

@@ -10,7 +10,7 @@
 	#nav .nav-label,
 	#nav .camera-entry,
 	footer #updated,
-	footer #release-id {
+	footer #software-version {
 		display: none;
 	}
 	.brand img {

@@ -30,8 +30,7 @@ export default function App() {
 		addEventListener('hashchange', changed);
 		return () => removeEventListener('hashchange', changed);
 	}, []);
-	const camera = status.cameras.find((c) => c.identity === current.id),
-		deployment = status.release.deployment?.last_successful_deployment;
+	const camera = status.cameras.find((c) => c.identity === current.id);
 	const page =
 		current.page === 'overview' || current.page === 'cameras' ? (
 			<Overview page={current.page} />
@@ -125,11 +124,12 @@ export default function App() {
 				<footer>
 					<ThemeMenu />
 					<div id="updated">
-						{deployment?.completed_at ? 'Updated ' + date(deployment.completed_at) : 'Time unavailable'}
+						{status.software.process_started_at
+							? 'Started ' + date(status.software.process_started_at)
+							: 'Time unavailable'}
 					</div>
-					<small id="release-id">
-						{status.release.release_id || 'Release unavailable'}
-						{status.release.deployment?.rollback ? ' · rollback' : ''}
+					<small id="software-version" title={status.software.package_path}>
+						{status.software.version ? 'Spot ' + status.software.version : 'Development'}
 					</small>
 				</footer>
 			</aside>

@@ -28,7 +28,11 @@ add_library(apriltag STATIC
   ${APRILTAG_COMMON_SOURCES}
   ${APRILTAG_FAMILY_SOURCES}
 )
-set_target_properties(apriltag PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(apriltag PROPERTIES
+  C_STANDARD 11
+  C_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON
+)
 target_include_directories(apriltag PUBLIC cpp/apriltag cpp/apriltag/common)
 find_package(Threads REQUIRED)
 target_link_libraries(apriltag PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
@@ -125,8 +129,6 @@ else()
   install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
 endif()
 
-# Hash the exact module loaded by the installed Python process. Build identity
-# stays in the build directory and is never inferred from a runtime checkout.
 get_filename_component(SPOT_REPOSITORY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(SPOT_DOCS_DIR "${SPOT_REPOSITORY_ROOT}/dist/jetson-docs" CACHE PATH "Prebuilt Starlight site for /docs/")
 if(NOT EXISTS "${SPOT_DOCS_DIR}/index.html" OR NOT EXISTS "${SPOT_DOCS_DIR}/pagefind/pagefind.js")
@@ -136,7 +138,7 @@ set(SPOT_DASHBOARD_DIR "${SPOT_REPOSITORY_ROOT}/dist/dashboard" CACHE PATH "Preb
 if(NOT EXISTS "${SPOT_DASHBOARD_DIR}/index.html")
   message(FATAL_ERROR "Build the dashboard first: pnpm --filter spot-dashboard build")
 endif()
-add_custom_target(spot_build_manifest ALL
+add_custom_target(spot_web_assets ALL
   COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/web"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/web"
   COMMAND "${CMAKE_COMMAND}" -E copy_directory
@@ -144,12 +146,7 @@ add_custom_target(spot_build_manifest ALL
   COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/web/__init__.py"
   COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${SPOT_DOCS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/web/docs"
-  COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_manifest.py"
-    --root "${SPOT_REPOSITORY_ROOT}" --native "$<TARGET_FILE:_spot_cuda>"
-    --cuda "${SPOT_BUILD_CUDA}" --web-assets "${CMAKE_CURRENT_BINARY_DIR}/web" --output "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json"
-  DEPENDS _spot_cuda
   VERBATIM)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/build-manifest.json" DESTINATION spot_vision)
 
 # Install one matching bundle rather than updated HTML with missing screenshots
 # or an older stylesheet. Normalize permissions for the service account.
