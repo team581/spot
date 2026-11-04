@@ -1,11 +1,64 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":disableRateLimiting",
-    "schedule:daily"
-  ],
-  "timezone": "America/Los_Angeles",
-  "gitIgnoredAuthors": ["114827586+autofix-ci[bot]@users.noreply.github.com"],
-  "labels": ["dependencies"]
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": ["config:recommended", ":disableRateLimiting", ":automergeBranch", ":prNotPending", "schedule:daily"],
+	"timezone": "America/Los_Angeles",
+	"packageRules": [
+		{
+			"groupName": "dashboard dependencies",
+			"matchFileNames": ["apps/dashboard/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "documentation dependencies",
+			"matchFileNames": ["apps/docs/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "VS Code camera preview dependencies",
+			"matchFileNames": ["apps/vscode-camera-preview/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "camera viewer dependencies",
+			"matchFileNames": ["packages/camera-viewer/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "vision dependencies",
+			"matchFileNames": ["pyproject.toml", "apps/vision/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "robot tester dependencies",
+			"matchFileNames": ["apps/robot-tester/**"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "Nix dependencies",
+			"matchManagers": ["nix"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "development tooling dependencies",
+			"matchFileNames": ["package.json", "mise.toml"],
+			"separateMajorMinor": true
+		},
+		{
+			"groupName": "GitHub Actions dependencies",
+			"matchManagers": ["github-actions"],
+			"separateMajorMinor": true
+		},
+		{
+			"description": "Automerge non-major updates covered by CI",
+			"matchManagers": ["npm", "github-actions", "mise"],
+			"matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+			"automerge": true
+		},
+		{
+			"matchDatasources": ["npm"],
+			"minimumReleaseAge": "24 hours"
+		}
+	],
+	"gitIgnoredAuthors": ["114827586+autofix-ci[bot]@users.noreply.github.com"],
+	"labels": ["dependencies"]
 }
