@@ -31,7 +31,6 @@ wpi.java.debugJni = false
 dependencies {
     annotationProcessor wpi.java.deps.wpilibAnnotations()
     implementation wpi.java.deps.wpilib()
-    implementation 'com.google.protobuf:protobuf-java:4.33.2'
     implementation 'com.google.guava:guava:33.6.0-jre'
     roborioDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.roborio)
     roborioRelease wpi.java.deps.wpilibJniRelease(wpi.platforms.roborio)

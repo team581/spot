@@ -61,8 +61,8 @@ The fixture supplies synthetic cameras to the real HTTP boundary. See the
 
 ## Fixtures and documentation
 
-`generate_beta_fixtures.py` regenerates synthetic v2 protocol packets used by
-Python and Java tests. See the [schema guide](../proto/README.md) before changing
+`generate_beta_fixtures.py` regenerates synthetic WPILib struct packets used by
+Python and Java tests. See the [transport guide](../../../docs/NetworkTables.md) before changing
 schemas or golden packets; these fixtures are not measured hardware evidence.
 `build_manifest.py` records the exact native and web artifacts during CMake builds.
 

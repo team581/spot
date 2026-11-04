@@ -27,7 +27,6 @@ def generate(root: Path, native: Path, cuda: bool, web_assets: Path) -> dict:
     production = (
         "apps/vision/src/",
         "apps/vision/cpp/",
-        "apps/vision/proto/",
         "apps/vision/deploy/",
         "apps/vision/tools/build_manifest.py",
         "apps/dashboard/",
@@ -50,17 +49,12 @@ def generate(root: Path, native: Path, cuda: bool, web_assets: Path) -> dict:
         r'^version = "([^"]+)"', (root / "apps/vision/pyproject.toml").read_text(), re.MULTILINE
     )[1]
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH", datetime.now(timezone.utc).timestamp()))
-    try:
-        from google.protobuf import __version__ as protobuf_version
-    except ImportError:
-        protobuf_version = "build environment unavailable; generated v2 6.33.2 / v1 7.35.1"
     document = {
         "schema_version": 1,
         "source_commit": commit,
         "source_tree_sha256": digest.hexdigest(),
         "source_dirty": bool(git("status", "--porcelain")),
         "application_version": version,
-        "protobuf_version": protobuf_version,
         "native_sha256": hashlib.sha256(native.read_bytes()).hexdigest(),
         "native_filename": native.name,
         "native_cuda": cuda,
@@ -82,7 +76,6 @@ def generate(root: Path, native: Path, cuda: bool, web_assets: Path) -> dict:
             if path.is_file()
         }
     )
-    document["protobuf_generated_versions"] = {"v1": "7.35.1", "v2": "6.33.2"}
     document["release_id"] = hashlib.sha256(
         json.dumps(document, sort_keys=True).encode()
     ).hexdigest()[:16]

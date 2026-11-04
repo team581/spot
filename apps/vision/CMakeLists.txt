@@ -36,10 +36,6 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(apriltag PUBLIC m)
 endif()
 
-# Both schemas accompany every installed artifact. v1 remains an alpha client
-# compatibility contract; production robot integration uses the distinct v2.
-install(FILES proto/vision.proto proto/vision_v2.proto proto/README.md
-  DESTINATION spot_vision/schemas)
 
 
 if(SPOT_BUILD_CUDA)

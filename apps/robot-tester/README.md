@@ -25,7 +25,7 @@ agent-owned deployment/fix/retest workflow.
 
 Open **this folder** in WPILib 2026 VS Code. The project uses GradleRIO/WPILib
 **2026.2.1**, Java **17**, and Gradle **8.11**. It intentionally stays on 2026 APIs.
-The wrapper and generated protobuf bindings are included. An initial online
+The wrapper and WPILib struct records are included. An initial online
 build downloads dependencies unless they are already in the WPILib/Gradle cache.
 
 ```sh
@@ -118,7 +118,7 @@ position; set `TAG_SIZE_M` to your measured print size.
 
 The same `VisionConfig`/`SpotCameraConfig` pattern can be used in the actual
 robot project. USB device-to-name binding, intrinsic calibration, and timing
-qualification remain on the Jetson. Students do not need to construct protobufs
+qualification remain on the Jetson. Students do not need to encode wire messages
 or configure transport to add cameras.
 
 Connect Jetson and roboRIO Ethernet, directly or through a switch, on a common
@@ -139,21 +139,21 @@ gates pass. The local bench profile remains separate from production settings.
 
 Use Elastic, Glass, or another NT dashboard. Values are under `/SmartDashboard`:
 
-| Entry | Meaning |
-| --- | --- |
-| `Bench/ConfigLoaded`, `ConfigError`, `ProfileHash` | Startup and manifest identity |
-| `Bench/TransportAvailable`, `TransportReason`, `SyncState` | Handshake and service health |
-| `Vision/Spot/Reason`, `Available`, `UsableCameras` | Production validation state |
-| `Vision/Spot/<camera>/Accepted`, `Rejected` | Lifetime per-camera decision counts |
-| `Bench/<camera>/DecisionAge/*` | Capture-to-receiver-decision age of delivered samples |
-| `Bench/<camera>/ConsumptionAge/*` | Capture-to-estimator-consumption age, including ordering wait |
-| `Bench/FramesDelivered`, `MeasurementsConsumed`, `IngestionRejected` | Delivered/consumed/history-or-age-rejected totals |
-| `Vision/Spot/QueueDrops`, `Bench/MalformedPackets` | Queue and malformed-packet diagnostics |
-| `Bench/LoopIntervalMs`, `LoopWorkMs` | Loop cadence and measured harness work |
-| `Bench/Field`, `TrustM`, `EvidenceAgeS` | Bench pose and evidence/trust heuristic |
-| `Bench/UseVision` | Runtime bench estimator suppression; validation still runs |
-| `Bench/HubTags` | Exercise offseason alliance-hub selection; unknown alliance stays broad |
-| `Bench/ResetPose` | One-shot reset to configured pose while disabled; clears queued/history evidence |
+| Entry                                                                | Meaning                                                                          |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `Bench/ConfigLoaded`, `ConfigError`, `ProfileHash`                   | Startup and manifest identity                                                    |
+| `Bench/TransportAvailable`, `TransportReason`, `SyncState`           | Handshake and service health                                                     |
+| `Vision/Spot/Reason`, `Available`, `UsableCameras`                   | Production validation state                                                      |
+| `Vision/Spot/<camera>/Accepted`, `Rejected`                          | Lifetime per-camera decision counts                                              |
+| `Bench/<camera>/DecisionAge/*`                                       | Capture-to-receiver-decision age of delivered samples                            |
+| `Bench/<camera>/ConsumptionAge/*`                                    | Capture-to-estimator-consumption age, including ordering wait                    |
+| `Bench/FramesDelivered`, `MeasurementsConsumed`, `IngestionRejected` | Delivered/consumed/history-or-age-rejected totals                                |
+| `Vision/Spot/QueueDrops`, `Bench/MalformedPackets`                   | Queue and malformed-packet diagnostics                                           |
+| `Bench/LoopIntervalMs`, `LoopWorkMs`                                 | Loop cadence and measured harness work                                           |
+| `Bench/Field`, `TrustM`, `EvidenceAgeS`                              | Bench pose and evidence/trust heuristic                                          |
+| `Bench/UseVision`                                                    | Runtime bench estimator suppression; validation still runs                       |
+| `Bench/HubTags`                                                      | Exercise offseason alliance-hub selection; unknown alliance stays broad          |
+| `Bench/ResetPose`                                                    | One-shot reset to configured pose while disabled; clears queued/history evidence |
 
 Percentiles cover the latest **4096 nonnegative finite samples per camera**;
 `Count` and `LifetimeMaxMs` are lifetime values. Negative/future ages increment
@@ -165,7 +165,7 @@ counts or a complete packet-loss measurement.
 
 An independent writer saves `bench-<robot-session>.wpilog` even without Driver
 Station packets. It records typed bench telemetry, per-frame records under
-`/Bench/Frames` (JSON) and original delivered protobufs under `/Bench/Raw/<camera>`.
+`/Bench/Frames` (JSON) and structured frame records under `/Bench/Raw/<camera>`.
 DataLogManager separately records normal NT/DS state and may pause without DS
 traffic. `Bench/LogDirectory` identifies the selected directory. Frame records
 include identity, sequence, epochs, capture/decision/consumption times, rejection
@@ -191,7 +191,7 @@ The copied Spot pipeline is from `offseason-2026` ref
 `origin/spot-beta-integration`, commit
 `b571f80b5b58fd7ea8db35033e64b06e9028e6ca`. It includes the real `SpotVisionIO`,
 `VisionProcessor`, `CaptureHistory`, `MeasurementQueue`, `TrustFactor`, generated
-protobuf classes, immutable measurements, and golden contract fixtures.
+struct records, immutable measurements, and Python/Java contract fixtures.
 
 `Vision` uses explicit calls instead of the team's subsystem registry, and native
 WPILib dashboard/logging instead of DogLog. Camera status snapshots are copied
@@ -204,6 +204,6 @@ interpret it as drivetrain odometry. WPILib consumes FPGA seconds directly, so
 there is no CTRE time conversion or validation of that boundary here.
 
 There are no sibling-project source links or regeneration steps needed to build.
-The checked-in generated binding matches the included `apps/vision/proto/vision_v2.proto`.
+The checked-in struct records match the Python layouts described in [the transport notes](../../docs/NetworkTables.md).
 Contract, ordering, trust, selection, bench ingestion, configuration, and latency
 tests run with `./gradlew test`. Hardware qualification remains outstanding.
