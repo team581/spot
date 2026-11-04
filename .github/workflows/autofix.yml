@@ -12,7 +12,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: useblacksmith/checkout@v1
+      - name: Mount Nix cache
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-nix-cache-x86_64-linux
+          path: /nix
+          commit: 'false'
+      - name: Prepare Nix installation
+        # Recreate host services on each runner while preserving the cached store and database.
+        run: sudo rm -f /nix/receipt.json
       - uses: DeterminateSystems/nix-installer-action@v23
+        id: nix
       - uses: voidzero-dev/setup-vp@v1.21.1
         with:
           cache: true
@@ -35,3 +45,6 @@ jobs:
         run: bash tools/update-pnpm-deps-hash.sh
       - name: Run autofix.ci
         uses: autofix-ci/action@v1
+      - name: Stop Nix before unmounting the cache
+        if: ${{ always() && steps.nix.outcome == 'success' }}
+        run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service
