@@ -48,6 +48,8 @@ steps {
     glob =
       List(
         "package.json",
+        "release-please-config.json",
+        ".release-please-manifest.json",
         "pnpm-workspace.yaml",
         "knip.config.ts",
         "vite.config.ts",

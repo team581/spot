@@ -3,6 +3,15 @@
 	"displayName": "Spot Camera Preview",
 	"version": "0.1.2",
 	"description": "Offline preview of Spot robot camera configuration",
+	"categories": [
+		"Visualization"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/team581/spot-2026.git",
+		"directory": "apps/vscode-camera-preview"
+	},
 	"publisher": "team581",
 	"type": "module",
 	"main": "./out/extension.cjs",
@@ -22,7 +31,7 @@
 	"devDependencies": {
 		"@types/node": "26.6.6",
 		"@types/vscode": "1.90.0",
-		"@vscode/vsce": "4.0.0",
+		"@vscode/vsce": "4.1.0",
 		"typescript": "7.0.2",
 		"vite-plus": "1.4.0"
 	},

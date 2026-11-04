@@ -9,5 +9,5 @@
 		"types": ["node", "vscode"],
 		"moduleResolution": "Bundler"
 	},
-	"include": ["extension.ts", "project.ts", "profile.ts", "webview.ts"]
+	"include": ["extension.ts", "project.ts", "profile.ts", "webview.ts", "package.mts"]
 }

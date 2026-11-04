@@ -66,7 +66,9 @@ or a `BREAKING CHANGE:` footer a major release. Other types do not imply a relea
 by themselves. Unknown scopes such as `chore(typo): update tools` are rejected;
 omit the scope for repository-wide changes. hk also accepts Git-generated
 merge/revert messages and temporary autosquash commits.
-This validates messages; automated per-package releases require separate setup.
+Release Please uses these commits to maintain releases for the VS Code extension
+and its shared camera viewer. See the [extension release guide](apps/vscode-camera-preview/DEVELOPMENT.md#releases)
+for the release process.
 
 ```sh
 mise run format
@@ -307,4 +309,4 @@ four-camera fairness test on the target Orin.
 
 ## Offline camera preview
 
-See the [VS Code camera preview guide](apps/docs/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection and manual VSIX installation.
+See the [VS Code camera preview guide](apps/docs/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection and Marketplace installation.

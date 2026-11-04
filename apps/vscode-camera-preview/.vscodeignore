@@ -1,12 +1,12 @@
 node_modules/**
+.*
 *.ts
 tsconfig.json
 test/**
+DEVELOPMENT.md
 *.vsix
 package.mts
-release.cjs
 *.vsix.sha256
-release-notes.txt
 media/preview.ts
 project.ts
 profile.ts

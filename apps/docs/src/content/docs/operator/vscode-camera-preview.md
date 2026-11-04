@@ -6,9 +6,11 @@ Inspect saved Java camera mounts beside `VisionConfig.java`. The preview runs of
 
 ## Install or update the extension
 
-1. Open [Spot releases](https://github.com/team581/spot-2026/releases) with an account that has access to the repository. Download the `.vsix` asset from the camera preview release you want to install.
-2. In the VS Code installation you use for the robot project, open **Extensions**, click **…**, and choose **Install from VSIX…**. Select the downloaded file. If using an alternate VS Code profile, install into that profile.
-3. Reload VS Code if prompted. Repeat these steps to install an update.
+1. In the VS Code installation you use for the robot project, open **Extensions** and search for `team581.spot-camera-preview` (**Spot Camera Preview**).
+2. Click **Install**, then reload VS Code if prompted. Install into the profile you use for the robot project.
+3. Leave **Auto Update** enabled for the extension so VS Code installs future releases. If you previously installed a `.vsix`, enable **Auto Update** explicitly in the extension's menu.
+
+The extension is distributed through the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=team581.spot-camera-preview); installation does not require GitHub access.
 
 The preview runs offline after installation. Its first geometry export may need connectivity while Gradle resolves the robot project's dependencies.
 
@@ -45,12 +47,11 @@ _Keep definitions on the left and mounts on the right. This older screenshot use
 
 ## Troubleshooting
 
-| Problem                      | Try this                                                                                                                                              |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No panel                     | Run **Spot: Preview Cameras**; check workspace trust and **Spot Camera Preview: Auto Open**. Closing the panel suppresses auto-open for that session. |
-| Empty scene                  | Add measured definitions to `CAMERAS`.                                                                                                                |
-| Release download unavailable | Sign into GitHub with an account that has access to `team581/spot-2026`.                                                                              |
-| Build fails                  | Open **Build output** and fix Java/project errors. Invalid names, dimensions or image rotation can block export.                                      |
+| Problem     | Try this                                                                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No panel    | Run **Spot: Preview Cameras**; check workspace trust and **Spot Camera Preview: Auto Open**. Closing the panel suppresses auto-open for that session. |
+| Empty scene | Add measured definitions to `CAMERAS`.                                                                                                                |
+| Build fails | Open **Build output** and fix Java/project errors. Invalid names, dimensions or image rotation can block export.                                      |
 
 <details>
 <summary>Scene conventions and shortcuts</summary>

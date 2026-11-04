@@ -1,25 +1,39 @@
 # Spot Camera Preview
 
-Private Team 581 VS Code extension. Open `VisionConfig.java` for a split-screen view of the actual compiled camera mounts. Save Java changes to refresh. Use the camera icon or **Spot: Preview Cameras** to reopen a closed preview.
+Preview Spot robot camera mounts beside `VisionConfig.java`. Inspect camera positions and orientations in a 3D view, then save Java changes to refresh the scene. The preview runs offline without a connection to the robot.
 
-See the [student guide](https://github.com/team581/spot-2026/blob/main/apps/docs/src/content/docs/operator/vscode-camera-preview.md) for VSIX installation, coordinate conventions, and troubleshooting.
+## Install
 
-## Development
+Search for **Spot Camera Preview** (`team581.spot-camera-preview`) in the VS Code Extensions view and click **Install**. Leave automatic updates enabled to receive new versions. If you previously installed a VSIX, enable **Auto Update** in the extension's menu.
 
-Run `pnpm install` at the repository root, then `pnpm build` and `pnpm test` here. Java export tests live in `offseason-2026/offseason-bot`. Vite+ bundles the typed shared renderer into the static webview script. The extension host is a CommonJS bundle targeting Node 20, compatible with the existing VS Code minimum.
+## Open your camera configuration
 
-To debug, launch VS Code with `--extensionDevelopmentPath` pointing at this directory after running `pnpm build`. Open `offseason-2026/offseason-bot` in the development window.
+1. Open your Spot robot project in a trusted VS Code workspace.
+2. Open `VisionConfig.java`. For Team 581's `offseason-2026` project, this is `offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java`.
+3. Click the camera icon in the editor title bar, or run **Spot: Preview Cameras** from the Command Palette.
+4. Register your camera mounts in **CAMERAS**, then save changes to rebuild and refresh the preview.
 
-## Private release procedure
+The preview reads your compiled Java configuration. Your project's Gradle wrapper and Java toolchain must be available. The first build may need network access to download dependencies.
 
-1. Set the extension version in `package.json`; run tests and `pnpm package`.
-2. Authenticate GitHub CLI with access to the private Spot repository.
-3. Run `node release.cjs` to publish the versioned VSIX to the private repository. Users download it from [Spot releases](https://github.com/team581/spot-2026/releases) and install it through **Extensions → … → Install from VSIX…**. Updates use the same steps.
+## Inspect mounts
 
-## Coordinate regression tests
+- Select a camera to inspect its position, orientation, and local axes.
+- Hide cameras to isolate a mount.
+- Drag to orbit and scroll to zoom. Use **Top**, **Front**, **Side**, or **Reset** to change the view.
+- Enable **Show drivebase** to compare mounts against a robot footprint. Adjust its length and width in inches; these preview settings do not change your robot configuration.
 
-`pnpm test` compares the actual Jetson dashboard geometry-form adapter and both shared-renderer modes against 26 positive/negative translation and rotation cases exported by real WPILib. It covers positive/negative pitch, roll and yaw, compound rotations, and ±90° pitch. The same numeric pitch has the same sign and direction in Java and Jetson inspection controls (positive down, negative up). The two paths must render identical camera geometry for equivalent poses.
+Positions use metres and WPILib NWU axes. Positive pitch points the lens down; negative pitch points it up. Image rotation is separate from mount rotation.
 
-Run `./gradlew :offseason-bot:test --tests frc.robot.vision.SpotCameraConventionTest` in `offseason-2026` when changing coordinate handling. It verifies the exporter results and world-axis directions against `offseason-bot/src/test/resources/spot-camera-conventions.json`. The JS tests use the matching cases in `test/fixtures/spot-camera-conventions.json`. If intentionally changing those conventions, review the emitted `offseason-bot/build/spot-camera-preview/convention-cases.json` before updating those fixtures and running the Java and JS tests. Do not update the fixtures solely to silence a failing test.
+The drivebase defaults to 30 × 30 inches, centered on the robot origin. Camera bodies and the drivebase are schematic.
 
-Drivebase visibility and dimensions are local preview settings. The footprint defaults to 30 inches square, centered on the robot origin, with length along +X and width along +Y.
+## Automatic opening and refresh
+
+The preview normally opens when you open `VisionConfig.java`. Disable **Spot Camera Preview: Auto Open** (`spot.cameraPreview.autoOpen`) in Settings to open it manually instead.
+
+Save Java changes to rebuild the camera configuration and refresh the scene. Unsaved changes are not shown. If a build fails, the preview keeps the last successful scene; open **Build output**, fix the error, then save or refresh.
+
+## Troubleshooting
+
+- **The preview does not open:** confirm that the workspace is trusted, then run **Spot: Preview Cameras**. Closing the panel suppresses automatic opening for the rest of that session.
+- **The scene is empty:** check that your camera mounts are registered in **CAMERAS**. A named constant alone does not appear in the scene.
+- **The preview is stale:** open **Build output** and resolve any Java or Gradle errors. Save your changes or refresh to retry.

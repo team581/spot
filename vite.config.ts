@@ -5,6 +5,7 @@ export default defineConfig({
 		useTabs: true,
 		printWidth: 120,
 		ignorePatterns: [
+			'**/CHANGELOG.md',
 			'**/node_modules/**',
 			'**/out/**',
 			'**/.astro/**',

@@ -11,10 +11,7 @@ const config: KnipConfig = {
 		'apps/docs': {},
 		'packages/camera-viewer': {},
 		'apps/vscode-camera-preview': {
-			// Invoked through pnpm exec from the VSIX packaging helper.
-			ignoreDependencies: ['@vscode/vsce'],
-			// VS Code loads the extension; packaging and private releases are explicit scripts.
-			entry: ['release.cjs', 'test/*.cjs'],
+			entry: ['test/*.cjs'],
 			project: ['*.{ts,mts,cjs}', 'media/*.ts', 'test/**/*.cjs'],
 		},
 	},
