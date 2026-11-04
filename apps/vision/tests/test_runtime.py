@@ -538,9 +538,9 @@ def test_network_changes_run_outside_camera_configuration_queue(runtime):
         calls.append(threading.current_thread().name) or {}
     )
     try:
-        assert app.submit(
-            "network/apply", {"interface": "eth0", "mode": "automatic", "address": ""}
-        ).result(1) == {"result": {}}
+        assert app.submit("network/apply", {"mode": "automatic", "address": ""}).result(1) == {
+            "result": {}
+        }
         assert calls[0].startswith("network-change")
         assert app.commands.empty()
         app.configuration.robot_state(

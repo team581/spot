@@ -88,12 +88,29 @@ flowchart LR
   D --> E[Agent redeploys and retests]
 ```
 
-Keep management access separate from the robot transport when using both Jetson Ethernet ports:
+The current NixOS configuration bridges both Ethernet sockets into one network.
+Either socket can connect to the robot radio/router or a laptop. This supersedes
+the separate routed links used for the historical session above; those results
+do not qualify the bridge. Confirm the running generation has `br0` with both
+Ethernet adapters attached before using this topology:
 
 ```mermaid
 flowchart LR
-  M[MacBook Ethernet adapter] --> J[Jetson: two Ethernet ports]
+  M[MacBook Ethernet adapter] --> J[Jetson br0: either Ethernet port]
   J --> R[roboRIO Ethernet]
 ```
 
-Discover actual interface names, addresses and routes before changing networking. Collect service status with `apps/vision/tools/bench_capture.py`; retain robot logs from the existing robot logging workflow. Record measurement windows, delivered/rejected observations, actual estimator consumption and recovery gaps. Keep recordings under the Git-ignored `bench-runs/` directory. The historical latency results above are context, not acceptance results for the current robot.
+The Nix default supplies maintenance access at `192.168.69.170/24` through either
+socket. Initially give the Mac's Ethernet adapter `192.168.69.171/24`, then use
+**Network → Jetson address** to choose the robot static address or DHCP. Every
+trial retains the maintenance address and rolls back after 90 seconds unless
+confirmed. A direct roboRIO cable needs a static address because neither end
+supplies DHCP. See [Connect to Spot](../connect/) for the address-change workflow.
+
+The bridge acts as a switch. To reach the roboRIO directly from the Mac, also give
+the Mac adapter an unused address on the robot subnet. Preserve its normal
+internet default route; Jetson IP forwarding, NAT and custom return routes are
+unnecessary. Qualify each socket individually and swap the cables before
+declaring port interchangeability verified.
+
+Discover the running generation, bridge membership, addresses and routes before changing networking. Collect service status with `apps/vision/tools/bench_capture.py`; retain robot logs from the existing robot logging workflow. Record measurement windows, delivered/rejected observations, actual estimator consumption and recovery gaps. Keep recordings under the Git-ignored `bench-runs/` directory. The historical latency results above are context, not acceptance results for the current robot.

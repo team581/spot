@@ -75,9 +75,11 @@ bounded diagnostics. Recording does not take camera ownership.
 
 NixOS configures NetworkManager, Avahi, the independent privileged helper, and
 its group-restricted socket. Spot's camera service stays unprivileged. Discovery
-advertises the configured Ethernet interface, not Wi-Fi. Choose Automatic or
-Static on **Network → Jetson address**. NetworkManager protects each trial with
-a 90-second rollback; unconfirmed connections are not selected on boot.
+advertises the shared Ethernet bridge, not Wi-Fi. Both Ethernet sockets provide
+the same addresses and services. Choose Automatic or Static on
+**Network → Jetson address**; the Nix-defined maintenance address is retained.
+NetworkManager protects each trial with a 90-second rollback. Trial profiles stay
+in memory until confirmation; one saved override survives reboot and deployment.
 
 First OS installation, firmware requirements, offline transfer, and hardware
 qualification are documented in `nix/README.md` in the repository. The target is

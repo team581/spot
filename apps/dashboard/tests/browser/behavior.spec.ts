@@ -130,7 +130,10 @@ test('network apply payload and confirmation token', async ({ page }) => {
 	status.network = {
 		available: true,
 		hostname: 'spot.local',
-		interfaces: [{ interface: 'eth0', addresses: ['10.5.81.11/24'], mode: 'static' }],
+		addresses: ['192.168.69.170/24', '10.5.81.11/24'],
+		maintenance_address: '192.168.69.170/24',
+		mode: 'static',
+		address: '10.5.81.11/24',
 	};
 	const writes: unknown[] = [];
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
@@ -140,7 +143,6 @@ test('network apply payload and confirmation token', async ({ page }) => {
 		if (body.operation === 'network/apply')
 			status.network.pending = {
 				token: 'a'.repeat(32),
-				interface: 'eth0',
 				address: body.payload.address,
 				remaining_s: 89,
 			};
@@ -149,7 +151,8 @@ test('network apply payload and confirmation token', async ({ page }) => {
 	});
 	await page.route('**/api/jobs/network', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#network');
-	await page.getByLabel('Ethernet port').selectOption('eth0');
+	await expect(page.getByLabel('Ethernet port')).toHaveCount(0);
+	await expect(page.getByText('Either Ethernet port works.', { exact: false })).toBeVisible();
 	await page.getByLabel('IPv4 address / prefix').fill('10.5.81.12/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
 	await expect(page.locator('#network-countdown')).toContainText('89 seconds');
@@ -158,7 +161,7 @@ test('network apply payload and confirmation token', async ({ page }) => {
 	expect(writes).toEqual([
 		expect.objectContaining({
 			operation: 'network/apply',
-			payload: { interface: 'eth0', mode: 'static', address: '10.5.81.12/24' },
+			payload: { mode: 'static', address: '10.5.81.12/24' },
 		}),
 		expect.objectContaining({ operation: 'network/confirm', payload: { token: 'a'.repeat(32) } }),
 	]);
@@ -289,7 +292,10 @@ test('automatic network rollback restores the form; explicit revert uses the con
 	const status = await (await page.request.get('/api/status')).json();
 	status.network = {
 		available: true,
-		interfaces: [{ interface: 'eth0', addresses: ['10.5.81.11/24'], mode: 'static' }],
+		addresses: ['192.168.69.170/24', '10.5.81.11/24'],
+		maintenance_address: '192.168.69.170/24',
+		mode: 'static',
+		address: '10.5.81.11/24',
 	};
 	const writes: { operation: string; payload: unknown }[] = [];
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
@@ -299,7 +305,6 @@ test('automatic network rollback restores the form; explicit revert uses the con
 		if (body.operation === 'network/apply')
 			status.network.pending = {
 				token: 'b'.repeat(32),
-				interface: 'eth0',
 				address: body.payload.address,
 				remaining_s: 30,
 			};
@@ -308,7 +313,6 @@ test('automatic network rollback restores the form; explicit revert uses the con
 	});
 	await page.route('**/api/jobs/rollback', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#network');
-	await page.getByLabel('Ethernet port').selectOption('eth0');
 	await page.getByLabel('IPv4 address / prefix').fill('10.5.81.99/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Revert now', exact: true })).toBeVisible();

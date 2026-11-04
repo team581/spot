@@ -101,17 +101,15 @@ interface CalibrationSession {
 		coverage_particles?: { x: number; y: number; progress: number }[];
 	};
 }
-interface NetworkInterface {
-	interface: string;
-	addresses: string[];
-	mode: string;
-}
 interface Network {
 	available?: boolean;
 	hostname?: string;
 	error?: string;
-	interfaces?: NetworkInterface[];
-	pending?: { token: string; interface: string; address?: string; remaining_s: number };
+	addresses?: string[];
+	maintenance_address?: string;
+	mode?: 'automatic' | 'static';
+	address?: string;
+	pending?: { token: string; address?: string; remaining_s: number };
 }
 export interface Status {
 	cameras: Camera[];
