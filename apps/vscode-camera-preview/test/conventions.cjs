@@ -3,10 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const withCanvasEnvironment = require('./helpers/canvas.cjs');
 const path = require('node:path');
-const root = path.resolve(__dirname, '../../..');
-const fixtures = JSON.parse(
-	fs.readFileSync(path.join(root, 'apps/robot-tester/src/test/resources/spot-camera-conventions.json')),
-);
+const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/spot-camera-conventions.json')));
 const math = require('@spot/camera-viewer');
 const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
 const { geometryValues, previewGeometry } = require('../../dashboard/src/state/geometry.ts');

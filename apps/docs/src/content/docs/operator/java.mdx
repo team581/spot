@@ -22,7 +22,7 @@ flowchart LR
 | `Localization` | Drain immutable `VisionMeasurement` values once, check age/history, convert FPGA to CTRE time once, insert pose, acknowledge actual fusion |
 | `TrustFactor`  | Update from fused evidence; simulation follows the same health/trust rules                                                                 |
 
-The offseason implementation lives in `offseason-bot/src/main/java/frc/robot/vision/`. Construction order is drivetrain → IMU → Vision → HealthManager → Swerve → Localization; helpers do not schedule themselves. Localization returns fusion acknowledgements to Vision and updates local trust only after fusion.
+The Java client lives in `shared/src/main/java/com/team581/vision/spot/` in `offseason-2026`; the robot integration lives in `offseason-bot/src/main/java/frc/robot/vision/`. Client, protocol, and robot integration tests run in that repository with `./gradlew :shared:test :offseason-bot:test`. Construction order is drivetrain → IMU → Vision → HealthManager → Swerve → Localization; helpers do not schedule themselves. Localization returns fusion acknowledgements to Vision and updates local trust only after fusion.
 
 > **Commissioning gate:** measured `left`, `right`, `front`, `back` mounts, modes and controls are required. The production profile starts empty. `VisionConfig.FUSION_ENABLED` defaults false; heading stays suppressed. DS `UseVision` and pit mode can suppress fusion while retaining shadow diagnostics.
 

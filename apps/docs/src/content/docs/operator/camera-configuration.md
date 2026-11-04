@@ -6,7 +6,7 @@ Define measured mounts, capture requests and control policies in `VisionConfig.j
 
 ## Add a camera
 
-Edit `offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java` in offseason-2026, or `src/main/java/frc/robot/vision/VisionConfig.java` in apps/robot-tester.
+Edit `offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java` in `offseason-2026`.
 
 ```java
 public static final SpotCameraConfig FRONT = new SpotCameraConfig(
@@ -172,17 +172,16 @@ For exposure, `min=50 max=10000 step=1 default=166 value=50` means 5,000–1,000
 <details>
 <summary>Profile settings and commissioning</summary>
 
-| Setting                       | Purpose                                                                                |
-| ----------------------------- | -------------------------------------------------------------------------------------- |
-| `ROBOT_ID`                    | Bounded profile ID; keep `offseason-2026` and `apps/robot-tester` distinct             |
-| `CAMERAS`                     | Registered constants; 32-camera software/protocol bound is not a Jetson capacity claim |
-| `CAMERA_NAMES`                | Planned role names/order; does not register cameras                                    |
-| `FIELD_LAYOUT`                | WPILib AprilTag layout, default team 2026 welded; use surveyed poses for home prints   |
-| `TAG_SIZE_M`                  | Black-square size excluding white margin; >0 and ≤1 m, default 0.1651 m                |
-| `FUSION_ENABLED`              | Default false; still subject to validation/DS suppression when enabled                 |
-| `BenchConfig.STATIONARY_POSE` | Bench tester initial/reset pose only; robot supplies drivetrain/IMU history            |
+| Setting          | Purpose                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `ROBOT_ID`       | Bounded profile ID identifying the offseason robot                                     |
+| `CAMERAS`        | Registered constants; 32-camera software/protocol bound is not a Jetson capacity claim |
+| `CAMERA_NAMES`   | Planned role names/order; does not register cameras                                    |
+| `FIELD_LAYOUT`   | WPILib AprilTag layout, default team 2026 welded; use surveyed poses for home prints   |
+| `TAG_SIZE_M`     | Black-square size excluding white margin; >0 and ≤1 m, default 0.1651 m                |
+| `FUSION_ENABLED` | Default false; still subject to validation/DS suppression when enabled                 |
 
-Field layout assets can be JSON; camera settings remain Java. Keep the blue-wall-right field frame consistent. The tester fuses only into its stationary bench estimator; production fusion needs hardware qualification and heading remains disabled.
+Field layout assets can be JSON; camera settings remain Java. Keep the blue-wall-right field frame consistent. Localization uses the robot's drivetrain/IMU history; fusion needs hardware qualification and heading remains disabled.
 
 Bind feeds, verify delivered capture/readback, calibrate with independent validation and qualify timing before robot fusion. Mode, orientation and optical controls can invalidate calibration; timing also depends on control readback. Rebuild/redeploy after code edits. These examples do not commission a physical camera.
 

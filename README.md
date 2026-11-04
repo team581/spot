@@ -54,7 +54,7 @@ the root. The uv workspace contains `apps/vision`, shares one root `.venv` and
 `uv run --package spot-vision spot-vision --help` selects the vision application.
 
 Applications live in `apps/vision`, `apps/dashboard`, `apps/docs`,
-`apps/vscode-camera-preview`, and `apps/robot-tester`. Python tests and tools stay
+and `apps/vscode-camera-preview`. Python tests and tools stay
 with the vision service; each JavaScript application owns its own tests and checks.
 `packages/camera-viewer` is shared by the dashboard and extension through pnpm
 `workspace:*` dependencies; Vite+ bundles the renderer into the dashboard.
@@ -275,4 +275,4 @@ four-camera fairness test on the target Orin.
 
 ## Offline camera preview
 
-See the [VS Code camera preview guide](apps/docs/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection, private installation, and automatic updates during robot builds.
+See the [VS Code camera preview guide](apps/docs/src/content/docs/operator/vscode-camera-preview.md) for split-screen mount inspection and manual VSIX installation.

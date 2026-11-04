@@ -18,7 +18,7 @@ members = ["apps/vision"]
 spot-vision = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["apps/vision/tests", "apps/vision/tools/tests"]
+testpaths = ["apps/vision/tests"]
 pythonpath = ["apps/vision/src", "apps/vision/tests"]
 addopts = "-ra"
 

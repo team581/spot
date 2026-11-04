@@ -36,18 +36,10 @@ uv run --no-sync python apps/vision/tools/bench_capture.py \
 On the Jetson, `--tegrastats` also records system telemetry. The output directory
 must not already exist.
 
-`bench_session.py` records run metadata, collects explicitly selected remote
-files using scp, analyzes exported robot logs, and compares reports. It does
-not tune cameras or certify hardware. Use its `new-run`, `collect`, `doctor`,
-`report`, and `compare` subcommands:
-
-```sh
-uv run --no-sync python apps/vision/tools/bench_session.py --help
-```
-
+Use the existing offseason robot logging and testing workflow for robot-side evidence.
 Follow the [robot integration session](../../docs/src/content/docs/operator/robot-integration-session.md)
-for topology, measurement context, and remaining physical checks. Keep captures
-and reports outside tracked source; `/bench-runs/` is ignored by Git.
+for current integration steps and historical hardware results. Keep captures and
+reports outside tracked source; `/bench-runs/` is ignored by Git.
 
 ## Dashboard development without hardware
 

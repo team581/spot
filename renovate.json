@@ -29,11 +29,6 @@
 			"separateMajorMinor": true
 		},
 		{
-			"groupName": "robot tester dependencies",
-			"matchFileNames": ["apps/robot-tester/**"],
-			"separateMajorMinor": true
-		},
-		{
 			"groupName": "Nix dependencies",
 			"matchManagers": ["nix"],
 			"separateMajorMinor": true
