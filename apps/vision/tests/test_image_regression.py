@@ -15,11 +15,10 @@ DATA = Path(__file__).parent / "data" / "regression"
 
 @pytest.fixture
 def native():
-    from spot_vision import _spot_cuda
-
-    if not hasattr(_spot_cuda, "CpuDetector"):
-        pytest.fail("build the native CPU module with SPOT_BUILD_CUDA=OFF to run image regressions")
-    return _spot_cuda
+    return pytest.importorskip(
+        "spot_vision._spot_cuda",
+        reason="build with SPOT_BUILD_DIAGNOSTICS=ON for CUDA geometry tests",
+    )
 
 
 def lens(native):
@@ -86,7 +85,7 @@ def test_edge_refinement_on_distorted_static_image_is_better_than_raw_line_fit(n
     assert np.allclose(native.refine_corners(frame, degenerate, k, d), degenerate)
 
 
-def test_static_images_capture_detection_pose_and_transport(native, tmp_path):
+def test_static_images_capture_detection_pose_and_transport(tmp_path):
     report = run_image_regression(DATA / "manifest.json", repeats=2)
     (tmp_path / "metrics.json").write_text(json.dumps(report, indent=2))
     assert report["passed"], report
@@ -96,7 +95,7 @@ def test_static_images_capture_detection_pose_and_transport(native, tmp_path):
         assert case["timing_ms"]["detect_mean"] > 0
 
 
-def test_regression_reports_accuracy_failure(native, tmp_path):
+def test_regression_reports_accuracy_failure(tmp_path):
     manifest = json.loads((DATA / "manifest.json").read_text())
     manifest["config"] = str(DATA.resolve() / "config.json")
     manifest["cases"] = [manifest["cases"][0]]

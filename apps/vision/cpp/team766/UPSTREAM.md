@@ -48,6 +48,7 @@ Refinement skips unusable samples and retains the original quad when an edge
 cannot be fitted. Tests compare the shared code against OpenCV projections and
 fixed images. These are intentional local changes to the pinned import.
 
-The host build uses the same CPU AprilTag bindings as the Jetson build, and the
-family lifecycle utility no longer needs glog. The vendored workerpool header now
+CPU detection uses the published RobotPy AprilTag bindings on both host and
+Jetson. Optional host diagnostics exercise the shared CUDA geometry without
+compiling the vendored detector. The family lifecycle utility no longer needs glog. The vendored workerpool header now
 includes its pthread declarations explicitly so it builds on macOS as well.

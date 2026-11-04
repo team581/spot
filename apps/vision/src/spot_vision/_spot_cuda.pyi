@@ -1,4 +1,4 @@
-"""Public pybind11 interface, shared by CPU and CUDA builds."""
+"""CUDA detector and optional host geometry diagnostics."""
 
 from collections.abc import Sequence
 
@@ -46,12 +46,6 @@ class DetectorMetrics:
     last_detect_ms: float
     total_detect_ms: float
     last_input_address: int
-
-class CpuDetector:
-    def __init__(self, width: int, height: int, options: DetectorOptions) -> None: ...
-    def detect(self, frame: np.ndarray) -> DetectionBatch: ...
-    def metrics(self) -> DetectorMetrics: ...
-    def reset(self) -> None: ...
 
 class CudaDetector:
     def __init__(

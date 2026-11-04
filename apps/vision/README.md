@@ -1,9 +1,12 @@
 # Spot vision service
 
 Python owns camera capture, scheduling, pose solving, NetworkTables, and HTTP.
-The C++/CUDA detector builds as part of this Python package.
+CPU detection uses the published `robotpy-apriltag` package. The C++/CUDA detector
+builds only with `SPOT_BUILD_CUDA=ON`; host geometry tests use
+`SPOT_BUILD_DIAGNOSTICS=ON`.
+RobotPy supports `tag36h11` (Spot's FRC family) and `tag16h5` for CPU detection.
 
-From the repository root, run `mise run setup` for a CPU development build or
+From the repository root, run `mise run setup` for CPU development or
 the [NixOS configuration](../../nix/README.md) for CUDA on the Jetson. Run commands with
 `uv run --package spot-vision spot-vision --help`.
 

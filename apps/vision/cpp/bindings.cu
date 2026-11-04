@@ -15,7 +15,9 @@
 #include "apriltag_gpu.h"
 #endif
 #include "camera_geometry.h"
+#ifdef SPOT_WITH_CUDA
 #include "apriltag_utils.h"
+#endif
 
 extern "C" {
 #include "apriltag.h"
@@ -41,6 +43,7 @@ struct DistortionCoefficients {
   double k3 = 0.0;
 };
 
+#ifdef SPOT_WITH_CUDA
 struct DetectorOptions {
   std::string family = "tag36h11";
   double decimate = 2.0;
@@ -70,6 +73,8 @@ struct DetectorMetrics {
   std::uintptr_t last_input_address = 0;
 };
 
+#endif
+
 struct FrameView {
   const std::uint8_t *data;
   std::uintptr_t address;
@@ -92,6 +97,7 @@ FrameView ValidateFrame(const py::array &frame, int width, int height) {
   return {.data = data, .address = reinterpret_cast<std::uintptr_t>(data)};
 }
 
+#ifdef SPOT_WITH_CUDA
 Detection ConvertDetection(const apriltag_detection_t &source) {
   Detection result;
   result.id = source.id;
@@ -161,7 +167,6 @@ class DetectorState {
   DetectorMetrics metrics_;
 };
 
-#ifdef SPOT_WITH_CUDA
 class CudaDetector final : public DetectorState {
  public:
   CudaDetector(int width, int height, const CameraMatrix &camera,
@@ -213,44 +218,6 @@ class CudaDetector final : public DetectorState {
 };
 
 #endif
-
-class CpuDetector final : public DetectorState {
- public:
-  CpuDetector(int width, int height, const DetectorOptions &options)
-      : DetectorState(options), width_(width), height_(height), grayscale_(width * height) {
-    if (width <= 0 || height <= 0) throw py::value_error("dimensions must be positive");
-  }
-
-  DetectionBatch Detect(const py::array &frame) {
-    const FrameView view = ValidateFrame(frame, width_, height_);
-    std::scoped_lock lock(mutex_);
-    const auto start = Clock::now();
-    zarray_t *detections = nullptr;
-    {
-      py::gil_scoped_release release;
-      for (std::size_t index = 0; index < grayscale_.size(); ++index) {
-        grayscale_[index] = view.data[index * 2];
-      }
-      image_u8_t image{.width = width_, .height = height_, .stride = width_,
-                       .buf = grayscale_.data()};
-      detections = apriltag_detector_detect(detector_, &image);
-    }
-    const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-    DetectionBatch batch = FinishBatch(detections, elapsed, view.address);
-    apriltag_detections_destroy(detections);
-    return batch;
-  }
-
-  void Reset() {
-    std::scoped_lock lock(mutex_);
-    metrics_ = {};
-  }
-
- private:
-  int width_;
-  int height_;
-  std::vector<std::uint8_t> grayscale_;
-};
 
 }  // namespace
 
@@ -311,6 +278,7 @@ PYBIND11_MODULE(_spot_cuda, module) {
       .def_readwrite("p1", &DistortionCoefficients::p1)
       .def_readwrite("p2", &DistortionCoefficients::p2)
       .def_readwrite("k3", &DistortionCoefficients::k3);
+#ifdef SPOT_WITH_CUDA
   py::class_<DetectorOptions>(module, "DetectorOptions")
       .def(py::init<>()).def_readwrite("family", &DetectorOptions::family)
       .def_readwrite("decimate", &DetectorOptions::decimate)
@@ -331,15 +299,10 @@ PYBIND11_MODULE(_spot_cuda, module) {
       .def_readonly("last_detect_ms", &DetectorMetrics::last_detect_ms)
       .def_readonly("total_detect_ms", &DetectorMetrics::total_detect_ms)
       .def_readonly("last_input_address", &DetectorMetrics::last_input_address);
-#ifdef SPOT_WITH_CUDA
   py::class_<CudaDetector>(module, "CudaDetector")
       .def(py::init<int, int, const CameraMatrix &, const DistortionCoefficients &,
                     const DetectorOptions &>())
       .def("detect", &CudaDetector::Detect).def("metrics", &CudaDetector::Metrics)
       .def("reset", &CudaDetector::Reset);
 #endif
-  py::class_<CpuDetector>(module, "CpuDetector")
-      .def(py::init<int, int, const DetectorOptions &>())
-      .def("detect", &CpuDetector::Detect).def("metrics", &CpuDetector::Metrics)
-      .def("reset", &CpuDetector::Reset);
 }

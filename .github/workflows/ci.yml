@@ -53,7 +53,7 @@ jobs:
           retention-days: 1
 
   application:
-    name: Python and CPU native module
+    name: Python application and CUDA geometry
     needs: javascript
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10

@@ -1,48 +1,56 @@
 cmake_minimum_required(VERSION 3.24)
-project(SpotVision LANGUAGES C CXX)
+project(SpotVision LANGUAGES NONE)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(SPOT_BUILD_CUDA "Build the Team 766 CUDA detector" OFF)
+option(SPOT_BUILD_DIAGNOSTICS "Build host geometry diagnostics for CUDA regression tests" OFF)
 option(SPOT_BUILD_CUDA_TESTS "Build upstream CUDA detector tests" OFF)
 set(SPOT_CUDA_ARCHITECTURES "87" CACHE STRING "CUDA architectures (Orin is 87)")
 
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
-find_package(pybind11 CONFIG REQUIRED)
-
-# These vendored source sets only change when the project is reconfigured.
-# CONFIGURE_DEPENDS loops indefinitely when the Jetson checkout is reached
-# through its compatibility symlink and Ninja compares the two paths.
-file(GLOB APRILTAG_COMMON_SOURCES cpp/apriltag/common/*.c)
-file(GLOB APRILTAG_FAMILY_SOURCES cpp/apriltag/tag*.c)
-# macOS archive tools can materialize AppleDouble metadata as `._*.c` files.
-# Never allow those sidecars to enter a Linux deployment build.
-list(FILTER APRILTAG_COMMON_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
-list(FILTER APRILTAG_FAMILY_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
-add_library(apriltag STATIC
-  cpp/apriltag/apriltag.c
-  cpp/apriltag/apriltag_pose.c
-  cpp/apriltag/apriltag_quad_thresh.c
-  ${APRILTAG_COMMON_SOURCES}
-  ${APRILTAG_FAMILY_SOURCES}
-)
-set_target_properties(apriltag PROPERTIES
-  C_STANDARD 11
-  C_STANDARD_REQUIRED ON
-  POSITION_INDEPENDENT_CODE ON
-)
-target_include_directories(apriltag PUBLIC cpp/apriltag cpp/apriltag/common)
-find_package(Threads REQUIRED)
-target_link_libraries(apriltag PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
-if(UNIX AND NOT APPLE)
-  target_link_libraries(apriltag PUBLIC m)
+if(SPOT_BUILD_CUDA OR SPOT_BUILD_DIAGNOSTICS)
+  enable_language(CXX)
+  set(PYBIND11_FINDPYTHON ON)
+  find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+  find_package(pybind11 CONFIG REQUIRED)
 endif()
 
-
-
 if(SPOT_BUILD_CUDA)
+  enable_language(C)
+  # These vendored source sets only change when the project is reconfigured.
+  # CONFIGURE_DEPENDS loops indefinitely when the Jetson checkout is reached
+  # through its compatibility symlink and Ninja compares the two paths.
+  file(GLOB APRILTAG_COMMON_SOURCES cpp/apriltag/common/*.c)
+  file(GLOB APRILTAG_FAMILY_SOURCES cpp/apriltag/tag*.c)
+  # macOS archive tools can materialize AppleDouble metadata as `._*.c` files.
+  # Never allow those sidecars to enter a Linux deployment build.
+  list(FILTER APRILTAG_COMMON_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
+  list(FILTER APRILTAG_FAMILY_SOURCES EXCLUDE REGEX "/\\._[^/]+\\.c$")
+  add_library(apriltag STATIC
+    cpp/apriltag/apriltag.c
+    cpp/apriltag/apriltag_pose.c
+    cpp/apriltag/apriltag_quad_thresh.c
+    ${APRILTAG_COMMON_SOURCES}
+    ${APRILTAG_FAMILY_SOURCES}
+  )
+  set_target_properties(apriltag PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    # RobotPy loads its own AprilTag library globally; keep the CUDA fork private.
+    C_VISIBILITY_PRESET hidden
+    POSITION_INDEPENDENT_CODE ON
+  )
+  target_include_directories(apriltag PUBLIC cpp/apriltag cpp/apriltag/common)
+  find_package(Threads REQUIRED)
+  target_link_libraries(apriltag PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+  if(UNIX AND NOT APPLE)
+    target_link_libraries(apriltag PUBLIC m)
+  endif()
+
+
+
   # CMake probes the default architecture while enabling CUDA, so configure
   # Orin's architecture before compiler detection rather than afterward.
   if(NOT CMAKE_CUDA_ARCHITECTURES)
@@ -107,10 +115,9 @@ if(SPOT_BUILD_CUDA)
       team766_apriltags_cuda GTest::gtest ${OpenCV_LIBS})
     add_test(NAME gpu_detector_test COMMAND gpu_detector_test)
   endif()
-else()
-  pybind11_add_module(_spot_cuda MODULE cpp/host_bindings.cpp cpp/host_apriltag_utils.cpp)
-  target_include_directories(_spot_cuda PRIVATE cpp/team766)
-  target_link_libraries(_spot_cuda PRIVATE apriltag)
+elseif(SPOT_BUILD_DIAGNOSTICS)
+  pybind11_add_module(_spot_cuda MODULE cpp/host_bindings.cpp)
+  target_include_directories(_spot_cuda PRIVATE cpp/team766 cpp/apriltag)
   install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
 endif()
 

@@ -6,7 +6,8 @@ import cv2
 import numpy as np
 import pytest
 
-from spot_vision import _spot_cuda as native
+from spot_vision.config import DetectorConfig
+from spot_vision.native import CpuDetector
 
 DATA = Path(__file__).parent / "data/live-alpha"
 
@@ -22,7 +23,7 @@ def test_real_tag4_image_detection_is_repeatable_and_does_not_leave_stale_tags(
     assert image is not None and image.shape == (height, width, 3)
     yuyv = cv2.cvtColor(image, cv2.COLOR_BGR2YUV_YUY2)
     original = yuyv.copy()
-    detector = native.CpuDetector(width, height, native.DetectorOptions())
+    detector = CpuDetector(width, height, DetectorConfig())
     first = detector.detect(yuyv)
     assert [tag.id for tag in first.detections] == [4]
     tag = first.detections[0]
@@ -39,6 +40,5 @@ def test_real_tag4_image_detection_is_repeatable_and_does_not_leave_stale_tags(
         assert batch.input_address == yuyv.ctypes.data
     assert not detector.detect(np.full_like(yuyv, 128)).detections
     detector.reset()
-    assert detector.metrics().calls == 0
     assert [tag.id for tag in detector.detect(yuyv).detections] == [4]
     assert np.array_equal(yuyv, original)

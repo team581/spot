@@ -575,6 +575,57 @@ wheels = [
 ]
 
 [[package]]
+name = "robotpy-apriltag"
+version = "2026.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "robotpy-native-apriltag" },
+    { name = "robotpy-wpimath" },
+    { name = "robotpy-wpiutil" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/d6/789b146cfb7140a76df489232b44badf88cb6f4b917d11139fdcfe239136/robotpy_apriltag-2026.2.2-cp310-cp310-macosx_13_0_arm64.whl", hash = "sha256:3ee01bda3ff85ad19a1b37bed6c7c74c1c71d3f89840b937b983ae0fddecadfc", size = 241960, upload-time = "2026-03-13T02:29:57.78Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/1a/a6e35da4d07b5f9e4b300c481dd397c39e1a2493491da4c25a8379ab25f8/robotpy_apriltag-2026.2.2-cp310-cp310-macosx_13_0_x86_64.whl", hash = "sha256:6bd9ff669ac6ddaf4eee4acd3997fda026df853ab10d96c2e6d0d51f7ab891c0", size = 244108, upload-time = "2026-03-13T02:29:59.362Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/1b/928c151e662510a0b4d9fe72e4c39e8bf36ebc6bbe719698b8c4fe2e3d2c/robotpy_apriltag-2026.2.2-cp310-cp310-manylinux_2_35_x86_64.whl", hash = "sha256:3c62d84e7cfab07d30d6920182a884ce1781924ae8d2acd028178f74db4ea2d3", size = 305303, upload-time = "2026-03-13T02:30:00.711Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/19/19642f69ed3cdab1b1b604fc80efcc5512e9064df05001c33a413b76c184/robotpy_apriltag-2026.2.2-cp310-cp310-win_amd64.whl", hash = "sha256:736f9e558a19f923d0233d1cfc19f4b0c41fc8162771661b7e61308f76cdff09", size = 179979, upload-time = "2026-03-13T02:30:01.877Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/91/dedf59efbc19e71c6ff94419c779dc69efbdb47c218b3e45cb99b0596f2f/robotpy_apriltag-2026.2.2-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:1e4d2c3369a777d89e1c71402f9c7ebb1bd8d097d0d9c118fddf2fc29d28bee8", size = 244006, upload-time = "2026-03-13T02:30:02.976Z" },
+    { url = "https://files.pythonhosted.org/packages/36/8e/b7a19192c70471b7f160330dd52f7ea20775c12041fb003816d9a5927c88/robotpy_apriltag-2026.2.2-cp311-cp311-macosx_13_0_x86_64.whl", hash = "sha256:505288aaf3cfdaa53f373bf9603fd3badf0dc28caae02c9b2daa8ed7dbbdfa30", size = 245132, upload-time = "2026-03-13T02:30:04.122Z" },
+    { url = "https://files.pythonhosted.org/packages/15/6b/aad58939b38b6673dea2561c7a5561081fe06978c9830300d70af26a8b1d/robotpy_apriltag-2026.2.2-cp311-cp311-manylinux_2_35_aarch64.whl", hash = "sha256:3f840700110eca07b70c3ab2094f582b435ec5f1f88a4ef74fc1ea27a2553c91", size = 275268, upload-time = "2026-03-13T02:30:05.315Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/b8/10262cb19f035706d6a7696d6a1ce8aec00c9c09eba827bffdf268145a2d/robotpy_apriltag-2026.2.2-cp311-cp311-manylinux_2_35_x86_64.whl", hash = "sha256:334dfe4f546c7fb35e62e884f4d4928e427b803fdfd4b3923b2be0ec23399ae7", size = 308595, upload-time = "2026-03-13T02:30:06.88Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/17/667b03b4f00e1d65bb98329a43e0c755dc45a9b879ea8c1e622b44e8174c/robotpy_apriltag-2026.2.2-cp311-cp311-win_amd64.whl", hash = "sha256:d5e3bb837a58fde537db34a4a6205c22dee93e310c721ecec9bc948e7c441dcc", size = 180887, upload-time = "2026-03-13T02:30:08.058Z" },
+    { url = "https://files.pythonhosted.org/packages/70/03/8159e9279a3a079615c1f78f7c19457866a0fd742bb62235ecb401791478/robotpy_apriltag-2026.2.2-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:1f9169df1ce02eec90ddaf8546fcfb8caacf3f240dd3788e5a9817c0c999e5b3", size = 249226, upload-time = "2026-03-13T02:30:09.357Z" },
+    { url = "https://files.pythonhosted.org/packages/27/56/7e7164de06f196d709743d6dcb305d36e6855c318cda0e37fd779f71d32c/robotpy_apriltag-2026.2.2-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:5c6e35ba3519eb61c143439391bd4d03dc170b74319acf6f0f40432d89c9c897", size = 249164, upload-time = "2026-03-13T02:30:10.765Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/83/13c42a59523828aa6e5a3d5b7842c96d9aaf9809b0c0d651301dffe33fc8/robotpy_apriltag-2026.2.2-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:162d0ca0653c107ffcdac0ffad26c5434c11825ca95d52ddbe8c0c93e68f350f", size = 280815, upload-time = "2026-03-13T02:30:11.883Z" },
+    { url = "https://files.pythonhosted.org/packages/13/1c/bf0c6e7e048d9c3d11521c71b348468f04036cb42ac06352e2ccaae10367/robotpy_apriltag-2026.2.2-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:9ebc52142ba665adc8afa0d18ba28aae7e0d0c75ad22fa3fcd9b6561c3e94fd6", size = 308953, upload-time = "2026-03-13T02:30:13.005Z" },
+    { url = "https://files.pythonhosted.org/packages/48/26/09b3dce8e4376777619f84d981e0bbba1975c71d30c11a714ea8b852aa93/robotpy_apriltag-2026.2.2-cp312-cp312-win_amd64.whl", hash = "sha256:a409bbf2a0b5199da3ff4b95d3d76c074060440ef1f8ac6db758e02173a6a67a", size = 184813, upload-time = "2026-03-13T02:30:14.117Z" },
+    { url = "https://files.pythonhosted.org/packages/99/eb/1b0c6e5377634920bb21f08b6fd06f68cfba47733d5edf9a3223dd80b8c4/robotpy_apriltag-2026.2.2-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:7da71b4768ce89fe7e79fced1063c280493f1eca18d53d5575aa3d83b24eff0f", size = 249237, upload-time = "2026-03-13T02:30:15.164Z" },
+    { url = "https://files.pythonhosted.org/packages/26/29/7b25ab4893cb935f923376f5c2162689e8d1057a7feba36457e5f475b4a6/robotpy_apriltag-2026.2.2-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:90bbf09cb2007e0d2331c7bdc6869cc6094d8e832b043ae8c8a20dceeaff5389", size = 249163, upload-time = "2026-03-13T02:30:16.287Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/38/42a213771d1044b51a53c854e45954aebe049a49efbeaa2ee0a969973476/robotpy_apriltag-2026.2.2-cp313-cp313-manylinux_2_35_aarch64.whl", hash = "sha256:da7f5f74b96105b3600e55af22b84a09ca8cd5e47227b6474b1787ea5d2008c7", size = 280510, upload-time = "2026-03-13T02:30:17.399Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/d8/f90404d22f83d87d7a146131d2302c53f47af64e1d5a1c15d1d82bd73097/robotpy_apriltag-2026.2.2-cp313-cp313-manylinux_2_35_x86_64.whl", hash = "sha256:a81bdd2022b419622a6dab97d24176ced7fbd33035ca97bf685e49ca87314f53", size = 308789, upload-time = "2026-03-13T02:30:18.759Z" },
+    { url = "https://files.pythonhosted.org/packages/95/29/cd9beb73a159bb47d53d968e90d38f11828548fdb96545337061a310bcf9/robotpy_apriltag-2026.2.2-cp313-cp313-win_amd64.whl", hash = "sha256:280d94365dd3576cc3b3a852c931f1d6a676cdb666bde8c9fdca5ca4c6bf865b", size = 184829, upload-time = "2026-03-13T02:30:19.916Z" },
+    { url = "https://files.pythonhosted.org/packages/86/df/1ea0e445496649917ca641719d614e3ac9b0f3e026f4a096eacb84579e6e/robotpy_apriltag-2026.2.2-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:d9e4a734aa58d5e74179fb726d36a0b7a7baa2618b409d5ebe0710949f5def4f", size = 247653, upload-time = "2026-03-13T02:30:21.457Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/87/2115ac57afb1b429866b0cabaab881256f54b61060d99ce06710cbc8843c/robotpy_apriltag-2026.2.2-cp314-cp314-macosx_13_0_x86_64.whl", hash = "sha256:dbba65191d7994a6961110851ed574d28eb7088c8ede78ab6f0eead66e9eddf8", size = 249183, upload-time = "2026-03-13T02:30:22.928Z" },
+    { url = "https://files.pythonhosted.org/packages/89/0a/5267511e61c85cd79dafb915f5918198eef1b99e6e290a0876eff399c680/robotpy_apriltag-2026.2.2-cp314-cp314-manylinux_2_35_aarch64.whl", hash = "sha256:784524ccb426e2aa93dad4c4b7d7f9beb13e00b74435462e686e26848567462a", size = 281873, upload-time = "2026-03-13T02:30:24.08Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/c6/fd55c0dd384d77589566c2cf5125da56046ec73dfd05b2de9db3b818d770/robotpy_apriltag-2026.2.2-cp314-cp314-manylinux_2_35_x86_64.whl", hash = "sha256:b83390a67e4efbc7c42ce4c81e6e246fa5ebce0d18baa7d4f98a17841da16fae", size = 309155, upload-time = "2026-03-13T02:30:25.206Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/be/d32c2e6966bbb8c94ed5f2bb98c448d1dbb94bdc4c8b46f3039756011660/robotpy_apriltag-2026.2.2-cp314-cp314-win_amd64.whl", hash = "sha256:c45afddb46f05dede28d24196cc68986770e6a8b27a71825c0db2c194449a6ac", size = 190321, upload-time = "2026-03-13T02:30:26.429Z" },
+]
+
+[[package]]
+name = "robotpy-native-apriltag"
+version = "2026.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "robotpy-native-wpimath" },
+    { name = "robotpy-native-wpiutil" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/24/efb7fb9b14ec66a2ffc2da6e6efa761187fc59db17cc518570e034d24c6c/robotpy_native_apriltag-2026.2.2-py3-none-macosx_13_0_universal2.whl", hash = "sha256:dfb0ff8eeb0cfbf26a703742410712d558889071e6d6460339c3e649dbf46caf", size = 608505, upload-time = "2026-03-13T02:28:16.91Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/07/604518039289e17c9cf1ab626f623b205dc5c5c0d15e90b3c21605a8a81b/robotpy_native_apriltag-2026.2.2-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:7d93cb20c7f1b27e612c09bdfecf36cbc6ec68b161f2ee35ee60db48720d678d", size = 302706, upload-time = "2026-03-13T02:28:18.299Z" },
+    { url = "https://files.pythonhosted.org/packages/32/4f/5d5bd2f58246c318bb198eca02212e9b9638e029ee1cd9cdd97368f0a523/robotpy_native_apriltag-2026.2.2-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:7c7aa4c74c393c4595f478b05904a997e2f5d100959899d0b2dc7e1a15ebec07", size = 314722, upload-time = "2026-03-13T02:28:19.804Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/ef/92bba5b3751a71269010481dfe7a45a5a70fe668cea1c3c9f8829df9a9a7/robotpy_native_apriltag-2026.2.2-py3-none-win_amd64.whl", hash = "sha256:b642d3567aa3885affc7bfbdb1aad529cb5958bc7c4fc1504d10c960d140937c", size = 309550, upload-time = "2026-03-13T02:28:21.152Z" },
+]
+
+[[package]]
 name = "robotpy-native-ntcore"
 version = "2026.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -776,6 +827,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opencv-contrib-python-headless" },
+    { name = "robotpy-apriltag" },
     { name = "robotpy-wpimath" },
     { name = "robotpy-wpiutil" },
 ]
@@ -793,6 +845,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "opencv-contrib-python-headless", specifier = ">=4.9" },
     { name = "pyntcore", marker = "extra == 'nt'", specifier = ">=2026.2.2,<2027" },
+    { name = "robotpy-apriltag", specifier = ">=2026.2.2,<2027" },
     { name = "robotpy-wpimath", specifier = ">=2026.2.2,<2027" },
     { name = "robotpy-wpiutil", specifier = ">=2026.2.2,<2027" },
     { name = "sdnotify", marker = "extra == 'systemd'", specifier = ">=0.3.2" },

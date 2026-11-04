@@ -23,7 +23,7 @@ roboRIO as NT server and Jetson as client. See the [transport notes](docs/Networ
 
 ## Local development
 
-Install mise and a C++ compiler (Xcode Command Line Tools on macOS), then run:
+Install mise, then run:
 
 ```sh
 mise install
@@ -31,9 +31,9 @@ mise run setup
 ```
 
 This installs the root pnpm workspace, builds the React dashboard and offline Astro/Starlight docs,
-and uses uv to compile and install `_spot_cuda` with the CPU detector in `.venv`.
-No CUDA installation is needed for local development. Python source stays editable;
-`uv run` and `uv sync` rebuild the native module when its CMake/C++ inputs change.
+and uses uv to install the application and published RobotPy AprilTag CPU detector in `.venv`.
+No C++ compiler or CUDA installation is needed for ordinary CPU development.
+Python source stays editable.
 Run `pnpm build:jetson` after editing bundled docs. Setup is safe to rerun.
 
 ```sh
@@ -42,6 +42,10 @@ mise run lint
 mise run typecheck
 mise run test
 ```
+
+Run `mise run check:application` to also compile and test the CUDA geometry diagnostics
+with a C++ compiler (Xcode Command Line Tools on macOS). The diagnostics share the
+production CUDA geometry code and are excluded from ordinary CPU installs.
 
 Use `mise run format:fix` and `mise run lint:fix` to apply automatic fixes.
 JavaScript dependencies share the root `pnpm-lock.yaml`; run `pnpm install` from

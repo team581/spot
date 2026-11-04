@@ -15,10 +15,16 @@ from unittest.mock import patch
 
 
 def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
+    import numpy as np
+
     from spot_vision import app, cli, runtime
+    from spot_vision.config import DetectorConfig
     from spot_vision.devices import DeviceManager
+    from spot_vision.native import CpuDetector
 
     assert Path(sys.prefix).resolve() == environment.resolve()
+    detector = CpuDetector(16, 8, DetectorConfig())
+    assert not detector.detect(np.full((8, 16, 2), 128, dtype=np.uint8)).detections
     installation = work / "installation.json"
     installation.write_text(
         json.dumps(

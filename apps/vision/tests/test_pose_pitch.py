@@ -10,9 +10,9 @@ import cv2
 import numpy as np
 import pytest
 
-from spot_vision import _spot_cuda
-from spot_vision.config import Calibration
+from spot_vision.config import Calibration, DetectorConfig
 from spot_vision.models import Detection
+from spot_vision.native import CpuDetector
 from spot_vision.pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
 
 K = np.array([[900.0, 0.0, 640.0], [0.0, 900.0, 400.0], [0.0, 0.0, 1.0]])
@@ -83,9 +83,7 @@ def test_native_first_tag_artwork_recovers_upright_camera_and_pitch(pitch_deg):
     )
     image = cv2.warpPerspective(marker, homography, (1280, 800), borderValue=255)
     frame = cv2.cvtColor(cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2YUV_YUY2)
-    options = _spot_cuda.DetectorOptions()
-    options.decimate = 1.0
-    batch = _spot_cuda.CpuDetector(1280, 800, options).detect(frame)
+    batch = CpuDetector(1280, 800, DetectorConfig(decimate=1.0)).detect(frame)
     assert len(batch.detections) == 1 and batch.detections[0].id == 4
     detected = Detection(4, np.asarray(batch.detections[0].corners))
     assert np.max(np.linalg.norm(detected.corners - observations[0].corners, axis=1)) < 1.0

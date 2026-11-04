@@ -37,15 +37,20 @@ def local_addresses() -> list[str]:
 
 
 def software_info() -> dict:
-    from . import _spot_cuda as native
+    from importlib.util import find_spec
 
+    native_cuda = False
+    if find_spec("spot_vision._spot_cuda") is not None:
+        from . import _spot_cuda as native
+
+        native_cuda = bool(native.CUDA_AVAILABLE)
     system = Path("/run/current-system")
     return {
         "package_path": str(Path(sys.prefix).resolve()),
         "system_path": str(system.resolve()) if system.exists() else None,
         "configuration_revision": os.environ.get("SPOT_CONFIGURATION_REVISION") or None,
         "version": version("spot-vision"),
-        "native_cuda": bool(native.CUDA_AVAILABLE),
+        "native_cuda": native_cuda,
         "process_started_at": datetime.now(timezone.utc).isoformat()
         if wall_time_available()
         else None,

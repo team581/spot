@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from math import radians
+from threading import Lock
+from time import perf_counter
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
+from robotpy_apriltag import AprilTagDetector
 
-from .config import Calibration, CameraConfig
+from .config import Calibration, CameraConfig, DetectorConfig
 from .models import Detection, DetectionBatch
 from .uncertainty import distortion_factors
 
 if TYPE_CHECKING:
-    from ._spot_cuda import CpuDetector, CudaDetector
+    from ._spot_cuda import CudaDetector
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,9 +25,79 @@ class Detector(Protocol):
     def reset(self) -> None: ...
 
 
+class CpuDetector:
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        options: DetectorConfig,
+        calibration: Calibration | None = None,
+    ) -> None:
+        if width <= 0 or height <= 0:
+            raise ValueError("dimensions must be positive")
+        if options.threads < 1:
+            raise ValueError("threads must be positive")
+        self.width, self.height = width, height
+        self.calibration = calibration
+        self._lock = Lock()
+        self._gray = np.empty((height, width), dtype=np.uint8)
+        self._detector = AprilTagDetector()
+        if not self._detector.addFamily(options.family, options.max_hamming):
+            raise ValueError("unsupported AprilTag family")
+        config = self._detector.getConfig()
+        config.quadDecimate = options.decimate
+        config.quadSigma = options.blur
+        config.numThreads = options.threads
+        config.refineEdges = options.refine_edges
+        self._detector.setConfig(config)
+        # WPILib's defaults reject small quads that the existing CPU detector accepts.
+        threshold = self._detector.getQuadThresholdParameters()
+        threshold.minClusterPixels = 5
+        threshold.criticalAngle = radians(10)
+        self._detector.setQuadThresholdParameters(threshold)
+
+    def detect(self, frame: np.ndarray) -> DetectionBatch:
+        if frame.dtype != np.uint8:
+            raise TypeError("frame must have dtype uint8")
+        if frame.shape != (self.height, self.width, 2):
+            raise ValueError("frame must have shape (height, width, 2)")
+        if not frame.flags.c_contiguous:
+            raise ValueError("frame must be packed, C-contiguous YUYV")
+        with self._lock:
+            start = perf_counter()
+            np.copyto(self._gray, frame[:, :, 0])
+            results = self._detector.detect(self._gray)
+            detect_ms = (perf_counter() - start) * 1000
+            detections = tuple(
+                Detection(
+                    id=item.getId(),
+                    corners=np.array(
+                        [(item.getCorner(i).x, item.getCorner(i).y) for i in range(4)],
+                        dtype=np.float64,
+                    ),
+                    hamming=item.getHamming(),
+                    decision_margin=item.getDecisionMargin(),
+                )
+                for item in results
+            )
+        if self.calibration is not None:
+            factors = distortion_factors(
+                np.asarray([d.corners for d in detections]), self.calibration
+            )
+            detections = tuple(
+                replace(d, distortion_factor_px=float(factor))
+                for d, factor in zip(detections, factors, strict=True)
+            )
+        return DetectionBatch(detections, detect_ms, int(frame.ctypes.data))
+
+    def reset(self) -> None:
+        # RobotPy returns independent detections for each frame; no state needs clearing.
+        pass
+
+
 @dataclass
 class NativeDetector:
-    implementation: CpuDetector | CudaDetector
+    implementation: CudaDetector
     calibration: Calibration | None = None
 
     def detect(self, frame: np.ndarray) -> DetectionBatch:
@@ -74,13 +148,15 @@ class FallbackDetector:
 
 
 def create_detector(camera: CameraConfig, calibration: Calibration | None) -> Detector:
+    if camera.detector.backend == "cpu":
+        return CpuDetector(camera.width, camera.height, camera.detector, calibration)
     if camera.detector.backend == "cuda" and (camera.width % 8 or camera.height % 8):
         raise RuntimeError("CUDA detector dimensions must be multiples of 8")
     try:
         from . import _spot_cuda as native
     except ImportError as exc:
         raise RuntimeError(
-            "_spot_cuda is not installed; build this package with the CPU or CUDA detector"
+            "_spot_cuda is not installed; build this package with SPOT_BUILD_CUDA=ON"
         ) from exc
     if camera.detector.backend == "cuda" and not getattr(native, "CUDA_AVAILABLE", False):
         raise RuntimeError("this package was built without CUDA detector support")
@@ -92,9 +168,6 @@ def create_detector(camera: CameraConfig, calibration: Calibration | None) -> De
     options.threads = camera.detector.threads
     options.refine_edges = camera.detector.refine_edges
     options.max_hamming = camera.detector.max_hamming
-    if camera.detector.backend == "cpu":
-        return NativeDetector(native.CpuDetector(camera.width, camera.height, options), calibration)
-
     matrix = native.CameraMatrix()
     distortion = native.DistortionCoefficients()
     matrix.fx = float(max(camera.width, camera.height))
@@ -109,7 +182,7 @@ def create_detector(camera: CameraConfig, calibration: Calibration | None) -> De
         values = calibration.distortion + (0.0,) * (5 - len(calibration.distortion))
         distortion.k1, distortion.k2, distortion.p1, distortion.p2, distortion.k3 = values[:5]
     fallback = (
-        NativeDetector(native.CpuDetector(camera.width, camera.height, options), calibration)
+        CpuDetector(camera.width, camera.height, camera.detector, calibration)
         if camera.detector.fallback_to_cpu
         else None
     )

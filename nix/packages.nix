@@ -84,6 +84,15 @@ let
                 )
               )
               {
+                robotpy-native-apriltag = [
+                  "wpiutil"
+                  "wpimath"
+                ];
+                robotpy-apriltag = [
+                  "apriltag"
+                  "wpiutil"
+                  "wpimath"
+                ];
                 robotpy-native-wpinet = [ "wpiutil" ];
                 robotpy-native-wpimath = [ "wpiutil" ];
                 robotpy-native-ntcore = [

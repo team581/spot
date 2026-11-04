@@ -1,2 +1,2 @@
-// Build the same CPU detector and geometry diagnostics without the CUDA backend.
+// Build geometry diagnostics without either detector backend.
 #include "bindings.cu"

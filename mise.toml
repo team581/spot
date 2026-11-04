@@ -5,7 +5,7 @@ idiomatic_version_file_enable_tools = ["node", "pnpm"]
 uv = "0.13.6"
 
 [tasks.setup]
-description = "Install the JS workspace, bundle the dashboard and docs, and build the CPU native module"
+description = "Install the JS workspace, bundle the dashboard and docs, and install the CPU detector"
 run = [
   "pnpm install --frozen-lockfile",
   "pnpm build",
@@ -40,9 +40,9 @@ run = ["pnpm check", "uv run --no-sync ty check"]
 run = ["uv run --no-sync pytest", "pnpm test"]
 
 [tasks."check:application"]
-description = "Build the CPU module and run Python format, lint, type and integration checks"
+description = "Run CPU application checks and native CUDA geometry regressions"
 run = [
-  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_DIAGNOSTICS=ON",
   "uv run --no-sync ruff format --check",
   "uv run --no-sync ruff check",
   "uv run --no-sync ty check",

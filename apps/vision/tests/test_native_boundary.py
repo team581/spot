@@ -7,17 +7,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from spot_vision import _spot_cuda as native
 from spot_vision.cli import _recording_frames
-from spot_vision.config import load_config
-from spot_vision.native import FallbackDetector
+from spot_vision.config import DetectorConfig, load_config
+from spot_vision.native import CpuDetector, FallbackDetector
 
 DATA = Path(__file__).parent / "data/regression"
 
 
 @pytest.fixture
 def detector():
-    return native.CpuDetector(16, 8, native.DetectorOptions())
+    return CpuDetector(16, 8, DetectorConfig())
 
 
 @pytest.mark.parametrize(
@@ -35,7 +34,6 @@ def detector():
 def test_native_rejects_invalid_buffer_before_detection(detector, image, error):
     with pytest.raises(error):
         detector.detect(image)
-    assert detector.metrics().calls == 0
 
 
 def test_native_preserves_input_and_reports_original_pointer(detector):
@@ -44,37 +42,22 @@ def test_native_preserves_input_and_reports_original_pointer(detector):
     image.flags.writeable = False
     result = detector.detect(image)
     assert result.input_address == image.ctypes.data
-    assert detector.metrics().last_input_address == image.ctypes.data
+    assert result.detect_ms > 0
     assert np.array_equal(image, original)
-
-
-def test_native_reset_clears_metrics_and_next_frame_remains_usable(detector):
-    image = np.full((8, 16, 2), 128, dtype=np.uint8)
-    for _ in range(3):
-        assert not detector.detect(image).detections
-    metrics = detector.metrics()
-    assert metrics.calls == 3 and metrics.total_detect_ms >= metrics.last_detect_ms >= 0
-    detector.reset()
-    assert detector.metrics().calls == 0
-    assert detector.metrics().total_detect_ms == 0
-    assert detector.metrics().last_input_address == 0
-    detector.detect(image)
-    assert detector.metrics().calls == 1
 
 
 @pytest.mark.parametrize("threads", [0, -1])
 def test_native_rejects_invalid_thread_count(threads):
-    options = native.DetectorOptions()
-    options.threads = threads
+    options = DetectorConfig(threads=threads)
     with pytest.raises(ValueError, match="threads"):
-        native.CpuDetector(16, 8, options)
+        CpuDetector(16, 8, options)
 
 
 def test_real_detector_does_not_retain_tags_from_previous_frame():
     camera = load_config(DATA / "config.json").camera("front")
     tag = next(_recording_frames(DATA / "multi.png", camera))
     blank = next(_recording_frames(DATA / "blank.png", camera))
-    detector = native.CpuDetector(camera.width, camera.height, native.DetectorOptions())
+    detector = CpuDetector(camera.width, camera.height, DetectorConfig())
     for image, expected in [(tag, [1, 2]), (blank, []), (tag, [1, 2]), (blank, [])]:
         assert sorted(d.id for d in detector.detect(image).detections) == expected
 
@@ -84,7 +67,7 @@ def test_independent_native_detectors_can_run_concurrently():
     image = next(_recording_frames(DATA / "center.png", camera))
 
     def detect(_):
-        detector = native.CpuDetector(camera.width, camera.height, native.DetectorOptions())
+        detector = CpuDetector(camera.width, camera.height, DetectorConfig())
         return [sorted(d.id for d in detector.detect(image).detections) for _ in range(3)]
 
     with ThreadPoolExecutor(4) as pool:
@@ -130,9 +113,9 @@ def test_fallback_error_is_visible_to_scheduler():
 @pytest.mark.parametrize("decimate", [1.0, 1.5, 3.0, 4.0])
 @pytest.mark.parametrize("fallback", [False, True])
 def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
-    monkeypatch, decimate, fallback
+    monkeypatch, cuda_native, decimate, fallback
 ):
-    from spot_vision.native import NativeDetector, create_detector
+    from spot_vision.native import create_detector
 
     camera = load_config(DATA / "config.json").camera("front")
     camera = replace(
@@ -141,14 +124,15 @@ def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
             camera.detector, backend="cuda", decimate=decimate, fallback_to_cpu=fallback
         ),
     )
-    monkeypatch.setattr(native, "CUDA_AVAILABLE", True)
     monkeypatch.setattr(
-        native, "CudaDetector", lambda *_: pytest.fail("fatal constructor reached"), raising=False
+        cuda_native,
+        "CudaDetector",
+        lambda *_: pytest.fail("fatal constructor reached"),
+        raising=False,
     )
     if fallback:
         result = create_detector(camera, None)
-        assert isinstance(result, NativeDetector)
-        assert isinstance(result.implementation, native.CpuDetector)
+        assert isinstance(result, CpuDetector)
     else:
         with pytest.raises(RuntimeError, match="requires decimate=2"):
             create_detector(camera, None)
