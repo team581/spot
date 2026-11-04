@@ -97,8 +97,8 @@ bring-up, setup friction, disconnect/restart recovery, and evidence-driven agent
 ## Jetson deployment
 
 The production Jetson configuration uses NixOS, defined by [the root flake](flake.nix) and
-[the Orin Nano host configuration](nix/hosts/spot/configuration.nix). The system
-build includes JetPack 6/CUDA 12.6, Spot's native module, locked Python runtime,
+[the J401 host configuration](nix/hosts/spot/configuration.nix). The system
+build includes JetPack 7.2.1/CUDA 13.2, Spot's native module, locked Python runtime,
 dashboard, offline docs, systemd services, Ethernet controls, and discovery.
 
 ```sh
@@ -112,7 +112,9 @@ nix run .#deploy -- switch
 
 See [NixOS setup, offline deployment, and recovery](nix/README.md) before first
 installation. Generation rollback preserves calibration and other writable
-state. Firmware updates remain separate. The old Ubuntu deployment scripts and
+state. The Seeed reComputer Robotics J401 module preserves Seeed's firmware and
+supplies board-specific Ethernet naming and power/fan settings. Hardware boot
+qualification is still required. Firmware updates remain separate. The old Ubuntu deployment scripts and
 application release symlink are no longer used.
 
 ## First camera test

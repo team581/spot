@@ -81,5 +81,7 @@ a 90-second rollback; unconfirmed connections are not selected on boot.
 
 First OS installation, firmware requirements, offline transfer, and hardware
 qualification are documented in `nix/README.md` in the repository. The target is
-an Orin Nano 8GB with a confirmed developer-kit carrier board and compatible
-JetPack 6 firmware.
+an Orin Nano 8GB on a Seeed reComputer Robotics J401_V1.0 carrier, with Seeed's
+JetPack 7.2 firmware already installed. The J401 module preserves the firmware's
+device tree. First NixOS boot and hardware qualification must be completed before
+using it on the robot.

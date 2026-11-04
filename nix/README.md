@@ -1,8 +1,18 @@
 # Spot NixOS appliance
 
-The target is a **Jetson Orin Nano 8GB on NVIDIA's developer-kit carrier board**,
-using JetPack 6 and CUDA 12.6. Physically confirm the carrier before flashing.
-Firmware changes are separate from normal deployments.
+The target is a **Jetson Orin Nano 8GB on a Seeed reComputer Robotics
+J401_V1.0 carrier**, using JetPack 7.2.1 (L4T 39.2.1) and CUDA 13.2.
+The J401 module is shared by the installed system and the installer.
+
+The board must already have Seeed's Robotics J401 firmware. The current unit
+runs firmware `39.2.0-gcid-45755727`, provisioned by Seeed's JetPack 7.2 image.
+NixOS preserves its UEFI-provided device tree and board-specific pinmux rather
+than installing a developer-kit DTB. Automatic firmware updates are disabled;
+firmware-flashing outputs deliberately fail instead of producing developer-kit
+firmware. See [J401 support and qualification](hardware/j401/README.md) for details.
+
+Initial Ubuntu setup is complete and the maintenance SSH key is authorized on
+the current unit. NixOS boot and hardware qualification remain outstanding.
 
 `flake.lock` pins Nixpkgs, `anduril/jetpack-nixos`, and Python build tooling.
 `uv2nix` consumes the existing `uv.lock`, without a second Python dependency
@@ -17,11 +27,16 @@ To refresh it locally with Determinate Nix, run `bash tools/update-pnpm-deps-has
 
 ## Configuration
 
-- `hosts/spot/configuration.nix`: board, disks, networking, access, and Spot.
+- `hardware/j401/default.nix`: carrier, firmware policy, power/fan control, and NIC names.
+- `hosts/spot/maintenance.nix`: networking and SSH access shared with the installer.
+- `hosts/spot/configuration.nix`: disks and the Spot application.
 - `module.nix`: services, socket, discovery, firewall, settings, and permissions.
 - `packages.nix`: locked Python environment, native CUDA build, and web assets.
 
-The built-in Realtek Ethernet adapter is named `spot0` by a udev link rule.
+The two Realtek Ethernet adapters are named `spot0` and `spot1` by PCI-path
+udev link rules. The port currently called `enP8p1s0` in Ubuntu becomes `spot0`;
+`enP7p1s0` becomes `spot1`. Matching the shared driver would rename both ports to
+the same name.
 A low-priority NetworkManager profile supplies `192.168.69.170/24`, without a
 default route. Confirmed GUI changes create higher-priority profiles and survive
 reboot. Avahi advertises `spot.local` on `spot0` only. Confirm the NIC driver and
@@ -44,16 +59,19 @@ Spot configuration and copy `/var/lib/spot-vision` and historical calibration
 files elsewhere before changing storage. Use spare storage for the first trial
 so the Ubuntu installation remains available.
 
-1. Confirm the board and firmware. On Linux, build the pinned installer with
-   `nix build path:.#installer`. Follow the
-   [jetpack-nixos installation instructions](https://github.com/anduril/jetpack-nixos#readme)
-   for its JetPack 6 installer. Build the installer on Linux. NVIDIA's firmware
-   flashing tools need **x86_64 Linux**; the Mac cannot run them natively. Match
-   JetPack 6 firmware to this configuration. OS rollback does not undo firmware.
-2. Boot the installer. Prepare/mount a UEFI installation with an ext4 root
-   labeled `SPOT_ROOT` at `/mnt` and a FAT EFI partition labeled `SPOT_EFI` at
-   `/mnt/boot`. Adjust `fileSystems` for the actual storage layout if necessary.
-   Preserve existing firmware partitions. No repository script formats disks.
+1. Confirm the Robotics J401 carrier and the existing Seeed firmware. On Linux,
+   build the board-specific installer with `nix build path:.#installer`. An ARM
+   Linux VM/container on a development Mac can perform this build. This installer
+   includes the same J401 module, `team581` SSH key, and maintenance network as
+   the installed system. It does not flash firmware. If firmware provisioning is
+   needed, follow [Seeed's Robotics J401 instructions](https://wiki.seeedstudio.com/recomputer_robotics_j401_getting_started/)
+   separately; NVIDIA recovery flashing requires an x86_64 Linux host.
+2. Boot the installer from removable storage using the UEFI boot menu. Verify
+   SSH, both Ethernet ports, NVMe, USB, fan control, and temperatures before
+   changing the internal SSD. For installation on spare storage, prepare/mount
+   an ext4 root labeled `SPOT_ROOT` at `/mnt` and a FAT EFI partition labeled
+   `SPOT_EFI` at `/mnt/boot`. Adjust `fileSystems` for the actual layout.
+   Preserve the existing firmware partitions. No repository script formats disks.
 3. Copy the checkout onto the installer and run from its root:
 
    ```sh
@@ -66,8 +84,22 @@ so the Ubuntu installation remains available.
 
 The initial source build needs network access unless all build dependencies are
 already available. The installed appliance needs no downloads to boot or run.
-Budget 8GB of RAM and 20GB of free disk space for an initial source build; CUDA
+Allow at least 60GB of free disk space for the first kernel/installer source
+build, including downloads, unpacked sources, and temporary build files. CUDA
 compilation is limited to two parallel jobs for the Orin's memory budget.
+
+For a Docker builder on an Apple Silicon Mac, explicitly allocate resources at
+container creation, for example `--platform linux/arm64 --memory 16g --cpus 8`,
+and build with `--max-jobs 1 --cores 8`. Apple Container defaults to a 1GB VM and
+cannot change its resources in place. Monitor the Mac's free disk space as well
+as the guest: the guest reports its virtual disk capacity, not the remaining
+space on the Mac. A Linux container builder keeps Nix off the factory Ubuntu
+installation.
+
+On this Mac's Docker compatibility layer, copying the ISO with `docker cp` via
+its result symlink produced an empty file. Streaming the resolved ISO with
+`docker exec ... cat` worked; compare its SHA-256 with the container's original
+before writing installation media.
 
 ## SSH at an event
 

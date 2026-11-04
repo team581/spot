@@ -11,9 +11,14 @@
   The repository intentionally includes a shared maintenance key authorized by
   `nix/hosts/spot/configuration.nix`; the helper gives its temporary copy the
   permissions required by OpenSSH.
-- The NixOS host is an Orin Nano 8GB on the NVIDIA developer-kit carrier board.
-  Confirm the carrier board before flashing. Firmware changes are separate
-  from normal NixOS deployments.
+- The connected hardware is an Orin Nano 8GB on a Seeed reComputer Robotics
+  J401_V1.0 carrier, running Seeed JetPack 7.2 / L4T 39.2.0 on Ubuntu 24.04.
+  Initial setup is complete and the shared maintenance SSH key is authorized.
+  The connected Ethernet port is `enP8p1s0`; the other port is `enP7p1s0`.
+  The NixOS host and installer use `nix/hardware/j401`, preserving Seeed's
+  firmware-provided device tree. No NixOS hardware boot has been qualified yet.
+  Never flash developer-kit firmware to this carrier. Firmware changes remain
+  separate from normal NixOS deployments; see `nix/hardware/j401/README.md`.
 - Never store the Jetson password in this repository. Request interactive SSH
   authentication only when the dedicated key is unavailable or has not yet
   been authorized.

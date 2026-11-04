@@ -40,9 +40,26 @@
       ];
       packageFor = pkgs: import ./nix/packages.nix { inherit inputs pkgs; };
       host = self.nixosConfigurations.spot;
+      installerFor =
+        system:
+        lib.nixosSystem {
+          modules = [
+            "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+            jetpack.nixosModules.default
+            self.nixosModules.j401
+            ./nix/hosts/spot/maintenance.nix
+            {
+              nixpkgs.buildPlatform = system;
+              hardware.nvidia-jetpack.configureCuda = false;
+              hardware.enableAllHardware = lib.mkForce false;
+              boot.zfs.forceImportRoot = false;
+            }
+          ];
+        };
     in
     {
       nixosModules.spot = import ./nix/module.nix;
+      nixosModules.j401 = import ./nix/hardware/j401;
       nixosConfigurations.spot = lib.nixosSystem {
         specialArgs = { inherit packageFor; };
         modules = [
@@ -96,7 +113,7 @@
           };
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          installer = jetpack.packages.${system}.iso_minimal;
+          installer = (installerFor system).config.system.build.isoImage;
         }
       );
       apps = forSystems (system: {
