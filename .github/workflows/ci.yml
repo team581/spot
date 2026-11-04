@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: useblacksmith/checkout@v1
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Refresh pnpm dependency cache hash
         run: bash tools/update-pnpm-deps-hash.sh
@@ -33,7 +33,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: useblacksmith/checkout@v1
       - uses: voidzero-dev/setup-vp@v1.21.1
         with:
           cache: true
@@ -60,7 +60,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: useblacksmith/checkout@v1
       - uses: actions/download-artifact@v8
         with:
           name: web-assets

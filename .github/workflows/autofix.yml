@@ -11,7 +11,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: useblacksmith/checkout@v1
       - uses: DeterminateSystems/nix-installer-action@v23
       - uses: voidzero-dev/setup-vp@v1.21.1
         with:
