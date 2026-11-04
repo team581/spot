@@ -1,0 +1,122 @@
+.calibration-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 270px;
+	gap: 24px;
+}
+.calibration-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 18px;
+}
+.calibration-card {
+	padding: 12px;
+}
+.calibration-card header {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 12px;
+}
+.calibration-card .feed {
+	aspect-ratio: 2.4;
+}
+.calibration-card .actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}
+.calibration-card button,
+.calibration-card select {
+	font-size: 13px;
+}
+.calibration-card .capture-stats {
+	font-size: 13px;
+	margin-top: 10px;
+}
+.board label {
+	display: block;
+	font-size: 13px;
+	color: var(--muted);
+	margin-top: 14px;
+}
+.board input,
+.board select {
+	width: 100%;
+	margin-top: 5px;
+}
+.results-actions {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	margin: 18px 0;
+}
+.history-panel {
+	margin-top: 24px;
+}
+.stats {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	margin-bottom: 24px;
+}
+.stat {
+	padding: 4px 4px 14px;
+}
+.stat strong {
+	display: block;
+	font-size: 28px;
+	font-weight: 600;
+}
+.stat small {
+	display: block;
+}
+.system-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 24px;
+}
+.system-grid > .wide {
+	grid-column: 1/-1;
+}
+.system-grid td {
+	font-size: 13px;
+}
+.empty {
+	padding: 36px;
+	max-width: 720px;
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+}
+.skip {
+	position: fixed;
+	top: -100px;
+	left: 240px;
+	z-index: 30;
+	background: var(--surface);
+	padding: 10px;
+}
+.skip:focus {
+	top: 10px;
+}
+.camera-selector {
+	display: none;
+	width: 100%;
+	margin-bottom: 18px;
+}
+.capability-lock {
+	font-size: 12px;
+	color: var(--muted);
+}
+.inline-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.spaced {
+	margin-top: 24px;
+}

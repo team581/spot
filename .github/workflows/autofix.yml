@@ -12,10 +12,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/setup@v3
+      - uses: voidzero-dev/setup-vp@v1.21.1
         with:
           cache: true
-          require-lockfile: true
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true

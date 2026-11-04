@@ -1,15 +1,32 @@
 {
 	"name": "spot-dashboard",
 	"private": true,
+	"type": "module",
 	"scripts": {
-		"check": "node --check app.js && node --check theme.js && node --check ui-state.js",
-		"format": "oxfmt --check",
-		"format:fix": "oxfmt",
-		"lint": "oxlint",
-		"lint:fix": "oxlint --fix",
-		"test": "node --test tests/*.cjs"
+		"dev": "vp dev",
+		"build": "NODE_ENV=production vp build",
+		"preview": "vp preview",
+		"check": "vp check",
+		"format": "vp fmt --check",
+		"format:fix": "vp fmt",
+		"lint": "vp lint",
+		"lint:fix": "vp lint --fix",
+		"test": "vp test && node --test tests/*.cjs",
+		"test:browser": "playwright test"
 	},
 	"dependencies": {
-		"@spot/camera-viewer": "workspace:*"
+		"@spot/camera-viewer": "workspace:*",
+		"react": "19.3.1",
+		"react-dom": "19.3.1"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.64.1",
+		"@types/node": "26.6.6",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"@vitejs/plugin-react": "6.2.1",
+		"typescript": "7.1.0-beta",
+		"vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+		"vite-plus": "1.4.0"
 	}
 }

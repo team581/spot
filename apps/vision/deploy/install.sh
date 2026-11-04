@@ -15,6 +15,10 @@ if [[ ! -f "$source_dir/dist/jetson-docs/index.html" || ! -f "$source_dir/dist/j
   echo "Build documentation before installing: pnpm --dir $source_dir/apps/docs build:jetson" >&2
   exit 1
 fi
+if [[ ! -f "$source_dir/dist/dashboard/index.html" ]]; then
+  echo "Build the dashboard before installing: pnpm --dir $source_dir --filter spot-dashboard build" >&2
+  exit 1
+fi
 if ! id spot-vision >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin spot-vision
 fi

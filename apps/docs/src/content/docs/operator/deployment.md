@@ -10,7 +10,8 @@ On the Jetson, prepare the build prerequisites in the repository README, then ru
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --dir apps/docs build:jetson
+pnpm build
+pnpm build:jetson
 sudo apps/vision/deploy/install.sh /home/team581/spot-2026
 ```
 

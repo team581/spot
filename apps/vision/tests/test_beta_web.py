@@ -284,13 +284,26 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        for path in ("/", "/viewer.js", "/source-sans-pro.woff2", "/docs/"):
+        # Request every emitted chunk, including lazy pages absent from index.html.
+        assets = list((server.assets / "assets").rglob("*"))
+        assert any(path.suffix == ".js" for path in assets)
+        assert any(path.suffix == ".css" for path in assets)
+        assert not list(server.assets.rglob("*.tsx"))
+        paths = ["/", "/blazing-bulldogs.svg", "/docs/", "/docs/pagefind/pagefind.js"]
+        paths.extend(
+            "/" + path.relative_to(server.assets).as_posix() for path in assets if path.is_file()
+        )
+        for path in paths:
             connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
             try:
                 connection.request("GET", path)
                 response = connection.getresponse()
                 assert response.status == 200, path
                 assert response.read(), path
+                if path.endswith(".js"):
+                    assert "javascript" in response.getheader("Content-Type"), path
+                elif path.endswith(".css"):
+                    assert response.getheader("Content-Type") == "text/css", path
             finally:
                 connection.close()
     finally:

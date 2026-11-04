@@ -299,14 +299,14 @@
 				ctx.lineWidth = s.width;
 				ctx.stroke();
 			}
-			ctx.font = '14px Source Sans Pro';
+			ctx.font = '14px system-ui';
 			ctx.textAlign = 'center';
 			for (const item of labels) {
 				const [x, y] = project(item.p);
 				ctx.fillStyle = item.color;
 				ctx.fillText(item.text, x, y - 8);
 			}
-			ctx.font = '13px Source Sans Pro';
+			ctx.font = '13px system-ui';
 			ctx.textAlign = 'left';
 			ctx.fillStyle = muted;
 			if (!geometry && !mounts) ctx.fillText('Camera geometry unavailable', 16, 28);

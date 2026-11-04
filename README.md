@@ -30,7 +30,7 @@ mise install
 mise run setup
 ```
 
-This installs the root pnpm workspace, builds the offline Astro/Starlight docs,
+This installs the root pnpm workspace, builds the React dashboard and offline Astro/Starlight docs,
 and uses uv to compile and install `_spot_cuda` with the CPU detector in `.venv`.
 No CUDA installation is needed for local development. Python source stays editable;
 `uv run` and `uv sync` rebuild the native module when its CMake/C++ inputs change.
@@ -53,12 +53,13 @@ Applications live in `apps/vision`, `apps/dashboard`, `apps/docs`,
 `apps/vscode-camera-preview`, and `apps/robot-tester`. Python tests and tools stay
 with the vision service; each JavaScript application owns its own tests and checks.
 `packages/camera-viewer` is shared by the dashboard and extension through pnpm
-`workspace:*` dependencies; CMake bundles the same renderer into the Python wheel.
+`workspace:*` dependencies; Vite+ bundles the renderer into the dashboard.
 The workspace packages are `spot-docs`, `spot-camera-preview`, and `spot-dashboard`.
 Run `pnpm --filter spot-dashboard check`, `lint`, or `test` to check just the
-embedded dashboard. Its source assets live in `apps/dashboard` and are
-bundled by CMake without a JavaScript build step. Dashboard tests live in
-`apps/dashboard/tests` and run from either the repository root or the dashboard package.
+embedded dashboard. Its React/TypeScript source lives in `apps/dashboard/src`;
+Vite+ builds `dist/dashboard`, which CMake installs with the offline docs.
+See the [dashboard development guide](apps/dashboard/README.md) for hot reload,
+architecture, and browser behavior checks.
 
 ty checks the service against the Python 3.10 minimum. `ty-baseline.json` records
 existing type errors, including missing generated/native type information, so new
@@ -69,7 +70,7 @@ review baseline changes rather than accepting new errors into it.
 On a Jetson with the prerequisites below, use `mise run setup:jetson` to select
 CUDA explicitly. Plain local builds default to CPU. The production installer also
 selects CUDA explicitly. Python 3.12 is used for development; Python 3.10 remains
-the minimum supported runtime. Node is only required to build the bundled docs.
+the minimum supported runtime. Node is only required to build the dashboard and bundled docs.
 After a CUDA setup, preserve that selection with
 `uv run -Ccmake.define.SPOT_BUILD_CUDA=ON ...` when syncing through uv.
 
@@ -114,8 +115,8 @@ sudo apt install cmake ninja-build python3-dev python3-venv \
 ```
 
 Before a source installation, [set up the docs tooling](apps/vision/tools/README.md#operator-documentation)
-and run `pnpm --dir apps/docs build:jetson`. The generated `dist/jetson-docs/`
-must accompany the checkout used for the wheel build. Node and pnpm are build
+and run `pnpm build && pnpm build:jetson`. The generated `dist/dashboard/` and
+`dist/jetson-docs/` must accompany the checkout used for the wheel build. Node and pnpm are build
 tools; installed Jetson releases serve the bundled site without them.
 
 Build and install into a virtual environment:

@@ -4,9 +4,9 @@ const config: KnipConfig = {
 	workspaces: {
 		'.': {},
 		'apps/dashboard': {
-			// Python serves these browser scripts directly.
-			entry: ['*.js', 'tests/*.cjs'],
-			project: ['*.js', 'tests/*.cjs'],
+			// Legacy alpha UI tests still run with node:test.
+			entry: ['tests/*.cjs', 'tests/*.test.js', 'tests/browser/*.ts'],
+			project: ['src/**/*.{ts,tsx}', '*.ts', 'tests/**/*.{ts,js,cjs}'],
 		},
 		'apps/docs': {},
 		'packages/camera-viewer': {},

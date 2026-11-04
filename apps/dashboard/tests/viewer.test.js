@@ -1,5 +1,5 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import { test } from 'vite-plus/test';
+import assert from 'node:assert/strict';
 const { rotate, angles, quaternion, cameraAngles, cameraQuaternion, robotPose } = require('@spot/camera-viewer');
 const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
 

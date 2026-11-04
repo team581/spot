@@ -9,17 +9,7 @@ const fixtures = JSON.parse(
 );
 const math = require('@spot/camera-viewer');
 const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
-function dashboard() {
-	const context = { SpotViewer: math };
-	const source = fs.readFileSync(path.join(root, 'apps/dashboard/app.js'), 'utf8');
-	vm.createContext(context);
-	// Execute the actual production geometry form adapter, not a duplicate implementation.
-	vm.runInContext(
-		source.slice(source.indexOf('let geometryNumbers = [];'), source.indexOf('function geometryPage(c)')),
-		context,
-	);
-	return context;
-}
+const { geometryValues, previewGeometry } = require('../../dashboard/src/state/geometry.ts');
 function renderer(provider) {
 	const paths = [];
 	const context = {
@@ -64,15 +54,12 @@ function renderer(provider) {
 for (const fixture of fixtures)
 	test(`Jetson vs preview: XYZ ${fixture.exported.translation}; Java RPY ${fixture.javaRollPitchYawDeg}`, () => {
 		const mount = fixture.exported;
-		const jetson = dashboard();
-		const readback = jetson.geometryPreview({ geometry: mount });
+		const readback = previewGeometry(geometryValues(mount));
 		close(readback.translation, mount.translation);
 		const [roll, pitch, yaw] = fixture.javaRollPitchYawDeg;
 		close(math.rotate(math.quaternion(yaw, pitch, roll), [1, 0, 0]), fixture.worldAxes[0]);
 		// Feed signed values into the same form state used by Jetson inspection edits.
-		jetson.inputs = [...mount.translation, ...fixture.jetsonYawPitchRollDeg];
-		vm.runInContext('geometryNumbers = inputs.map(value => ({previewValue:value,ack:value}));', jetson);
-		const edited = jetson.geometryPreview({ geometry: mount });
+		const edited = previewGeometry([...mount.translation, ...fixture.jetsonYawPitchRollDeg]);
 		for (const [i, axis] of [
 			[1, 0, 0],
 			[0, 1, 0],

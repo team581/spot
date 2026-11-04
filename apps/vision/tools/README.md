@@ -186,7 +186,7 @@ when the connection is lost.
 ## Local verification
 
 Run `mise run setup` from the repository root after cloning. It installs the JS
-workspace, builds the Jetson docs, and compiles the CPU native module.
+workspace, builds the dashboard and Jetson docs, and compiles the CPU native module.
 
 Run all Python checks and the CPU packaging check after setup:
 
@@ -209,7 +209,7 @@ Ctrl-C cleanup, camera access, and performance remain Jetson acceptance checks.
 The guides in `apps/docs/src/content/docs/` appear on both the Jetson at `/docs/` and the [Astro + Starlight](https://starlight.astro.build/) site in `apps/docs/`.
 Edit the shared guides to update both versions.
 
-Run `pnpm --dir apps/docs build:jetson` before building a Spot wheel. It produces `dist/jetson-docs/`, which is bundled into the installed application for offline use.
+Run `pnpm build && pnpm build:jetson` before building a Spot wheel. The generated `dist/dashboard/` and `dist/jetson-docs/` are bundled into the installed application for offline use.
 
 
 ## Robot integration session

@@ -5,7 +5,7 @@ idiomatic_version_file_enable_tools = ["node", "pnpm"]
 uv = "0.13.6"
 
 [tasks.setup]
-description = "Install the JS workspace, bundle docs, and build the CPU native module"
+description = "Install the JS workspace, bundle the dashboard and docs, and build the CPU native module"
 run = [
   "pnpm install --frozen-lockfile",
   "pnpm build",

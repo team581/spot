@@ -9,3 +9,8 @@ minimumReleaseAgeExclude:
 # VSIX packaging does not sign extensions; skip the optional signing binary setup.
 allowBuilds:
   '@vscode/vsce-sign': false
+
+# Vite+ aliases Vite to its versioned core package.
+peerDependencyRules:
+  allowedVersions:
+    vite: '*'

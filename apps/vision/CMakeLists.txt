@@ -136,16 +136,15 @@ set(SPOT_DOCS_DIR "${SPOT_REPOSITORY_ROOT}/dist/jetson-docs" CACHE PATH "Prebuil
 if(NOT EXISTS "${SPOT_DOCS_DIR}/index.html" OR NOT EXISTS "${SPOT_DOCS_DIR}/pagefind/pagefind.js")
   message(FATAL_ERROR "Build the bundled documentation first: pnpm --filter spot-docs build:jetson")
 endif()
-# The dashboard is a pnpm workspace, but only its flat runtime assets are bundled.
-file(GLOB SPOT_WEB_ASSETS LIST_DIRECTORIES false
-  "${CMAKE_CURRENT_SOURCE_DIR}/../dashboard/*")
-list(APPEND SPOT_WEB_ASSETS "${SPOT_REPOSITORY_ROOT}/packages/camera-viewer/viewer.js")
-list(FILTER SPOT_WEB_ASSETS EXCLUDE REGEX "/package\\.json$")
+set(SPOT_DASHBOARD_DIR "${SPOT_REPOSITORY_ROOT}/dist/dashboard" CACHE PATH "Prebuilt Vite+ dashboard")
+if(NOT EXISTS "${SPOT_DASHBOARD_DIR}/index.html")
+  message(FATAL_ERROR "Build the dashboard first: pnpm --filter spot-dashboard build")
+endif()
 add_custom_target(spot_build_manifest ALL
   COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/web"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/web"
-  COMMAND "${CMAKE_COMMAND}" -E copy
-    ${SPOT_WEB_ASSETS} "${CMAKE_CURRENT_BINARY_DIR}/web"
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${SPOT_DASHBOARD_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/web"
   COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/web/__init__.py"
   COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${SPOT_DOCS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/web/docs"

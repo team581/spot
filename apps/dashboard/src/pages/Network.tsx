@@ -1,0 +1,206 @@
+import { useState } from 'react';
+import { useDashboard, errorMessage } from '../dashboard';
+import { DataList } from '../components/common';
+export default function NetworkPage() {
+	const { status, mutate, announce } = useDashboard(),
+		network = status.network ?? {},
+		endpoint = status.endpoint ?? {};
+	const [port, setPort] = useState(''),
+		[mode, setMode] = useState('automatic'),
+		[address, setAddress] = useState(''),
+		[busy, setBusy] = useState(false),
+		[feedback, setFeedback] = useState(''),
+		[error, setError] = useState('');
+
+	const [restore, setRestore] = useState(false),
+		[lastPending, setLastPending] = useState('');
+	const token = network.pending?.token ?? '';
+	if (lastPending !== token) {
+		setLastPending(token);
+		if (lastPending && !token) setRestore(true);
+	}
+	if (restore && !busy && !network.pending) {
+		const selected = network.interfaces?.find((i) => i.interface === port);
+		if (selected && selected.mode !== 'unconfigured' && (selected.mode !== 'static' || selected.addresses.length)) {
+			setMode(selected.mode);
+			setAddress(selected.addresses[0] || '');
+			setRestore(false);
+		}
+	}
+
+	async function change(operation: string, payload: Record<string, unknown>) {
+		setBusy(true);
+		try {
+			await mutate('network/' + operation, payload);
+			setFeedback(
+				operation === 'apply'
+					? 'Check the address below, then Keep settings before the countdown ends.'
+					: operation === 'confirm'
+						? 'Network settings saved for future boots.'
+						: 'Previous connection restored.',
+			);
+		} catch (e) {
+			setRestore(true);
+			setFeedback(errorMessage(e) + ' If this page disconnected, open the new address or wait for rollback.');
+		} finally {
+			setBusy(false);
+		}
+	}
+	const pending = network.pending,
+		target = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
+	return (
+		<>
+			<h1>Network</h1>
+			<div className="two-columns">
+				<section className="panel">
+					<h2>Connection</h2>
+					<DataList
+						id="connection-data"
+						values={{
+							'Robot endpoint': endpoint.configured || (endpoint.team ? `Team ${endpoint.team}` : 'Unavailable'),
+							'NetworkTables server': status.robot_id || 'Unavailable',
+							'Connection mode': endpoint.mode || 'NT4 client',
+						}}
+					/>
+					<p className="capability-lock spaced">Endpoint pinned by installation configuration</p>
+					<button
+						disabled={status.connected}
+						onClick={async () => {
+							try {
+								await mutate('standalone', {});
+								announce('Standalone setup session started');
+							} catch (e) {
+								setError(errorMessage(e));
+							}
+						}}
+					>
+						{status.standalone ? 'Standalone setup active' : 'Begin standalone setup'}
+					</button>
+					<p id="page-feedback" className="feedback">
+						{error}
+					</p>
+				</section>
+				<section className="panel">
+					<h2>Link</h2>
+					<DataList
+						values={{
+							NetworkTables: status.connected ? 'Connected' : 'Disconnected',
+							'Local addresses': endpoint.local_addresses?.join(', ') || 'Unavailable',
+							Synchronization: status.clock.state || 'Unavailable',
+							Profile: status.fresh
+								? 'Current robot session'
+								: status.robot_id
+									? 'Cached configuration'
+									: 'Unavailable',
+							'Connection epoch': status.clock.connection_epoch || '—',
+						}}
+					/>
+				</section>
+			</div>
+			<section className="panel spaced">
+				<h2>Jetson address</h2>
+				<p>
+					{network.hostname ? (
+						<>
+							Find Spot on this local network:{' '}
+							<a href={`http://${network.hostname}:${location.port || 80}/`}>{network.hostname}</a>. The current IP
+							addresses are listed for each port.
+						</>
+					) : (
+						'Local-name discovery is unavailable. Use one of the current IP addresses below.'
+					)}
+				</p>
+				<p className="lock">
+					{network.available
+						? (status.connected && status.lock_reason) || ''
+						: network.error || 'Install the Spot network helper to change Ethernet addresses.'}
+				</p>
+				{pending ? (
+					<div>
+						<p id="network-countdown" role="status">
+							Testing {pending.interface}. Automatic rollback in {pending.remaining_s} seconds.{' '}
+							{target ? <a href={target}>Open the new address</a> : 'Check the assigned DHCP address in the port list.'}
+						</p>
+						<button disabled={busy} onClick={() => void change('confirm', { token: pending.token })}>
+							Keep settings
+						</button>{' '}
+						<button disabled={busy} onClick={() => void change('revert', { token: pending.token })}>
+							Revert now
+						</button>
+					</div>
+				) : null}
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						void change('apply', {
+							interface: port,
+							mode,
+							address: mode === 'static' ? address.trim() : '',
+						});
+					}}
+				>
+					<label htmlFor="network-interface">Ethernet port</label>
+					<select
+						id="network-interface"
+						value={port}
+						disabled={busy || Boolean(pending)}
+						onChange={(e) => {
+							setPort(e.target.value);
+							const selected = network.interfaces?.find((i) => i.interface === e.target.value);
+							if (selected) {
+								setMode(selected.mode === 'static' ? 'static' : 'automatic');
+								setAddress(selected.addresses[0] || '');
+							}
+						}}
+					>
+						<option value="">Choose a port</option>
+						{network.interfaces?.map((i) => (
+							<option key={i.interface} value={i.interface}>
+								{i.interface} · {i.addresses.join(', ') || 'No IPv4 address'} · {i.mode}
+							</option>
+						))}
+					</select>
+					<label htmlFor="network-mode">Address mode</label>
+					<select
+						id="network-mode"
+						value={mode}
+						disabled={busy || Boolean(pending)}
+						onChange={(e) => setMode(e.target.value)}
+					>
+						<option value="automatic">Automatic (DHCP)</option>
+						<option value="static">Static</option>
+					</select>
+					<label htmlFor="network-address">IPv4 address / prefix</label>
+					<input
+						id="network-address"
+						placeholder="10.5.81.11/24"
+						autoComplete="off"
+						value={address}
+						onChange={(e) => setAddress(e.target.value)}
+						disabled={mode !== 'static' || busy || Boolean(pending)}
+					/>
+					<p>
+						Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. Use a different subnet for each
+						Jetson port.
+					</p>
+					<button
+						className="primary"
+						type="submit"
+						disabled={
+							busy || !network.available || !port || Boolean(pending) || Boolean(status.connected && status.lock_reason)
+						}
+					>
+						Apply for 90 seconds
+					</button>
+				</form>
+				<p>
+					Reconnect if the address changes, then choose Keep settings. Without confirmation, the previous connection
+					returns automatically. Wi-Fi and the internet default route stay unchanged.
+				</p>
+				<p id="network-feedback" className="feedback">
+					{feedback}
+				</p>
+			</section>
+		</>
+	);
+}

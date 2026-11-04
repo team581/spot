@@ -1,6 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { NumberEdit, History, LiveTuner, finiteText, availableCameraNames } = require('../ui-state.js');
+import { test } from 'vite-plus/test';
+import assert from 'node:assert/strict';
+import { NumberEdit, History, LiveTuner, finiteText, availableCameraNames } from '../src/state/editing';
+import { createTheme } from '../src/state/theme';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('numeric text stays exact through deletion, typing and theme-independent preview', async () => {
@@ -145,44 +146,32 @@ test('conflicted live write leaves no misleading undo transaction', async () => 
 });
 
 test('Auto theme follows OS changes; manual preference survives reload', () => {
-	const vm = require('node:vm');
-	const fs = require('node:fs');
-	const code = fs.readFileSync(require.resolve('../theme.js'), 'utf8');
 	const saved = new Map();
 	function load(matches) {
 		const media = {
 			matches,
-			addEventListener: (_, callback) => {
-				media.changed = callback;
+			addEventListener: (_, fn) => {
+				media.changed = fn;
 			},
 		};
-		const document = { documentElement: { dataset: {} } };
-		const window = {};
-		vm.runInNewContext(code, {
-			document,
-			window,
-			localStorage: {
-				getItem: (key) => saved.get(key),
-				setItem: (key, value) => saved.set(key, value),
-			},
-			matchMedia: () => media,
-			dispatchEvent: () => {},
-			CustomEvent: class {},
-		});
-		return { media, document, window };
+		const root = { dataset: {} };
+		const controller = createTheme(
+			{ getItem: (key) => saved.get(key), setItem: (key, value) => saved.set(key, value) },
+			media,
+			root,
+		);
+		return { media, root, controller };
 	}
 	const first = load(false);
-	assert.equal(first.window.SpotTheme.get(), 'Auto');
-	assert.equal(first.document.documentElement.dataset.theme, 'light');
+	assert.equal(first.controller.get(), 'Auto');
+	assert.equal(first.root.dataset.theme, 'light');
 	first.media.matches = true;
 	first.media.changed();
-	assert.equal(first.document.documentElement.dataset.theme, 'dark');
-	first.window.SpotTheme.set('Light');
+	assert.equal(first.root.dataset.theme, 'dark');
+	first.controller.set('Light');
 	first.media.changed();
-	assert.equal(first.document.documentElement.dataset.theme, 'light');
-	const reloaded = load(true);
-	assert.equal(reloaded.window.SpotTheme.get(), 'Light');
-	assert.equal(reloaded.document.documentElement.dataset.theme, 'light');
+	assert.equal(first.root.dataset.theme, 'light');
+	assert.equal(load(true).controller.get(), 'Light');
 });
 
 test('unbound role placeholders remain pairable while disconnected real bindings stay reserved', () => {
