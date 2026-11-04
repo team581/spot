@@ -14,7 +14,7 @@ protocol, durable robot profiles, and local Java integration in
 owns four fixed camera roles and alliance-hub selection; Localization owns fusion
 and capture-time trust. Fusion defaults off; measured mounts and modes remain a
 commissioning gate. The service advertises runtime tag-policy support.
-The [original design](docs/Vision%20Solution%20(Spot)%20Specs.md) and
+The [original design](<docs/Vision%20Solution%20(Spot)%20Specs.md>) and
 [alpha verification](docs/Alpha%20Verification.md) provide historical context.
 
 The config-file camera commands and NT server configuration below are headless
@@ -67,12 +67,10 @@ errors fail checks without hiding an entire rule or module. Fix existing finding
 and then run `uv run --no-sync ty check --update-baseline` to shrink the baseline;
 review baseline changes rather than accepting new errors into it.
 
-On a Jetson with the prerequisites below, use `mise run setup:jetson` to select
-CUDA explicitly. Plain local builds default to CPU. The production installer also
-selects CUDA explicitly. Python 3.12 is used for development; Python 3.10 remains
+For Jetson deployment, use the [NixOS appliance configuration](nix/README.md).
+Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.
+Python 3.12 is used for development; Python 3.10 remains
 the minimum supported runtime. Node is only required to build the dashboard and bundled docs.
-After a CUDA setup, preserve that selection with
-`uv run -Ccmake.define.SPOT_BUILD_CUDA=ON ...` when syncing through uv.
 
 ## Beta setup and review
 
@@ -80,7 +78,7 @@ The installed beta runs with `spot-vision beta --installation
 /etc/spot-vision/beta.json` and serves its offline GUI on port 5800. Use the
 [operator guide](apps/docs/src/content/docs/operator/connect.md) for connection, code-defined camera
 names, calibration and verification; [deployment and rollback](apps/docs/src/content/docs/operator/deployment.md)
-describes immutable CUDA releases and explicit activation. Offline setup can use
+describes NixOS test/switch deployments and generation rollback. Offline setup can use
 a cached robot profile, while current robot session/disabled eligibility gates
 mutations and valid output. Supply measured mounts in robot code before rollout.
 
@@ -96,51 +94,26 @@ For a bare roboRIO and Jetson without a switch, follow the
 [robot integration session](apps/docs/src/content/docs/operator/robot-integration-session.md):
 bring-up, setup friction, disconnect/restart recovery, and evidence-driven agent repairs.
 
-## Jetson prerequisites
+## Jetson deployment
 
-- JetPack with CUDA development tools and compute capability 8.7 support
-- Python 3.10 or newer
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- CMake 3.24+, Ninja, a C++20 compiler, `libgoogle-glog-dev`, and `libgflags-dev`
-- GStreamer with V4L2, JPEG decode, and OpenCV GStreamer support
-- `v4l-utils`
-
-On Ubuntu/Jetson, install the system prerequisites:
+The production Jetson configuration uses NixOS, defined by [the root flake](flake.nix) and
+[the Orin Nano host configuration](nix/hosts/spot/configuration.nix). The system
+build includes JetPack 6/CUDA 12.6, Spot's native module, locked Python runtime,
+dashboard, offline docs, systemd services, Ethernet controls, and discovery.
 
 ```sh
-sudo apt install cmake ninja-build python3-dev python3-venv \
-  libgoogle-glog-dev libgflags-dev v4l-utils \
-  gstreamer1.0-tools gstreamer1.0-plugins-base \
-  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+# From any checkout; uses the shared maintenance key, without Nix or internet.
+bash tools/jetson-ssh.sh
+# For an existing NixOS installation: test, qualify with a disabled robot, persist.
+nix run .#deploy -- test
+bash tools/jetson-ssh.sh spot-vision check-health --robot
+nix run .#deploy -- switch
 ```
 
-Before a source installation, [set up the docs tooling](apps/vision/tools/README.md#operator-documentation)
-and run `pnpm build && pnpm build:jetson`. The generated `dist/dashboard/` and
-`dist/jetson-docs/` must accompany the checkout used for the wheel build. Node and pnpm are build
-tools; installed Jetson releases serve the bundled site without them.
-
-Build and install into a virtual environment:
-
-```sh
-uv sync --locked --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON -Ccmake.define.SPOT_CUDA_ARCHITECTURES=87
-```
-
-NT4 publishing (including the typed `Pose3d` topics) requires the `nt` extra.
-Install it for the default alpha configuration:
-
-```sh
-uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON -Ccmake.define.SPOT_CUDA_ARCHITECTURES=87
-```
-
-The CUDA build downloads the pinned CCCL 2.3.2 headers. For an offline build,
-pre-clone that revision and add `-Ccmake.define.SPOT_CCCL_ROOT=/path/to/cccl` to the uv command.
-
-For a host-only Python installation with the production CPU detector and shared
-edge-geometry diagnostics, but without CUDA:
-
-```sh
-uv sync --locked -Ccmake.define.SPOT_BUILD_CUDA=OFF
-```
+See [NixOS setup, offline deployment, and recovery](nix/README.md) before first
+installation. Generation rollback preserves calibration and other writable
+state. Firmware updates remain separate. The old Ubuntu deployment scripts and
+application release symlink are no longer used.
 
 ## First camera test
 

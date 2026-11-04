@@ -5,8 +5,7 @@ import { DataList, age, date, fmt } from '../components/common';
 export default function System() {
 	const { status: s, serviceError, mutate, announce } = useDashboard(),
 		m = s.system ?? {},
-		r = s.release,
-		d = r.deployment ?? {};
+		r = s.software;
 	const [error, setError] = useState('');
 	const run = async (operation: string, payload: Record<string, unknown>, message: string) => {
 		try {
@@ -104,13 +103,12 @@ export default function System() {
 					<DataList
 						id="software-data"
 						values={{
-							'Last successful deployment': date(d.last_successful_deployment?.completed_at),
-							'Running release': r.release_id || 'Unavailable',
-							'Source commit': r.source_commit || 'Unavailable',
-							'Native build': r.native_sha256 || 'Unavailable',
+							'NixOS system': r.system_path || 'Unavailable',
+							'Application package': r.package_path || 'Unavailable',
+							'Configuration revision': r.configuration_revision || 'Unavailable',
+							Version: r.version || 'Unavailable',
+							'CUDA build': r.native_cuda == null ? 'Unavailable' : r.native_cuda ? 'Yes' : 'No',
 							Started: date(r.process_started_at),
-							'Latest attempt': d.latest_attempt?.verification || 'Unavailable',
-							Rollback: d.rollback ? 'Restored previous release' : '—',
 						}}
 					/>
 				</section>

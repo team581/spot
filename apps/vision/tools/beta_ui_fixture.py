@@ -197,11 +197,9 @@ class FixtureRuntime:
                 "sync_epoch": 0,
                 "discontinuities": 0,
             },
-            "release": {
-                "release_id": "development-fixture",
-                "source_commit": "SYNTHETIC",
-                "native_sha256": "not loaded",
-                "deployment": {},
+            "software": {
+                "package_path": "development-fixture",
+                "configuration_revision": "SYNTHETIC",
                 "process_started_at": None,
             },
             "uptime_s": time.monotonic() - self.started,

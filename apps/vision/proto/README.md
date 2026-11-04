@@ -29,6 +29,11 @@ Python requires the declared runtime (also supporting the existing v1 file).
 Legacy fixtures remain byte-identical; policy fixtures separately pin bytes and
 SHA-256 hashes. Include both schemas in releases.
 
+The health message's existing `release_id` field reports the application
+environment path, which is a Nix store path on the appliance. `native_hash` is
+unused; Nix manages installed software integrity. Robot profile and calibration
+hashes remain part of the runtime data contract.
+
 Profile hashing is SHA-256 of serialized `Profile` bytes; no map fields occur.
 Preserve explicit repeated-field order. Manifest sessions are deliberately
 outside the content hash: new code sessions must handshake even for equal content.
@@ -67,7 +72,6 @@ continues. Max packets are 64 KiB / 2 candidates / 64 tags; profiles are 256 KiB
 Sources: [WPILib timestamp domains](https://docs.wpilib.org/en/stable/docs/software/networktables/networktables-intro.html#timestamps),
 [TimestampedRaw sentinels](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/networktables/TimestampedRaw.html),
 [NTCore 2026.2.2 source](https://github.com/wpilibsuite/allwpilib/blob/v2026.2.2/ntcore/src/main/native/cpp/net/ClientImpl.cpp).
-
 
 ## Runtime tag selection (service 0.2.1 / offseason local integration)
 

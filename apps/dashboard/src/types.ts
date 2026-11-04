@@ -132,16 +132,13 @@ export interface Status {
 		sync_epoch?: number;
 		discontinuities?: number;
 	};
-	release: {
-		release_id?: string;
-		source_commit?: string;
-		native_sha256?: string;
+	software: {
+		package_path?: string;
+		configuration_revision?: string;
+		version?: string;
+		native_cuda?: boolean;
 		process_started_at?: string;
-		deployment?: {
-			last_successful_deployment?: { completed_at?: string };
-			latest_attempt?: { verification?: string };
-			rollback?: boolean;
-		};
+		system_path?: string;
 	};
 	calibration: {
 		cameras: Record<string, CalibrationSession>;
@@ -196,6 +193,6 @@ export const initialStatus: Status = {
 	revision: '',
 	lock_reason: 'Robot state unknown · locked',
 	clock: {},
-	release: {},
+	software: {},
 	calibration: { cameras: {} },
 };

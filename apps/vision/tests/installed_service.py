@@ -14,12 +14,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-def smoke(environment: Path, work: Path) -> None:
-    import spot_vision
+def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
     from spot_vision import beta_app, beta_runtime, cli
     from spot_vision.devices import DeviceManager
 
-    assert Path(spot_vision.__file__).resolve().is_relative_to(environment.resolve())
+    assert Path(sys.prefix).resolve() == environment.resolve()
     installation = work / "installation.json"
     installation.write_text(
         json.dumps(
@@ -64,7 +63,21 @@ def smoke(environment: Path, work: Path) -> None:
                     if path == "/health":
                         status = json.loads(data)
                         assert status["cameras"] == []
-                        assert status["release"]["native_cuda"] is False
+                        assert status["software"]["native_cuda"] is native_cuda
+                        assert status["software"]["package_path"] == str(environment.resolve())
+                        # Exercise the operator command against this real installed server.
+                        assert (
+                            cli.main(
+                                [
+                                    "check-health",
+                                    "--url",
+                                    f"http://127.0.0.1:{servers[0].server_port}",
+                                    "--timeout",
+                                    "2",
+                                ]
+                            )
+                            == 0
+                        )
                 finally:
                     connection.close()
         except BaseException as error:
@@ -93,13 +106,13 @@ def smoke(environment: Path, work: Path) -> None:
         raise errors[0]
     assert result == 0, result
     print(
-        "Installed wheel: real startup, artifact identity, empty discovery, HTTP chunks and offline docs verified"
+        "Installed package: real startup, package path, empty discovery, HTTP chunks and offline docs verified"
     )
 
 
 def main() -> None:
-    if len(sys.argv) == 4 and sys.argv[1] == "--smoke":
-        smoke(Path(sys.argv[2]), Path(sys.argv[3]))
+    if len(sys.argv) == 4 and sys.argv[1] in {"--smoke", "--smoke-cuda"}:
+        smoke(Path(sys.argv[2]), Path(sys.argv[3]), native_cuda=sys.argv[1] == "--smoke-cuda")
         return
     wheel = Path(sys.argv[1]).resolve()
     if wheel.is_dir():
@@ -115,13 +128,38 @@ def main() -> None:
         environment = work / ".venv"
         subprocess.run(
             [
-                str(root / "apps/vision/deploy/install-wheel.sh"),
+                "uv",
+                "sync",
+                "--project",
                 str(root),
-                str(wheel),
-                str(environment),
+                "--locked",
+                "--package",
+                "spot-vision",
+                "--no-dev",
+                "--extra",
+                "nt",
+                "--extra",
+                "systemd",
+                "--no-install-workspace",
+                "--python",
+                sys.executable,
+                "--no-python-downloads",
             ],
             check=True,
-            env={**clean_env, "SPOT_PYTHON": sys.executable},
+            env={**clean_env, "UV_PROJECT_ENVIRONMENT": str(environment)},
+        )
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(environment / "bin/python"),
+                "--no-deps",
+                str(wheel),
+            ],
+            check=True,
+            env=clean_env,
         )
         subprocess.run(
             [

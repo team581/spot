@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import signal
 import socket
+import sys
 import threading
+from datetime import datetime, timezone
+from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
@@ -13,10 +17,10 @@ from .beta_calibration import BetaCalibration
 from .beta_processing import ProcessingPolicy
 from .beta_runtime import BetaRuntime
 from .beta_web import BetaHttpServer
+from .clock import wall_time_available
 from .config import ConfigError, NtConfig
 from .devices import _run
 from .networking import NetworkClient
-from .release import installed_identity
 
 
 def local_addresses() -> list[str]:
@@ -30,6 +34,22 @@ def local_addresses() -> list[str]:
         ]
     except (ConfigError, ValueError, KeyError):
         return ["127.0.0.1"]
+
+
+def software_info() -> dict:
+    from . import _spot_cuda as native
+
+    system = Path("/run/current-system")
+    return {
+        "package_path": str(Path(sys.prefix).resolve()),
+        "system_path": str(system.resolve()) if system.exists() else None,
+        "configuration_revision": os.environ.get("SPOT_CONFIGURATION_REVISION") or None,
+        "version": version("spot-vision"),
+        "native_cuda": bool(native.CUDA_AVAILABLE),
+        "process_started_at": datetime.now(timezone.utc).isoformat()
+        if wall_time_available()
+        else None,
+    }
 
 
 def run_beta(args) -> int:
@@ -47,7 +67,9 @@ def run_beta(args) -> int:
     if set(http) - {"bind", "port", "hostnames"}:
         raise ConfigError("Invalid HTTP configuration")
     addresses = local_addresses()
-    release = installed_identity(backend=backend)
+    software = software_info()
+    if backend == "cuda" and not software["native_cuda"]:
+        raise ConfigError("CUDA backend requires a CUDA build")
     runtime = BetaRuntime(
         Path(args.state_root),
         nt,
@@ -55,19 +77,13 @@ def run_beta(args) -> int:
         processing=ProcessingPolicy.parse(config.get("processing")),
     )
     runtime.network = NetworkClient()
-    runtime.release = release
+    runtime.software = software
     runtime.endpoint = {
         "configured": nt.server,
         "team": nt.team,
         "mode": "NT4 client",
         "local_addresses": addresses,
     }
-    deployment_path = Path(args.state_root) / "deployments.json"
-    if deployment_path.is_file():
-        try:
-            runtime.release["deployment"] = json.loads(deployment_path.read_bytes())
-        except (OSError, ValueError):
-            runtime.release["deployment_fault"] = "Deployment record is unreadable"
     runtime.calibration = BetaCalibration(runtime)
     assets = Path(str(files("spot_vision.web")))
     for relative in (
@@ -94,11 +110,6 @@ def run_beta(args) -> int:
         web_thread.start()
         runtime.watchdog.ready()
         while not stopped.wait(0.2):
-            if deployment_path.is_file():
-                try:
-                    runtime.release["deployment"] = json.loads(deployment_path.read_bytes())
-                except (OSError, ValueError):
-                    runtime.release["deployment_fault"] = "Deployment record is unreadable"
             if not web_thread.is_alive() or not runtime.tick():
                 raise RuntimeError(runtime.fatal or "HTTP service worker exited")
     finally:

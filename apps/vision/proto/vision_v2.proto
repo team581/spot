@@ -170,7 +170,7 @@ message Health {
   uint64 sync_epoch = 9;
   uint64 discontinuities = 10;
   string runtime_generation = 11;
-  string release_id = 12;
-  string native_hash = 13;
+  string release_id = 12; // Application environment path (a Nix store path on the appliance).
+  string native_hash = 13; // Unused; software integrity is managed by Nix.
   repeated string faults = 14;
 }

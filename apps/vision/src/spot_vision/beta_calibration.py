@@ -20,6 +20,7 @@ from .charuco import (
     detect_frame,
     make_board,
 )
+from .clock import wall_time_available
 from .config import ConfigError
 from .configuration import mode_signature, optical_controls
 
@@ -280,15 +281,15 @@ class BetaCalibration:
                         "fit": copy.deepcopy(camera.report),
                         "holdout": copy.deepcopy(camera.validation),
                         "algorithm": "charuco-fit-holdout-v2",
-                        "build": self.runtime.release.get("release_id", "development"),
+                        "build": self.runtime.software.get("package_path"),
                         "saved_at": camera.intrinsics.get("calibrated_at")
-                        if self.runtime.release.get("wall_time_available")
+                        if wall_time_available()
                         else None,
                     }
                 )
             for camera in self.cameras.values():
                 camera.running = False
-            if not self.runtime.release.get("wall_time_available"):
+            if not wall_time_available():
                 for record in records:
                     record["intrinsics"]["calibrated_at"] = None
         # Native staging and durable writes must not hold the HTTP status lock.

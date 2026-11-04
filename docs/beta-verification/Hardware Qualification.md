@@ -15,9 +15,9 @@ flowchart LR
 
 ## Equipment and records
 
-Supply actual offseason camera inventory and robot-code mounts, the measured ChArUco print, surveyed field poses and repeatable paths, an independent clock/capture reference, and robot WPILOG recordings. Use the dedicated Jetson SSH identity and the documented release installer/activation procedure. Preserve the previous immutable release and configuration export.
+Supply actual offseason camera inventory and robot-code mounts, the measured ChArUco print, surveyed field poses and repeatable paths, an independent clock/capture reference, and robot WPILOG recordings. Use the shared maintenance key and the NixOS test/verify/switch procedure in `nix/README.md`. Confirm the carrier board, storage layout and firmware compatibility before installation. Preserve the previous NixOS generation and configuration export.
 
-Record robot/source/profile hashes, Jetson release/native hashes, schema/dependency versions, physical camera identities/topology, negotiated modes, actual capture/detection rates, readback controls, calibration hashes, timestamp-qualification signatures, lighting/tag geometry and motion conditions. Save raw samples alongside plots and summaries; do not replace failed members with an undocumented smaller group.
+Record robot/source/profile hashes, NixOS system/package paths and configuration revision, schema/dependency versions, physical camera identities/topology, negotiated modes, actual capture/detection rates, readback controls, calibration hashes, timestamp-qualification signatures, lighting/tag geometry and motion conditions. Save raw samples alongside plots and summaries; do not replace failed members with an undocumented smaller group.
 
 ## Required trials
 
@@ -31,11 +31,11 @@ Record robot/source/profile hashes, Jetson release/native hashes, schema/depende
 | Pipeline recovery | Detect required-camera stalls within 0.5 s; fresh recovery ≤5 s after known-good enumeration or NT synchronization. USB/hub loss, unsupported controls/modes, invalid calibration, profile mismatch, forced configured CPU fallback, dead output worker and native supervisor restart |
 | Network and power | Ethernet outages near 1 s, 30 s and 5 min; repeated flapping; either boot order; no Ethernet at boot; independent/both computer power cycles; camera/hub power cycles; power removal during settings/calibration commit. No backlog replay, duplicate fusion or estimator reset |
 | Endurance | Thirty minutes with four streams and representative motion; bounded memory/queues, camera fairness, thermal/fallback recovery, no fatal failures or time discontinuities. Nominal result/transport loss <1%; count intentional latest-frame overwrites separately |
-| Deployment and operator handoff | Verify actual CUDA process/artifacts, installed offline GUI, automatic startup and previous-release rollback on Jetson. A new operator names/calibrates/replaces a camera using the guide and real results |
+| Deployment and operator handoff | Verify actual CUDA process/artifacts, installed offline GUI, automatic startup and previous-generation rollback on Jetson. A new operator names/calibrates/replaces a camera using the guide and real results |
 
 ## Suggested raw sample columns
 
-Startup CSV: `trial_id,kind,robot_boot_order,ethernet_present,os_boot_s,service_start_s,state_load_s,enumeration_s,first_processed_frame_s,nt_connection_s,synchronized_s,acknowledged_s,robot_available_s,dependency_wait_s,release_id,manifest_hash,result`.
+Startup CSV: `trial_id,kind,robot_boot_order,ethernet_present,os_boot_s,service_start_s,state_load_s,enumeration_s,first_processed_frame_s,nt_connection_s,synchronized_s,acknowledged_s,robot_available_s,dependency_wait_s,package_path,manifest_hash,result`.
 
 Frame CSV: `trial_id,camera_identity,logical_name,capture_epoch,sequence,connection_epoch,sync_epoch,runtime_generation,local_nt_us,server_fpga_s,ctre_s,external_capture_s,consume_fpga_s,uncertainty_s,correction_us,decision,fused,tag_ids,range_m,reference_x_m,reference_y_m,estimated_x_m,estimated_y_m,temperature_c,capture_fps,detect_fps,result_drops,latest_overwrites`.
 

@@ -2,80 +2,84 @@
 title: 'Deployment / rollback'
 ---
 
-Build an immutable release, activate its ID, then verify the software actually running.
+Spot runs as a NixOS appliance. OS configuration, NVIDIA JetPack integration,
+Python dependencies, CUDA detector, dashboard, and offline docs belong to one
+pinned system generation. Calibration and assignments stay separately under
+`/var/lib/spot-vision`.
 
-## Install a release
+## Connect
 
-On the Jetson, prepare the build prerequisites in the repository README, then run:
-
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm build:jetson
-sudo SPOT_UV="$(command -v uv)" apps/vision/deploy/install.sh /home/team581/spot-2026
-```
-
-The dashboard and documentation builds need Node and pnpm. Alternatively, copy
-prebuilt `dist/dashboard/` and `dist/jetson-docs/` directories with the checkout.
-The installer requires uv and the system Python; installed releases need none of
-the JS build tools. `SPOT_UV` supplies the uv executable when sudo resets PATH.
-Runtime dependencies come from the root `uv.lock`, with the `nt` and `systemd`
-extras. The built wheel is installed non-editably into its own environment,
-without resolving another set of dependency versions.
-
-The installer builds and verifies the CUDA wheel and prints a **release ID**. It does not switch the running service.
-
-## Activate and verify
-
-For a qualified, disabled robot, replace `RELEASE_ID` with the printed ID:
+From any source checkout on a maintenance laptop, without Nix or internet access:
 
 ```sh
-sudo /opt/spot-vision/activate.py RELEASE_ID
+bash tools/jetson-ssh.sh
 ```
 
-For initial offline GUI setup while hardware qualification is pending:
+The repository contains the team's shared maintenance key. No separate credential
+is required. For a direct Ethernet cable, assign the laptop
+`192.168.69.171/24`; Spot initially uses `192.168.69.170`.
+
+## Test and persist
+
+For an existing NixOS installation, run from the repository root:
 
 ```sh
-sudo /opt/spot-vision/activate.py RELEASE_ID --setup-only
+nix run .#deploy -- test
+bash tools/jetson-ssh.sh spot-vision check-health --robot
+nix run .#deploy -- switch
 ```
 
-Activation restarts the service and waits up to 120 seconds for HTTP/native identity and the required readiness checks. Open **System** to verify the result.
+`test` builds on Spot and activates without changing the boot default.
+`spot-vision check-health --robot` checks the running package, profile acknowledgement,
+synchronized robot clock, and required camera calibration/timing/detection freshness. Keep the robot disabled and do not change
+the checkout between test and switch.
 
-![System page showing the running release, source commit, native build and deployment status](../../../assets/docs-images/system.png)
+For initial offline setup, use `spot-vision check-health`. Robot/camera
+qualification remains pending. Spot uses systemd notification to report startup
+after native loading, state initialization, and web server startup.
 
-_Use the Software panel to check the running identity and latest attempt. This demonstration has no installed native build._
+Use **System → Software** to record the NixOS system path, application package
+path, configuration revision, version, and process start time. Wall-clock time
+can be unavailable while offline; the Nix package identity remains available.
 
-| System field               | Check                                                                         |
-| -------------------------- | ----------------------------------------------------------------------------- |
-| Running release            | The intended release ID and actually loaded module                            |
-| Last successful deployment | The latest verified activation                                                |
-| Last attempt / rollback    | Whether the latest switch failed or restored a previous release               |
-| Started                    | Process start time; calendar time may be unavailable until clock verification |
+## Recover
 
-## Roll back
-
-Activate an existing compatible beta release ID using the same command. Failed verification automatically restores the previous release link and restarts it. Saved assignments, calibrations and installation settings stay outside release directories.
-
-## Get diagnostic evidence
+Deployments do not automatically roll back. After a failed `test`, restore the
+persistent boot generation:
 
 ```sh
-systemctl status spot-vision
-journalctl -u spot-vision
+bash tools/jetson-ssh.sh sudo /nix/var/nix/profiles/system/bin/switch-to-configuration test
 ```
 
-From System, export a support bundle/configuration or record 10–30 seconds of bounded diagnostics. Recording does not take camera ownership.
+After persisting a generation, return to the previous one:
 
-<details>
-<summary>Release layout and migration details</summary>
+```sh
+bash tools/jetson-ssh.sh sudo nixos-rebuild switch --rollback
+```
 
-Application files live read-only under `/opt/spot-vision/releases/RELEASE_ID`; activation atomically switches `current`. Writable state lives under `/var/lib/spot-vision`, and `/etc/spot-vision` is read-only to the service. Installation records dependency versions and verifies native/application assets.
+If SSH is unavailable, reboot into the unchanged boot default after a temporary
+test, or select an older retained generation from the boot menu. Rollback
+restores system/application configuration, not calibration state or firmware.
 
-Preserve the historical alpha installation before a first migration. An alpha wheel is not a beta rollback target. Configuration imports check the current profile, identity, policy, mode and calibration before atomic disabled-only acknowledgement. Without verified wall time, System shows **Time unavailable** while release identity and monotonic uptime remain available.
+## Diagnostic evidence
 
-</details>
+```sh
+bash tools/jetson-ssh.sh systemctl status spot-vision
+bash tools/jetson-ssh.sh journalctl -u spot-vision -b
+```
+
+Use System to export a support bundle/configuration or record 10–30 seconds of
+bounded diagnostics. Recording does not take camera ownership.
 
 ## Ethernet controls and discovery
 
-The normal installer includes the network helper and local-name discovery. On an existing installation, run `sudo apps/vision/deploy/install-network.sh /absolute/spot/source` from the source checkout, then deploy the updated Spot application. NetworkManager and Avahi must be installed. This does not change Ethernet addresses; choose Automatic or Static on **Network → Jetson address**.
+NixOS configures NetworkManager, Avahi, the independent privileged helper, and
+its group-restricted socket. Spot's camera service stays unprivileged. Discovery
+advertises the configured Ethernet interface, not Wi-Fi. Choose Automatic or
+Static on **Network → Jetson address**. NetworkManager protects each trial with
+a 90-second rollback; unconfirmed connections are not selected on boot.
 
-Local-name discovery advertises the Jetson's physical Ethernet ports; it does not advertise its separate Wi-Fi connection. The helper is a separate system service with access limited to physical Ethernet ports. Spot's camera service stays unprivileged. NetworkManager protects each trial with a 90-second rollback; an unconfirmed connection is not selected automatically on boot. Wi-Fi profiles and default routes are preserved. The installer saves previous helper and Avahi files in the printed backup directory.
+First OS installation, firmware requirements, offline transfer, and hardware
+qualification are documented in `nix/README.md` in the repository. The target is
+an Orin Nano 8GB with a confirmed developer-kit carrier board and compatible
+JetPack 6 firmware.

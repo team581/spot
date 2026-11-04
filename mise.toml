@@ -13,14 +13,13 @@ run = [
   "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
 ]
 
-[tasks."setup:jetson"]
-description = "Install dependencies and build the CUDA module on a Jetson with JetPack"
-run = [
-  "pnpm install --frozen-lockfile",
-  "pnpm build",
-  "pnpm build:jetson",
-  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=ON",
-]
+[tasks."jetson:ssh"]
+description = "SSH to Spot using the repository's shared maintenance key"
+run = "bash tools/jetson-ssh.sh"
+
+[tasks."jetson:deploy"]
+description = "Build and test a NixOS generation on Spot without changing its boot default"
+run = "nix run .#deploy -- test"
 
 [tasks.format]
 run = ["pnpm format", "uv run --no-sync ruff format --check"]
