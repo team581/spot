@@ -89,7 +89,7 @@ Do not regenerate the baseline to suppress new findings.
 
 For Jetson deployment, use the [NixOS appliance configuration](nix/README.md).
 Plain local builds default to CPU; Nix selects CUDA for the Orin appliance.
-Python 3.12 is used for development; Python 3.10 remains
+Python 3.14 is used for development; Python 3.10 remains
 the minimum supported runtime. Node is only required to build the dashboard and bundled docs.
 
 ## Application setup and review
