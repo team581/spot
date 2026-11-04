@@ -8,19 +8,15 @@ permissions:
   contents: read
 
 jobs:
-  docs:
-    name: Documentation
+  javascript:
+    name: JavaScript and documentation
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: docs-site
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/setup@v3
         with:
           cache: true
-          working-directory: docs-site
           require-lockfile: true
       - run: pnpm check
       - parallel:
@@ -38,8 +34,8 @@ jobs:
           retention-days: 1
 
   application:
-    name: Application integration
-    needs: docs
+    name: Python and CPU native module
+    needs: javascript
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -51,6 +47,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
+          python-version: '3.12'
+          version: '0.13.6'
       - uses: jdx/mise-action@v5
         with:
           install: false

@@ -154,7 +154,7 @@
       this.resize.disconnect();
     }
     draw() {
-      const { camera, geometry, field, data, inspection, mounts, selectedName, drivebase } = this.provider(),
+      const { geometry, field, data, inspection, mounts, selectedName, drivebase } = this.provider(),
         canvas = this.canvas,
         ctx = canvas.getContext("2d"),
         W = canvas.width,

@@ -672,10 +672,6 @@ function updateDetections(id) {
           data.generation === state.applied_generation));
   const tags = fresh ? data.tags || [] : [],
     candidates = fresh ? data.candidates || [] : [];
-  const best = candidates.reduce(
-    (a, b) => (!a || b.error_px < a.error_px ? b : a),
-    null,
-  );
   if ($("#detections"))
     $("#detections").innerHTML = tags.length
       ? tags
@@ -1422,7 +1418,7 @@ async function poll() {
     state = await api("/api/status");
     serviceError = "";
     render();
-  } catch (error) {
+  } catch {
     serviceError = "Service unavailable · reconnecting";
     for (const preview of previews.values())
       if (preview.data) preview.data.stale = true;

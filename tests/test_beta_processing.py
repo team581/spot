@@ -73,7 +73,8 @@ def test_strict_cuda_failure_and_failed_cpu_frames_back_off():
     def fail(_):
         raise RuntimeError("native failure")
 
-    factory = lambda *_: SimpleNamespace(detect=fail, reset=lambda: None)
+    def factory(*_):
+        return SimpleNamespace(detect=fail, reset=lambda: None)
     detector = BetaDetector(camera, None, factory, ProcessingPolicy(), clock=lambda: now[0])
     with pytest.raises(RuntimeError, match="native failure"):
         detector.detect(None)

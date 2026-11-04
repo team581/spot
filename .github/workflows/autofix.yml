@@ -10,20 +10,26 @@ jobs:
     name: Autofix
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: docs-site
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/setup@v3
         with:
           cache: true
-          working-directory: docs-site
           require-lockfile: true
-      - run: pnpm exec astro sync
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: '3.12'
+          version: '0.13.6'
+      - run: uv sync --locked --no-install-project
+      - run: pnpm --filter spot-docs exec astro sync
       - run: pnpm format:fix
         continue-on-error: true
       - run: pnpm lint:fix
+        continue-on-error: true
+      - run: uv run --no-sync ruff check --fix
+        continue-on-error: true
+      - run: uv run --no-sync ruff format
         continue-on-error: true
       - name: Run autofix.ci
         uses: autofix-ci/action@v1
