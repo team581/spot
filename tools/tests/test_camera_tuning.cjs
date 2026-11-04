@@ -3,7 +3,7 @@ const { test } = require('node:test'),
 	assert = require('node:assert/strict'),
 	fs = require('node:fs'),
 	vm = require('node:vm');
-const html = fs.readFileSync('tools/alpha_dashboard.html', 'utf8');
+const html = fs.readFileSync(require.resolve('../alpha_dashboard.html'), 'utf8');
 const source = html.slice(html.indexOf('// Camera tuning'), html.indexOf('const preferences='));
 function setup(fetch) {
 	const elements = {};

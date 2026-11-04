@@ -135,10 +135,15 @@ set(SPOT_DOCS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/jetson-docs" CACHE PATH "Pre
 if(NOT EXISTS "${SPOT_DOCS_DIR}/index.html" OR NOT EXISTS "${SPOT_DOCS_DIR}/pagefind/pagefind.js")
   message(FATAL_ERROR "Build the bundled documentation first: pnpm --dir docs-site build:jetson")
 endif()
+# The dashboard is a pnpm workspace, but only its flat runtime assets are bundled.
+file(GLOB SPOT_WEB_ASSETS LIST_DIRECTORIES false
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/spot_vision/web/*")
+list(FILTER SPOT_WEB_ASSETS EXCLUDE REGEX "/package\\.json$")
 add_custom_target(spot_build_manifest ALL
   COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/web"
-  COMMAND "${CMAKE_COMMAND}" -E copy_directory
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/spot_vision/web" "${CMAKE_CURRENT_BINARY_DIR}/web"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/web"
+  COMMAND "${CMAKE_COMMAND}" -E copy
+    ${SPOT_WEB_ASSETS} "${CMAKE_CURRENT_BINARY_DIR}/web"
   COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${SPOT_DOCS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/web/docs"
   COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_manifest.py"

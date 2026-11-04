@@ -36,6 +36,7 @@ spot-vision = "spot_vision.cli:main"
 cmake.build-type = "Release"
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["src/spot_vision"]
+wheel.exclude = ["spot_vision/web/package.json", "spot_vision/web/node_modules/**"]
 sdist.include = ["dist/jetson-docs/**"]
 
 [tool.pytest.ini_options]

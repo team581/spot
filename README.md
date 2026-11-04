@@ -46,6 +46,11 @@ mise run test
 Use `mise run format:fix` and `mise run lint:fix` to apply automatic fixes.
 JavaScript dependencies share the root `pnpm-lock.yaml`; run `pnpm install` from
 the root. Python dependencies and development tools use `uv.lock`.
+The workspace packages are `spot-docs`, `spot-camera-preview`, and `spot-dashboard`.
+Run `pnpm --filter spot-dashboard check`, `lint`, or `test` to check just the
+embedded dashboard. Its static assets remain in `src/spot_vision/web` and are
+bundled by CMake without a JavaScript build step. Dashboard tests remain in
+`tools/tests` and run from either the repository root or the dashboard package.
 
 ty checks the service against the Python 3.10 minimum. `ty-baseline.json` records
 existing type errors, including missing generated/native type information, so new
@@ -281,7 +286,7 @@ required host-to-device CUDA transfer still occurs.
 The expanded test suite, repeatable live verifier, latest alpha results, and
 remaining checks are documented in [Alpha Verification](docs/Alpha%20Verification.md).
 `PYTHONPATH=src .venv/bin/python -m pytest` runs both the core and alpha-tool
-tests. Run `node --test tools/tests/*.cjs` for the dashboard JavaScript tests.
+tests. Run `pnpm --filter spot-dashboard test` for the dashboard JavaScript tests.
 
 CUDA execution and Linux UVC qualification require the target Orin. CPU detector,
 pose, fixture and local NT4/HTTP tests run on the development Mac.

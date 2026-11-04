@@ -1,0 +1,12 @@
+{
+	"name": "spot-dashboard",
+	"private": true,
+	"scripts": {
+		"check": "node --check app.js && node --check theme.js && node --check ui-state.js && node --check viewer.js",
+		"format": "cd ../../.. && oxfmt --check src/spot_vision/web tools/tests",
+		"format:fix": "cd ../../.. && oxfmt src/spot_vision/web tools/tests",
+		"lint": "cd ../../.. && oxlint src/spot_vision/web tools/tests",
+		"lint:fix": "cd ../../.. && oxlint --fix src/spot_vision/web tools/tests",
+		"test": "node --test ../../../tools/tests/*.cjs"
+	}
+}

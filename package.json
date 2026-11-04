@@ -5,12 +5,12 @@
 		"build": "pnpm -r build",
 		"build:jetson": "pnpm --filter spot-docs build:jetson",
 		"check": "pnpm -r check",
-		"format": "oxfmt --check package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github src/spot_vision/web tools/tests && pnpm -r format",
-		"format:fix": "oxfmt package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github src/spot_vision/web tools/tests && pnpm -r format:fix",
-		"lint": "oxlint src/spot_vision/web tools/tests && pnpm -r lint",
-		"lint:fix": "oxlint --fix src/spot_vision/web tools/tests && pnpm -r lint:fix",
+		"format": "oxfmt --check package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github && pnpm -r format",
+		"format:fix": "oxfmt package.json pnpm-workspace.yaml knip.config.ts .ox*.json .vscode .github && pnpm -r format:fix",
+		"lint": "pnpm -r lint",
+		"lint:fix": "pnpm -r lint:fix",
 		"knip": "knip",
-		"test": "node --test tools/tests/*.cjs && pnpm -r test"
+		"test": "pnpm -r test"
 	},
 	"devDependencies": {
 		"knip": "6.42.0",

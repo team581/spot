@@ -3,7 +3,7 @@ const { test } = require('node:test'),
 	assert = require('node:assert/strict'),
 	fs = require('node:fs'),
 	vm = require('node:vm');
-const html = fs.readFileSync('tools/alpha_dashboard.html', 'utf8');
+const html = fs.readFileSync(require.resolve('../alpha_dashboard.html'), 'utf8');
 const source = html.slice(html.indexOf('function poseAngles('), html.indexOf('function inspect()'));
 function setup() {
 	const ctx = new Proxy({}, { get: () => () => {} }),

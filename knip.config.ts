@@ -2,10 +2,11 @@ import type { KnipConfig } from 'knip';
 
 const config: KnipConfig = {
 	workspaces: {
-		'.': {
-			// Browser scripts are loaded by Python-served HTML, outside a JS bundler.
-			entry: ['src/spot_vision/web/*.js', 'tools/tests/*.cjs'],
-			project: ['src/spot_vision/web/*.js', 'tools/tests/*.cjs'],
+		'.': {},
+		'src/spot_vision/web': {
+			// Python serves these browser scripts directly; tests live with the other tools.
+			entry: ['*.js', '../../../tools/tests/*.cjs'],
+			project: ['*.js', '../../../tools/tests/*.cjs'],
 		},
 		'docs-site': {},
 		'tools/vscode-camera-preview': {

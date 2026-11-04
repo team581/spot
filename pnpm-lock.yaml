@@ -213,6 +213,8 @@ importers:
         specifier: 7.1.0-beta
         version: 7.1.0-beta
 
+  src/spot_vision/web: {}
+
   tools/vscode-camera-preview:
     devDependencies:
       '@types/node':

@@ -1,5 +1,6 @@
 packages:
   - docs-site
+  - src/spot_vision/web
   - tools/vscode-camera-preview
 
 minimumReleaseAgeExclude:
