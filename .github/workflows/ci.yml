@@ -41,6 +41,25 @@ jobs:
         if: ${{ always() && steps.nix.outcome == 'success' }}
         run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service
 
+  java:
+    name: Java robot tester
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/robot-tester
+    steps:
+      - uses: useblacksmith/checkout@v1
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Assemble
+        run: ./gradlew assemble
+      - name: Run tests
+        run: ./gradlew test
+
   javascript:
     name: JavaScript and documentation
     runs-on: blacksmith-4vcpu-ubuntu-2404
