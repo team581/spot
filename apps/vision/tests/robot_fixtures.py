@@ -93,7 +93,7 @@ class RobotPublisher:
         )
         for camera in profile.cameras:
             p = "cameras/" + camera.name + "/"
-            for key in ("required", "enabled", "image_rotation_deg", "moving_mount", "joint_name"):
+            for key in ("required", "enabled", "image_rotation_deg"):
                 self.put(p + key, getattr(camera, key))
             if p + "robot_to_camera" not in self.publishers:
                 self.publishers[p + "robot_to_camera"] = self.nt.getStructTopic(

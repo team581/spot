@@ -128,8 +128,6 @@ class ProfileSubscriber:
                     v(p + "image_rotation_deg", "Integer", 0),
                     modes,
                     controls,
-                    v(p + "moving_mount", "Boolean", False),
-                    v(p + "joint_name", "String", ""),
                 )
             )
         from .structs import FieldTag, pose_model
@@ -151,7 +149,6 @@ class ProfileSubscriber:
             field,
             v("fusion_enabled", "Boolean", False),
             v("heading_enabled", "Boolean", False),
-            v("revised_trust_enabled", "Boolean", False),
             v("max_age_s", "Double", 0.0),
             v("future_tolerance_s", "Double", 0.0),
             v("reorder_window_s", "Double", 0.0),

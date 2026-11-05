@@ -63,8 +63,6 @@ def validate_manifest(message: wire.Manifest) -> None:
             raise ConfigError(f"{camera.name}: measured mount transform required")
         if camera.image_rotation_deg not in (0, 180):
             raise ConfigError("image rotation must be 0 or 180 degrees")
-        if camera.moving_mount and not _NAME.fullmatch(camera.joint_name):
-            raise ConfigError("moving mount requires a joint history name")
         if not 1 <= len(camera.allowed_modes) <= 16:
             raise ConfigError("camera requires 1–16 explicitly allowed optical modes")
         modes: set[str] = set()

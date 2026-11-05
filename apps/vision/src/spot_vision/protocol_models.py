@@ -41,8 +41,6 @@ class CameraDefinition:
     image_rotation_deg: int = 0
     allowed_modes: list[OpticalMode] = field(default_factory=list)
     controls: list[ControlPolicy] = field(default_factory=list)
-    moving_mount: bool = False
-    joint_name: str = ""
 
 
 @dataclass
@@ -67,7 +65,6 @@ class Profile:
     field: FieldLayout = field(default_factory=FieldLayout)
     fusion_enabled: bool = False
     heading_enabled: bool = False
-    revised_trust_enabled: bool = False
     max_age_s: float = 0.0
     future_tolerance_s: float = 0.0
     reorder_window_s: float = 0.0

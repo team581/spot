@@ -39,9 +39,7 @@
             "allow_override": false,
             "required": false
           }
-        ],
-        "moving_mount": false,
-        "joint_name": ""
+        ]
       }
     ],
     "field": {
@@ -79,11 +77,10 @@
     },
     "fusion_enabled": false,
     "heading_enabled": false,
-    "revised_trust_enabled": false,
     "max_age_s": 0.25,
     "future_tolerance_s": 0.005,
     "reorder_window_s": 0.02
   },
   "robot_session": "robot-1",
-  "manifest_hash": "bced017966159f365a78d64c19f625b6e166021029025f5c728ff55b79f71bcd"
+  "manifest_hash": "23a76dd463060f1924027dc49f2834c6900c3d3b626aa5368606153520b32a83"
 }
