@@ -28,6 +28,8 @@
       carrierBoard = "seeed-robotics-j401";
       majorVersion = "7";
       super = true;
+      # Spot requests CUDA explicitly; keep other packages on the binary cache.
+      configureCuda = false;
       # Retain Seeed's board-specific QSPI firmware and pinmux configuration.
       firmware.autoUpdate = lib.mkForce false;
       flashScriptOverrides = {

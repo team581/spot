@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    pnpm2nix = {
+      url = "github:mnixry/pnpm2nix-pure";
+      flake = false;
+    };
     jetpack = {
       url = "github:anduril/jetpack-nixos";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -52,9 +56,11 @@
               { pkgs, ... }:
               {
                 nixpkgs.buildPlatform = system;
-                hardware.nvidia-jetpack.configureCuda = false;
                 hardware.enableAllHardware = lib.mkForce false;
-                boot.zfs.forceImportRoot = false;
+                # Install the bundled system without general-purpose installer payloads.
+                boot.supportedFilesystems.zfs = lib.mkForce false;
+                system.installer.channel.enable = false;
+                documentation.nixos.enable = lib.mkForce false;
                 isoImage.storeContents = [ host.config.system.build.toplevel ];
                 environment.systemPackages = [
                   (pkgs.writeShellApplication {

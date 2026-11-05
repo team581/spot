@@ -2,10 +2,15 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   hooks:
@@ -21,25 +26,18 @@ jobs:
       - run: hk validate
 
   nix:
-    name: Nix package (${{ matrix.system }})
+    name: Nix package (aarch64-linux)
     concurrency:
-      group: nix-cache-${{ github.repository }}-${{ matrix.system }}
+      group: nix-cache-${{ github.repository }}-aarch64-linux
       queue: max
-    strategy:
-      matrix:
-        include:
-          - runner: blacksmith-4vcpu-ubuntu-2604
-            system: x86_64-linux
-          - runner: blacksmith-4vcpu-ubuntu-2604-arm
-            system: aarch64-linux
-    runs-on: ${{ matrix.runner }}
+    runs-on: blacksmith-4vcpu-ubuntu-2604-arm
     timeout-minutes: 30
     steps:
       - uses: useblacksmith/checkout@v1
       - name: Mount Nix cache
         uses: useblacksmith/stickydisk@v1
         with:
-          key: ${{ github.repository }}-nix-cache-${{ matrix.system }}
+          key: ${{ github.repository }}-nix-cache-aarch64-linux
           path: /nix
           commit: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       - name: Prepare Nix installation
@@ -47,11 +45,18 @@ jobs:
         run: sudo rm -f /nix/receipt.json
       - uses: DeterminateSystems/nix-installer-action@v23
         id: nix
-      - name: Refresh pnpm dependency cache hash
-        run: bash tools/update-pnpm-deps-hash.sh
+        with:
+          # Persistent result roots retain the tools needed for incremental builds.
+          extra-conf: |
+            keep-derivations = true
+            keep-outputs = true
       - run: nix flake check path:. --all-systems --no-build
-      - run: nix fmt -- --check flake.nix nix/*.nix nix/hosts/spot/*.nix
-      - run: nix build path:.#checks.${{ matrix.system }}.application -L --cores 2 --max-jobs 2
+      - run: nix fmt -- --check flake.nix nix/*.nix nix/hosts/spot/*.nix nix/hardware/j401/*.nix
+      - name: Build application
+        run: |
+          root=/nix/var/nix/gcroots/spot-ci/application
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
+          nix build path:.#checks.aarch64-linux.application -L --cores 2 --max-jobs 2 --out-link "$root"
       - name: Stop Nix before unmounting the cache
         if: ${{ always() && steps.nix.outcome == 'success' }}
         run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service

@@ -9,7 +9,7 @@ let
     ;
   cuda = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64;
   source = lib.cleanSourceWith {
-    src = self;
+    src = ../.;
     filter =
       path: type:
       lib.cleanSourceFilter path type
@@ -25,28 +25,61 @@ let
         ".ruff_cache"
       ]);
   };
-  web = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
+  webSource = lib.fileset.toSource {
+    root = ../.;
+    fileset = lib.fileset.intersection (lib.fileset.fromSource source) (
+      lib.fileset.unions [
+        ../package.json
+        ../pnpm-lock.yaml
+        ../pnpm-workspace.yaml
+        ../vite.config.ts
+        ../apps/dashboard
+        ../apps/docs
+        ../apps/vscode-camera-preview/package.json
+        ../packages/camera-viewer
+      ]
+    );
+  };
+  visionSource = lib.fileset.toSource {
+    root = ../apps/vision;
+    fileset = lib.fileset.intersection (lib.fileset.fromSource source) (
+      lib.fileset.unions [
+        ../apps/vision/pyproject.toml
+        ../apps/vision/README.md
+        ../apps/vision/CMakeLists.txt
+        ../apps/vision/cpp
+        ../apps/vision/src
+      ]
+    );
+  };
+  # Reuse pnpm's integrity hashes without a store hash or builds during evaluation.
+  # TODO: Revisit this dependency's custom YAML parser when Nixpkgs supports
+  # pnpm imports without a separate store hash.
+  pnpmLockfile = (pkgs.callPackage "${inputs.pnpm2nix}/nix/lockfile.nix" { }).processLockfile {
+    lockfile = ../pnpm-lock.yaml;
+    registry = "https://registry.npmjs.org";
+    noDevDependencies = false;
+    lockfileResolver = "regex";
+  };
+  web = pkgs.stdenvNoCC.mkDerivation {
     pname = "spot-web";
     version = "0.2.1";
-    src = source;
+    src = webSource;
     nativeBuildInputs = [
       pkgs.nodejs
       pkgs.pnpm
-      pkgs.pnpmConfigHook
     ];
-    pnpmDeps = pkgs.fetchPnpmDeps {
-      inherit (finalAttrs) version src;
-      # A changed lockfile must fetch fresh dependencies even while the old hash is pinned.
-      pname = "${finalAttrs.pname}-${
-        builtins.hashString "sha256" (
-          builtins.readFile ../pnpm-lock.yaml
-          + builtins.readFile ../pnpm-workspace.yaml
-          + builtins.readFile ../flake.lock
-        )
-      }";
-      fetcherVersion = 3;
-      hash = "sha256-tbDRAlbtV0dR/x9JDEtr0vxL7Jv5APoG4Dwmqvs7TeA=";
-    };
+    configurePhase = ''
+      runHook preConfigure
+      export HOME="$TMPDIR"
+      export pnpm_config_pm_on_fail=ignore
+      export pnpm_config_store_dir="$TMPDIR/pnpm-store"
+      cp ${pnpmLockfile.patchedLockfileYaml} pnpm-lock.yaml
+      pnpm --filter spot --filter spot-dashboard... --filter spot-docs... install \
+        --offline --frozen-lockfile --ignore-scripts --trust-lockfile
+      patchShebangs node_modules/{*,.*}
+      runHook postConfigure
+    '';
     buildPhase = ''
       runHook preBuild
       pnpm --filter spot-dashboard build
@@ -57,7 +90,7 @@ let
       mkdir -p $out
       cp -r dist/dashboard dist/jetson-docs $out/
     '';
-  });
+  };
   workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = self; };
   pythonSet =
     (pkgs.callPackage pyproject-nix.build.packages {
@@ -116,10 +149,7 @@ let
           )
           (final: prev: {
             spot-vision = prev.spot-vision.overrideAttrs (old: {
-              src = source;
-              postUnpack = (old.postUnpack or "") + ''
-                sourceRoot="$sourceRoot/apps/vision"
-              '';
+              src = visionSource;
               nativeBuildInputs =
                 (old.nativeBuildInputs or [ ])
                 ++ [
