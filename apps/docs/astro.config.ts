@@ -11,6 +11,10 @@ const base = jetson ? '/docs/' : '/';
 const embedded = `if (window.top !== window.self) {
 	const root = document.documentElement;
 	root.dataset.embedded = '';
+	// Frames blank between pages unless a view transition holds the old page until the new one paints.
+	const transitions = document.createElement('style');
+	transitions.textContent = '@view-transition { navigation: auto; }';
+	document.head.append(transitions);
 	const sync = () => {
 		let preference = 'auto';
 		try {
