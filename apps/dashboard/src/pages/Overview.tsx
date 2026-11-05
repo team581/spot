@@ -1,4 +1,5 @@
-import { useDashboard } from '../dashboard';
+import { useServiceError } from '../dashboard';
+import { useStatus } from '../queries';
 import { Feed, usePreview } from '../components/Feed';
 import { age } from '../components/common';
 import type { Camera } from '../types';
@@ -36,7 +37,8 @@ function Tile({ camera: c }: { camera: Camera }) {
 	);
 }
 export default function Overview({ page }: { page: string }) {
-	const { status, serviceError } = useDashboard();
+	const status = useStatus(),
+		serviceError = useServiceError();
 	return (
 		<>
 			<h1>{page === 'cameras' ? 'Cameras' : 'Overview'}</h1>

@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
-import { errorMessage, useDashboard } from '../dashboard';
-import { api } from '../api';
+import { useDashboard } from '../dashboard';
+import { api, submit } from '../api';
+import { readStatus, useStatus, useTask } from '../queries';
 import { NumberEdit } from '../state/editing';
 import GeometryViewer from '../components/GeometryViewer';
 import { geometryValues, previewGeometry } from '../state/geometry';
@@ -8,11 +9,12 @@ import { CameraSelector, CameraTabs, fmt, Icon } from '../components/common';
 import type { Camera } from '../types';
 const labels = ['X', 'Y', 'Z', 'Yaw', 'Pitch', 'Roll'];
 export default function GeometryPage({ camera: c }: { camera: Camera }) {
-	const { status, read, mutate, announce } = useDashboard(),
+	const { announce } = useDashboard(),
+		status = useStatus(),
+		task = useTask(),
+		busy = task.isPending,
 		[inspection, setInspection] = useState(false),
 		[, redraw] = useReducer((n) => n + 1, 0);
-	const [error, setError] = useState('');
-	const [busy, setBusy] = useState(false);
 	const [edits] = useState(() => {
 		const values = c.geometry ? geometryValues(c.geometry) : [0, 0, 0, 0, 0, 0];
 		return values.map((value, index) => {
@@ -50,11 +52,9 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 		});
 		redraw();
 	};
-	const apply = async () => {
-		setBusy(true);
-		setError('');
-		try {
-			const expected = read().revision;
+	const apply = () =>
+		task.mutate(async () => {
+			const expected = readStatus().revision;
 			const document = await api<{
 				cameras: { name: string; robot_to_camera: Record<string, number> }[];
 				processing: unknown;
@@ -64,15 +64,10 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 			const [x_m, y_m, z_m] = geometry.translation;
 			const [qw, qx, qy, qz] = geometry.quaternion;
 			camera.robot_to_camera = { x_m, y_m, z_m, qw, qx, qy, qz };
-			await mutate('configuration/apply', { document, revision: expected });
+			await submit('configuration/apply', { document, revision: expected });
 			setInspection(false);
 			announce('Camera mount override saved.');
-		} catch (e) {
-			setError(errorMessage(e));
-		} finally {
-			setBusy(false);
-		}
-	};
+		});
 	return (
 		<>
 			<h1>{c.name}</h1>
@@ -164,12 +159,12 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 					</button>
 					<button
 						disabled={busy || !inspection || !c.logical_name || Boolean(status.lock_reason)}
-						onClick={() => void apply()}
+						onClick={() => apply()}
 					>
 						Save mount override
 					</button>
 					<p className="feedback" role="status">
-						{busy ? 'Waiting for robot acknowledgement…' : error}
+						{busy ? 'Waiting for robot acknowledgement…' : task.error?.message}
 					</p>
 					<small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small>
 					<p>

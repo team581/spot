@@ -1,15 +1,15 @@
 import { useState, useReducer } from 'react';
-import { useDashboard, errorMessage } from '../../dashboard';
+import { useDashboard } from '../../dashboard';
 import { fmt, date } from '../../components/common';
+import { readStatus, useOperation, useStatus } from '../../queries';
 import type { Status } from '../../types';
-import type { Action } from '../Calibration';
-export default function Results({ action }: { action: Action }) {
-	const { status, selections, read, mutate, announce } = useDashboard(),
+export default function Results() {
+	const { selections, announce } = useDashboard(),
+		status = useStatus(),
+		apply = useOperation<'calibration/apply'>(),
+		restore = useOperation<'configuration/restore'>(),
 		selected = selections.results;
-	const [, redraw] = useReducer((n) => n + 1, 0),
-		[applying, setApplying] = useState(false),
-		[feedback, setFeedback] = useState(''),
-		[error, setError] = useState('');
+	const [, redraw] = useReducer((n) => n + 1, 0);
 	const sessions = status.calibration.cameras,
 		passing = (id: string) => sessions[id]?.fit?.accepted && sessions[id]?.holdout?.accepted;
 	return (
@@ -76,21 +76,26 @@ export default function Results({ action }: { action: Action }) {
 						className="primary"
 						disabled={Boolean(
 							status.lock_reason ||
-							applying ||
+							apply.isPending ||
 							!selected.size ||
 							[...selected].some((id) => !passing(id) || sessions[id]?.solving),
 						)}
-						onClick={async () => {
-							setApplying(true);
-							setFeedback('Applying calibration…');
-							const result = await action('apply', { identities: [...selected] });
-							setApplying(false);
-							if (result) setFeedback('Applied · ' + result.applied_generation);
-						}}
+						onClick={() =>
+							apply.mutate({
+								operation: 'calibration/apply',
+								payload: { identities: [...selected], revision: readStatus().revision },
+							})
+						}
 					>
 						Apply selected
 					</button>
-					<small id="apply-status">{feedback}</small>
+					<small id="apply-status">
+						{apply.isPending
+							? 'Applying calibration…'
+							: apply.isSuccess
+								? 'Applied · ' + apply.data.applied_generation
+								: apply.error?.message}
+					</small>
 				</div>
 			</section>
 			<section className="panel history-panel">
@@ -102,24 +107,21 @@ export default function Results({ action }: { action: Action }) {
 							<HistoryEntry
 								key={h.generation}
 								entry={h}
-								onRestore={async (ids) => {
-									try {
-										await mutate('configuration/restore', {
-											generation: h.generation,
-											calibration_ids: ids,
-											revision: read().revision,
-										});
-										announce('Selected calibration group restored');
-									} catch (e) {
-										setError(errorMessage(e));
-									}
-								}}
+								onRestore={(ids) =>
+									restore.mutate(
+										{
+											operation: 'configuration/restore',
+											payload: { generation: h.generation, calibration_ids: ids, revision: readStatus().revision },
+										},
+										{ onSuccess: () => announce('Selected calibration group restored') },
+									)
+								}
 							/>
 						))
 				) : (
 					<p className="muted">No activated calibration history</p>
 				)}
-				<p className="feedback">{error}</p>
+				<p className="feedback">{restore.error?.message}</p>
 			</section>
 		</>
 	);
@@ -129,9 +131,10 @@ function HistoryEntry({
 	onRestore,
 }: {
 	entry: NonNullable<Status['history']>[number];
-	onRestore: (ids: string[]) => Promise<void>;
+	onRestore: (ids: string[]) => void;
 }) {
-	const { status, selections } = useDashboard(),
+	const { selections } = useDashboard(),
+		status = useStatus(),
 		[, redraw] = useReducer((n) => n + 1, 0);
 	const [selected] = useState(() => selections.history.get(h.generation) ?? new Set<string>());
 	return (
@@ -165,7 +168,7 @@ function HistoryEntry({
 			) : (
 				<button
 					disabled={Boolean(h.active || status.lock_reason || !selected.size)}
-					onClick={() => void onRestore([...selected])}
+					onClick={() => onRestore([...selected])}
 				>
 					Restore selected
 				</button>

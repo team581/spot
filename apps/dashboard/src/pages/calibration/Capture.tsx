@@ -1,7 +1,8 @@
 import { useState, useReducer } from 'react';
-import { useDashboard, errorMessage } from '../../dashboard';
+import { useDashboard } from '../../dashboard';
 import { Feed } from '../../components/Feed';
-import type { Action } from '../Calibration';
+import { readStatus, useStatus } from '../../queries';
+import type { CalibrationOperation } from '../Calibration';
 const boardLabels: Record<string, string> = {
 	dictionary: 'Dictionary',
 	squares_x: 'Squares X',
@@ -9,9 +10,15 @@ const boardLabels: Record<string, string> = {
 	square_length_m: 'Square length (m)',
 	marker_length_m: 'Marker length (m)',
 };
-export default function Capture({ action, onError }: { action: Action; onError: (message: string) => void }) {
-	const { status, read, mutate, selections } = useDashboard(),
+export default function Capture({ operation }: { operation: CalibrationOperation }) {
+	const { selections } = useDashboard(),
+		status = useStatus(),
 		selected = selections.capture;
+	const select = () =>
+		operation.mutateAsync({
+			operation: 'calibration/select',
+			payload: { identities: [...selected], revision: readStatus().revision },
+		});
 	const [cards, setCards] = useState(() => {
 		for (const id of Object.keys(status.calibration.cameras)) selected.add(id);
 		return [...selected].filter((id) =>
@@ -29,15 +36,18 @@ export default function Capture({ action, onError }: { action: Action; onError: 
 		if (!choice) return;
 		const camera = status.cameras.find((c) => c.identity === choice);
 		if (!camera) return;
-		if (!camera.logical_name && (!camera.standalone_setup || status.lock_reason))
-			try {
-				await mutate('device/setup', { identity: choice, revision: read().revision });
-			} catch (error) {
-				onError(errorMessage(error));
-				return;
-			}
-		selected.add(choice);
-		if (!(await action('select', { identities: [...selected] }))) selected.delete(choice);
+		try {
+			if (!camera.logical_name && (!camera.standalone_setup || status.lock_reason))
+				await operation.mutateAsync({
+					operation: 'device/setup',
+					payload: { identity: choice, revision: readStatus().revision },
+				});
+			selected.add(choice);
+			await select();
+		} catch {
+			// The page shows the operation error.
+			selected.delete(choice);
+		}
 		setCards([...selected]);
 	}
 	return (
@@ -64,9 +74,9 @@ export default function Capture({ action, onError }: { action: Action; onError: 
 								onSelect={async (checked) => {
 									checked ? selected.add(id) : selected.delete(id);
 									redraw();
-									await action('select', { identities: [...selected] });
+									await select().catch(() => {});
 								}}
-								action={action}
+								operation={operation}
 							/>
 						))
 					) : (
@@ -110,13 +120,21 @@ export default function Capture({ action, onError }: { action: Action; onError: 
 								key === 'dictionary' ? board[key] : Number(board[key]),
 							]),
 						);
-						const result = await action('board', {
-							board: values,
-							options: { ...status.calibration.options, model, min_frames: Number(minViews) },
-						});
-						if (result && selected.size) {
-							await action('select', { identities: [...selected] });
-							setCards([...selected]);
+						try {
+							await operation.mutateAsync({
+								operation: 'calibration/board',
+								payload: {
+									board: values,
+									options: { ...status.calibration.options, model, min_frames: Number(minViews) },
+									revision: readStatus().revision,
+								},
+							});
+							if (selected.size) {
+								await select();
+								setCards([...selected]);
+							}
+						} catch {
+							// The page shows the operation error.
 						}
 					}}
 				>
@@ -134,7 +152,12 @@ export default function Capture({ action, onError }: { action: Action; onError: 
 					disabled={Boolean(
 						status.lock_reason || !selected.size || Object.values(status.calibration.cameras).some((s) => s.solving),
 					)}
-					onClick={() => void action('start-all', { phase })}
+					onClick={() =>
+						operation.mutate({
+							operation: 'calibration/start-all',
+							payload: { phase, revision: readStatus().revision },
+						})
+					}
 				>
 					Start automatic capture
 				</button>
@@ -149,14 +172,14 @@ function CalibrationCard({
 	id,
 	selected,
 	onSelect,
-	action,
+	operation,
 }: {
 	id: string;
 	selected: boolean;
 	onSelect: (checked: boolean) => Promise<void>;
-	action: Action;
+	operation: CalibrationOperation;
 }) {
-	const { status } = useDashboard(),
+	const status = useStatus(),
 		camera = status.cameras.find((c) => c.identity === id),
 		session = status.calibration.cameras[id],
 		[phase, setPhase] = useState('fit');
@@ -188,25 +211,24 @@ function CalibrationCard({
 					<option value="fit">Fitting captures</option>
 					<option value="holdout">Validation captures</option>
 				</select>
-				{(['start', 'capture', 'compute', 'validate'] as const).map((operation) => (
+				{(['start', 'capture', 'compute', 'validate'] as const).map((action) => (
 					<button
-						key={operation}
+						key={action}
 						disabled={Boolean(status.lock_reason || session?.solving)}
 						onClick={() =>
-							void action(operation === 'start' && session?.running ? 'pause' : operation, {
-								identity: id,
-								phase,
-								automatic: true,
+							operation.mutate({
+								operation: `calibration/${action === 'start' && session?.running ? 'pause' : action}`,
+								payload: { identity: id, phase, automatic: true, revision: readStatus().revision },
 							})
 						}
 					>
-						{operation === 'start'
+						{action === 'start'
 							? session?.running
 								? 'Pause'
 								: 'Start'
-							: operation === 'compute'
+							: action === 'compute'
 								? 'Calibrate'
-								: operation === 'capture'
+								: action === 'capture'
 									? 'Capture'
 									: 'Validate'}
 					</button>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useLayoutEffect } from 'react';
-import { useDashboard } from '../dashboard';
+import { useStatus } from '../queries';
 import { usePreview, previewData } from './Feed';
 import { theme } from '../theme';
 import type { Camera, Geometry } from '../types';
@@ -13,7 +13,7 @@ export default function GeometryViewer({
 	inspection?: boolean;
 	geometry?: Geometry | null;
 }) {
-	const { status } = useDashboard(),
+	const status = useStatus(),
 		preview = usePreview(c.identity),
 		canvas = useRef<HTMLCanvasElement>(null),
 		viewer = useRef<SpotViewer | null>(null);

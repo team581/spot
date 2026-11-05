@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useState } from 'react';
-import { useDashboard } from '../dashboard';
+import { readStatus, refreshStatus, useOperation, useStatus } from '../queries';
 import { LiveTuner } from '../state/editing';
 import type { Camera, Status, Values } from '../types';
 const allowed = (status: Status, id: string): Values =>
@@ -9,7 +9,12 @@ const allowed = (status: Status, id: string): Values =>
 			.map((c) => [c.name, c.value]),
 	);
 export function useTuner(camera: Camera) {
-	const { status, read, mutate, refresh } = useDashboard();
+	const status = useStatus();
+	const { mutateAsync } = useOperation<'camera/tune' | 'device/tune'>();
+	const tune = (payload: { values?: Values; reset?: boolean; revision: string }) =>
+		camera.logical_name
+			? mutateAsync({ operation: 'camera/tune', payload: { name: camera.logical_name, ...payload } })
+			: mutateAsync({ operation: 'device/tune', payload: { identity: camera.identity, ...payload } });
 	const [, redraw] = useReducer((n) => n + 1, 0);
 	const [tuner] = useState(
 		() =>
@@ -17,16 +22,12 @@ export function useTuner(camera: Camera) {
 				allowed(status, camera.identity),
 				status.revision,
 				async (values, revision) => {
-					const job = await mutate(camera.logical_name ? 'camera/tune' : 'device/tune', {
-						...(camera.logical_name ? { name: camera.logical_name } : { identity: camera.identity }),
-						values,
-						revision,
-					});
-					const current = allowed(read(), camera.identity);
+					const applied = await tune({ values, revision });
+					const current = allowed(readStatus(), camera.identity);
 					return {
-						revision: job.revision,
+						revision: applied.revision,
 						values: Object.fromEntries(
-							Object.keys(current).map((name) => [name, job.controls?.[name] ?? current[name]]),
+							Object.keys(current).map((name) => [name, applied.controls?.[name] ?? current[name]]),
 						),
 					};
 				},
@@ -41,16 +42,12 @@ export function useTuner(camera: Camera) {
 	const history = (direction: 'undo' | 'redo') => tuner.applyHistory(direction);
 	const reset = () =>
 		tuner.reset(async () => {
-			const result = await mutate(camera.logical_name ? 'camera/tune' : 'device/tune', {
-				...(camera.logical_name ? { name: camera.logical_name } : { identity: camera.identity }),
-				reset: true,
-				revision: read().revision,
-			});
-			return { revision: result.revision, values: allowed(read(), camera.identity) };
+			const applied = await tune({ reset: true, revision: readStatus().revision });
+			return { revision: applied.revision, values: allowed(readStatus(), camera.identity) };
 		});
 	const reconcile = async () => {
 		try {
-			const current = await refresh();
+			const current = await refreshStatus();
 			tuner.reconcile(allowed(current, camera.identity), current.revision);
 		} catch (error) {
 			tuner.reject(error);

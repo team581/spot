@@ -1,9 +1,9 @@
 import type { ChangeEvent } from 'react';
-import { useDashboard } from '../dashboard';
+import { useStatus } from '../queries';
 import type { Camera, Control } from '../types';
 import type { LiveTuner } from '../state/editing';
 export function TuningControl({ control: c, tuner, camera }: { control: Control; tuner: LiveTuner; camera: Camera }) {
-	const { status } = useDashboard();
+	const status = useStatus();
 	const disabled = Boolean(status.lock_reason || !c.allowed || !camera.connected || tuner.history.conflict);
 	const value = tuner.gesture ? (tuner.requested[c.name] ?? c.value) : c.value;
 	const common = {

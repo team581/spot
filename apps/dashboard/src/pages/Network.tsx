@@ -1,21 +1,28 @@
-import type { OperationPayload } from '../api';
 import { useState } from 'react';
-import { useDashboard, errorMessage } from '../dashboard';
+import { useDashboard } from '../dashboard';
+import { useOperation, useStatus } from '../queries';
 import { DataList } from '../components/common';
+const networkFeedback = {
+	'network/apply': 'Check the address below, then Keep settings before the countdown ends.',
+	'network/confirm': 'Network settings saved for future boots.',
+	'network/revert': 'Previous connection restored.',
+};
 export default function NetworkPage() {
-	const { status, mutate, announce } = useDashboard(),
+	const { announce } = useDashboard(),
+		status = useStatus(),
+		networkChange = useOperation<'network/apply' | 'network/confirm' | 'network/revert'>(),
+		saveTeam = useOperation<'nt/team'>(),
+		standalone = useOperation<'standalone'>(),
+		busy = networkChange.isPending,
+		teamBusy = saveTeam.isPending,
 		network = status.network ?? {},
 		endpoint = status.endpoint ?? {};
 	const [mode, setMode] = useState(network.mode ?? 'automatic'),
 		[address, setAddress] = useState(network.address ?? ''),
-		[busy, setBusy] = useState(false),
-		[feedback, setFeedback] = useState(''),
-		[error, setError] = useState('');
+		[feedback, setFeedback] = useState('');
 
 	const [team, setTeam] = useState(endpoint.team?.toString() ?? ''),
-		[lastTeam, setLastTeam] = useState(endpoint.team),
-		[teamBusy, setTeamBusy] = useState(false),
-		[teamFeedback, setTeamFeedback] = useState('');
+		[lastTeam, setLastTeam] = useState(endpoint.team);
 	if (lastTeam !== endpoint.team) {
 		setLastTeam(endpoint.team);
 		setTeam(endpoint.team?.toString() ?? '');
@@ -36,27 +43,14 @@ export default function NetworkPage() {
 		}
 	}
 
-	async function change<A extends 'apply' | 'confirm' | 'revert'>(
-		operation: A,
-		payload: OperationPayload<`network/${A}`>,
-	) {
-		setBusy(true);
-		try {
-			await mutate(`network/${operation}`, payload);
-			setFeedback(
-				operation === 'apply'
-					? 'Check the address below, then Keep settings before the countdown ends.'
-					: operation === 'confirm'
-						? 'Network settings saved for future boots.'
-						: 'Previous connection restored.',
-			);
-		} catch (e) {
-			setRestore(true);
-			setFeedback(errorMessage(e) + ' If this page disconnected, open the new address or wait for rollback.');
-		} finally {
-			setBusy(false);
-		}
-	}
+	const change = (variables: Parameters<typeof networkChange.mutate>[0]) =>
+		networkChange.mutate(variables, {
+			onSuccess: () => setFeedback(networkFeedback[variables.operation]),
+			onError: (error) => {
+				setRestore(true);
+				setFeedback(error.message + ' If this page disconnected, open the new address or wait for rollback.');
+			},
+		});
 	const pending = network.pending,
 		target = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
 	return (
@@ -74,17 +68,9 @@ export default function NetworkPage() {
 						}}
 					/>
 					<form
-						onSubmit={async (e) => {
+						onSubmit={(e) => {
 							e.preventDefault();
-							setTeamBusy(true);
-							try {
-								await mutate('nt/team', { team: Number(team) });
-								setTeamFeedback('Team number saved for future boots. Reconnecting NetworkTables.');
-							} catch (e) {
-								setTeamFeedback(errorMessage(e));
-							} finally {
-								setTeamBusy(false);
-							}
+							saveTeam.mutate({ operation: 'nt/team', payload: { team: Number(team) } });
 						}}
 					>
 						<label htmlFor="nt-team">Team number</label>
@@ -106,23 +92,23 @@ export default function NetworkPage() {
 						</button>
 					</form>
 					<p id="team-feedback" className="feedback" role="status">
-						{teamFeedback}
+						{saveTeam.isSuccess
+							? 'Team number saved for future boots. Reconnecting NetworkTables.'
+							: saveTeam.error?.message}
 					</p>
 					<button
 						disabled={status.connected}
-						onClick={async () => {
-							try {
-								await mutate('standalone', {});
-								announce('Standalone setup session started');
-							} catch (e) {
-								setError(errorMessage(e));
-							}
-						}}
+						onClick={() =>
+							standalone.mutate(
+								{ operation: 'standalone', payload: {} },
+								{ onSuccess: () => announce('Standalone setup session started') },
+							)
+						}
 					>
 						{status.standalone ? 'Standalone setup active' : 'Begin standalone setup'}
 					</button>
 					<p id="page-feedback" className="feedback">
-						{error}
+						{standalone.error?.message}
 					</p>
 				</section>
 				<section className="panel">
@@ -171,10 +157,16 @@ export default function NetworkPage() {
 							Testing network settings. Automatic rollback in {pending.remaining_s} seconds.{' '}
 							{target ? <a href={target}>Open the new address</a> : 'Check the assigned DHCP address above.'}
 						</p>
-						<button disabled={busy} onClick={() => void change('confirm', { token: pending.token })}>
+						<button
+							disabled={busy}
+							onClick={() => change({ operation: 'network/confirm', payload: { token: pending.token } })}
+						>
 							Keep settings
 						</button>{' '}
-						<button disabled={busy} onClick={() => void change('revert', { token: pending.token })}>
+						<button
+							disabled={busy}
+							onClick={() => change({ operation: 'network/revert', payload: { token: pending.token } })}
+						>
 							Revert now
 						</button>
 					</div>
@@ -182,9 +174,9 @@ export default function NetworkPage() {
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
-						void change('apply', {
-							mode,
-							address: mode === 'static' ? address.trim() : '',
+						change({
+							operation: 'network/apply',
+							payload: { mode, address: mode === 'static' ? address.trim() : '' },
 						});
 					}}
 				>

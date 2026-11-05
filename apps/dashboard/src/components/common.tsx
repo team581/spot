@@ -25,6 +25,15 @@ const paths: Record<string, string> = {
 	undo: 'M7 4 3 8l4 4M3 8h8a6 6 0 0 1 6 6',
 	redo: 'm13 4 4 4-4 4M17 8H9a6 6 0 0 0-6 6',
 };
+/** Save a JSON document through the browser's download prompt. */
+export function saveJson(value: unknown, name: string) {
+	const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }));
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = name;
+	link.click();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 export function Icon({ name }: { name: string }) {
 	return (
 		<svg className="icon" viewBox="0 0 22 24" aria-hidden="true">

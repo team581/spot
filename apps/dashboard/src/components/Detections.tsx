@@ -1,9 +1,9 @@
-import { useDashboard } from '../dashboard';
+import { useStatus } from '../queries';
 import { usePreview, previewData, currentFrame } from './Feed';
 import { fmt } from './common';
 import type { Camera } from '../types';
 export function Detections({ camera: c }: { camera: Camera }) {
-	const { status } = useDashboard(),
+	const status = useStatus(),
 		view = usePreview(c.identity),
 		data = previewData(view),
 		fresh = currentFrame(view, c, status);

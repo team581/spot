@@ -1,68 +1,47 @@
 import { useState } from 'react';
-import { api } from '../api';
+import { api, submit } from '../api';
+import { saveJson } from './common';
 import { errorMessage, useDashboard } from '../dashboard';
+import { readStatus, useStatus, useTask } from '../queries';
 
 export default function RobotConfiguration() {
-	const { status, mutate, announce } = useDashboard();
+	const { announce } = useDashboard(),
+		status = useStatus(),
+		task = useTask(),
+		busy = task.isPending;
 	const [text, setText] = useState('');
 	const [revision, setRevision] = useState('');
-	const [error, setError] = useState('');
-	const [busy, setBusy] = useState(false);
+	const [notice, setNotice] = useState('');
+	const run = (work: () => Promise<void>) => {
+		setNotice('');
+		task.mutate(work);
+	};
 
-	const load = async (defaults = false) => {
-		setBusy(true);
-		setError('');
-		try {
+	const load = (defaults = false) =>
+		run(async () => {
 			// Keep the revision observed before the request; a concurrent edit must conflict.
-			const expected = status.revision;
-			const settings = await api(defaults ? '/api/robot/defaults' : '/api/robot/configuration');
-			setText(JSON.stringify(settings, null, 2));
+			const expected = readStatus().revision;
+			setText(JSON.stringify(await api(defaults ? '/api/robot/defaults' : '/api/robot/configuration'), null, 2));
 			setRevision(expected);
-		} catch (e) {
-			setError(errorMessage(e));
-		} finally {
-			setBusy(false);
-		}
-	};
-	const apply = async () => {
-		setBusy(true);
-		setError('');
-		try {
+		});
+	const apply = () =>
+		run(async () => {
 			const document = JSON.parse(text) as Record<string, unknown>;
-			const job = await mutate('configuration/apply', { document, revision });
-			setRevision(job.revision);
+			setRevision((await submit('configuration/apply', { document, revision })).revision);
 			announce('Dashboard overrides saved.');
-		} catch (e) {
-			setError(errorMessage(e));
-		} finally {
-			setBusy(false);
-		}
-	};
-	const clear = async (path = '') => {
-		setBusy(true);
-		setError('');
-		try {
-			const job = await mutate('configuration/clear-overrides', { path, revision: status.revision });
-			setRevision(job.revision);
+		});
+	const clear = (path = '') =>
+		run(async () => {
+			const applied = await submit('configuration/clear-overrides', { path, revision: readStatus().revision });
+			setRevision(applied.revision);
 			if (text) setText(JSON.stringify(await api('/api/robot/configuration'), null, 2));
 			announce(path ? 'Override cleared' : 'All overrides cleared');
-		} catch (error) {
-			setError(errorMessage(error));
-		} finally {
-			setBusy(false);
-		}
-	};
+		});
 	const download = () => {
 		try {
-			const contents = JSON.stringify(JSON.parse(text), null, 2) + '\n';
-			const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
-			const link = document.createElement('a');
-			link.href = url;
-			link.download = 'spot-config.json';
-			link.click();
-			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			saveJson(JSON.parse(text), 'spot-config.json');
 		} catch (e) {
-			setError(errorMessage(e));
+			setNotice(errorMessage(e));
 		}
 	};
 	return (
@@ -79,13 +58,13 @@ export default function RobotConfiguration() {
 						{status.override_paths?.map((path) => (
 							<li key={path}>
 								<code>{path}</code>{' '}
-								<button disabled={busy || Boolean(status.lock_reason)} onClick={() => void clear(path)}>
+								<button disabled={busy || Boolean(status.lock_reason)} onClick={() => clear(path)}>
 									Clear override
 								</button>
 							</li>
 						))}
 					</ul>
-					<button disabled={busy || Boolean(status.lock_reason)} onClick={() => void clear()}>
+					<button disabled={busy || Boolean(status.lock_reason)} onClick={() => clear()}>
 						Clear all overrides
 					</button>
 				</>
@@ -95,10 +74,10 @@ export default function RobotConfiguration() {
 				project. Calibration results can be copied between this file and standalone calibration exports.
 			</p>
 			<div className="inline-actions spaced">
-				<button disabled={busy || !status.fresh} onClick={() => void load()}>
+				<button disabled={busy || !status.fresh} onClick={() => load()}>
 					Read current configuration
 				</button>
-				<button disabled={busy || !status.fresh} onClick={() => void load(true)}>
+				<button disabled={busy || !status.fresh} onClick={() => load(true)}>
 					Read deployed defaults
 				</button>
 				<label>
@@ -111,16 +90,16 @@ export default function RobotConfiguration() {
 							const file = e.target.files?.[0];
 							if (!file) return;
 							if (file.size > 256 * 1024) {
-								setError('Configuration exceeds 256 KiB');
+								setNotice('Configuration exceeds 256 KiB');
 								return;
 							}
 							try {
 								const expected = status.revision;
 								setText(JSON.stringify(JSON.parse(await file.text()), null, 2));
 								setRevision(expected);
-								setError('');
+								setNotice('');
 							} catch (error) {
-								setError(errorMessage(error));
+								setNotice(errorMessage(error));
 							}
 						}}
 					/>
@@ -139,7 +118,7 @@ export default function RobotConfiguration() {
 						style={{ width: '100%' }}
 					/>
 					<div className="inline-actions spaced">
-						<button disabled={busy || Boolean(status.lock_reason) || !status.fresh} onClick={() => void apply()}>
+						<button disabled={busy || Boolean(status.lock_reason) || !status.fresh} onClick={() => apply()}>
 							Save dashboard overrides
 						</button>
 						<button disabled={busy} onClick={download}>
@@ -150,7 +129,7 @@ export default function RobotConfiguration() {
 							onClick={() =>
 								void navigator.clipboard.writeText(text).then(
 									() => announce('Configuration copied'),
-									(e: unknown) => setError(errorMessage(e)),
+									(e: unknown) => setNotice(errorMessage(e)),
 								)
 							}
 						>
@@ -160,7 +139,7 @@ export default function RobotConfiguration() {
 				</>
 			) : null}
 			<p className="feedback" role="status">
-				{busy ? 'Applying settings…' : error}
+				{busy ? 'Applying settings…' : notice || task.error?.message}
 			</p>
 		</section>
 	);

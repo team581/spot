@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, useCallback } from 'react';
-import { useDashboard } from '../dashboard';
+import { useDashboard, useServiceError } from '../dashboard';
+import { useStatus } from '../queries';
 import { age } from './common';
 import type { Preview } from '../previews';
 import type { Camera, Status } from '../types';
@@ -35,7 +36,9 @@ export function Feed({
 	outlines?: boolean;
 	calibration?: boolean;
 }) {
-	const { status, serviceError, previews } = useDashboard();
+	const { previews } = useDashboard(),
+		status = useStatus(),
+		serviceError = useServiceError();
 	const view = usePreview(id),
 		c = status.cameras.find((c) => c.identity === id);
 	const canvas = useRef<HTMLCanvasElement>(null),

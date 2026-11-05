@@ -1,6 +1,6 @@
-import type { OperationName, OperationPayload } from '../api';
 import { lazy, Suspense, useState } from 'react';
-import { useDashboard, errorMessage } from '../dashboard';
+import { useDashboard } from '../dashboard';
+import { useOperation, useStatus } from '../queries';
 import { CameraSelector, CameraTabs, Icon, WarningLink, age } from '../components/common';
 import { Feed, usePreview, previewData, frameAge } from '../components/Feed';
 import { Detections } from '../components/Detections';
@@ -13,9 +13,11 @@ export default function CameraDetail({ camera }: { camera: Camera }) {
 	return <CameraDetailPage key={version} camera={camera} onModeApplied={() => setVersion((value) => value + 1)} />;
 }
 function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onModeApplied: () => void }) {
-	const { status, mutate, announce, previews } = useDashboard(),
+	const { announce, previews } = useDashboard(),
+		status = useStatus(),
+		operation = useOperation(),
 		{ tuner, history, reset, reconcile } = useTuner(c);
-	const [error, setError] = useState(''),
+	const [notice, setNotice] = useState(''),
 		[outlines, setOutlines] = useState(true),
 		[code, setCode] = useState(''),
 		[replacement, setReplacement] = useState(''),
@@ -33,23 +35,20 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 	const replacementId = replacements.some((cam) => cam.identity === replacement)
 		? replacement
 		: (replacements[0]?.identity ?? '');
-	const run = async <N extends OperationName>(operation: N, payload: OperationPayload<N>) => {
-		try {
-			return await mutate(operation, payload);
-		} catch (e) {
-			setError(errorMessage(e));
-			announce(errorMessage(e));
-			return null;
-		}
-	};
-	const target = c.logical_name ? { name: c.logical_name } : { identity: c.identity };
 	return (
 		<>
 			{!c.logical_name ? (
 				<div className="panel warning">
 					<strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0,
 					0), with zero rotation.{' '}
-					<button onClick={() => void run('device/setup', { identity: c.identity, revision: status.revision })}>
+					<button
+						onClick={() =>
+							operation.mutate({
+								operation: 'device/setup',
+								payload: { identity: c.identity, revision: status.revision },
+							})
+						}
+					>
 						Enable standalone setup
 					</button>
 				</div>
@@ -102,15 +101,15 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							id="optical-mode"
 							value={c.mode_id || ''}
 							disabled={Boolean(status.lock_reason || !c.connected || tuner.inFlight)}
-							onChange={(e) =>
-								void run(c.logical_name ? 'camera/mode' : 'device/mode', {
-									...target,
-									mode_id: e.target.value,
-									revision: status.revision,
-								}).then((result) => {
-									if (result) onModeApplied();
-								})
-							}
+							onChange={(e) => {
+								const mode = { mode_id: e.target.value, revision: status.revision };
+								operation.mutate(
+									c.logical_name
+										? { operation: 'camera/mode', payload: { name: c.logical_name, ...mode } }
+										: { operation: 'device/mode', payload: { identity: c.identity, ...mode } },
+									{ onSuccess: onModeApplied },
+								);
+							}}
 						>
 							{(c.allowed_modes ?? []).map((m) => (
 								<option key={m.id} value={m.id} disabled={!m.supported}>
@@ -181,16 +180,17 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							onClick={() => {
 								if (!c.logical_name) return;
 								if (!confirmed) {
-									setError('Identify the replacement feed before replacing this camera');
+									setNotice('Identify the replacement feed before replacing this camera');
 									return;
 								}
-								void run('camera/replace', {
-									name: c.logical_name,
-									identity: replacementId,
-									revision: status.revision,
-								}).then((result) => {
-									if (result) announce('Physical camera calibration invalidated');
-								});
+								setNotice('');
+								operation.mutate(
+									{
+										operation: 'camera/replace',
+										payload: { name: c.logical_name, identity: replacementId, revision: status.revision },
+									},
+									{ onSuccess: () => announce('Physical camera calibration invalidated') },
+								);
 							}}
 						>
 							Replace camera
@@ -201,8 +201,8 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							Reconcile current values
 						</button>
 					) : null}
-					<p id="page-feedback" className="feedback">
-						{error}
+					<p id="page-feedback" className="feedback" role="status">
+						{notice || operation.error?.message}
 					</p>
 					<a href="/docs/operator/cameras/#tune">Tuning and history</a>
 				</section>

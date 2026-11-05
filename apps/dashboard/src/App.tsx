@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useDashboard } from './dashboard';
+import { useDashboard, useServiceError } from './dashboard';
+import { useStatus } from './queries';
 import { date, Icon } from './components/common';
 import { ThemeMenu } from './components/ThemeMenu';
 import Overview from './pages/Overview';
@@ -23,7 +24,9 @@ function route() {
 	return { page: parts[0] || 'overview', id: parts[1], tab: parts[2] };
 }
 export default function App() {
-	const { status, message } = useDashboard(),
+	const { message } = useDashboard(),
+		status = useStatus(),
+		serviceError = useServiceError(),
 		[current, setCurrent] = useState(route);
 	useEffect(() => {
 		const changed = () => setCurrent(route());
@@ -146,7 +149,7 @@ export default function App() {
 				</div>
 			</main>
 			<div id="announcement" className="sr-only" role="status" aria-live="polite">
-				{message}
+				{serviceError || message}
 			</div>
 		</>
 	);

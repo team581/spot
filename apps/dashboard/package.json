@@ -17,6 +17,7 @@
 	},
 	"dependencies": {
 		"@spot/camera-viewer": "workspace:*",
+		"@tanstack/react-query": "5.105.3",
 		"react": "19.3.1",
 		"react-dom": "19.3.1",
 		"up-fetch": "2.6.1"

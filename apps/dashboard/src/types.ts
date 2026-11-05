@@ -1,4 +1,3 @@
-import type { OperationName, OperationPayload, OperationResult } from './api';
 /** Snapshot contracts consumed from the installed Python HTTP service. */
 export type Values = Record<string, number>;
 export interface Geometry {
@@ -173,10 +172,6 @@ export interface Status {
 		tags: (Geometry & { id: number; size: number })[];
 	};
 }
-export type Mutate = <N extends OperationName>(
-	operation: N,
-	payload: OperationPayload<N>,
-) => Promise<OperationResult<N>>;
 export const initialStatus: Status = {
 	cameras: [],
 	names: [],

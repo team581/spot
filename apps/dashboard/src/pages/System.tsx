@@ -1,35 +1,21 @@
-import type { OperationName, OperationPayload } from '../api';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import RobotConfiguration from '../components/RobotConfiguration';
-import { useDashboard, errorMessage } from '../dashboard';
+import { useDashboard, errorMessage, useServiceError } from '../dashboard';
 import { api } from '../api';
-import { DataList, age, date, fmt } from '../components/common';
+import { DataList, age, date, fmt, saveJson } from '../components/common';
+import { useOperation, useStatus } from '../queries';
 export default function System() {
-	const { status: s, serviceError, mutate, announce } = useDashboard(),
+	const { announce } = useDashboard(),
+		s = useStatus(),
+		serviceError = useServiceError(),
 		m = s.system ?? {},
 		r = s.software;
-	const [error, setError] = useState('');
-	const run = async <N extends OperationName>(operation: N, payload: OperationPayload<N>, message: string) => {
-		try {
-			await mutate(operation, payload);
-			announce(message);
-		} catch (e) {
-			setError(errorMessage(e));
-		}
-	};
-	const download = async (path: string, name: string) => {
-		try {
-			const result = await api(path),
-				url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })),
-				link = document.createElement('a');
-			link.href = url;
-			link.download = name;
-			link.click();
-			setTimeout(() => URL.revokeObjectURL(url), 1000);
-		} catch (e) {
-			setError(errorMessage(e));
-		}
-	};
+	const [notice, setNotice] = useState('');
+	const operation = useOperation<'configuration/import' | 'debug/record'>();
+	const download = useMutation({
+		mutationFn: async ({ path, name }: { path: string; name: string }) => saveJson(await api(path), name),
+	});
 	const stats = {
 		CPU: Number.isFinite(m.cpu_percent) ? `${fmt(m.cpu_percent, 0)}%` : '—',
 		GPU: Number.isFinite(m.gpu_percent) ? `${fmt(m.gpu_percent, 0)}%` : '—',
@@ -150,11 +136,15 @@ export default function System() {
 						<p>No active faults reported</p>
 					)}
 					<div className="inline-actions spaced">
-						<button onClick={() => void download('/api/support', 'spot-support.json')}>Export support bundle</button>
-						<button onClick={() => void download('/api/calibrations', 'spot-calibrations.json')}>
+						<button onClick={() => download.mutate({ path: '/api/support', name: 'spot-support.json' })}>
+							Export support bundle
+						</button>
+						<button onClick={() => download.mutate({ path: '/api/calibrations', name: 'spot-calibrations.json' })}>
 							Download calibration results
 						</button>
-						<button onClick={() => void download('/api/configuration', 'spot-state.json')}>Export saved setup</button>
+						<button onClick={() => download.mutate({ path: '/api/configuration', name: 'spot-state.json' })}>
+							Export saved setup
+						</button>
 						<label>
 							<input
 								type="file"
@@ -163,29 +153,38 @@ export default function System() {
 									const file = e.target.files?.[0];
 									if (!file) return;
 									if (file.size > 2 * 1024 * 1024) {
-										setError('Configuration exceeds 2 MiB import bound');
+										setNotice('Configuration exceeds 2 MiB import bound');
 										return;
 									}
+									let document;
 									try {
-										const document = JSON.parse(await file.text());
-										await run('configuration/import', { document, revision: s.revision }, 'Calibration data imported');
+										document = JSON.parse(await file.text());
 									} catch (error) {
-										setError(errorMessage(error));
+										setNotice(errorMessage(error));
+										return;
 									}
+									setNotice('');
+									operation.mutate(
+										{ operation: 'configuration/import', payload: { document, revision: s.revision } },
+										{ onSuccess: () => announce('Calibration data imported') },
+									);
 								}}
 							/>{' '}
 							Import saved setup
 						</label>
 						<button
 							onClick={() =>
-								void run('debug/record', { seconds: 10, revision: s.revision }, 'Bounded diagnostics recording started')
+								operation.mutate(
+									{ operation: 'debug/record', payload: { seconds: 10, revision: s.revision } },
+									{ onSuccess: () => announce('Bounded diagnostics recording started') },
+								)
 							}
 						>
 							Record 10 s diagnostics
 						</button>
 					</div>
 					<p id="page-feedback" className="feedback">
-						{error}
+						{notice || operation.error?.message || download.error?.message}
 					</p>
 				</section>
 			</div>
