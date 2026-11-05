@@ -61,10 +61,7 @@ export interface Camera {
 	};
 	processing?: {
 		backend?: string;
-		degraded?: boolean;
-		thermal_reduction?: boolean;
 		overload_reduction?: boolean;
-		backend_generation?: string;
 	};
 }
 export interface Frame {

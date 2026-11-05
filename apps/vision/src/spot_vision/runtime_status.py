@@ -182,7 +182,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             "processing": {
                 **runtime.detectors[identity].snapshot(),
                 "target_fps": runtime.processing_budget.targets.get(identity),
-                "thermal_reduction": runtime.processing_budget.thermal,
                 "overload_reduction": runtime.processing_budget.overloaded,
             }
             if identity in runtime.detectors

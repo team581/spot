@@ -79,11 +79,7 @@ export default function System() {
 										</td>
 										<td>
 											{c.processing?.backend || 'Unavailable'}
-											{c.processing?.degraded ? ' · degraded' : ''}
-											{c.processing?.thermal_reduction ? ' · thermal' : ''}
 											{c.processing?.overload_reduction ? ' · load' : ''}
-											<br />
-											<small>{c.processing?.backend_generation?.slice(0, 8) || ''}</small>
 										</td>
 										<td>
 											{c.metrics?.published ?? '—'} / {c.metrics?.withheld ?? '—'}

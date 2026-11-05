@@ -38,7 +38,7 @@ from .nt_transport import NtTransport, make_observation
 from .optical_modes import mode_supported, preview_mode, preview_modes
 from .persistence import StateSnapshot, StateStore, canonical_bytes, durable_replace
 from .pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
-from .processing import ProcessingBudget, ProcessingPolicy, RecoveringDetector, solve_tag_selection
+from .processing import CameraDetector, ProcessingBudget, ProcessingPolicy, solve_tag_selection
 from .runtime_status import StatusSnapshot, build_status
 from .system_metrics import SystemMetrics
 from .timing_qualification import validate_timing, validate_timing_evidence
@@ -118,7 +118,7 @@ class Runtime:
         self.frames = FrameHub()
         self._pipeline_lock, self._operation_lock = threading.RLock(), threading.RLock()
         self.workers: dict[str, CameraCapture] = {}
-        self.detectors: dict[str, RecoveringDetector] = {}
+        self.detectors: dict[str, CameraDetector] = {}
         self.solvers: dict[str, PoseSolver] = {}
         self.roles: dict[str, str] = {}
         self.modes: dict[str, wire.OpticalMode] = {}
@@ -584,9 +584,7 @@ class Runtime:
                     prepared[identity] = (
                         self.detectors[identity]
                         if unchanged
-                        else RecoveringDetector(
-                            camera, calibration, self.detector_factory, processing
-                        )
+                        else CameraDetector(camera, calibration, self.detector_factory)
                     )
                     solvers[identity] = (
                         self.solvers[identity]
@@ -692,9 +690,7 @@ class Runtime:
                 identity = identities[cursor % len(identities)]
                 cursor += 1
                 now = time.monotonic()
-                self.processing_budget.update(
-                    self.detectors, self.system_metrics.snapshot["temperature_c"]
-                )
+                self.processing_budget.update(self.detectors)
                 detector = self.detectors[identity]
                 if not self.processing_budget.due(identity, now) or not detector.ready(now):
                     continue
@@ -856,16 +852,9 @@ class Runtime:
         return {control["name"] for control in device.controls} if device else set()
 
     def processing_faults(self) -> list[str]:
-        result = [
-            f"{self.roles.get(identity, identity[:8])}: CPU fallback · backend generation {detector.generation}"
-            for identity, detector in list(self.detectors.items())
-            if detector.snapshot()["degraded"]
-        ]
-        if self.processing_budget.thermal:
-            result.append("Thermal processing reduction")
         if self.processing_budget.overloaded:
-            result.append("Processing overload · reduced cadence")
-        return result
+            return ["Processing overload · reduced cadence"]
+        return []
 
     def status(self) -> StatusSnapshot:
         return build_status(self)
