@@ -1,7 +1,6 @@
 """Real detector validation, buffer ownership and tag/no-tag transitions."""
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -46,20 +45,6 @@ def test_native_preserves_input_and_reports_original_pointer(detector):
     assert np.array_equal(image, original)
 
 
-@pytest.mark.parametrize("min_tag_px", [True, 7, 30001, 16.5])
-def test_cpu_rejects_invalid_minimum_tag_size(min_tag_px):
-    options = DetectorConfig(min_tag_px=min_tag_px)
-    with pytest.raises(ValueError, match="min_tag_px"):
-        CpuDetector(16, 8, options)
-
-
-@pytest.mark.parametrize("min_contrast", [True, 0, 256, 3.5])
-def test_cpu_rejects_invalid_minimum_contrast(min_contrast):
-    options = DetectorConfig(min_contrast=min_contrast)
-    with pytest.raises(ValueError, match="min_contrast"):
-        CpuDetector(16, 8, options)
-
-
 def test_real_detector_does_not_retain_tags_from_previous_frame():
     camera = load_config(DATA / "config.json").camera("front")
     tag = load_image_frame(DATA / "multi.png", camera)
@@ -79,24 +64,3 @@ def test_independent_native_detectors_can_run_concurrently():
 
     with ThreadPoolExecutor(4) as pool:
         assert list(pool.map(detect, range(4))) == [[[1]] * 3] * 4
-
-
-@pytest.mark.parametrize("decimate", [1.0, 1.5, 3.0, 4.0])
-def test_unsupported_cuda_decimation_never_reaches_fatal_native_constructor(
-    monkeypatch, cuda_native, decimate
-):
-    from spot_vision.native import create_detector
-
-    camera = load_config(DATA / "config.json").camera("front")
-    camera = replace(
-        camera,
-        detector=replace(camera.detector, backend="cuda", decimate=decimate),
-    )
-    monkeypatch.setattr(
-        cuda_native,
-        "CudaDetector",
-        lambda *_: pytest.fail("fatal constructor reached"),
-        raising=False,
-    )
-    with pytest.raises(RuntimeError, match="requires decimate=2"):
-        create_detector(camera, None)

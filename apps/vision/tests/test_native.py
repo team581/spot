@@ -88,7 +88,7 @@ def test_cuda_initialization_failure_propagates_without_constructing_cpu(monkeyp
     from spot_vision.config import load_config
 
     camera = load_config(Path(__file__).parent / "data/regression/config.json").camera("front")
-    camera = replace(camera, detector=replace(camera.detector, backend="cuda", decimate=2.0))
+    camera = replace(camera, detector=replace(camera.detector, backend="cuda"))
 
     def fail(*_):
         raise RuntimeError("GPU initialization failed")

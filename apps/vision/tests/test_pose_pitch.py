@@ -83,7 +83,7 @@ def test_native_first_tag_artwork_recovers_upright_camera_and_pitch(pitch_deg):
     )
     image = cv2.warpPerspective(marker, homography, (1280, 800), borderValue=255)
     frame = cv2.cvtColor(cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2YUV_YUY2)
-    batch = CpuDetector(1280, 800, DetectorConfig(decimate=1.0)).detect(frame)
+    batch = CpuDetector(1280, 800, DetectorConfig()).detect(frame)
     assert len(batch.detections) == 1 and batch.detections[0].id == 4
     detected = Detection(4, np.asarray(batch.detections[0].corners))
     assert np.max(np.linalg.norm(detected.corners - observations[0].corners, axis=1)) < 1.0

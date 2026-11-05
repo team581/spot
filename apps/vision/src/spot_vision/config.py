@@ -15,14 +15,7 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class DetectorConfig:
     backend: str = "cuda"
-    family: str = "tag36h11"
-    decimate: float = 2.0
-    blur: float = 0.0
-    threads: int = 1
-    refine_edges: bool = True
     max_hamming: int = 2
-    min_tag_px: int = 16
-    min_contrast: int = 3
 
 
 @dataclass(frozen=True)

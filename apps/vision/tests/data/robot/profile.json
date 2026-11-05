@@ -44,14 +44,7 @@
         "timestamp_qualification": null,
         "detector": {
           "backend": "cpu",
-          "family": "tag36h11",
-          "decimate": 2.0,
-          "blur": 0.0,
-          "threads": 1,
-          "refine_edges": true,
-          "max_hamming": 2,
-          "min_tag_px": 16,
-          "min_contrast": 3
+          "max_hamming": 2
         }
       }
     ],

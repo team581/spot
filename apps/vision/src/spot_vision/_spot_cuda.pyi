@@ -22,11 +22,6 @@ class DistortionCoefficients:
     def __init__(self) -> None: ...
 
 class DetectorOptions:
-    family: str
-    decimate: float
-    blur: float
-    threads: int
-    refine_edges: bool
     max_hamming: int
     def __init__(self) -> None: ...
 

@@ -66,17 +66,7 @@ def validate_manifest(message: wire.Manifest) -> None:
                 raise ConfigError("duplicate physical camera binding")
             bindings.add(camera.binding_id)
         detector = camera.detector
-        if (
-            detector.backend not in {"cpu", "cuda"}
-            or detector.family != "tag36h11"
-            or not finite(detector.decimate, detector.blur)
-            or not 1 <= detector.decimate <= 8
-            or not 0 <= detector.blur <= 4
-            or not 1 <= detector.threads <= 16
-            or not 0 <= detector.max_hamming <= 2
-            or not 1 <= detector.min_tag_px <= 4096
-            or not 0 <= detector.min_contrast <= 255
-        ):
+        if detector.backend not in {"cpu", "cuda"} or not 0 <= detector.max_hamming <= 2:
             raise ConfigError("invalid detector settings")
         if camera.calibration is not None:
             from .calibration_record import validate_record

@@ -36,10 +36,10 @@ class CpuDetector:
         self._lock = Lock()
         self._gray = np.empty((height, width), dtype=np.uint8)
         self._detector = NapaDetector(
-            family=options.family,
-            min_tag_px=options.min_tag_px,
+            family="tag36h11",
+            min_tag_px=16,
             max_hamming=options.max_hamming,
-            min_contrast=options.min_contrast,
+            min_contrast=3,
         )
 
     def detect(self, frame: np.ndarray) -> DetectionBatch:
@@ -125,11 +125,6 @@ def create_detector(camera: CameraConfig, calibration: Calibration | None) -> De
         raise RuntimeError("this package was built without CUDA detector support")
 
     options = native.DetectorOptions()
-    options.family = camera.detector.family
-    options.decimate = camera.detector.decimate
-    options.blur = camera.detector.blur
-    options.threads = camera.detector.threads
-    options.refine_edges = camera.detector.refine_edges
     options.max_hamming = camera.detector.max_hamming
     matrix = native.CameraMatrix()
     distortion = native.DistortionCoefficients()
@@ -148,9 +143,6 @@ def create_detector(camera: CameraConfig, calibration: Calibration | None) -> De
     # truncate a different lens model or select a different backend here.
     if calibration is not None and any(calibration.distortion[5:]):
         raise RuntimeError("CUDA edge refinement supports only the five-coefficient lens model")
-    # Reject unsupported decimation before the upstream constructor's fatal CHECK.
-    if camera.detector.decimate != 2.0:
-        raise RuntimeError("CUDA detector requires decimate=2")
     return NativeDetector(
         native.CudaDetector(camera.width, camera.height, matrix, distortion, options),
         calibration,

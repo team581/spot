@@ -62,7 +62,7 @@ config = {
             "height": 800,
             "fps": 60,
             "calibration": "calibration.json",
-            "detector": {"backend": "cpu", "decimate": 1.0},
+            "detector": {"backend": "cpu"},
         }
     ],
 }
