@@ -8,9 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(SPOT_BUILD_CUDA "Build the Team 766 CUDA detector" OFF)
 option(SPOT_BUILD_DIAGNOSTICS "Build host geometry diagnostics for CUDA regression tests" OFF)
 option(SPOT_BUILD_CUDA_TESTS "Build upstream CUDA detector tests" OFF)
+option(SPOT_BUILD_NVJPG "Build the Jetson NVJPG MJPEG decoder" OFF)
 set(SPOT_CUDA_ARCHITECTURES "87" CACHE STRING "CUDA architectures (Orin is 87)")
+set(SPOT_JETSON_MULTIMEDIA_API "" CACHE PATH "Unpacked usr/src/jetson_multimedia_api")
+set(SPOT_NVJPG_LIBRARY_DIRS "" CACHE STRING "Directories holding the L4T multimedia and CUDA driver libraries")
 
-if(SPOT_BUILD_CUDA OR SPOT_BUILD_DIAGNOSTICS)
+if(SPOT_BUILD_CUDA OR SPOT_BUILD_DIAGNOSTICS OR SPOT_BUILD_NVJPG)
   enable_language(CXX)
   set(PYBIND11_FINDPYTHON ON)
   find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
@@ -118,6 +121,30 @@ elseif(SPOT_BUILD_DIAGNOSTICS)
   pybind11_add_module(_spot_cuda MODULE cpp/host_bindings.cpp)
   target_include_directories(_spot_cuda PRIVATE cpp/team766 cpp/apriltag)
   install(TARGETS _spot_cuda LIBRARY DESTINATION spot_vision)
+endif()
+
+if(SPOT_BUILD_NVJPG)
+  find_package(CUDAToolkit REQUIRED)
+  set(NVJPG_CLASSES "${SPOT_JETSON_MULTIMEDIA_API}/samples/common/classes")
+  pybind11_add_module(_spot_nvjpg MODULE
+    cpp/nvjpg_bindings.cpp
+    ${NVJPG_CLASSES}/NvJpegDecoder.cpp
+    ${NVJPG_CLASSES}/NvElement.cpp
+    ${NVJPG_CLASSES}/NvElementProfiler.cpp
+    ${NVJPG_CLASSES}/NvLogging.cpp
+    ${NVJPG_CLASSES}/NvBuffer.cpp
+    ${NVJPG_CLASSES}/NvBufSurface.cpp
+  )
+  target_include_directories(_spot_nvjpg PRIVATE
+    "${SPOT_JETSON_MULTIMEDIA_API}/include"
+    "${SPOT_JETSON_MULTIMEDIA_API}/include/libjpeg-9f"
+    ${CUDAToolkit_INCLUDE_DIRS}
+  )
+  foreach(library nvmm_jpeg nvbufsurface nvbufsurftransform cuda)
+    find_library(SPOT_NVJPG_${library} ${library} HINTS ${SPOT_NVJPG_LIBRARY_DIRS} REQUIRED)
+    target_link_libraries(_spot_nvjpg PRIVATE ${SPOT_NVJPG_${library}})
+  endforeach()
+  install(TARGETS _spot_nvjpg LIBRARY DESTINATION spot_vision)
 endif()
 
 get_filename_component(SPOT_REPOSITORY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)

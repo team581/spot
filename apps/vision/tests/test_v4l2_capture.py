@@ -65,6 +65,23 @@ def test_jpeg_padded_after_end_marker_is_decoded(monkeypatch):
     assert operations[-1] == ("decode", source.buffers[1])
 
 
+def test_hardware_jpeg_decoder_is_used_when_available(monkeypatch):
+    source, operations = capture(monkeypatch, [(1, 0)])
+    source.jpeg = SimpleNamespace(decode=lambda data: "hardware")
+    assert source.read() == (True, "hardware")
+    assert not any(operation[0] == "decode" for operation in operations)
+
+
+def test_hardware_jpeg_failure_falls_back_to_cpu_decode(monkeypatch):
+    def decode(data):
+        raise RuntimeError("unsupported")
+
+    source, operations = capture(monkeypatch, [(1, 0)])
+    source.jpeg = SimpleNamespace(decode=decode)
+    assert source.read() == (True, source.buffers[1])
+    assert operations[-1] == ("decode", source.buffers[1])
+
+
 def test_no_usb_frames_returns_failure_for_reconnect(monkeypatch):
     source, operations = capture(monkeypatch, [])
     assert source.read() == (False, None)

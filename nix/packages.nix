@@ -8,6 +8,13 @@ let
     pyproject-build-systems
     ;
   cuda = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64;
+  # Headers and decoder classes for the NVJPG engine (Jetson Multimedia API).
+  jetsonMultimediaApi =
+    pkgs.runCommand "jetson-multimedia-api" { nativeBuildInputs = [ pkgs.dpkg ]; }
+      ''
+        dpkg -x ${pkgs.nvidia-jetpack.debs.common.nvidia-l4t-jetson-multimedia-api.src} source
+        mv source/usr/src/jetson_multimedia_api $out
+      '';
   source = lib.cleanSourceWith {
     src = ../.;
     filter =
@@ -168,17 +175,25 @@ let
                   pkgs.cudaPackages.cuda_cudart
                   pkgs.gflags
                   pkgs.glog
+                  pkgs.nvidia-jetpack.l4t-cuda
+                  pkgs.nvidia-jetpack.l4t-multimedia
                 ];
               dontUseCmakeConfigure = true;
               env = (old.env or { }) // {
                 CMAKE_BUILD_PARALLEL_LEVEL = "2";
-                CMAKE_ARGS = lib.concatStringsSep " " [
-                  "-DSPOT_BUILD_CUDA=${if cuda then "ON" else "OFF"}"
-                  "-DSPOT_CUDA_ARCHITECTURES=87"
-                  "-Dpybind11_DIR=${final.pythonPkgsBuildHost.pybind11}/${pkgs.python312.sitePackages}/pybind11/share/cmake/pybind11"
-                  "-DSPOT_DASHBOARD_DIR=${web}/dashboard"
-                  "-DSPOT_DOCS_DIR=${web}/jetson-docs"
-                ];
+                CMAKE_ARGS =
+                  lib.concatStringsSep " " [
+                    "-DSPOT_BUILD_CUDA=${if cuda then "ON" else "OFF"}"
+                    "-DSPOT_CUDA_ARCHITECTURES=87"
+                    "-DSPOT_BUILD_NVJPG=${if cuda then "ON" else "OFF"}"
+                    "-Dpybind11_DIR=${final.pythonPkgsBuildHost.pybind11}/${pkgs.python312.sitePackages}/pybind11/share/cmake/pybind11"
+                    "-DSPOT_DASHBOARD_DIR=${web}/dashboard"
+                    "-DSPOT_DOCS_DIR=${web}/jetson-docs"
+                  ]
+                  + lib.optionalString cuda (
+                    " -DSPOT_JETSON_MULTIMEDIA_API=${jetsonMultimediaApi}"
+                    + " -DSPOT_NVJPG_LIBRARY_DIRS=${pkgs.nvidia-jetpack.l4t-multimedia}/lib;${pkgs.nvidia-jetpack.l4t-cuda}/lib"
+                  );
               };
             });
             sdnotify = prev.sdnotify.overrideAttrs (old: {

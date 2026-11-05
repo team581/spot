@@ -12,6 +12,11 @@ import time
 
 import numpy as np
 
+try:  # Built only for Jetson; elsewhere MJPEG decodes on the CPU.
+    from ._spot_nvjpg import NvjpgDecoder
+except ImportError:
+    NvjpgDecoder = None
+
 
 class _Timeval(ct.Structure):
     _fields_ = [("seconds", ct.c_long), ("microseconds", ct.c_long)]
@@ -110,6 +115,12 @@ class V4l2Capture:
         self.fd = -1
         self.buffers = []
         self.streaming = False
+        self.jpeg = None
+        if self.pixel_format == "MJPG" and NvjpgDecoder is not None:
+            try:
+                self.jpeg = NvjpgDecoder()
+            except RuntimeError:
+                pass  # e.g. no /dev/nvmap access
         try:
             self.fd = os.open(device, os.O_RDWR | os.O_NONBLOCK | os.O_CLOEXEC)
             fmt = _Format(type=1)
@@ -209,9 +220,17 @@ class V4l2Capture:
                     ).reshape(self.height, self.bytes_per_line)
                     image = image[:, : self.width * 2].reshape(self.height, self.width, 2).copy()
                 else:
-                    image = self.cv2.imdecode(
-                        np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_GRAYSCALE
-                    )
+                    image = None
+                    jpeg = getattr(self, "jpeg", None)
+                    if jpeg is not None:
+                        try:
+                            image = jpeg.decode(latest)
+                        except RuntimeError:
+                            pass  # decode this frame on the CPU instead
+                    if image is None:
+                        image = self.cv2.imdecode(
+                            np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_GRAYSCALE
+                        )
                 if image is not None:
                     assert sequence is not None
                     self.last_sequence = sequence
