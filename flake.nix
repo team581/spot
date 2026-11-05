@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    pnpm2nix = {
+      url = "github:mnixry/pnpm2nix-pure";
+      flake = false;
+    };
     jetpack = {
       url = "github:anduril/jetpack-nixos";
       inputs.nixpkgs.follows = "nixpkgs";

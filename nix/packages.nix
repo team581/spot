@@ -52,33 +52,34 @@ let
       ]
     );
   };
-  web = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
+  # Reuse pnpm's integrity hashes without a store hash or builds during evaluation.
+  # TODO: Revisit this dependency's custom YAML parser when Nixpkgs supports
+  # pnpm imports without a separate store hash.
+  pnpmLockfile = (pkgs.callPackage "${inputs.pnpm2nix}/nix/lockfile.nix" { }).processLockfile {
+    lockfile = ../pnpm-lock.yaml;
+    registry = "https://registry.npmjs.org";
+    noDevDependencies = false;
+    lockfileResolver = "regex";
+  };
+  web = pkgs.stdenvNoCC.mkDerivation {
     pname = "spot-web";
     version = "0.2.1";
     src = webSource;
     nativeBuildInputs = [
       pkgs.nodejs
       pkgs.pnpm
-      pkgs.pnpmConfigHook
     ];
-    pnpmWorkspaces = [
-      "spot"
-      "spot-dashboard..."
-      "spot-docs..."
-    ];
-    pnpmDeps = pkgs.fetchPnpmDeps {
-      inherit (finalAttrs) version src pnpmWorkspaces;
-      # A changed lockfile must fetch fresh dependencies even while the old hash is pinned.
-      pname = "${finalAttrs.pname}-${
-        builtins.hashString "sha256" (
-          builtins.readFile ../pnpm-lock.yaml
-          + builtins.readFile ../pnpm-workspace.yaml
-          + builtins.readFile ../flake.lock
-        )
-      }";
-      fetcherVersion = 5;
-      hash = "sha256-xhjfqA2yKtN89+eS0kHJRJ3e+DFjdhqc1jRr/+aKjSU=";
-    };
+    configurePhase = ''
+      runHook preConfigure
+      export HOME="$TMPDIR"
+      export pnpm_config_pm_on_fail=ignore
+      export pnpm_config_store_dir="$TMPDIR/pnpm-store"
+      cp ${pnpmLockfile.patchedLockfileYaml} pnpm-lock.yaml
+      pnpm --filter spot --filter spot-dashboard... --filter spot-docs... install \
+        --offline --frozen-lockfile --ignore-scripts --trust-lockfile
+      patchShebangs node_modules/{*,.*}
+      runHook postConfigure
+    '';
     buildPhase = ''
       runHook preBuild
       pnpm --filter spot-dashboard build
@@ -89,7 +90,7 @@ let
       mkdir -p $out
       cp -r dist/dashboard dist/jetson-docs $out/
     '';
-  });
+  };
   workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = self; };
   pythonSet =
     (pkgs.callPackage pyproject-nix.build.packages {

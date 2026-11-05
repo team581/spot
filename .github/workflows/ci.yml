@@ -2,10 +2,15 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   hooks:
@@ -45,8 +50,6 @@ jobs:
           extra-conf: |
             keep-derivations = true
             keep-outputs = true
-      - name: Refresh pnpm dependency cache hash
-        run: bash tools/update-pnpm-deps-hash.sh
       - run: nix flake check path:. --all-systems --no-build
       - run: nix fmt -- --check flake.nix nix/*.nix nix/hosts/spot/*.nix nix/hardware/j401/*.nix
       - name: Build application

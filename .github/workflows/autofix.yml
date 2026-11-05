@@ -1,9 +1,16 @@
 name: autofix.ci
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   autofix:
@@ -19,21 +26,6 @@ jobs:
         continue-on-error: true
       - run: hk validate
         continue-on-error: true
-      - name: Mount Nix cache
-        uses: useblacksmith/stickydisk@v1
-        with:
-          key: ${{ github.repository }}-nix-cache-aarch64-linux
-          path: /nix
-          commit: 'false'
-      - name: Prepare Nix installation
-        # Recreate host services on each runner while preserving the cached store and database.
-        run: sudo rm -f /nix/receipt.json
-      - uses: DeterminateSystems/nix-installer-action@v23
-        id: nix
-        with:
-          extra-conf: |
-            keep-derivations = true
-            keep-outputs = true
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -51,10 +43,5 @@ jobs:
         continue-on-error: true
       - run: uv run --no-sync ruff format
         continue-on-error: true
-      - name: Refresh pnpm dependency cache hash
-        run: bash tools/update-pnpm-deps-hash.sh
       - name: Run autofix.ci
         uses: autofix-ci/action@v1
-      - name: Stop Nix before unmounting the cache
-        if: ${{ always() && steps.nix.outcome == 'success' }}
-        run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service

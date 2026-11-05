@@ -38,8 +38,6 @@ jobs:
           extra-conf: |
             keep-derivations = true
             keep-outputs = true
-      - name: Refresh pnpm dependency cache hash
-        run: bash tools/update-pnpm-deps-hash.sh
       - name: Build offline installer
         run: |
           root=/nix/var/nix/gcroots/spot-ci/installer

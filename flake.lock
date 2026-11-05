@@ -62,6 +62,22 @@
         "type": "github"
       }
     },
+    "pnpm2nix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790227413,
+        "narHash": "sha256-6YAZIC1+A0obCBNxk7gI2bGmmA/oXU38SbpyiCXuM7Q=",
+        "owner": "mnixry",
+        "repo": "pnpm2nix-pure",
+        "rev": "4826edd5cf0cc14faf359a94b53c479488c992cb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mnixry",
+        "repo": "pnpm2nix-pure",
+        "type": "github"
+      }
+    },
     "pyproject-build-systems": {
       "inputs": {
         "nixpkgs": [
@@ -112,6 +128,7 @@
       "inputs": {
         "jetpack": "jetpack",
         "nixpkgs": "nixpkgs",
+        "pnpm2nix": "pnpm2nix",
         "pyproject-build-systems": "pyproject-build-systems",
         "pyproject-nix": "pyproject-nix",
         "uv2nix": "uv2nix"
