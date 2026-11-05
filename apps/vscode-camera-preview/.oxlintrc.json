@@ -1,7 +1,0 @@
-{
-	"extends": ["../../.oxlintrc.json"],
-	"options": {
-		"typeAware": true,
-		"typeCheck": true
-	}
-}
