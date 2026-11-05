@@ -600,6 +600,8 @@ void FitLines(
     const cub::KeyValuePair<long, MinMaxExtents> *selected_extents_device,
     size_t num_extents, double *errs_device, double *filtered_errs_device,
     Peak *peaks_device, CudaStream *stream) {
+  // Blank frames can leave no points after blob filtering.
+  if (points == 0) return;
   constexpr size_t kThreads = 128;
   const size_t kBlocks = (points + kPointsPerBlock - 2 * kErrorsBuffer - 1) /
                          (kPointsPerBlock - 2 * kErrorsBuffer);
@@ -610,6 +612,7 @@ void FitLines(
   DoFitLines<kThreads><<<kBlocks, kThreads, 0, stream->get()>>>(
       line_fit_points_device, points, selected_extents_device, errs_device,
       filtered_errs_device, peaks_device);
+  CHECK_CUDA(cudaGetLastError());
 }
 
 namespace {
@@ -1204,6 +1207,7 @@ void FitQuads(
     const cub::KeyValuePair<long, MinMaxExtents> *selected_extents_device,
     float max_line_fit_mse, double cos_critical_rad, FitQuad *fit_quads_device,
     CudaStream *stream) {
+  if (num_extents == 0) return;
   constexpr size_t kThreads = MaxRankedIndex();
   const size_t kBlocks = num_extents;
   VLOG(1) << "Spawning with " << kThreads << " threads, and " << kBlocks
@@ -1215,6 +1219,7 @@ void FitQuads(
       peaks_device, peak_extents, line_fit_points_device,
       selected_extents_device, max_line_fit_mse, cos_critical_rad,
       fit_quads_device);
+  CHECK_CUDA(cudaGetLastError());
 }
 
 std::ostream &operator<<(std::ostream &os,

@@ -4,6 +4,7 @@
 
 #include "apriltag_gpu.h"
 #include "apriltag_utils.h"
+#include "line_fit_filter.h"
 #include "opencv2/opencv.hpp"
 
 extern "C" {
@@ -85,6 +86,32 @@ TEST_F(GpuDetectorTest, GpuNoAprilTagDetections) {
   const zarray_t *detections = detector.Detections();
 
   ASSERT_EQ(0, zarray_size(detections));
+}
+
+TEST(GpuLaunchTest, EmptyFitsDoNotLaunchKernels) {
+  frc971::apriltag::CudaStream stream;
+  ASSERT_EQ(cudaSuccess, cudaGetLastError());
+  frc971::apriltag::FitLines(nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+                            &stream);
+  ASSERT_EQ(cudaSuccess, cudaGetLastError());
+  frc971::apriltag::FitQuads(nullptr, 0, nullptr, 0, nullptr, 10, nullptr, 0, 0,
+                            nullptr, &stream);
+  ASSERT_EQ(cudaSuccess, cudaGetLastError());
+  ASSERT_EQ(cudaSuccess, cudaStreamSynchronize(stream.get()));
+}
+
+TEST_F(GpuDetectorTest, BlankFramesDoNotPoisonFollowingTagFrames) {
+  Mat blank(yuyv_img.rows, yuyv_img.cols, CV_8UC2, Scalar(0, 128));
+  frc971::apriltag::GpuDetector detector(yuyv_img.cols, yuyv_img.rows, td, cam,
+                                        dist);
+  for (int repeat = 0; repeat < 2; ++repeat) {
+    detector.Detect(blank.data);
+    ASSERT_EQ(0, zarray_size(detector.Detections()));
+    ASSERT_EQ(cudaSuccess, cudaGetLastError());
+    detector.Detect(yuyv_img.data);
+    ASSERT_EQ(1, zarray_size(detector.Detections()));
+    ASSERT_EQ(cudaSuccess, cudaGetLastError());
+  }
 }
 
 TEST_F(GpuDetectorTest, CpuDetectsAprilTag) {
