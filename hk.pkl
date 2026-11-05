@@ -53,6 +53,7 @@ steps {
         "pnpm-workspace.yaml",
         "knip.config.ts",
         "vite.config.ts",
+        "oxfmt.config.mts",
         ".ox*.json",
         ".vscode/**",
         ".github/**",
