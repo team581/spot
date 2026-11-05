@@ -32,6 +32,21 @@ For browser tests, install Chromium with
 `pnpm --filter spot-dashboard exec playwright install chromium`, then run
 `pnpm --filter spot-dashboard test:browser`.
 
+## Robot transport smoke test
+
+With `offseason-2026` checked out beside this repository, run after setup:
+
+```sh
+../offseason-2026/gradlew -p ../offseason-2026 :offseason-bot:spotTransportTest
+```
+
+This starts a local NT4 server with the offseason robot's production Java reader
+and publishes fixed estimates through Spot's Python transport. It checks the pose,
+session, sequence, and capture timestamps without cameras or a simulator window.
+The command exits with a test result; it does not test detection or pose fusion.
+For other checkout or interpreter locations, pass `-Pspot.repo=/path/to/spot-2026`
+and `-Pspot.python=/path/to/python`.
+
 ## Edit documentation
 
 The canonical guides live in `apps/docs/src/content/docs/`. Keep READMEs as
