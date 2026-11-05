@@ -22,15 +22,30 @@ they are on the same network.
 
 ## First installation
 
-Build `nix build path:.#installer` on ARM Linux with a case-sensitive Nix store.
+Run the **Jetson offline installer** workflow manually in GitHub Actions, then
+download the `installer-downloads` artifact and open `downloads.html` for the ISO
+and checksum links. The private R2 bucket retains
+only the latest uploaded build and expires it after seven days; deletion can lag
+by about a day. Verify the checksum before writing the ISO to a USB drive.
+Alternatively, build `nix build path:.#installer` on ARM Linux with a case-sensitive Nix store.
 Before installing, back up existing storage and verify hardware operation and the
 partition layout in [the host config](https://github.com/team581/spot-2026/blob/main/nix/hosts/spot/configuration.nix). Use spare
 storage for trials. With the target root and EFI partitions mounted at `/mnt`
-and `/mnt/boot`, run from a copy of this repository on the installer:
+and `/mnt/boot`, run on the installer:
 
 ```sh
-sudo nixos-install --root /mnt --flake .#spot --no-root-passwd
+sudo spot-install --root /mnt
 ```
+
+The ISO includes the prebuilt Spot system and all runtime dependencies. Installation
+does not require internet access or a repository checkout on the Jetson.
+
+### CI storage setup
+
+Enable R2 in the Team 581 Cloudflare account, then run
+`bash tools/setup-installer-bucket.sh` with the Cloudflare CLI authenticated.
+Create an R2 Object Read & Write key scoped to `spot-jetson-images`, and save its
+credentials as the repository secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
 
 ## Deploy to an existing NixOS installation
 

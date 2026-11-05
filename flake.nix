@@ -48,12 +48,26 @@
             jetpack.nixosModules.default
             self.nixosModules.j401
             ./nix/hosts/spot/maintenance.nix
-            {
-              nixpkgs.buildPlatform = system;
-              hardware.nvidia-jetpack.configureCuda = false;
-              hardware.enableAllHardware = lib.mkForce false;
-              boot.zfs.forceImportRoot = false;
-            }
+            (
+              { pkgs, ... }:
+              {
+                nixpkgs.buildPlatform = system;
+                hardware.nvidia-jetpack.configureCuda = false;
+                hardware.enableAllHardware = lib.mkForce false;
+                boot.zfs.forceImportRoot = false;
+                isoImage.storeContents = [ host.config.system.build.toplevel ];
+                environment.systemPackages = [
+                  (pkgs.writeShellApplication {
+                    name = "spot-install";
+                    runtimeInputs = [ pkgs.nixos-install ];
+                    text = ''
+                      exec nixos-install --system ${host.config.system.build.toplevel} \
+                        --no-channel-copy --no-root-passwd --option substituters "" "$@"
+                    '';
+                  })
+                ];
+              }
+            )
           ];
         };
     in
