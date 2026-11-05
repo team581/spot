@@ -53,7 +53,9 @@ function Root() {
 	const { message } = useDashboard(),
 		status = useStatus(),
 		serviceError = useServiceError(),
-		matchRoute = useMatchRoute();
+		matchRoute = useMatchRoute(),
+		// The docs pane fills the content area and has its own layout.
+		docs = Boolean(matchRoute({ to: '/help/$' }));
 	const link = (item: (typeof top | typeof bottom)[number]) => (
 		<SidebarMenuItem key={item.to}>
 			<SidebarMenuButton
@@ -128,7 +130,11 @@ function Root() {
 							<SidebarMenu>
 								{bottom.map(link)}
 								<SidebarMenuItem>
-									<SidebarMenuButton tooltip="Docs" render={<a href="/docs/" />}>
+									<SidebarMenuButton
+										isActive={Boolean(matchRoute({ to: '/help/$' }))}
+										tooltip="Docs"
+										render={<Link to="/help/$" params={{ _splat: '' }} />}
+									>
 										<BookOpen />
 										<span>Docs</span>
 									</SidebarMenuButton>
@@ -156,20 +162,24 @@ function Root() {
 						<SidebarTrigger />
 						<span className="font-heading font-semibold">Spot</span>
 					</header>
-					<div className="flex flex-col gap-5 p-4 md:p-6 lg:p-8">
-						{status.has_overrides ? (
-							<Alert role="status">
-								<TriangleAlert />
-								<AlertDescription>
-									<span>
-										Saved dashboard overrides are active. <Link to="/system">Manage overrides</Link> or export the
-										effective configuration.
-									</span>
-								</AlertDescription>
-							</Alert>
-						) : null}
+					{docs ? (
 						<Outlet />
-					</div>
+					) : (
+						<div className="flex flex-col gap-5 p-4 md:p-6 lg:p-8">
+							{status.has_overrides ? (
+								<Alert role="status">
+									<TriangleAlert />
+									<AlertDescription>
+										<span>
+											Saved dashboard overrides are active. <Link to="/system">Manage overrides</Link> or export the
+											effective configuration.
+										</span>
+									</AlertDescription>
+								</Alert>
+							) : null}
+							<Outlet />
+						</div>
+					)}
 				</SidebarInset>
 				<div id="announcement" className="sr-only" role="status" aria-live="polite">
 					{serviceError || message}

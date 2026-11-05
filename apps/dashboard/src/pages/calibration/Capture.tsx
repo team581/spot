@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useState, useReducer } from 'react';
 import { useDashboard } from '../../dashboard';
 import { Feed } from '../../components/Feed';
@@ -170,7 +171,9 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 					Start automatic capture
 				</Button>
 				<p>
-					<a href="/docs/operator/cameras/#calibrate">Capture and validation guide</a>
+					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="calibrate">
+						Capture and validation guide
+					</Link>
 				</p>
 			</Panel>
 		</div>

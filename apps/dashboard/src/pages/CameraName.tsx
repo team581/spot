@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
@@ -85,7 +86,9 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 								: 'Cached code names · standalone setup')}
 					</Feedback>
 					<Feedback id="page-feedback">{operation.error?.message}</Feedback>
-					<a href="/docs/operator/cameras/#assign-cameras">Configure camera names in robot code</a>
+					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="assign-cameras">
+						Configure camera names in robot code
+					</Link>
 				</Panel>
 			</div>
 		</>

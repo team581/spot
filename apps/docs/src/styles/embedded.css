@@ -1,0 +1,6 @@
+/* The dashboard's docs pane already provides the site title, dashboard link, and theme menu. */
+:root[data-embedded] .title-wrapper,
+:root[data-embedded] .right-group,
+:root[data-embedded] .mobile-preferences {
+	display: none !important;
+}

@@ -221,7 +221,9 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 						</Button>
 					) : null}
 					<Feedback id="page-feedback">{notice || operation.error?.message}</Feedback>
-					<a href="/docs/operator/cameras/#tune">Tuning and history</a>
+					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="tune">
+						Tuning and history
+					</Link>
 				</Panel>
 				<div className="flex min-w-0 flex-col gap-4">
 					<Feed id={c.identity} outlines={outlines} />

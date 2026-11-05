@@ -7,6 +7,26 @@ import { render } from 'pele';
 
 const jetson = process.env.DOCS_TARGET === 'jetson';
 const base = jetson ? '/docs/' : '/';
+// The Jetson dashboard shows these pages in a pane; follow its theme and open other pages outside the pane.
+const embedded = `if (window.top !== window.self) {
+	const root = document.documentElement;
+	root.dataset.embedded = '';
+	const sync = () => {
+		let preference = 'auto';
+		try {
+			preference = (localStorage.getItem('spot-theme') || 'auto').toLowerCase();
+			localStorage.setItem('starlight-theme', preference === 'auto' ? '' : preference);
+		} catch {}
+		root.dataset.theme =
+			preference === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : preference;
+	};
+	sync();
+	addEventListener('storage', (event) => event.key === 'spot-theme' && sync());
+	document.addEventListener('click', (event) => {
+		const link = event.target instanceof Element && event.target.closest('a[href]');
+		if (link && !link.href.startsWith(location.origin + '${base}')) link.target = '_top';
+	});
+}`;
 
 export default defineConfig({
 	site: 'https://spot.frc581.com',
@@ -38,7 +58,8 @@ export default defineConfig({
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot-2026' },
 			],
 			plugins: [team581Theme()],
-			customCss: ['./src/styles/diagrams.css'],
+			customCss: ['./src/styles/diagrams.css', './src/styles/embedded.css'],
+			head: jetson ? [{ tag: 'script', content: embedded }] : [],
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
 				{ slug: 'downloads', label: 'Downloads' },

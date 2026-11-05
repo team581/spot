@@ -183,7 +183,8 @@ def test_docs_directory_pages_assets_and_missing_paths(web):
     status, headers, body = request("GET", "/docs/operator/calibrate/")
     assert status == 200 and headers["Content-Type"].startswith("text/html") and body == page
     # The static docs policy permits Starlight and search without changing the dashboard's policy.
-    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+    assert "frame-ancestors 'self'" in headers["Content-Security-Policy"]
+    assert "frame-ancestors 'none'" in request("GET", "/")[1]["Content-Security-Policy"]
     assert "'wasm-unsafe-eval'" in headers["Content-Security-Policy"]
     assert "'unsafe-inline'" not in request("GET", "/")[1]["Content-Security-Policy"]
     assert request("GET", "/docs/")[0] == 200

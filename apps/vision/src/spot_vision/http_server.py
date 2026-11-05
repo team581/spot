@@ -41,11 +41,12 @@ CSP = (
     "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
     "form-action 'self'"
 )
-# Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly.
+# Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly, and the
+# dashboard shows them in a same-origin pane.
 DOCS_CSP = (
     "default-src 'self'; img-src 'self' data:; font-src 'self'; "
     "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
-    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    "connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'"
 )
 
 Text = Annotated[str, StringConstraints(max_length=128, pattern=r"^[^\x00-\x1f]*$")]

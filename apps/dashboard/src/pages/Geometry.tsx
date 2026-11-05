@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useEffect, useReducer, useState } from 'react';
 import { useDashboard } from '../dashboard';
 import { api, submit } from '../api';
@@ -172,7 +173,9 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 						0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.
 					</small>
 					<p>
-						<a href="/docs/operator/cameras/#geometry">Measuring camera geometry</a>
+						<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="geometry">
+							Measuring camera geometry
+						</Link>
 					</p>
 				</Panel>
 				<div className="flex min-w-0 flex-col gap-4">

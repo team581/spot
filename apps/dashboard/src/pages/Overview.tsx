@@ -49,7 +49,9 @@ export default function Overview({ page }: { page: string }) {
 				) : (
 					<Panel title="No cameras discovered" className="max-w-2xl">
 						<p>Connect a powered USB camera. Discovery continues automatically.</p>
-						<a href="/docs/operator/cameras/#connect">Connection guide</a>
+						<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="connect">
+							Connection guide
+						</Link>
 					</Panel>
 				)}
 			</div>
