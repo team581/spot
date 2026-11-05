@@ -22,7 +22,7 @@ class StatusSnapshot(TypedDict):
     applied_generation: str
     cameras: list[dict]
     names: list[str]
-    robot_id: str | None
+    has_configuration: bool
     fresh: bool
     lock_reason: str
     standalone: bool
@@ -39,6 +39,8 @@ class StatusSnapshot(TypedDict):
     network: dict
     endpoint: dict
     field: dict | None
+    has_overrides: bool
+    override_paths: list[str]
 
 
 def camera_health(
@@ -77,7 +79,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
     devices = runtime.devices.snapshot()[:32]
     manifest = config.manifest
     definitions = list(manifest.profile.cameras) if manifest else []
-    bindings = config.profile_data().get("bindings", {}) if manifest else {}
+    bindings = {c.name: {"identity": c.binding_id} for c in definitions if c.binding_id}
     by_identity = {b["identity"]: name for name, b in bindings.items()}
     cameras = []
     for device in devices:
@@ -145,7 +147,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             "connected": bool(worker and worker.verified),
             "controls": capabilities,
             "calibrated": bool(record),
-            "calibration_hash": record.get("hash", "") if record else "",
+            "calibration_id": record.get("id", "") if record else "",
             "warning": "Choose a code-defined name"
             if not name
             else "Calibration required"
@@ -249,19 +251,8 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
         binding = bindings.get(definition.name, {})
         if binding.get("identity") not in {d["identity"] for d in devices}:
             missing_identity = binding.get("identity")
-            last_frame = runtime.frames.image(missing_identity)
-            selected = config.profile_data().get("modes", {}).get(definition.name)
-            mode = next(
-                (m for m in definition.allowed_modes if m.id == selected),
-                next(iter(definition.allowed_modes), None),
-            )
-            record = (
-                config.state.data.get("calibrations", {}).get(
-                    missing_identity + ":" + mode_signature(mode)
-                )
-                if missing_identity and mode
-                else None
-            )
+            last_frame = runtime.frames.image(missing_identity) if missing_identity else None
+            record = definition.calibration
             cameras.append(
                 {
                     "identity": binding.get("identity", "missing:" + definition.name),
@@ -273,7 +264,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     "present": False,
                     "connected": False,
                     "calibrated": bool(record),
-                    "calibration_hash": record.get("hash", "") if record else "",
+                    "calibration_id": record.get("id", "") if record else "",
                     "warning": "Configured camera missing",
                     "fault": "Disconnected",
                     "controls": [],
@@ -298,11 +289,13 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             )
     sync = runtime.transport.clock.snapshot()
     return {
+        "has_overrides": bool(config.override_entries()),
+        "override_paths": [entry["path"] for entry in config.override_entries()],
         "revision": config.state.generation,
-        "applied_generation": config.acknowledged_generation,
+        "applied_generation": config.applied_generation,
         "cameras": cameras,
         "names": [c.name for c in definitions],
-        "robot_id": manifest.profile.robot_id if manifest else None,
+        "has_configuration": manifest is not None,
         "fresh": config.fresh,
         "lock_reason": lock_reason,
         "standalone": config.standalone,

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 
 from .charuco import CharucoBoardConfig
 from .config import ConfigError
-from .persistence import canonical_bytes
 
 
 def validate_record(record: dict) -> None:
@@ -72,10 +70,6 @@ def validate_record(record: dict) -> None:
             raise ConfigError(
                 "Calibration intrinsics must be finite with positive focal lengths and bounded dimensions"
             )
-        if "hash" in record:
-            unhashed = {key: value for key, value in record.items() if key != "hash"}
-            if record["hash"] != hashlib.sha256(canonical_bytes(unhashed)).hexdigest():
-                raise ConfigError("Calibration content hash mismatch")
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         if isinstance(exc, ConfigError):
             raise

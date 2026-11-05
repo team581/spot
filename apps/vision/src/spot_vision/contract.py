@@ -7,7 +7,7 @@ import re
 
 from . import protocol_models as wire
 from .config import ConfigError
-from .protocol import content_hash, restore
+from .protocol import restore
 
 MAX_PROFILE_BYTES = 256 * 1024
 MAX_CAMERAS = 32  # protocol bound, not a claim about Jetson capacity
@@ -40,10 +40,9 @@ def parse_manifest(payload: bytes) -> wire.Manifest:
 
 def validate_manifest(message: wire.Manifest) -> None:
     profile = message.profile
-    if not _NAME.fullmatch(profile.robot_id) or not _NAME.fullmatch(message.robot_session):
-        raise ConfigError("robot ID and session are required bounded identifiers")
-    if message.manifest_hash != content_hash(profile):
-        raise ConfigError("manifest content hash mismatch")
+    from .processing import ProcessingPolicy
+
+    ProcessingPolicy.parse(profile.processing)
     if not finite(profile.max_age_s, profile.future_tolerance_s, profile.reorder_window_s):
         raise ConfigError("timing bounds must be finite")
     if not (
@@ -55,10 +54,42 @@ def validate_manifest(message: wire.Manifest) -> None:
     if len(profile.cameras) > MAX_CAMERAS:
         raise ConfigError("too many camera definitions")
     names: set[str] = set()
+    bindings: set[str] = set()
     for camera in profile.cameras:
         if not _NAME.fullmatch(camera.name) or camera.name in names:
             raise ConfigError("invalid or duplicate camera name")
         names.add(camera.name)
+        if not isinstance(camera.binding_id, str) or len(camera.binding_id) > 128:
+            raise ConfigError("bounded camera identity required")
+        if camera.binding_id:
+            if camera.binding_id in bindings:
+                raise ConfigError("duplicate physical camera binding")
+            bindings.add(camera.binding_id)
+        detector = camera.detector
+        if (
+            detector.backend not in {"cpu", "cuda"}
+            or detector.family != "tag36h11"
+            or not finite(detector.decimate, detector.blur)
+            or not 1 <= detector.decimate <= 8
+            or not 0 <= detector.blur <= 4
+            or not 1 <= detector.threads <= 16
+            or not 0 <= detector.max_hamming <= 2
+            or not 1 <= detector.min_tag_px <= 4096
+            or not 0 <= detector.min_contrast <= 255
+        ):
+            raise ConfigError("invalid detector settings")
+        if camera.calibration is not None:
+            from .calibration_record import validate_record
+
+            validate_record(camera.calibration)
+            if camera.calibration["identity"] != camera.binding_id:
+                raise ConfigError("calibration belongs to another camera")
+        if camera.timestamp_qualification is not None:
+            from .timing_qualification import validate_timing_evidence
+
+            validate_timing_evidence(camera.timestamp_qualification)
+            if camera.timestamp_qualification["identity"] != camera.binding_id:
+                raise ConfigError("timing qualification belongs to another camera")
         if not valid_pose(camera.robot_to_camera):
             raise ConfigError(f"{camera.name}: measured mount transform required")
         if camera.image_rotation_deg not in (0, 180):
@@ -75,7 +106,7 @@ def validate_manifest(message: wire.Manifest) -> None:
                 or not 0 < mode.height <= 4096
                 or mode.width % 2
                 or not 0 < mode.fps <= 240
-                or mode.pixel_format not in ("YUYV", "YUY2", "MJPG", "MJPEG")
+                or mode.pixel_format not in ("YUYV", "MJPEG")
                 or not _NAME.fullmatch(mode.optical_signature)
             ):
                 raise ConfigError("invalid optical mode")

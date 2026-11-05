@@ -10,14 +10,14 @@ Open <http://spot.local:5800> or the default maintenance address
 
 Fresh images request a DHCP address and also keep the maintenance address.
 Use **Network → Connection** to set the NetworkTables team number; it reconnects
-immediately and saves the selection across reboots. Keep the robot disabled.
+immediately and saves the selection across reboots.
 Changing the team number does not change a static Jetson IP address.
 
 Use **Network → Jetson address** to change Ethernet settings. Check the new
 connection and click **Keep settings** before the trial expires; an unconfirmed
 trial rolls back. Both Ethernet ports share one network.
 
-Keep the robot disabled during setup. For bench work without a robot connection,
+Camera settings can be adjusted while the robot is enabled. For bench work without a robot connection,
 use **Begin standalone setup** on Network or **Open standalone camera setup** on
 the camera page. Follow the displayed lock reason if editing is unavailable.
 
@@ -31,14 +31,27 @@ For tuning and calibration without a profile, use standalone camera setup.
 
 Measure mounts from the robot origin to the camera optical origin in metres,
 using WPILib axes: X forward, Y left, Z up. Positive pitch points the lens down.
-Production mounts come from robot code; dashboard **Inspection preview** controls
-only change the preview. The [VS Code extension](../vscode-camera-preview/)
-can preview mounts beside the Java configuration.
+Production mounts come from robot code. Use **Inspection preview** to adjust a
+mount, then **Save mount override**. The saved mount is used by both Spot and
+robot localization until the override is cleared.
+The [VS Code extension](../vscode-camera-preview/) previews deployed mounts.
 
 ## Tune
 
 Use the camera page's live preview and detection outlines while adjusting exposure
 and gain. Undo, redo, and reset controls let you compare settings.
+
+## Saved settings
+
+Robot code supplies defaults in `src/main/deploy/spot-config.json`. Dashboard edits
+override them and persist across reconnects, restarts, and deployments.
+Use **System → Robot configuration** to clear individual overrides
+or all of them. **Read deployed defaults** only loads the editor; it does not clear
+overrides.
+
+To adopt tuned settings in robot code, use **Read current configuration → Download
+spot-config.json**, replace the file in the robot project, and deploy. Clear the
+corresponding overrides when ready to use the deployed values again.
 
 ## Calibrate
 
@@ -50,6 +63,9 @@ and gain. Undo, redo, and reset controls let you compare settings.
    **Validate**. Follow the reported retry reasons.
 4. Review **Results / history**, select passing cameras, and click **Apply selected**.
    Wait for **Applied** before using the result.
+5. For standalone work, use **System → Download calibration results**. Copy the
+   matching record into the camera's `calibration` field and set its `binding_id`
+   before deployment.
 
 Intrinsic calibration does not measure the mount. Recalibrate after replacement,
 focus changes, or incompatible optical modes. Use history to restore compatible

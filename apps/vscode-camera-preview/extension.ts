@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (
 			!uri ||
 			uri.scheme !== 'file' ||
-			path.basename(uri.fsPath) !== 'VisionConfig.java' ||
+			!['VisionConfig.java', 'spot-config.json'].includes(path.basename(uri.fsPath)) ||
 			!vscode.workspace.isTrusted
 		)
 			return;
@@ -104,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
 			timer = setTimeout(() => void run(), 400);
 		};
 		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(project.root, '**/*.{java,gradle}'),
+			new vscode.RelativePattern(project.root, '**/*.{java,gradle,json}'),
 		);
 		const changed = (u: vscode.Uri) => {
 			if (!u.fsPath.includes(`${path.sep}build${path.sep}`)) schedule();

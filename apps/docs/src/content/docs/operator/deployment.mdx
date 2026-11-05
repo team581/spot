@@ -98,7 +98,7 @@ nix run .#deploy -- switch
 Add new files to Git before deploying and keep the checkout unchanged between
 `test` and `switch`. `test` changes the running system but leaves the boot default
 unchanged. There is no automatic deployment rollback. `check-health --robot`
-checks runtime readiness with a disabled robot; it does not certify hardware accuracy.
+checks robot and camera readiness; it does not certify hardware accuracy.
 
 ## Recover
 

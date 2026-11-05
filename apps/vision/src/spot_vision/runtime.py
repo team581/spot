@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 import queue
 import threading
 import time
@@ -30,7 +29,6 @@ from .config import (
     validate_team,
 )
 from .configuration import ConfigurationService, mode_signature, optical_controls
-from .contract import content_hash
 from .devices import DeviceManager, DeviceRegistry
 from .frames import FrameHub
 from .health import Watchdog
@@ -101,7 +99,7 @@ class Runtime:
             "first_processed_frame_s": None,
             "nt_connection_s": None,
             "synchronized_s": None,
-            "acknowledged_s": None,
+            "configuration_applied_s": None,
         }
         self.backend, self.capture_factory, self.detector_factory = (
             backend,
@@ -136,7 +134,7 @@ class Runtime:
             supported_controls=self._supported_controls,
         )
         self.startup["state_load_s"] = time.monotonic() - self.started
-        self.transport = transport_factory(nt, self.configuration, self.camera_generations)
+        self.transport = transport_factory(nt, self.configuration, self.camera_ready)
         self.stop_event = threading.Event()
         self.commands: queue.Queue = queue.Queue(maxsize=16)
         self.progress = {
@@ -188,7 +186,7 @@ class Runtime:
             try:
                 with self._operation_lock:
                     self.transport.poll()
-                    self.transport.acknowledge()
+                    self.transport.configuration_applied()
                     self._debug_tick()
                 operation, payload, future = self.commands.get(timeout=0.05)
             except queue.Empty:
@@ -203,12 +201,19 @@ class Runtime:
                     elif operation == "rediscover":
                         self.apply(self.configuration.state, self.configuration.manifest)
                         result = self.configuration.state
+                    elif operation == "clear-overrides":
+                        result = self.configuration.clear_overrides(
+                            payload["revision"], payload.get("path", "")
+                        )
+                    elif operation == "configure":
+                        result = self.configuration.configure_document(
+                            payload["document"], payload["revision"]
+                        )
                     elif operation == "import":
                         result = self.configuration.import_data(
                             payload["document"],
                             payload["revision"],
                             validate_record,
-                            self.validate_import_profile,
                             validate_timing_evidence,
                         )
                     elif operation == "qualify-timing":
@@ -298,9 +303,7 @@ class Runtime:
                         mode = next(
                             (m for m in camera.allowed_modes if m.id == payload["mode_id"]), None
                         )
-                        binding = (
-                            self.configuration.profile_data().get("bindings", {}).get(camera.name)
-                        )
+                        binding = {"identity": camera.binding_id} if camera.binding_id else None
                         device = self.devices.get(binding["identity"]) if binding else None
                         if mode is None or device is None or not mode_supported(device, mode):
                             raise ConfigError(
@@ -323,17 +326,17 @@ class Runtime:
                             payload["revision"],
                             self.validate_calibration,
                             identities=payload.get("identities"),
-                            calibration_hashes=payload.get("calibration_hashes"),
+                            calibration_ids=payload.get("calibration_ids"),
                         )
                     elif operation.startswith("calibration/") and self.calibration is not None:
                         result = self.calibration.command(operation.split("/", 1)[1], payload)
                     else:
                         raise ConfigError("Unknown configuration operation")
-                    self.transport.acknowledge()
+                    self.transport.configuration_applied()
                 future.set_result(
                     {
                         "revision": self.configuration.state.generation,
-                        "applied_generation": self.configuration.acknowledged_generation,
+                        "applied_generation": self.configuration.applied_generation,
                         "result": result if isinstance(result, dict) else None,
                         "controls": dict(self.workers[payload["identity"]].readback)
                         if operation.startswith("device/")
@@ -405,21 +408,21 @@ class Runtime:
             False,
             None,
             0,
-            DetectorConfig(backend=self.backend),
+            definition.detector if definition else DetectorConfig(backend=self.backend),
             image_rotation_deg=definition.image_rotation_deg if definition else 0,
         )
 
     def apply(self, state: StateSnapshot, manifest: wire.Manifest | None) -> None:
-        """Prepare new solvers before committing, then switch at a scheduler boundary.
-
-        A failed transaction is rolled back by StateStore through this same path.
-        Existing capture threads are retained for tuning/intrinsics changes.
-        """
+        """Switch at a scheduler boundary, retaining capture workers for tuning."""
         self.transport.invalidate_configuration()
-        profile = (
-            state.data.get("profiles", {}).get(manifest.profile.robot_id, {}) if manifest else {}
+        bindings = (
+            {c.name: {"identity": c.binding_id} for c in manifest.profile.cameras if c.binding_id}
+            if manifest
+            else {}
         )
-        bindings = profile.get("bindings", {})
+        processing = (
+            ProcessingPolicy.parse(manifest.profile.processing) if manifest else self.processing
+        )
         definitions = {c.name: c for c in manifest.profile.cameras} if manifest else {}
         roles = {b["identity"]: name for name, b in bindings.items() if name in definitions}
         layout = (
@@ -447,16 +450,11 @@ class Runtime:
                 faults[identity] = physical.fault or "No capture node"
                 continue
             if definition:
-                selected = profile.get("modes", {}).get(name)
-                mode = (
-                    next((m for m in definition.allowed_modes if m.id == selected), None)
-                    if selected
-                    else next(iter(definition.allowed_modes), None)
-                )
+                mode = definition.allowed_modes[0]
                 if mode is None or not mode_supported(physical, mode):
                     faults[identity] = "Code optical mode is not advertised by this device"
                     continue
-                saved = profile.get("settings", {}).get(name, {})
+                saved = {c.name: c.default_value for c in definition.controls}
                 available = {c["name"] for c in physical.controls}
                 missing_required = [
                     c.name for c in definition.controls if c.required and c.name not in available
@@ -468,7 +466,12 @@ class Runtime:
                     continue
                 if set(saved) - available:
                     raise ConfigError("Saved controls unavailable on connected camera")
-                controls[identity] = dict(saved)
+                controls[identity] = {
+                    c["name"]: c["default"] * c["factor"]
+                    for c in physical.controls
+                    if c["writable"] and c["default"] is not None
+                }
+                controls[identity].update(saved)
                 controls[identity].update(
                     {
                         c.name: saved.get(c.name, c.default_value)
@@ -543,9 +546,15 @@ class Runtime:
                 controls[identity] = setup["settings"] if setup else {}
             modes[identity] = mode
             desired[identity] = self._camera_config(identity, mode, definition)
-            record = state.data.get("calibrations", {}).get(identity + ":" + mode_signature(mode))
+            record = (
+                definition.calibration
+                if definition
+                else state.data.get("calibrations", {}).get(identity + ":" + mode_signature(mode))
+            )
             if (
                 record
+                and record["mode_signature"] == mode_signature(mode)
+                and record["identity"] == identity
                 and record.get("image_rotation_deg", 0) == desired[identity].image_rotation_deg
                 and record.get("optical_controls", {}) == optical_controls(controls[identity])
             ):
@@ -562,8 +571,8 @@ class Runtime:
         self.frames.retain(set(desired) | set(roles))
         # All selected calibration records are checked before any device write.
         prepared, solvers = {}, {}
-        previous_field = getattr(self, "_field_hash", "")
-        field_hash = content_hash(manifest.profile.field) if manifest else ""
+        previous_field = getattr(self, "_field", None)
+        field = manifest.profile.field if manifest else None
         with self._pipeline_lock:
             for identity, camera in desired.items():
                 if identity in calibration_records:
@@ -576,22 +585,22 @@ class Runtime:
                 try:
                     old = self.calibrations.get(identity)
                     unchanged = (
-                        identity in self.detectors
+                        self.processing == processing
+                        and identity in self.detectors
                         and identity in self.workers
                         and self.workers[identity].camera == camera
-                        and (old or {}).get("hash")
-                        == calibration_records.get(identity, {}).get("hash")
+                        and old == calibration_records.get(identity)
                     )
                     prepared[identity] = (
                         self.detectors[identity]
                         if unchanged
                         else RecoveringDetector(
-                            camera, calibration, self.detector_factory, self.processing
+                            camera, calibration, self.detector_factory, processing
                         )
                     )
                     solvers[identity] = (
                         self.solvers[identity]
-                        if unchanged and previous_field == field_hash
+                        if unchanged and previous_field == field
                         else PoseSolver(
                             calibration,
                             layout,
@@ -650,7 +659,12 @@ class Runtime:
                             f"Camera settings verification failed: {faults[identity]}"
                         )
             for identity, worker in self.workers.items():
-                record = state.data.get("timestamp_qualifications", {}).get(identity)
+                definition = definitions.get(roles.get(identity))
+                record = (
+                    definition.timestamp_qualification
+                    if definition
+                    else state.data.get("timestamp_qualifications", {}).get(identity)
+                )
                 uncertainty, correction = None, 0
                 if record:
                     try:
@@ -663,7 +677,9 @@ class Runtime:
                         uncertainty,
                         correction,
                     )
-            self._field_hash = field_hash
+            self._field = field
+            self.processing = processing
+            self.processing_budget.policy = processing
             self.detectors, self.solvers, self.roles = prepared, solvers, roles
             self.modes, self.calibrations, self.generation = (
                 modes,
@@ -723,11 +739,7 @@ class Runtime:
                         context = self.transport.context(
                             name, frame.captured_monotonic_ns, frame.timestamp_uncertainty_s
                         )
-                        if (
-                            context
-                            and context.acknowledgement.runtime_generation
-                            == frame.runtime_generation
-                        ):
+                        if context and context.generation == frame.runtime_generation:
                             published = self.transport.publish(
                                 make_observation(
                                     detected,
@@ -750,36 +762,16 @@ class Runtime:
                 finally:
                     self.processing_budget.completed(identity, now, time.monotonic() - now)
 
-    def camera_generations(self) -> list[wire.CameraGeneration]:
-        manifest = self.configuration.manifest
-        if manifest is None:
-            return []
-        bindings = self.configuration.profile_data().get("bindings", {})
-        result = []
-        for camera in manifest.profile.cameras:
-            binding = bindings.get(camera.name, {})
-            identity = binding.get("identity", "")
-            mode = self.modes.get(identity)
-            record = self.calibrations.get(identity)
-            worker = self.workers.get(identity)
-            result.append(
-                wire.CameraGeneration(
-                    camera_name=camera.name,
-                    binding_id=identity,
-                    binding_generation=binding.get("generation", 0),
-                    calibration_hash=record.get("hash", "") if record else "",
-                    mode_id=mode.id if mode else "",
-                    optical_signature=mode.optical_signature if mode else "",
-                    calibration_valid=bool(
-                        record
-                        and worker
-                        and worker.verified
-                        and identity in self.detectors
-                        and not self.devices.registry.fault
-                    ),
-                )
-            )
-        return result
+    def camera_ready(self, name: str) -> bool:
+        identity = self.configuration.camera(name).binding_id
+        worker = self.workers.get(identity)
+        return bool(
+            self.calibrations.get(identity)
+            and worker
+            and worker.verified
+            and identity in self.detectors
+            and not self.devices.registry.fault
+        )
 
     def _readback_for_name(self, name) -> dict:
         identity = next(
@@ -795,44 +787,6 @@ class Runtime:
         if not isinstance(identity, str) or not worker or not worker.verified or not mode:
             raise ConfigError("Timing qualification requires a connected verified camera")
         validate_timing(record, identity, mode, worker.readback)
-
-    def validate_import_profile(self, profile: dict) -> None:
-        manifest = self.configuration.manifest
-        if manifest is None:
-            raise ConfigError("Import requires the current robot profile")
-        definitions = {c.name: c for c in manifest.profile.cameras}
-        seen = set()
-        for name, binding in profile.get("bindings", {}).items():
-            if (
-                name not in definitions
-                or not isinstance(binding, dict)
-                or set(binding) != {"identity", "generation"}
-            ):
-                raise ConfigError("Imported binding is not configured in robot code")
-            identity = binding["identity"]
-            if (
-                identity in seen
-                or not self.devices.get(identity)
-                or type(binding["generation"]) is not int
-                or binding["generation"] < 1
-            ):
-                raise ConfigError("Confirm connected physical identities before importing bindings")
-            seen.add(identity)
-        for name, settings in profile.get("settings", {}).items():
-            if name not in definitions or not isinstance(settings, dict):
-                raise ConfigError("Imported tuning names are invalid")
-            if len(settings) > 64 or any(
-                type(v) not in (int, float) or not math.isfinite(v) for v in settings.values()
-            ):
-                raise ConfigError("Imported tuning values must be bounded finite numbers")
-            policies = {c.name: c for c in definitions[name].controls}
-            if any(key in policies and not policies[key].allow_override for key in settings):
-                raise ConfigError("Imported controls conflict with robot policy")
-        for name, mode in profile.get("modes", {}).items():
-            if name not in definitions or mode not in {
-                m.id for m in definitions[name].allowed_modes
-            }:
-                raise ConfigError("Imported optical mode conflicts with robot policy")
 
     def _debug_tick(self) -> None:
         now = time.monotonic()
@@ -907,8 +861,8 @@ class Runtime:
         device = self.devices.get(name)
         if device:
             return {control["name"] for control in device.controls}
-        binding = self.configuration.profile_data().get("bindings", {}).get(name, {})
-        device = self.devices.get(binding.get("identity"))
+        camera = self.configuration.camera(name)
+        device = self.devices.get(camera.binding_id)
         return {control["name"] for control in device.controls} if device else set()
 
     def processing_faults(self) -> list[str]:
@@ -984,7 +938,7 @@ class Runtime:
         for key, active in (
             ("nt_connection_s", self.configuration.connected),
             ("synchronized_s", sync.state == "Synchronized"),
-            ("acknowledged_s", bool(self.configuration.acknowledged_generation)),
+            ("configuration_applied_s", bool(self.configuration.applied_generation)),
         ):
             if active and self.startup[key] is None:
                 self.startup[key] = now - self.started

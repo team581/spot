@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from 'react';
-import { useDashboard } from '../dashboard';
+import { errorMessage, useDashboard } from '../dashboard';
+import { api } from '../api';
 import { NumberEdit } from '../state/editing';
 import GeometryViewer from '../components/GeometryViewer';
 import { geometryValues, previewGeometry } from '../state/geometry';
@@ -7,9 +8,11 @@ import { CameraSelector, CameraTabs, fmt, Icon } from '../components/common';
 import type { Camera } from '../types';
 const labels = ['X', 'Y', 'Z', 'Yaw', 'Pitch', 'Roll'];
 export default function GeometryPage({ camera: c }: { camera: Camera }) {
-	const { status } = useDashboard(),
+	const { status, read, mutate, announce } = useDashboard(),
 		[inspection, setInspection] = useState(false),
 		[, redraw] = useReducer((n) => n + 1, 0);
+	const [error, setError] = useState('');
+	const [busy, setBusy] = useState(false);
 	const [edits] = useState(() => {
 		const values = c.geometry ? geometryValues(c.geometry) : [0, 0, 0, 0, 0, 0];
 		return values.map((value, index) => {
@@ -47,6 +50,29 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 		});
 		redraw();
 	};
+	const apply = async () => {
+		setBusy(true);
+		setError('');
+		try {
+			const expected = read().revision;
+			const document = await api<{
+				cameras: { name: string; robot_to_camera: Record<string, number> }[];
+				processing: unknown;
+			}>('/api/robot-config');
+			const camera = document.cameras.find((camera) => camera.name === c.logical_name);
+			if (!camera || !geometry) throw new Error('Choose a configured robot camera');
+			const [x_m, y_m, z_m] = geometry.translation;
+			const [qw, qx, qy, qz] = geometry.quaternion;
+			camera.robot_to_camera = { x_m, y_m, z_m, qw, qx, qy, qz };
+			await mutate('configure', { document, revision: expected });
+			setInspection(false);
+			announce('Camera mount override saved.');
+		} catch (e) {
+			setError(errorMessage(e));
+		} finally {
+			setBusy(false);
+		}
+	};
 	return (
 		<>
 			<h1>{c.name}</h1>
@@ -70,7 +96,9 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 						</span>
 					</div>
 					<p className="lock">
-						{c.logical_name ? 'Transform pinned by robot code' : 'Not configured with the robot · local origin only'}
+						{c.logical_name
+							? 'Robot baseline with saved dashboard overrides'
+							: 'Not configured with the robot · local origin only'}
 					</p>
 					<label className="inspection">
 						<input type="checkbox" checked={inspection} onChange={(e) => setInspection(e.target.checked)} /> Inspection
@@ -132,8 +160,17 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 						))}
 					</div>
 					<button className="reset" onClick={reset}>
-						Reset to code defaults
+						Reset preview
 					</button>
+					<button
+						disabled={busy || !inspection || !c.logical_name || Boolean(status.lock_reason)}
+						onClick={() => void apply()}
+					>
+						Save mount override
+					</button>
+					<p className="feedback" role="status">
+						{busy ? 'Waiting for robot acknowledgement…' : error}
+					</p>
 					<small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small>
 					<p>
 						<a href="/docs/operator/cameras/#geometry">Measuring camera geometry</a>
