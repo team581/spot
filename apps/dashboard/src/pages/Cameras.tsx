@@ -37,12 +37,12 @@ function Tile({ camera: c }: { camera: Camera }) {
 		</Link>
 	);
 }
-export default function Overview({ page }: { page: string }) {
+export default function Cameras() {
 	const status = useStatus(),
 		serviceError = useServiceError();
 	return (
 		<>
-			<PageTitle>{page === 'cameras' ? 'Cameras' : 'Overview'}</PageTitle>
+			<PageTitle>Cameras</PageTitle>
 			<div className="grid gap-6 md:grid-cols-2">
 				{status.cameras.length ? (
 					status.cameras.map((c) => <Tile key={c.identity} camera={c} />)

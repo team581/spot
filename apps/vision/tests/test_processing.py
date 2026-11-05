@@ -1,9 +1,11 @@
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from spot_vision.config import CameraConfig, CameraSelector, ConfigError, DetectorConfig
 from spot_vision.processing import CameraDetector, ProcessingBudget, ProcessingPolicy
+from spot_vision.protocol import restore
 
 
 def camera_config(name="front", backend="cuda"):
@@ -65,4 +67,4 @@ def test_common_processing_budget_preserves_fairness():
 )
 def test_invalid_processing_policy_rejected(value):
     with pytest.raises(ConfigError):
-        ProcessingPolicy.parse(value)
+        restore(ProcessingPolicy, json.dumps(value))

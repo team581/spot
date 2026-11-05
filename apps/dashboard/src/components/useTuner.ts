@@ -10,11 +10,9 @@ const allowed = (status: Status, id: string): Values =>
 	);
 export function useTuner(camera: Camera) {
 	const status = useStatus();
-	const { mutateAsync } = useOperation<'camera/tune' | 'device/tune'>();
+	const { mutateAsync } = useOperation<'camera/tune'>();
 	const tune = (payload: { values?: Values; reset?: boolean; revision: string }) =>
-		camera.logical_name
-			? mutateAsync({ operation: 'camera/tune', payload: { name: camera.logical_name, ...payload } })
-			: mutateAsync({ operation: 'device/tune', payload: { identity: camera.identity, ...payload } });
+		mutateAsync({ operation: 'camera/tune', payload: { name: camera.logical_name ?? '', ...payload } });
 	const [, redraw] = useReducer((n) => n + 1, 0);
 	const [tuner] = useState(
 		() =>

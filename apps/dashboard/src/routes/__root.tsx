@@ -4,7 +4,7 @@ import {
 	BookOpen,
 	Camera,
 	Crosshair,
-	LayoutDashboard,
+	GitCompareArrows,
 	Network as NetworkIcon,
 	Server,
 	TriangleAlert,
@@ -13,6 +13,7 @@ import { useDashboard, useServiceError } from '../dashboard';
 import { loadStatus, useStatus } from '../queries';
 import { date } from '../components/common';
 import { ThemeMenu } from '../components/ThemeMenu';
+import { count } from '../state/changes';
 import {
 	Sidebar,
 	SidebarContent,
@@ -21,6 +22,7 @@ import {
 	SidebarHeader,
 	SidebarInset,
 	SidebarMenu,
+	SidebarMenuBadge,
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarMenuSub,
@@ -40,12 +42,10 @@ function CloseMobileSidebar() {
 	return null;
 }
 export const Route = createRootRoute({ loader: loadStatus, component: Root });
-const top = [
-	{ to: '/', label: 'Overview', icon: LayoutDashboard },
-	{ to: '/cameras', label: 'Cameras', icon: Camera },
-] as const;
+const top = [{ to: '/', label: 'Cameras', icon: Camera }] as const;
 const bottom = [
 	{ to: '/calibration', label: 'Calibration', icon: Crosshair },
+	{ to: '/changes', label: 'Changes', icon: GitCompareArrows },
 	{ to: '/network', label: 'Network', icon: NetworkIcon },
 	{ to: '/system', label: 'System', icon: Server },
 ] as const;
@@ -67,6 +67,11 @@ function Root() {
 				<item.icon />
 				<span>{item.label}</span>
 			</SidebarMenuButton>
+			{item.to === '/changes' && status.overrides?.length ? (
+				<SidebarMenuBadge aria-label={`${count(status.overrides.length, 'change', 'changes')} not in robot code`}>
+					{status.overrides.length}
+				</SidebarMenuBadge>
+			) : null}
 		</SidebarMenuItem>
 	);
 	return (
@@ -166,13 +171,13 @@ function Root() {
 						<Outlet />
 					) : (
 						<div className="flex flex-col gap-5 p-4 md:p-6 lg:p-8">
-							{status.has_overrides ? (
+							{status.overrides?.length ? (
 								<Alert role="status">
 									<TriangleAlert />
 									<AlertDescription>
 										<span>
-											Saved dashboard overrides are active. <Link to="/system">Manage overrides</Link> or export the
-											effective configuration.
+											{count(status.overrides.length, 'setting on Spot differs', 'settings on Spot differ')} from robot
+											code. <Link to="/changes">Review changes</Link>
 										</span>
 									</AlertDescription>
 								</Alert>

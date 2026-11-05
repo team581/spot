@@ -55,6 +55,19 @@ for (const fixture of fixtures)
 			segment.points.forEach((point, j) => close(point, b[i].points[j]));
 		});
 	});
+void test('spot-config.json roll, pitch and yaw give the WPILib axes in the preview', () => {
+	const { previewMount } = require('../media/cameras.ts');
+	for (const fixture of fixtures) {
+		const [roll_deg, pitch_deg, yaw_deg] = fixture.javaRollPitchYawDeg;
+		const mount = previewMount({ name: 'camera', robot_to_camera: { roll_deg, pitch_deg, yaw_deg } });
+		for (const [i, axis] of [
+			[1, 0, 0],
+			[0, 1, 0],
+			[0, 0, 1],
+		].entries())
+			close(math.rotate(mount.quaternion, axis), fixture.worldAxes[i]);
+	}
+});
 void test('the same signed pitch points in the same direction in Java and Jetson controls', () => {
 	for (const pitch of [-45, -20, 0, 20, 45]) {
 		const java = math.rotate(math.quaternion(0, pitch, 0), [1, 0, 0]);

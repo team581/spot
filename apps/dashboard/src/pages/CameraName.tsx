@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { Separator } from '@/components/ui/separator';
 import type { Camera } from '../types';
 export default function CameraName({ camera: c }: { camera: Camera }) {
 	const { announce } = useDashboard(),
@@ -48,7 +47,7 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 					</Label>
 					<Button
 						id="rename"
-						disabled={busy || Boolean(status.lock_reason) || !c.connected || !available.length || !confirmed}
+						disabled={busy || !c.connected || !available.length || !confirmed}
 						onClick={() =>
 							operation.mutate(
 								{
@@ -65,25 +64,10 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 					>
 						Rename
 					</Button>
-					<Separator />
-					<p>Use this camera without a robot profile for tuning and calibration.</p>
-					<Button
-						variant="outline"
-						disabled={busy}
-						onClick={() =>
-							operation.mutate({
-								operation: 'device/setup',
-								payload: { identity: c.identity, revision: status.revision },
-							})
-						}
-					>
-						Open standalone camera setup
-					</Button>
 					<Feedback id="naming-lock">
-						{status.lock_reason ||
-							(status.fresh
-								? 'Confirm this preview matches the physical camera'
-								: 'Cached code names · standalone setup')}
+						{status.names.length
+							? 'Name this camera to tune and calibrate it'
+							: 'Connect robot code once to load its camera names'}
 					</Feedback>
 					<Feedback id="page-feedback">{operation.error?.message}</Feedback>
 					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="assign-cameras">

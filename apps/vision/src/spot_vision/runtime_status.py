@@ -8,12 +8,12 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING, TypedDict
 
 from .camera_controls import frame_limited_exposure
-from .config import ConfigError
 from .configuration import mode_signature
 from .optical_modes import mode_supported, preview_mode, preview_modes
 from .timing_qualification import timing_signature
 
 if TYPE_CHECKING:
+    from . import protocol_models as wire
     from .runtime import Runtime
 
 
@@ -24,8 +24,6 @@ class StatusSnapshot(TypedDict):
     names: list[str]
     has_configuration: bool
     fresh: bool
-    lock_reason: str
-    standalone: bool
     connected: bool
     clock: dict
     faults: list[str]
@@ -39,8 +37,7 @@ class StatusSnapshot(TypedDict):
     network: dict
     endpoint: dict
     field: dict | None
-    has_overrides: bool
-    override_paths: list[str]
+    overrides: list[dict]
 
 
 def camera_health(
@@ -69,13 +66,16 @@ def camera_health(
     return "No tags" if no_tags else "Ready"
 
 
+def geometry(mount: wire.Mount) -> dict:
+    pose = mount.pose()
+    return {
+        "translation": [pose.x_m, pose.y_m, pose.z_m],
+        "quaternion": [pose.qw, pose.qx, pose.qy, pose.qz],
+    }
+
+
 def build_status(runtime: Runtime) -> StatusSnapshot:
     config = runtime.configuration
-    try:
-        config.require_eligible()
-        lock_reason = ""
-    except ConfigError as exc:
-        lock_reason = str(exc)
     devices = runtime.devices.snapshot()[:32]
     manifest = config.manifest
     definitions = list(manifest.profile.cameras) if manifest else []
@@ -94,7 +94,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
         identity = device["identity"]
         name = by_identity.get(identity)
         definition = next((c for c in definitions if c.name == name), None)
-        standalone_setup = not name and identity in config.state.data.get("standalone_cameras", {})
         worker = runtime.workers.get(identity)
         record = runtime.calibrations.get(identity)
         capabilities = []
@@ -119,18 +118,17 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     else control["value"] * factor,
                     "allowed": bool(
                         control["writable"]
-                        and (
-                            (definition is not None and (policy is None or policy.allow_override))
-                            or standalone_setup
-                        )
+                        and definition is not None
+                        and (policy is None or policy.allow_override)
                     ),
                     "default": defaults.get(name, {}).get(control["name"]),
                     "required": bool(policy and policy.required),
                     "reason": ""
-                    if (definition is not None and (policy is None or policy.allow_override))
-                    or standalone_setup
+                    if definition is not None and (policy is None or policy.allow_override)
                     else "Pinned by robot code"
                     if policy
+                    else "Assign a robot camera name to tune"
+                    if definition is None
                     else "Not allowed by robot code",
                 }
             )
@@ -143,7 +141,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             **device,
             "name": name or device["display_id"],
             "logical_name": name,
-            "standalone_setup": standalone_setup,
             "required": bool(definition and definition.required),
             "timing_signature": timing_signature(runtime.modes[identity], worker.readback)
             if worker and identity in runtime.modes
@@ -213,23 +210,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                 {"id": mode_signature(preview_mode(m)), **m, "supported": True}
                 for m in preview_modes(runtime.devices.get(identity))
             ],
-            "geometry": {
-                "translation": [
-                    definition.robot_to_camera.x_m,
-                    definition.robot_to_camera.y_m,
-                    definition.robot_to_camera.z_m,
-                ],
-                "quaternion": [
-                    definition.robot_to_camera.qw,
-                    definition.robot_to_camera.qx,
-                    definition.robot_to_camera.qy,
-                    definition.robot_to_camera.qz,
-                ],
-            }
-            if definition
-            else {"translation": [0, 0, 0], "quaternion": [1, 0, 0, 0], "placeholder": True}
-            if standalone_setup
-            else None,
+            "geometry": geometry(definition.robot_to_camera) if definition else None,
         }
         processed = runtime.frames.results.get(identity)
         if processed and worker:
@@ -279,33 +260,18 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     "age_s": (time.monotonic_ns() - last_frame.captured_monotonic_ns) / 1e9
                     if last_frame
                     else None,
-                    "geometry": {
-                        "translation": [
-                            definition.robot_to_camera.x_m,
-                            definition.robot_to_camera.y_m,
-                            definition.robot_to_camera.z_m,
-                        ],
-                        "quaternion": [
-                            definition.robot_to_camera.qw,
-                            definition.robot_to_camera.qx,
-                            definition.robot_to_camera.qy,
-                            definition.robot_to_camera.qz,
-                        ],
-                    },
+                    "geometry": geometry(definition.robot_to_camera),
                 }
             )
     sync = runtime.transport.clock.snapshot()
     return {
-        "has_overrides": bool(config.override_entries()),
-        "override_paths": [entry["path"] for entry in config.override_entries()],
+        "overrides": config.override_entries(),
         "revision": config.state.generation,
         "applied_generation": config.applied_generation,
         "cameras": cameras,
         "names": [c.name for c in definitions],
         "has_configuration": manifest is not None,
         "fresh": config.fresh,
-        "lock_reason": lock_reason,
-        "standalone": config.standalone,
         "connected": config.connected,
         "clock": asdict(sync),
         "faults": list(runtime.faults.values())

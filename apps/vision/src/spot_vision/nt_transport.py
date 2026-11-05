@@ -56,7 +56,7 @@ def make_observation(
         sequence=frame.sequence,
         camera_name=camera.name,
         runtime_generation=context.generation,
-        robot_to_camera=copy.deepcopy(camera.robot_to_camera),
+        robot_to_camera=camera.robot_to_camera.pose(),
         calibration_valid=context.calibrated,
         capture_local_nt_us=frame.capture_timestamp_us,
         timestamp_source=frame.timestamp_source,
@@ -154,6 +154,8 @@ class NtTransport:
         self._health = self.instance.getStructTopic(f"{ROOT}/health", Heartbeat).publish(options)
         self._error = self.instance.getStringTopic(f"{ROOT}/error").publish()
         self._camera_names = self.instance.getStringArrayTopic(f"{ROOT}/cameras").publish()
+        # Dashboard overrides that robot code does not match yet; empty when in sync.
+        self._overrides = self.instance.getStringArrayTopic(f"{ROOT}/overrides").publish()
         self._listener = self.instance.addConnectionListener(True, self._connection_event)
         if self._owns_instance and config.enabled:
             self._start_client()
@@ -208,6 +210,7 @@ class NtTransport:
     def configuration_applied(self) -> None:
         with self._lock:
             config = self.configuration
+            self._overrides.set([entry["path"] for entry in config.override_entries()])
             if not config.fresh or config.manifest is None:
                 return
             if self._generation != config.state.generation:
@@ -328,6 +331,7 @@ class NtTransport:
             self._profile,
             self._robot_state,
             self._health,
+            self._overrides,
             self._error,
             self._camera_names,
             *self._observations.values(),

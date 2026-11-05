@@ -4,6 +4,12 @@ export interface Geometry {
 	translation: number[];
 	quaternion: number[];
 }
+export interface Override {
+	path: string;
+	value: unknown;
+	code_value: unknown;
+	code_changed: boolean;
+}
 export interface Control {
 	name: string;
 	label: string;
@@ -14,6 +20,8 @@ export interface Control {
 	factor: number;
 	unit: string;
 	allowed: boolean;
+	/** Robot-code value. */
+	default?: number | null;
 	required?: boolean;
 	reason?: string;
 	range_reason?: string;
@@ -28,7 +36,6 @@ export interface Camera {
 	present?: boolean;
 	health?: string;
 	calibrated: boolean;
-	standalone_setup?: boolean;
 	controls?: Control[];
 	geometry?: Geometry;
 	age_s?: number;
@@ -108,16 +115,13 @@ interface Network {
 	pending?: { token: string; address?: string; remaining_s: number };
 }
 export interface Status {
-	has_overrides?: boolean;
-	override_paths?: string[];
+	overrides?: Override[];
 	cameras: Camera[];
 	names: string[];
 	revision: string;
-	lock_reason: string;
 	applied_generation?: string;
 	connected?: boolean;
 	fresh?: boolean;
-	standalone?: boolean;
 	has_configuration?: boolean;
 	uptime_s?: number;
 	clock: {
@@ -175,7 +179,6 @@ export const initialStatus: Status = {
 	cameras: [],
 	names: [],
 	revision: '',
-	lock_reason: 'Robot state unknown · locked',
 	clock: {},
 	software: {},
 	calibration: { cameras: {} },

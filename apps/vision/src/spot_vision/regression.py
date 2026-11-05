@@ -82,7 +82,9 @@ def run_image_regression(
                 solution,
                 ObservationContext(
                     "0" * 32,
-                    wire.CameraDefinition(name=camera.id),
+                    wire.CameraDefinition(
+                        name=camera.id, robot_to_camera=wire.Mount(), allowed_modes=[]
+                    ),
                     True,
                     0.0,
                 ),

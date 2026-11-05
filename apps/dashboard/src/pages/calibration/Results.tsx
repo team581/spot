@@ -1,6 +1,9 @@
 import { useState, useReducer } from 'react';
-import { useDashboard } from '../../dashboard';
-import { Feedback, Panel, fmt, date } from '../../components/common';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '../../api';
+import { errorMessage, useDashboard } from '../../dashboard';
+import { Feedback, Panel, fmt, date, saveJson } from '../../components/common';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -12,6 +15,11 @@ export default function Results() {
 		status = useStatus(),
 		apply = useOperation<'calibration/apply'>(),
 		restore = useOperation<'configuration/restore'>(),
+		importing = useOperation<'configuration/import'>(),
+		exporting = useMutation({
+			mutationFn: async () => saveJson(await api('/api/configuration'), 'spot-calibrations.json'),
+		}),
+		[notice, setNotice] = useState(''),
 		selected = selections.results;
 	const [, redraw] = useReducer((n) => n + 1, 0);
 	const sessions = status.calibration.cameras,
@@ -75,10 +83,7 @@ export default function Results() {
 					</Button>
 					<Button
 						disabled={Boolean(
-							status.lock_reason ||
-							apply.isPending ||
-							!selected.size ||
-							[...selected].some((id) => !passing(id) || sessions[id]?.solving),
+							apply.isPending || !selected.size || [...selected].some((id) => !passing(id) || sessions[id]?.solving),
 						)}
 						onClick={() =>
 							apply.mutate({
@@ -120,7 +125,42 @@ export default function Results() {
 				) : (
 					<p className="text-muted-foreground">No activated calibration history</p>
 				)}
-				<Feedback>{restore.error?.message}</Feedback>
+				<div className="flex flex-wrap items-center gap-2">
+					<Button variant="outline" onClick={() => exporting.mutate()}>
+						Export calibrations
+					</Button>
+					<Label className="gap-2">
+						Import calibrations
+						<Input
+							className="w-auto"
+							type="file"
+							accept="application/json,.json"
+							onChange={async (e) => {
+								const file = e.target.files?.[0];
+								if (!file) return;
+								if (file.size > 2 * 1024 * 1024) {
+									setNotice('Import exceeds 2 MiB');
+									return;
+								}
+								let document;
+								try {
+									document = JSON.parse(await file.text());
+								} catch (error) {
+									setNotice(errorMessage(error));
+									return;
+								}
+								setNotice('');
+								importing.mutate(
+									{ operation: 'configuration/import', payload: { document, revision: readStatus().revision } },
+									{ onSuccess: () => announce('Calibrations imported') },
+								);
+							}}
+						/>
+					</Label>
+				</div>
+				<Feedback id="history-feedback">
+					{notice || restore.error?.message || importing.error?.message || exporting.error?.message}
+				</Feedback>
 			</Panel>
 		</>
 	);
@@ -149,7 +189,7 @@ function HistoryEntry({
 						<Label key={record.id}>
 							<Checkbox
 								checked={selected.has(record.id)}
-								disabled={Boolean(!compatible || h.active || status.lock_reason)}
+								disabled={Boolean(!compatible || h.active)}
 								onCheckedChange={(checked) => {
 									checked ? selected.add(record.id) : selected.delete(record.id);
 									selections.history.set(h.generation, selected);
@@ -167,7 +207,7 @@ function HistoryEntry({
 			) : (
 				<Button
 					variant="outline"
-					disabled={Boolean(h.active || status.lock_reason || !selected.size)}
+					disabled={Boolean(h.active || !selected.size)}
 					onClick={() => onRestore([...selected])}
 				>
 					Restore selected

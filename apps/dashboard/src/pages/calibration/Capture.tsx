@@ -40,17 +40,10 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 	const [board, setBoard] = useState(status.calibration.board ?? {}),
 		[model, setModel] = useState(String(status.calibration.options?.model || 'plumb_bob')),
 		[minViews, setMinViews] = useState(String(status.calibration.options?.min_frames || 15));
-	const usable = status.cameras.filter((c) => c.logical_name || c.connected);
+	const usable = status.cameras.filter((c) => c.logical_name);
 	async function add() {
 		if (!choice) return;
-		const camera = status.cameras.find((c) => c.identity === choice);
-		if (!camera) return;
 		try {
-			if (!camera.logical_name && (!camera.standalone_setup || status.lock_reason))
-				await operation.mutateAsync({
-					operation: 'device/setup',
-					payload: { identity: choice, revision: readStatus().revision },
-				});
 			selected.add(choice);
 			await select();
 		} catch {
@@ -122,7 +115,6 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 				</div>
 				<Button
 					variant="outline"
-					disabled={Boolean(status.lock_reason)}
 					onClick={async () => {
 						const values = Object.fromEntries(
 							Object.keys(status.calibration.board ?? {}).map((key) => [
@@ -158,9 +150,7 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 					</NativeSelect>
 				</Label>
 				<Button
-					disabled={Boolean(
-						status.lock_reason || !selected.size || Object.values(status.calibration.cameras).some((s) => s.solving),
-					)}
+					disabled={Boolean(!selected.size || Object.values(status.calibration.cameras).some((s) => s.solving))}
 					onClick={() =>
 						operation.mutate({
 							operation: 'calibration/start-all',
@@ -223,7 +213,7 @@ function CalibrationCard({
 					<Button
 						key={action}
 						variant="outline"
-						disabled={Boolean(status.lock_reason || session?.solving)}
+						disabled={Boolean(session?.solving)}
 						onClick={() =>
 							operation.mutate({
 								operation: `calibration/${action === 'start' && session?.running ? 'pause' : action}`,

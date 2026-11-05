@@ -26,7 +26,6 @@ def test_selection_changes_do_not_reapply_configuration(tmp_path):
     service, applications = configured(tmp_path)
     service.robot_state(state())
     assert service.tag_selection() == TagSelection(1, (1, 2))
-    service.require_eligible()
     service.robot_state(state(2, (2,)))
     assert service.tag_selection() == TagSelection(2, (2,))
     assert len(applications) == 1

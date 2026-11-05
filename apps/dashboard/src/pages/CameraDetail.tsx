@@ -3,8 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
 import { CalibrationState, CameraSelector, CameraTabs, Feedback, Panel, PageTitle, age } from '../components/common';
-import { Redo2, TriangleAlert, Undo2 } from 'lucide-react';
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Redo2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -27,7 +26,6 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 		{ tuner, history, reset, reconcile } = useTuner(c);
 	const [notice, setNotice] = useState(''),
 		[outlines, setOutlines] = useState(true),
-		[code, setCode] = useState(''),
 		[replacement, setReplacement] = useState(''),
 		[confirmed, setConfirmed] = useState(false);
 	const view = usePreview(c.identity),
@@ -45,28 +43,6 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 		: (replacements[0]?.identity ?? '');
 	return (
 		<>
-			{!c.logical_name ? (
-				<Alert>
-					<TriangleAlert />
-					<AlertTitle>Not configured with the robot.</AlertTitle>
-					<AlertDescription>
-						Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation.
-					</AlertDescription>
-					<AlertAction>
-						<Button
-							size="sm"
-							onClick={() =>
-								operation.mutate({
-									operation: 'device/setup',
-									payload: { identity: c.identity, revision: status.revision },
-								})
-							}
-						>
-							Enable standalone setup
-						</Button>
-					</AlertAction>
-				</Alert>
-			) : null}
 			<div className="flex items-center justify-between gap-4">
 				<PageTitle id="camera-title">{c.name}</PageTitle>
 				<Link id="calibrated-state" to="/calibration">
@@ -89,12 +65,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 										size="icon"
 										aria-label={direction === 'undo' ? 'Undo' : 'Redo'}
 										disabled={Boolean(
-											!stack.length ||
-											status.lock_reason ||
-											tuner.inFlight ||
-											tuner.pending ||
-											tuner.gesture ||
-											tuner.history.conflict,
+											!stack.length || tuner.inFlight || tuner.pending || tuner.gesture || tuner.history.conflict,
 										)}
 										onClick={() => void history(direction)}
 									>
@@ -105,7 +76,6 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 						</span>
 					}
 				>
-					<Feedback id="config-lock">{status.lock_reason}</Feedback>
 					{primary.map((ctrl) => (
 						<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
 					))}
@@ -115,13 +85,14 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							id="optical-mode"
 							className="w-full"
 							value={c.mode_id || ''}
-							disabled={Boolean(status.lock_reason || !c.connected || tuner.inFlight)}
+							disabled={!c.connected || tuner.inFlight}
 							onChange={(e) => {
-								const mode = { mode_id: e.target.value, revision: status.revision };
+								if (!c.logical_name) return;
 								operation.mutate(
-									c.logical_name
-										? { operation: 'camera/mode', payload: { name: c.logical_name, ...mode } }
-										: { operation: 'device/mode', payload: { identity: c.identity, ...mode } },
+									{
+										operation: 'camera/mode',
+										payload: { name: c.logical_name, mode_id: e.target.value, revision: status.revision },
+									},
 									{ onSuccess: onModeApplied },
 								);
 							}}
@@ -140,14 +111,11 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 					<Button
 						variant="outline"
 						disabled={Boolean(
-							status.lock_reason ||
-							!(c.controls ?? []).some((ctrl) => ctrl.allowed) ||
-							tuner.inFlight ||
-							tuner.history.conflict,
+							!(c.controls ?? []).some((ctrl) => ctrl.allowed) || tuner.inFlight || tuner.history.conflict,
 						)}
 						onClick={() => void reset()}
 					>
-						{c.logical_name ? 'Reset to code defaults' : 'Reset setup values'}
+						Reset to code defaults
 					</Button>
 					<Collapsible>
 						<CollapsibleTrigger className="text-muted-foreground hover:text-foreground">Advanced</CollapsibleTrigger>
@@ -155,27 +123,6 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							{advanced.map((ctrl) => (
 								<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
 							))}
-							<Button
-								variant="outline"
-								onClick={async () => {
-									const value = (c.controls ?? [])
-										.map(
-											(ctrl) =>
-												`VisionProfiles.${ctrl.allowed ? 'tuning' : 'pinned'}("${ctrl.name}", ${ctrl.value}${ctrl.allowed ? '' : ', ' + Boolean(ctrl.required)})`,
-										)
-										.join(',\n');
-									setCode(value);
-									try {
-										await navigator.clipboard.writeText(value);
-										announce('Settings copied as code');
-									} catch {
-										announce('Code displayed for copying');
-									}
-								}}
-							>
-								Copy settings as code
-							</Button>
-							{code ? <pre className="overflow-auto rounded-md bg-muted p-2 text-xs">{code}</pre> : null}
 							<Label htmlFor="replacement-identity">Replacement camera</Label>
 							<NativeSelect
 								id="replacement-identity"
@@ -194,7 +141,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							</Label>
 							<Button
 								variant="outline"
-								disabled={Boolean(!c.logical_name || status.lock_reason || !replacements.length)}
+								disabled={!c.logical_name || !replacements.length}
 								onClick={() => {
 									if (!c.logical_name) return;
 									if (!confirmed) {

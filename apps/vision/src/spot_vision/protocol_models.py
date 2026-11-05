@@ -1,55 +1,127 @@
-"""Intermediate models for profile snapshots and NetworkTables struct construction."""
+"""Robot configuration models, which also define spot-config.json's published schema, and
+intermediate models for NetworkTables struct construction."""
 
+import math
 from dataclasses import dataclass
 from dataclasses import field as data_field
+from typing import Annotated, Literal
+
+from pydantic import ConfigDict, Field, with_config
 
 from .config import DetectorConfig
 
+# Parsed from JSON only: Spot requires exact JSON types, rejects unknown keys, and checks
+# defaults too, so an omitted field cannot slip past a constraint.
+CONFIG = ConfigDict(strict=True, extra="forbid", allow_inf_nan=False, validate_default=True)
+Name = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")]
 
+
+@with_config(CONFIG)
 @dataclass
 class Pose:
+    """Translation in metres (WPILib NWU: +X forward, +Y left, +Z up) and a unit quaternion."""
+
     x_m: float = 0.0
     y_m: float = 0.0
     z_m: float = 0.0
-    qw: float = 0.0
+    qw: float = 1.0
     qx: float = 0.0
     qy: float = 0.0
     qz: float = 0.0
 
 
+Degrees = Annotated[float, Field(ge=-180, le=180)]
+
+
+@with_config(CONFIG)
+@dataclass
+class Mount:
+    """Camera position on the robot: translation in metres (WPILib NWU: +X forward, +Y left,
+    +Z up) and rotation in degrees as WPILib Rotation3d(roll, pitch, yaw). Positive pitch
+    points the lens down."""
+
+    x_m: float = 0.0
+    y_m: float = 0.0
+    z_m: float = 0.0
+    roll_deg: Degrees = 0.0
+    pitch_deg: Degrees = 0.0
+    yaw_deg: Degrees = 0.0
+
+    def pose(self) -> Pose:
+        from wpimath.geometry import Rotation3d
+
+        q = Rotation3d(
+            *(math.radians(v) for v in (self.roll_deg, self.pitch_deg, self.yaw_deg))
+        ).getQuaternion()
+        return Pose(self.x_m, self.y_m, self.z_m, q.W(), q.X(), q.Y(), q.Z())
+
+
+@with_config(CONFIG)
 @dataclass
 class OpticalMode:
-    id: str = ""
-    width: int = 0
-    height: int = 0
-    pixel_format: str = ""
-    fps: int = 0
-    optical_signature: str = ""
+    id: Name
+    width: Annotated[int, Field(gt=0, le=4096, multiple_of=2)]
+    height: Annotated[int, Field(gt=0, le=4096)]
+    pixel_format: Literal["YUYV", "MJPEG"]
+    fps: Annotated[int, Field(gt=0, le=240)]
 
 
+@with_config(CONFIG)
 @dataclass
 class ControlPolicy:
-    name: str = ""
-    default_value: float = 0.0
-    allow_override: bool = False
-    required: bool = False
+    """A V4L2 control value applied by Spot, such as exposure_time_absolute."""
+
+    name: Name
+    default_value: float
+    allow_override: Annotated[
+        bool, Field(description="Whether the dashboard may change this value.")
+    ] = False
+    required: Annotated[
+        bool, Field(description="Fault the camera if the device lacks this control.")
+    ] = False
 
 
-@dataclass
+@with_config(CONFIG)
+@dataclass(frozen=True)
+class ProcessingPolicy:
+    max_fps: Annotated[float, Field(ge=1, le=120)] = 30
+    utilization_budget: Annotated[float, Field(ge=0.1, le=0.95)] = 0.8
+
+
+@with_config(CONFIG)
+@dataclass(kw_only=True)
 class CameraDefinition:
-    name: str = ""
+    name: Name
     required: bool = False
-    enabled: bool = False
-    robot_to_camera: Pose = data_field(default_factory=Pose)
-    image_rotation_deg: int = 0
-    allowed_modes: list[OpticalMode] = data_field(default_factory=list)
-    controls: list[ControlPolicy] = data_field(default_factory=list)
-    binding_id: str = ""
-    calibration: dict | None = None
-    timestamp_qualification: dict | None = None
+    enabled: bool = True
+    robot_to_camera: Mount
+    image_rotation_deg: Literal[0, 180] = 0
+    allowed_modes: Annotated[
+        list[OpticalMode],
+        Field(
+            min_length=1, max_length=16, description="The first mode is the active capture mode."
+        ),
+    ]
+    controls: Annotated[list[ControlPolicy], Field(max_length=64)] = data_field(
+        default_factory=list
+    )
+    binding_id: Annotated[
+        str,
+        Field(
+            max_length=128,
+            description="Physical camera identity. Leave empty and assign it from the dashboard.",
+        ),
+    ] = ""
+    calibration: Annotated[
+        dict | None, Field(description="Calibration record applied from the dashboard.")
+    ] = None
+    timestamp_qualification: Annotated[
+        dict | None, Field(description="Timing record applied from the dashboard.")
+    ] = None
     detector: DetectorConfig = data_field(default_factory=DetectorConfig)
 
 
+@with_config(CONFIG)
 @dataclass
 class FieldTag:
     id: int = 0
@@ -57,6 +129,7 @@ class FieldTag:
     size_m: float = 0.0
 
 
+@with_config(CONFIG)
 @dataclass
 class FieldLayout:
     origin: str = ""
@@ -65,24 +138,29 @@ class FieldLayout:
     tags: list[FieldTag] = data_field(default_factory=list)
 
 
+Cameras = Annotated[list[CameraDefinition], Field(max_length=32)]
+
+
+@with_config(CONFIG)
 @dataclass
 class Profile:
-    cameras: list[CameraDefinition] = data_field(default_factory=list)
+    cameras: Cameras = data_field(default_factory=list)
     field: FieldLayout = data_field(default_factory=FieldLayout)
-    fusion_enabled: bool = False
-    heading_enabled: bool = False
     max_age_s: float = 0.0
     future_tolerance_s: float = 0.0
-    reorder_window_s: float = 0.0
-    processing: dict = data_field(default_factory=dict)
+    processing: ProcessingPolicy = data_field(default_factory=ProcessingPolicy)
 
 
+@with_config(CONFIG)
 @dataclass
 class RobotConfiguration:
-    cameras: list[CameraDefinition] = data_field(default_factory=list)
-    processing: dict = data_field(default_factory=dict)
+    """Robot code's src/main/deploy/spot-config.json."""
+
+    cameras: Cameras = data_field(default_factory=list)
+    processing: ProcessingPolicy = data_field(default_factory=ProcessingPolicy)
 
 
+@with_config(CONFIG)
 @dataclass
 class Manifest:
     profile: Profile = data_field(default_factory=Profile)

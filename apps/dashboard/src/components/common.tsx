@@ -112,7 +112,7 @@ export function CameraSelector({
 			aria-label="Select camera"
 			value={id}
 			onChange={(e) => {
-				void navigate({ to: geometry ? '/cameras/$id/geometry' : '/cameras/$id', params: { id: e.target.value } });
+				void navigate({ to: geometry ? '/cameras/$id/mount' : '/cameras/$id', params: { id: e.target.value } });
 			}}
 		>
 			{cameras.map((c) => (
@@ -145,10 +145,10 @@ export function CameraTabs({ id }: { id: string }) {
 			tabs={
 				<>
 					<TabLink to="/cameras/$id" params={{ id }} activeOptions={{ exact: true }}>
-						Camera
+						Tuning
 					</TabLink>
-					<TabLink to="/cameras/$id/geometry" params={{ id }}>
-						Geometry
+					<TabLink to="/cameras/$id/mount" params={{ id }}>
+						Mount
 					</TabLink>
 				</>
 			}

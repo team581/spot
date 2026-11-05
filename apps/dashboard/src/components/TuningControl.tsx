@@ -1,12 +1,20 @@
-import { useStatus } from '../queries';
+import { Undo2 } from 'lucide-react';
+import { useDashboard } from '../dashboard';
+import { useOperation, useStatus } from '../queries';
+import { controlPath, isOverride } from '../state/changes';
 import type { Camera, Control } from '../types';
+import { Button } from '@/components/ui/button';
 import type { LiveTuner } from '../state/editing';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Slider } from '@/components/ui/slider';
 export function TuningControl({ control: c, tuner, camera }: { control: Control; tuner: LiveTuner; camera: Camera }) {
-	const status = useStatus();
-	const disabled = Boolean(status.lock_reason || !c.allowed || !camera.connected || tuner.history.conflict);
+	const status = useStatus(),
+		{ announce } = useDashboard(),
+		revert = useOperation<'configuration/clear-overrides'>(),
+		path = controlPath(camera.logical_name ?? '', c.name),
+		edited = camera.logical_name ? isOverride(status.overrides, path) : undefined;
+	const disabled = Boolean(!c.allowed || !camera.connected || tuner.history.conflict);
 	const value = tuner.gesture ? (tuner.requested[c.name] ?? c.value) : c.value;
 	const id = 'control-' + c.name;
 	const gesture = {
@@ -69,6 +77,26 @@ export function TuningControl({ control: c, tuner, camera }: { control: Control;
 			<div className="readback min-h-4 text-xs">
 				{tuner.inFlight || tuner.pending ? 'Requested · readback' : 'Readback'} {c.value} {c.unit || ''}
 			</div>
+			{edited ? (
+				<div className="flex items-center justify-between gap-2 text-xs text-warning" data-edited={c.name}>
+					<span>
+						Edited on Spot · robot code {c.default ?? 'not set'} {c.default != null ? c.unit || '' : ''}
+					</span>
+					<Button
+						variant="ghost"
+						size="xs"
+						disabled={revert.isPending || tuner.inFlight}
+						onClick={() =>
+							revert.mutate(
+								{ operation: 'configuration/clear-overrides', payload: { path, revision: status.revision } },
+								{ onSuccess: () => announce(c.label + ' reverted to robot code') },
+							)
+						}
+					>
+						<Undo2 /> Revert
+					</Button>
+				</div>
+			) : null}
 			<small className="text-xs text-muted-foreground empty:hidden">
 				{c.allowed ? c.range_reason || '' : c.reason || 'Unavailable'}
 			</small>

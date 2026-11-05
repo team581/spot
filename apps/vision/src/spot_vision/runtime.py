@@ -20,6 +20,7 @@ from .camera_capture import CameraCapture
 from .camera_controls import EXPOSURE_NAMES, frame_limited_exposure
 from .clock import FrameRateCounter
 from .config import (
+    Backend,
     Calibration,
     CameraConfig,
     CameraSelector,
@@ -83,7 +84,7 @@ class Runtime:
         state_root: Path,
         nt: NtConfig,
         *,
-        backend: str = "cuda",
+        backend: Backend = "cuda",
         devices: DeviceManager | None = None,
         transport_factory=NtTransport,
         capture_factory=CameraCapture,
@@ -164,12 +165,7 @@ class Runtime:
             if self.network is None:
                 future.set_exception(ConfigError("Network helper is not installed"))
                 return future
-
-            def guard():
-                if operation == "network/apply" and self.configuration.connected:
-                    self.configuration.require_eligible()
-
-            return self.network.submit(operation.split("/", 1)[1], payload, guard)
+            return self.network.submit(operation.split("/", 1)[1], payload)
         try:
             self.commands.put_nowait((operation, copy.deepcopy(payload), future))
         except queue.Full:
@@ -219,7 +215,6 @@ class Runtime:
                             payload["record"], payload["revision"], self.validate_timing_record
                         )
                     elif operation == "debug/record":
-                        self.configuration.require_eligible()
                         if payload["revision"] != self.configuration.state.generation:
                             raise ConfigError("revision conflict; fetch current configuration")
                         seconds = payload.get("seconds", 10)
@@ -231,55 +226,6 @@ class Runtime:
                             "last": 0.0,
                         }
                         result = {"recording": True, "seconds": seconds}
-                    elif operation == "standalone":
-                        self.configuration.begin_standalone()
-                        result = None
-                    elif operation == "device/setup":
-                        identity = payload["identity"]
-                        worker, mode = self.workers.get(identity), self.modes.get(identity)
-                        device = self.devices.get(identity)
-                        if not worker or not worker.verified or mode is None or device is None:
-                            raise ConfigError("Wait for a verified camera preview")
-                        defaults = {c["name"]: c["value"] * c["factor"] for c in device.controls}
-                        result = self.configuration.setup_device(
-                            identity,
-                            {
-                                key: getattr(mode, key)
-                                for key in ("width", "height", "pixel_format", "fps")
-                            },
-                            defaults,
-                            payload["revision"],
-                        )
-                    elif operation == "device/tune":
-                        self._validate_exposure(payload["identity"], payload.get("values", {}))
-                        result = self.configuration.tune_device(
-                            payload["identity"],
-                            payload.get("values", {}),
-                            payload["revision"],
-                            reset=payload.get("reset", False),
-                        )
-                    elif operation == "device/mode":
-                        identity = payload["identity"]
-                        device = self.devices.get(identity)
-                        mode = (
-                            next(
-                                (
-                                    m
-                                    for m in preview_modes(device)
-                                    if mode_signature(preview_mode(m)) == payload["mode_id"]
-                                ),
-                                None,
-                            )
-                            if device
-                            else None
-                        )
-                        if mode is None:
-                            raise ConfigError("Selected mode is not supported by this camera")
-                        result = self.configuration.set_device_mode(
-                            identity,
-                            mode,
-                            payload["revision"],
-                        )
                     elif operation == "device/name":
                         result = self.configuration.rename(
                             payload["identity"], payload["name"], payload["revision"]
@@ -350,8 +296,6 @@ class Runtime:
         endpoint = validate_nt_endpoint(endpoint)
         team, server = endpoint.get("team"), endpoint.get("server")
         with self._pipeline_lock:
-            if self.configuration.connected:
-                self.configuration.require_eligible()
             previous = self.nt_config
             updated = replace(previous, team=team, server=server)
             try:
@@ -416,9 +360,7 @@ class Runtime:
             if manifest
             else {}
         )
-        processing = (
-            ProcessingPolicy.parse(manifest.profile.processing) if manifest else self.processing
-        )
+        processing = manifest.profile.processing if manifest else self.processing
         definitions = {c.name: c for c in manifest.profile.cameras} if manifest else {}
         roles = {b["identity"]: name for name, b in bindings.items() if name in definitions}
         layout = (
@@ -474,14 +416,6 @@ class Runtime:
                 # their actual cadence within a pixel-rate budget; processing
                 # and browser previews retain their separate rate limits.
                 candidates = preview_modes(physical)
-                setup = state.data.get("standalone_cameras", {}).get(identity)
-                if setup:
-                    candidates = [
-                        m
-                        for m in candidates
-                        if mode_signature(preview_mode(m))
-                        == mode_signature(preview_mode(setup["mode"]))
-                    ]
                 failed = self._preview_failed.setdefault(identity, set())
                 previous = self.workers.get(identity)
                 if (
@@ -529,14 +463,10 @@ class Runtime:
                     faults[identity] = "No bounded supported preview mode advertised"
                     continue
                 mode = preview_mode(selected)
-                controls[identity] = setup["settings"] if setup else {}
+                controls[identity] = {}
             modes[identity] = mode
             desired[identity] = self._camera_config(identity, mode, definition)
-            record = (
-                definition.calibration
-                if definition
-                else state.data.get("calibrations", {}).get(identity + ":" + mode_signature(mode))
-            )
+            record = definition.calibration if definition else None
             if (
                 record
                 and record["mode_signature"] == mode_signature(mode)
@@ -644,11 +574,7 @@ class Runtime:
                         )
             for identity, worker in self.workers.items():
                 definition = definitions.get(roles.get(identity))
-                record = (
-                    definition.timestamp_qualification
-                    if definition
-                    else state.data.get("timestamp_qualifications", {}).get(identity)
-                )
+                record = definition.timestamp_qualification if definition else None
                 uncertainty, correction = None, 0
                 if record:
                     try:

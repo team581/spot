@@ -115,7 +115,6 @@ class CalibrationManager:
 
     def command(self, action: str, payload: dict) -> dict:
         config = self.runtime.configuration
-        config.require_eligible()
         if action == "apply":
             return self._apply(payload)
         with self._lock:
@@ -157,14 +156,9 @@ class CalibrationManager:
                         worker is None
                         or not worker.verified
                         or mode is None
-                        or (
-                            mode.id == "preview"
-                            and identity not in config.state.data.get("standalone_cameras", {})
-                        )
+                        or mode.id == "preview"
                     ):
-                        raise ConfigError(
-                            "Verify each camera and open standalone setup or choose a robot name"
-                        )
+                        raise ConfigError("Verify each camera and assign a robot camera name")
                     signature = mode_signature(mode)
                     old = self.cameras.get(identity)
                     target[identity] = (
@@ -346,7 +340,6 @@ class CalibrationManager:
                 board, options = self.board, self.options
             for camera in cameras:
                 try:
-                    self.runtime.configuration.require_eligible()
                     self._compatible(camera)
                     packet = self.runtime.frames.image(camera.identity)
                     if (

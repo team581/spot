@@ -1,3 +1,3 @@
 import { createFileRoute } from '@tanstack/react-router';
-import Overview from '../pages/Overview';
-export const Route = createFileRoute('/')({ component: () => <Overview page="overview" /> });
+import Cameras from '../pages/Cameras';
+export const Route = createFileRoute('/')({ component: Cameras });

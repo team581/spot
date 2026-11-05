@@ -86,3 +86,13 @@ def clear(overrides: dict, path: str) -> dict:
     else:
         result.clear()
     return result
+
+
+def lookup(document: dict, path: str):
+    """Return the value at an entry path, or None when it is absent."""
+    node = document
+    for key in path.split("/"):
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node

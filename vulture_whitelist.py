@@ -12,8 +12,6 @@ next_id
 port_slots
 uptime_s
 has_configuration
-has_overrides
-override_paths
 
 # Pydantic, FastAPI and uvicorn read these attributes.
 model_config

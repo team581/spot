@@ -28,7 +28,7 @@ def generate(root: Path) -> None:
             camera_name="front",
             calibration_valid=True,
             runtime_generation="1" * 32,
-            robot_to_camera=copy.deepcopy(message.profile.cameras[0].robot_to_camera),
+            robot_to_camera=message.profile.cameras[0].robot_to_camera.pose(),
             capture_local_nt_us=1_000_000,
             timestamp_source="read-completion-local-nt",
             timestamp_uncertainty_s=0.003,

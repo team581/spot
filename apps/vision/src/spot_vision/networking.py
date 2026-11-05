@@ -413,7 +413,7 @@ class NetworkClient:
                 }
             self.stop.wait(3)
 
-    def submit(self, operation, payload, guard=lambda: None):
+    def submit(self, operation, payload):
         if not self.busy.acquire(blocking=False):
             future = Future()
             future.set_exception(NetworkError("Network change already in progress"))
@@ -421,7 +421,6 @@ class NetworkClient:
 
         def execute():
             try:
-                guard()
                 result = self.request(operation, payload)
                 return {"result": result}
             finally:

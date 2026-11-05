@@ -1,13 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import RobotConfiguration from '../components/RobotConfiguration';
-import { useDashboard, errorMessage, useServiceError } from '../dashboard';
+import { useDashboard, useServiceError } from '../dashboard';
 import { api } from '../api';
 import { DataList, Feedback, PageTitle, Panel, age, date, fmt, saveJson } from '../components/common';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useOperation, useStatus } from '../queries';
 export default function System() {
@@ -16,8 +12,7 @@ export default function System() {
 		serviceError = useServiceError(),
 		m = s.system ?? {},
 		r = s.software;
-	const [notice, setNotice] = useState('');
-	const operation = useOperation<'configuration/import' | 'debug/record'>();
+	const operation = useOperation<'debug/record'>();
 	const download = useMutation({
 		mutationFn: async ({ path, name }: { path: string; name: string }) => saveJson(await api(path), name),
 	});
@@ -45,7 +40,6 @@ export default function System() {
 				))}
 			</div>
 			<div className="grid gap-6 lg:grid-cols-2">
-				<RobotConfiguration />
 				<Panel title="Camera pipelines">
 					<Table>
 						<TableHeader>
@@ -142,46 +136,6 @@ export default function System() {
 						</Button>
 						<Button
 							variant="outline"
-							onClick={() => download.mutate({ path: '/api/calibrations', name: 'spot-calibrations.json' })}
-						>
-							Download calibration results
-						</Button>
-						<Button
-							variant="outline"
-							onClick={() => download.mutate({ path: '/api/configuration', name: 'spot-state.json' })}
-						>
-							Export saved setup
-						</Button>
-						<Label className="gap-2">
-							Import saved setup
-							<Input
-								className="w-auto"
-								type="file"
-								accept="application/json,.json"
-								onChange={async (e) => {
-									const file = e.target.files?.[0];
-									if (!file) return;
-									if (file.size > 2 * 1024 * 1024) {
-										setNotice('Configuration exceeds 2 MiB import bound');
-										return;
-									}
-									let document;
-									try {
-										document = JSON.parse(await file.text());
-									} catch (error) {
-										setNotice(errorMessage(error));
-										return;
-									}
-									setNotice('');
-									operation.mutate(
-										{ operation: 'configuration/import', payload: { document, revision: s.revision } },
-										{ onSuccess: () => announce('Calibration data imported') },
-									);
-								}}
-							/>
-						</Label>
-						<Button
-							variant="outline"
 							onClick={() =>
 								operation.mutate(
 									{ operation: 'debug/record', payload: { seconds: 10, revision: s.revision } },
@@ -192,7 +146,7 @@ export default function System() {
 							Record 10 s diagnostics
 						</Button>
 					</div>
-					<Feedback id="page-feedback">{notice || operation.error?.message || download.error?.message}</Feedback>
+					<Feedback id="page-feedback">{operation.error?.message || download.error?.message}</Feedback>
 				</Panel>
 			</div>
 		</>

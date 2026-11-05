@@ -1,12 +1,11 @@
-import { readStatus, useOperation, useStatus } from '../queries';
+import { readStatus, useOperation } from '../queries';
 import { Feedback, LinkTabs, PageTitle, TabLink } from '../components/common';
 import { Button } from '@/components/ui/button';
 import Capture from './calibration/Capture';
 import Results from './calibration/Results';
 export type CalibrationOperation = ReturnType<typeof useOperation>;
 export default function Calibration({ results }: { results: boolean }) {
-	const status = useStatus(),
-		operation = useOperation();
+	const operation = useOperation();
 	return (
 		<>
 			<PageTitle>Calibration</PageTitle>
@@ -37,7 +36,6 @@ export default function Calibration({ results }: { results: boolean }) {
 					Reset session
 				</Button>
 			</LinkTabs>
-			<Feedback id="calibration-lock">{status.lock_reason}</Feedback>
 			<Feedback id="page-feedback">{operation.error?.message}</Feedback>
 			{results ? <Results /> : <Capture operation={operation} />}
 		</>

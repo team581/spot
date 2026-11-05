@@ -22,7 +22,6 @@ def ready():
         "clock": {"state": "Synchronized"},
         "applied_generation": "current",
         "revision": "current",
-        "lock_reason": "",
         "cameras": [
             {
                 "required": True,
@@ -51,7 +50,6 @@ def test_health_rejects_a_different_running_package(ready):
         "stale",
         "clock",
         "profile",
-        "enabled",
         "no cameras",
         "disconnected",
         "uncalibrated",
@@ -68,8 +66,6 @@ def test_robot_qualification_requires_all_readiness_checks(ready, fault):
         ready["clock"]["state"] = "Unsynchronized"
     elif fault == "profile":
         ready["applied_generation"] = "old"
-    elif fault == "enabled":
-        ready["lock_reason"] = "Robot is enabled"
     elif fault == "no cameras":
         ready["cameras"] = []
     elif fault == "disconnected":

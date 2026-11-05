@@ -19,7 +19,8 @@ from .config import ConfigError, NtConfig
 from .devices import _run
 from .http_server import HttpServer
 from .networking import NetworkClient
-from .processing import ProcessingPolicy
+from .protocol import restore
+from .protocol_models import ProcessingPolicy
 from .runtime import Runtime
 
 
@@ -79,7 +80,7 @@ def run(args) -> int:
         Path(args.state_root),
         nt,
         backend=backend,
-        processing=ProcessingPolicy.parse(config.get("processing")),
+        processing=restore(ProcessingPolicy, json.dumps(config.get("processing", {}))),
     )
     runtime.network = NetworkClient()
     runtime.software = software

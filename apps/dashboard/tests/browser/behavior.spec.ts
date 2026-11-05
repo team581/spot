@@ -30,7 +30,7 @@ test.afterEach(async ({ page }) => {
 
 test('navigation, images, detections, pause and geometry inspection', async ({ page }) => {
 	await page.goto('/');
-	await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Cameras', exact: true })).toBeVisible();
 	await expect(page.locator('.tile')).toHaveCount(4);
 	await page.locator('.tile').first().click();
 	await expect(page.getByRole('heading', { name: 'front-left', exact: true })).toBeVisible();
@@ -38,7 +38,7 @@ test('navigation, images, detections, pause and geometry inspection', async ({ p
 	await page.getByRole('button', { name: 'Pause image', exact: true }).click();
 	await expect(page.locator('.image-state')).toContainText('Paused');
 	await page.getByRole('button', { name: 'Resume image', exact: true }).click();
-	await page.getByRole('link', { name: 'Geometry', exact: true }).click();
+	await page.getByRole('link', { name: 'Mount', exact: true }).click();
 	await expect(page.getByRole('textbox', { name: 'X', exact: true })).toBeDisabled();
 	await page.getByRole('checkbox', { name: 'Inspection preview' }).check();
 	const x = page.getByRole('textbox', { name: 'X', exact: true });
@@ -68,6 +68,22 @@ test('acknowledged tuning, undo, redo and reset use the real service', async ({ 
 	await expect(gain).toHaveValue(String(Number(initial) + 1));
 	await page.getByRole('button', { name: 'Reset to code defaults', exact: true }).click();
 	await expect(gain).toHaveValue('30');
+});
+
+test('tuning shows a Spot change that reverts to robot code from the Changes page', async ({ page }) => {
+	const status = await (await page.request.get('/api/status')).json();
+	await page.goto('/cameras/' + status.cameras[0].identity);
+	const gain = page.getByRole('slider', { name: 'Gain', exact: true });
+	await gain.focus();
+	await gain.press('ArrowRight');
+	await expect(page.locator('[data-edited="gain"]')).toContainText('robot code 30');
+	await page.getByRole('link', { name: 'Review changes', exact: true }).click();
+	const row = page.locator('[data-path="cameras/front-left/controls/gain"]');
+	await expect(row).toContainText('front-left · Gain');
+	await expect(row).toContainText('3031');
+	await expect(page.locator('[data-state="current"]')).toContainText('Copy to robot code');
+	await row.getByRole('button', { name: 'Revert', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'In sync', exact: true })).toBeVisible();
 });
 
 test('naming requires preview confirmation and reserves existing roles', async ({ page }) => {
@@ -102,18 +118,6 @@ test('calibration actions and passing results require acknowledgement', async ({
 	await page.getByRole('button', { name: 'Select passing', exact: true }).click();
 	await page.getByRole('button', { name: 'Apply selected', exact: true }).click();
 	await expect(page.locator('#apply-status')).toContainText('Applied');
-});
-
-test('robot lock disables tuning and calibration', async ({ page }) => {
-	const status = await (await page.request.get('/api/status')).json();
-	status.lock_reason = 'Connect robot code or begin standalone setup';
-	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
-	await page.goto('/cameras/' + status.cameras[0].identity);
-	await expect(page.getByRole('slider', { name: 'Gain', exact: true })).toBeDisabled();
-	await expect(page.locator('#config-lock')).toHaveText(status.lock_reason);
-	await page.goto('/calibration/results');
-	await page.getByRole('button', { name: 'Select passing', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
 });
 
 test('rejected operation leaves readback unchanged and no undo history', async ({ page }) => {
@@ -208,7 +212,7 @@ test('geometry editing preserves intermediate text through polling and never wri
 	page.on('request', (r) => {
 		if (r.method() === 'POST') writes.push(r.postDataJSON());
 	});
-	await page.goto('/cameras/' + status.cameras[0].identity + '/geometry');
+	await page.goto('/cameras/' + status.cameras[0].identity + '/mount');
 	await page.getByRole('checkbox', { name: 'Inspection preview' }).check();
 	const x = page.getByRole('textbox', { name: 'X', exact: true });
 	await x.fill('-');
@@ -297,20 +301,20 @@ test('automatic network rollback restores the form; explicit revert uses the con
 	);
 });
 
-test('system downloads, import bound and diagnostics preserve their API contracts', async ({ page }) => {
+test('calibration export, import bound and diagnostics preserve their API contracts', async ({ page }) => {
 	await page.route('**/api/configuration', (route) => route.fulfill({ json: { schema_version: 2, cameras: {} } }));
 	const writes = await captureOperations(page);
-	await page.goto('/system');
+	await page.goto('/calibration/results');
 	const download = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export saved setup', exact: true }).click();
-	expect((await download).suggestedFilename()).toBe('spot-state.json');
-	const file = page.getByLabel('Import saved setup', { exact: true });
+	await page.getByRole('button', { name: 'Export calibrations', exact: true }).click();
+	expect((await download).suggestedFilename()).toBe('spot-calibrations.json');
+	const file = page.getByLabel('Import calibrations', { exact: true });
 	await file.setInputFiles({
 		name: 'oversized.json',
 		mimeType: 'application/json',
 		buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
 	});
-	await expect(page.locator('#page-feedback')).toContainText('exceeds 2 MiB');
+	await expect(page.locator('#history-feedback')).toContainText('exceeds 2 MiB');
 	expect(writes).toEqual([]);
 	await file.setInputFiles({
 		name: 'state.json',
@@ -319,6 +323,7 @@ test('system downloads, import bound and diagnostics preserve their API contract
 	});
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0].payload.document).toEqual({ schema_version: 2 });
+	await page.goto('/system');
 	await page.getByRole('button', { name: 'Record 10 s diagnostics', exact: true }).click();
 	await expect.poll(() => writes.length).toBe(2);
 	expect(writes[1]).toEqual(
@@ -366,13 +371,11 @@ test('mode and replacement operations use the camera identity and require feed c
 test('robot endpoint saves through an operation and can be corrected while disconnected', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	status.connected = true;
-	status.lock_reason = '';
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
 	const writes = await captureOperations(page, ({ payload }) => {
 		status.endpoint.team = payload.team ?? null;
 		status.endpoint.configured = payload.server ?? null;
 		status.connected = false;
-		status.lock_reason = 'Connect robot code or begin standalone setup';
 		return { revision: status.revision, applied_generation: null };
 	});
 	await page.goto('/network');
@@ -390,9 +393,6 @@ test('robot endpoint saves through an operation and can be corrected while disco
 	await target.fill('10.0.0.5');
 	await save.click();
 	await expect(page.locator('#connection-data')).toContainText('10.0.0.5');
-	status.connected = true;
-	await expect(save).toBeDisabled();
-	await expect(target).toBeDisabled();
 	expect(writes).toEqual([
 		expect.objectContaining({ operation: 'nt/endpoint', payload: { team: 9991 } }),
 		expect.objectContaining({ operation: 'nt/endpoint', payload: { server: '10.0.0.5' } }),

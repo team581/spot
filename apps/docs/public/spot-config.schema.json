@@ -1,0 +1,231 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://spot.frc581.com/spot-config.schema.json",
+	"$defs": {
+		"CameraDefinition": {
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+					"type": "string"
+				},
+				"required": {
+					"default": false,
+					"type": "boolean"
+				},
+				"enabled": {
+					"default": true,
+					"type": "boolean"
+				},
+				"robot_to_camera": {
+					"$ref": "#/$defs/Mount"
+				},
+				"image_rotation_deg": {
+					"default": 0,
+					"enum": [0, 180],
+					"type": "integer"
+				},
+				"allowed_modes": {
+					"description": "The first mode is the active capture mode.",
+					"items": {
+						"$ref": "#/$defs/OpticalMode"
+					},
+					"maxItems": 16,
+					"minItems": 1,
+					"type": "array"
+				},
+				"controls": {
+					"items": {
+						"$ref": "#/$defs/ControlPolicy"
+					},
+					"maxItems": 64,
+					"type": "array"
+				},
+				"binding_id": {
+					"default": "",
+					"description": "Physical camera identity. Leave empty and assign it from the dashboard.",
+					"maxLength": 128,
+					"type": "string"
+				},
+				"calibration": {
+					"anyOf": [
+						{
+							"additionalProperties": true,
+							"type": "object"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Calibration record applied from the dashboard."
+				},
+				"timestamp_qualification": {
+					"anyOf": [
+						{
+							"additionalProperties": true,
+							"type": "object"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Timing record applied from the dashboard."
+				},
+				"detector": {
+					"$ref": "#/$defs/DetectorConfig"
+				}
+			},
+			"required": ["name", "robot_to_camera", "allowed_modes"],
+			"type": "object"
+		},
+		"ControlPolicy": {
+			"additionalProperties": false,
+			"description": "A V4L2 control value applied by Spot, such as exposure_time_absolute.",
+			"properties": {
+				"name": {
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+					"type": "string"
+				},
+				"default_value": {
+					"type": "number"
+				},
+				"allow_override": {
+					"default": false,
+					"description": "Whether the dashboard may change this value.",
+					"type": "boolean"
+				},
+				"required": {
+					"default": false,
+					"description": "Fault the camera if the device lacks this control.",
+					"type": "boolean"
+				}
+			},
+			"required": ["name", "default_value"],
+			"type": "object"
+		},
+		"DetectorConfig": {
+			"additionalProperties": false,
+			"properties": {
+				"backend": {
+					"default": "cuda",
+					"enum": ["cuda", "cpu"],
+					"type": "string"
+				},
+				"max_hamming": {
+					"default": 2,
+					"maximum": 2,
+					"minimum": 0,
+					"type": "integer"
+				}
+			},
+			"type": "object"
+		},
+		"Mount": {
+			"additionalProperties": false,
+			"description": "Camera position on the robot: translation in metres (WPILib NWU: +X forward, +Y left,\n+Z up) and rotation in degrees as WPILib Rotation3d(roll, pitch, yaw). Positive pitch\npoints the lens down.",
+			"properties": {
+				"x_m": {
+					"default": 0.0,
+					"type": "number"
+				},
+				"y_m": {
+					"default": 0.0,
+					"type": "number"
+				},
+				"z_m": {
+					"default": 0.0,
+					"type": "number"
+				},
+				"roll_deg": {
+					"default": 0.0,
+					"maximum": 180,
+					"minimum": -180,
+					"type": "number"
+				},
+				"pitch_deg": {
+					"default": 0.0,
+					"maximum": 180,
+					"minimum": -180,
+					"type": "number"
+				},
+				"yaw_deg": {
+					"default": 0.0,
+					"maximum": 180,
+					"minimum": -180,
+					"type": "number"
+				}
+			},
+			"type": "object"
+		},
+		"OpticalMode": {
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+					"type": "string"
+				},
+				"width": {
+					"exclusiveMinimum": 0,
+					"maximum": 4096,
+					"multipleOf": 2,
+					"type": "integer"
+				},
+				"height": {
+					"exclusiveMinimum": 0,
+					"maximum": 4096,
+					"type": "integer"
+				},
+				"pixel_format": {
+					"enum": ["YUYV", "MJPEG"],
+					"type": "string"
+				},
+				"fps": {
+					"exclusiveMinimum": 0,
+					"maximum": 240,
+					"type": "integer"
+				}
+			},
+			"required": ["id", "width", "height", "pixel_format", "fps"],
+			"type": "object"
+		},
+		"ProcessingPolicy": {
+			"additionalProperties": false,
+			"properties": {
+				"max_fps": {
+					"default": 30,
+					"maximum": 120,
+					"minimum": 1,
+					"type": "number"
+				},
+				"utilization_budget": {
+					"default": 0.8,
+					"maximum": 0.95,
+					"minimum": 0.1,
+					"type": "number"
+				}
+			},
+			"type": "object"
+		}
+	},
+	"additionalProperties": false,
+	"description": "Robot code's src/main/deploy/spot-config.json. See https://spot.frc581.com/robot-config/.",
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"cameras": {
+			"items": {
+				"$ref": "#/$defs/CameraDefinition"
+			},
+			"maxItems": 32,
+			"type": "array"
+		},
+		"processing": {
+			"$ref": "#/$defs/ProcessingPolicy"
+		}
+	},
+	"type": "object",
+	"title": "Spot camera configuration"
+}

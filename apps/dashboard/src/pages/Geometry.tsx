@@ -24,8 +24,8 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 		const values = c.geometry ? geometryValues(c.geometry) : [0, 0, 0, 0, 0, 0];
 		return values.map((value, index) => {
 			const edit = new NumberEdit(value, {
-				min: index < 3 ? -10 : -360,
-				max: index < 3 ? 10 : 360,
+				min: index < 3 ? -10 : -180,
+				max: index < 3 ? 10 : 180,
 				revision: status.revision,
 				preview: (value) => {
 					edit.previewValue = value;
@@ -66,12 +66,11 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 			}>('/api/robot/configuration');
 			const camera = document.cameras.find((camera) => camera.name === c.logical_name);
 			if (!camera || !geometry) throw new Error('Choose a configured robot camera');
-			const [x_m, y_m, z_m] = geometry.translation;
-			const [qw, qx, qy, qz] = geometry.quaternion;
-			camera.robot_to_camera = { x_m, y_m, z_m, qw, qx, qy, qz };
+			const [x_m, y_m, z_m, yaw_deg, pitch_deg, roll_deg] = values;
+			camera.robot_to_camera = { x_m, y_m, z_m, roll_deg, pitch_deg, yaw_deg };
 			await submit('configuration/apply', { document, revision: expected });
 			setInspection(false);
-			announce('Camera mount override saved.');
+			announce('Mount saved on Spot.');
 		});
 	return (
 		<>
@@ -80,7 +79,7 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 			<CameraTabs id={c.identity} />
 			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
 				<Panel
-					title="Geometry"
+					title="Mount"
 					action={
 						<span className="flex">
 							<Button variant="ghost" size="icon" aria-label="Undo" disabled>
@@ -92,11 +91,7 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 						</span>
 					}
 				>
-					<p className="text-muted-foreground">
-						{c.logical_name
-							? 'Robot baseline with saved dashboard overrides'
-							: 'Not configured with the robot · local origin only'}
-					</p>
+					<p className="text-muted-foreground">Robot code value, including any change saved on Spot</p>
 					<Label className="text-warning">
 						<Checkbox checked={inspection} onCheckedChange={setInspection} /> Inspection preview
 					</Label>
@@ -162,11 +157,8 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 					<Button variant="outline" onClick={reset}>
 						Reset preview
 					</Button>
-					<Button
-						disabled={busy || !inspection || !c.logical_name || Boolean(status.lock_reason)}
-						onClick={() => apply()}
-					>
-						Save mount override
+					<Button disabled={busy || !inspection || !c.logical_name} onClick={() => apply()}>
+						Save mount on Spot
 					</Button>
 					<Feedback>{busy ? 'Waiting for robot acknowledgement…' : task.error?.message}</Feedback>
 					<small className="text-muted-foreground">

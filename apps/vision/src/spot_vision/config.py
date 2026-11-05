@@ -6,17 +6,23 @@ import math
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
+
+from pydantic import ConfigDict, Field, with_config
 
 
 class ConfigError(ValueError):
     pass
 
 
+Backend = Literal["cuda", "cpu"]
+
+
+@with_config(ConfigDict(strict=True, extra="forbid"))
 @dataclass(frozen=True)
 class DetectorConfig:
-    backend: str = "cuda"
-    max_hamming: int = 2
+    backend: Backend = "cuda"
+    max_hamming: Annotated[int, Field(ge=0, le=2)] = 2
 
 
 @dataclass(frozen=True)

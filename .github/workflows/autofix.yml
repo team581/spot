@@ -37,6 +37,8 @@ jobs:
       - run: pnpm --filter spot-docs exec astro sync
       - run: pnpm --filter spot-dashboard generate:api
         continue-on-error: true
+      - run: pnpm --filter spot-docs generate:schema
+        continue-on-error: true
       - run: pnpm format:fix
         continue-on-error: true
       - run: pnpm lint:fix

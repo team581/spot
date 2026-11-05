@@ -378,35 +378,22 @@ def test_preview_prefers_low_bandwidth_modes_and_rejects_excessive_capture_load(
     assert "No bounded supported preview mode" in camera["fault"]
 
 
-def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runtime):
+def test_named_camera_can_tune_and_calibrate_while_robot_is_disconnected(runtime):
     from spot_vision.calibration import CalibrationManager
 
     app, identity, _, _ = runtime
     config = app.configuration
     config.connection_changed(False)
-    config.manifest = None
-    config.begin_standalone()
-    config._commit({}, config.state.generation)
-    config.setup_device(
-        identity,
-        {"width": 640, "height": 480, "fps": 30, "pixel_format": "MJPG"},
-        {"gain": 1, "contrast": 16},
-        config.state.generation,
-    )
     worker = app.workers[identity]
-    config.tune_device(identity, {"gain": 2}, config.state.generation)
+    config.tune("front", {"gain": 2}, config.state.generation)
     assert app.workers[identity] is worker and worker.readback["gain"] == 2
     status = app.status()["cameras"][0]
-    assert not status["logical_name"] and status["standalone_setup"]
-    assert status["geometry"]["translation"] == [0, 0, 0]
-    assert status["geometry"]["quaternion"] == [1, 0, 0, 0]
     assert next(c for c in status["controls"] if c["name"] == "gain")["allowed"]
     app.calibration = CalibrationManager(app)
     app.calibration.command(
         "select", {"identities": [identity], "revision": config.state.generation}
     )
     assert identity in app.calibration.cameras
-    assert not app.roles and app.configuration.manifest is None
     record = {
         "identity": identity,
         "mode_signature": mode_signature(app.modes[identity]),
@@ -439,10 +426,10 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
     config.calibration_group([record], config.state.generation, app.validate_calibration)
     assert app.status()["cameras"][0]["calibrated"]
     assert app.store.load().data["calibrations"]
-    assert config.manifest is None and not config.state.data.get("profiles")
-    config.connection_changed(True)
-    config.tune_device(identity, {"gain": 3}, config.state.generation)
-    assert app.workers[identity].readback["gain"] == 3
+    assert {entry["path"] for entry in config.override_entries()} >= {
+        "cameras/front/calibration",
+        "cameras/front/controls/gain",
+    }
 
 
 def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(runtime):

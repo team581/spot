@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import math
-import re
 
 from . import protocol_models as wire
 from .config import ConfigError
 from .protocol import restore
 
 MAX_PROFILE_BYTES = 256 * 1024
-MAX_CAMERAS = 32  # protocol bound, not a claim about Jetson capacity
 MAX_TAGS = 64
 MAX_CANDIDATES = 2
-_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
 
 def finite(*values: float) -> bool:
@@ -30,44 +27,28 @@ def valid_pose(pose: wire.Pose) -> bool:
 def parse_manifest(payload: bytes) -> wire.Manifest:
     if not 0 < len(payload) <= MAX_PROFILE_BYTES:
         raise ConfigError("manifest payload exceeds bounds or is empty")
-    try:
-        message = restore(wire.Manifest, payload)
-    except ValueError as exc:
-        raise ConfigError("invalid manifest snapshot") from exc
+    message = restore(wire.Manifest, payload)
     validate_manifest(message)
     return message
 
 
 def validate_manifest(message: wire.Manifest) -> None:
+    """Check rules that span fields; the models check each field when parsing JSON."""
     profile = message.profile
-    from .processing import ProcessingPolicy
-
-    ProcessingPolicy.parse(profile.processing)
-    if not finite(profile.max_age_s, profile.future_tolerance_s, profile.reorder_window_s):
+    if not finite(profile.max_age_s, profile.future_tolerance_s):
         raise ConfigError("timing bounds must be finite")
-    if not (
-        0 < profile.max_age_s <= 0.25
-        and 0 <= profile.future_tolerance_s <= 0.005
-        and 0 <= profile.reorder_window_s < profile.max_age_s
-    ):
+    if not (0 < profile.max_age_s <= 0.25 and 0 <= profile.future_tolerance_s <= 0.005):
         raise ConfigError("profile timing exceeds observation age/future budgets")
-    if len(profile.cameras) > MAX_CAMERAS:
-        raise ConfigError("too many camera definitions")
     names: set[str] = set()
     bindings: set[str] = set()
     for camera in profile.cameras:
-        if not _NAME.fullmatch(camera.name) or camera.name in names:
-            raise ConfigError("invalid or duplicate camera name")
+        if camera.name in names:
+            raise ConfigError(f"duplicate camera name {camera.name!r}")
         names.add(camera.name)
-        if not isinstance(camera.binding_id, str) or len(camera.binding_id) > 128:
-            raise ConfigError("bounded camera identity required")
         if camera.binding_id:
             if camera.binding_id in bindings:
                 raise ConfigError("duplicate physical camera binding")
             bindings.add(camera.binding_id)
-        detector = camera.detector
-        if detector.backend not in {"cpu", "cuda"} or not 0 <= detector.max_hamming <= 2:
-            raise ConfigError("invalid detector settings")
         if camera.calibration is not None:
             from .calibration_record import validate_record
 
@@ -80,37 +61,10 @@ def validate_manifest(message: wire.Manifest) -> None:
             validate_timing_evidence(camera.timestamp_qualification)
             if camera.timestamp_qualification["identity"] != camera.binding_id:
                 raise ConfigError("timing qualification belongs to another camera")
-        if not valid_pose(camera.robot_to_camera):
-            raise ConfigError(f"{camera.name}: measured mount transform required")
-        if camera.image_rotation_deg not in (0, 180):
-            raise ConfigError("image rotation must be 0 or 180 degrees")
-        if not 1 <= len(camera.allowed_modes) <= 16:
-            raise ConfigError("camera requires 1–16 explicitly allowed optical modes")
-        modes: set[str] = set()
-        for mode in camera.allowed_modes:
-            if not _NAME.fullmatch(mode.id) or mode.id in modes:
-                raise ConfigError("invalid or duplicate mode ID")
-            modes.add(mode.id)
-            if (
-                not 0 < mode.width <= 4096
-                or not 0 < mode.height <= 4096
-                or mode.width % 2
-                or not 0 < mode.fps <= 240
-                or mode.pixel_format not in ("YUYV", "MJPEG")
-                or not _NAME.fullmatch(mode.optical_signature)
-            ):
-                raise ConfigError("invalid optical mode")
-        controls: set[str] = set()
-        if len(camera.controls) > 64:
-            raise ConfigError("too many control policies")
-        for control in camera.controls:
-            if (
-                not _NAME.fullmatch(control.name)
-                or control.name in controls
-                or not finite(control.default_value)
-            ):
-                raise ConfigError("invalid or duplicate control policy")
-            controls.add(control.name)
+        if len({mode.id for mode in camera.allowed_modes}) != len(camera.allowed_modes):
+            raise ConfigError(f"{camera.name}: duplicate mode ID")
+        if len({control.name for control in camera.controls}) != len(camera.controls):
+            raise ConfigError(f"{camera.name}: duplicate control policy")
     field = profile.field
     if (
         field.origin != "blue-wall-right"

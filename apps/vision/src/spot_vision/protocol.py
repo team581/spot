@@ -3,42 +3,43 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, is_dataclass
-from types import UnionType
-from typing import get_args, get_origin, get_type_hints
+from dataclasses import asdict
+from functools import cache
+
+from pydantic import TypeAdapter, ValidationError
+
+from .config import ConfigError
+
+# Published by the docs site; robot configuration files may name it as "$schema".
+SCHEMA_URL = "https://spot.frc581.com/spot-config.schema.json"
 
 
 def snapshot(value) -> bytes:
     return json.dumps(asdict(value), separators=(",", ":"), allow_nan=False).encode()
 
 
-def restore(cls, payload):
-    def convert(kind, value):
-        if get_origin(kind) is list:
-            if not isinstance(value, list):
-                raise ValueError("array required")
-            return [convert(get_args(kind)[0], item) for item in value]
-        if get_origin(kind) is UnionType:
-            return None if value is None else convert(get_args(kind)[0], value)
-        if kind is dict:
-            if not isinstance(value, dict):
-                raise ValueError("object required")
-            return value
-        if is_dataclass(kind):
-            hints = get_type_hints(kind)
-            if not isinstance(value, dict) or set(value) != set(hints):
-                raise ValueError("unknown or missing configuration fields")
-            return kind(**{name: convert(member, value[name]) for name, member in hints.items()})
-        if kind is float and type(value) in (int, float):
-            return float(value)
-        if type(value) is not kind:
-            raise ValueError("invalid configuration value type")
-        return value
+@cache
+def _adapter(cls) -> TypeAdapter:
+    return TypeAdapter(cls)
 
+
+def restore(cls, payload):
+    """Parse JSON into a configuration model, naming each invalid field in the error."""
     try:
-        return convert(cls, json.loads(payload, parse_constant=lambda _: None))
-    except (TypeError, KeyError, json.JSONDecodeError) as exc:
-        raise ValueError("invalid configuration snapshot") from exc
+        document = json.loads(payload)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"invalid JSON: {exc}") from exc
+    if isinstance(document, dict) and "$schema" in document:
+        del document["$schema"]  # editor hint, not configuration
+        payload = json.dumps(document)
+    try:
+        return _adapter(cls).validate_json(payload)
+    except ValidationError as exc:
+        raise ConfigError(
+            "; ".join(
+                ".".join(map(str, error["loc"])) + ": " + error["msg"] for error in exc.errors()
+            )
+        ) from exc
 
 
 class ConfigurationIncomplete(Exception):
@@ -80,11 +81,8 @@ class ProfileSubscriber:
             v("Field/widthM", "Double", 0.0),
             [data.FieldTag(t.id, pose_model(t.pose), t.size) for t in tags.value],
         )
-        fusion = v("fusionEnabled", "Boolean", False)
-        heading = v("headingEnabled", "Boolean", False)
         age = v("maxAgeS", "Double", 0.0)
         future = v("futureToleranceS", "Double", 0.0)
-        reorder = v("reorderWindowS", "Double", 0.0)
         if not self.complete:
             raise ConfigurationIncomplete()
         if self._configuration is None or document != self._document:
@@ -93,14 +91,11 @@ class ProfileSubscriber:
         settings = self._configuration
         return data.Manifest(
             data.Profile(
-                settings.cameras,
-                field,
-                fusion,
-                heading,
-                age,
-                future,
-                reorder,
-                settings.processing,
+                cameras=settings.cameras,
+                field=field,
+                max_age_s=age,
+                future_tolerance_s=future,
+                processing=settings.processing,
             )
         )
 

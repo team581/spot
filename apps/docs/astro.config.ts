@@ -67,6 +67,7 @@ export default defineConfig({
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
 				{ slug: 'downloads', label: 'Downloads' },
+				{ slug: 'robot-config', label: 'Robot configuration' },
 				{ slug: 'operator/cameras', label: 'Camera setup' },
 				{ slug: 'operator/deployment', label: 'Jetson installation and recovery' },
 				{ slug: 'development', label: 'Development' },

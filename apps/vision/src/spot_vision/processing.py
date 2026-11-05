@@ -4,35 +4,11 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
-from .config import ConfigError
 from .configuration import TagSelection
 from .models import PoseSolution
-
-
-@dataclass(frozen=True)
-class ProcessingPolicy:
-    max_fps: float = 30
-    utilization_budget: float = 0.8
-
-    @classmethod
-    def parse(cls, values: dict | None):
-        if values is not None and not isinstance(values, dict):
-            raise ConfigError("Processing policy must be an object")
-        try:
-            policy = cls(**(values or {}))
-        except TypeError as exc:
-            raise ConfigError("Unknown processing policy field") from exc
-        for key, low, high in (("max_fps", 1, 120), ("utilization_budget", 0.1, 0.95)):
-            value = getattr(policy, key)
-            if (
-                type(value) not in (float, int)
-                or not math.isfinite(value)
-                or not low <= value <= high
-            ):
-                raise ConfigError(f"Invalid processing policy {key}")
-        return policy
+from .protocol_models import ProcessingPolicy
 
 
 class CameraDetector:

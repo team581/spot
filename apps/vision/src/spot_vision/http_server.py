@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
+from .protocol import SCHEMA_URL
 from .protocol_models import RobotConfiguration
 
 MAX_BODY = 256 * 1024
@@ -93,15 +94,6 @@ class NetworkToken(Payload):
 
 class Device(Revisioned):
     identity: Text
-
-
-class DeviceTune(Device):
-    values: Document = {}
-    reset: StrictBool = False
-
-
-class DeviceMode(Device):
-    mode_id: Text
 
 
 class Debug(Revisioned):
@@ -174,10 +166,6 @@ OPERATIONS: dict[str, type[Payload]] = {
     "network/apply": NetworkChange,
     "network/confirm": NetworkToken,
     "network/revert": NetworkToken,
-    "standalone": Payload,
-    "device/setup": Device,
-    "device/tune": DeviceTune,
-    "device/mode": DeviceMode,
     "device/name": Rename,
     "camera/tune": Tune,
     "camera/mode": Mode,
@@ -343,14 +331,9 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
     def configuration() -> dict:
         return json.loads(runtime.store.export())
 
-    @app.get("/api/calibrations")
-    def calibrations() -> dict:
-        records = runtime.configuration.state.data.get("calibrations", {})
-        return {"calibrations": list(records.values())}
-
     @app.get("/api/robot/configuration")
     def robot_configuration() -> dict:
-        return asdict(runtime.configuration.export_configuration())
+        return {"$schema": SCHEMA_URL, **asdict(runtime.configuration.export_configuration())}
 
     @app.get("/api/robot/defaults")
     def robot_defaults() -> dict:

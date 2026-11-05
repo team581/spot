@@ -74,10 +74,10 @@ export default function GeometryViewer({
 			) : (
 				<Link
 					className="absolute bottom-9 left-3 text-xs text-muted-foreground"
-					to="/cameras/$id/geometry"
+					to="/cameras/$id/mount"
 					params={{ id: c.identity }}
 				>
-					Geometry · WPILib NWU
+					Mount · WPILib NWU
 				</Link>
 			)}
 		</div>

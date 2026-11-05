@@ -38,23 +38,6 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/calibrations': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Calibrations */
-		get: operations['calibrations'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
 	'/api/robot/configuration': {
 		parameters: {
 			query?: never;
@@ -168,74 +151,6 @@ export interface paths {
 		put?: never;
 		/** Network Revert */
 		post: operations['network_revert'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/standalone': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Standalone */
-		post: operations['standalone'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/device/setup': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Device Setup */
-		post: operations['device_setup'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/device/tune': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Device Tune */
-		post: operations['device_tune'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/device/mode': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Device Mode */
-		post: operations['device_mode'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -702,41 +617,6 @@ export interface components {
 			/** Seconds */
 			seconds: number;
 		};
-		/** Device */
-		Device: {
-			/** Revision */
-			revision: string;
-			/** Identity */
-			identity: string;
-		};
-		/** DeviceMode */
-		DeviceMode: {
-			/** Revision */
-			revision: string;
-			/** Identity */
-			identity: string;
-			/** Mode Id */
-			mode_id: string;
-		};
-		/** DeviceTune */
-		DeviceTune: {
-			/** Revision */
-			revision: string;
-			/** Identity */
-			identity: string;
-			/**
-			 * Values
-			 * @default {}
-			 */
-			values?: {
-				[key: string]: unknown;
-			};
-			/**
-			 * Reset
-			 * @default false
-			 */
-			reset?: boolean;
-		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
 			/** Detail */
@@ -783,8 +663,6 @@ export interface components {
 			/** Server */
 			server?: string | null;
 		};
-		/** Payload */
-		Payload: Record<string, never>;
 		/** QualifyTiming */
 		QualifyTiming: {
 			/** Revision */
@@ -896,28 +774,6 @@ export interface operations {
 		};
 	};
 	configuration: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': {
-						[key: string]: unknown;
-					};
-				};
-			};
-		};
-	};
-	calibrations: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -1124,138 +980,6 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['NetworkApplied'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	standalone: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['Payload'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['Applied'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	device_setup: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['Device'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['Applied'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	device_tune: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['DeviceTune'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['Applied'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	device_mode: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['DeviceMode'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['Applied'];
 				};
 			};
 			/** @description Validation Error */

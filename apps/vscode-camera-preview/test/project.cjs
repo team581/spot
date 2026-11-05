@@ -4,18 +4,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { discover } = require('../project.ts');
-void test('discovers standalone and subproject wrappers with spaces', () => {
+void test('finds the robot project spot-config.json from VisionConfig.java', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spot preview '));
 	try {
-		fs.writeFileSync(path.join(root, 'gradlew'), '');
-		fs.writeFileSync(path.join(root, 'build.gradle'), '');
-		assert.equal(discover(path.join(root, 'src/VisionConfig.java')).task, 'exportSpotCameraPreview');
-		const sub = path.join(root, 'offseason-bot');
-		fs.mkdirSync(sub);
-		fs.writeFileSync(path.join(sub, 'build.gradle'), '');
-		const result = discover(path.join(sub, 'src/main/java/VisionConfig.java'));
-		assert.equal(result.task, ':offseason-bot:exportSpotCameraPreview');
-		assert.equal(result.root, root);
+		const project = path.join(root, 'offseason-bot');
+		fs.mkdirSync(project);
+		fs.writeFileSync(path.join(project, 'build.gradle'), '');
+		const config = path.join(project, 'src/main/deploy/spot-config.json');
+		assert.equal(discover(path.join(project, 'src/main/java/frc/robot/vision/VisionConfig.java')), config);
+		assert.equal(discover(config), config);
+		assert.throws(() => discover(path.join(os.tmpdir(), 'VisionConfig.java')), /No Gradle project/);
 	} finally {
 		fs.rmSync(root, { recursive: true });
 	}

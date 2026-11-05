@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
 import { DataList, Feedback, PageTitle, Panel } from '../components/common';
 import { Button } from '@/components/ui/button';
@@ -12,11 +11,9 @@ const networkFeedback = {
 	'network/revert': 'Previous connection restored.',
 };
 export default function NetworkPage() {
-	const { announce } = useDashboard(),
-		status = useStatus(),
+	const status = useStatus(),
 		networkChange = useOperation<'network/apply' | 'network/confirm' | 'network/revert'>(),
 		saveEndpoint = useOperation<'nt/endpoint'>(),
-		standalone = useOperation<'standalone'>(),
 		busy = networkChange.isPending,
 		endpointBusy = saveEndpoint.isPending,
 		network = status.network ?? {},
@@ -34,7 +31,6 @@ export default function NetworkPage() {
 		setTarget(savedTarget);
 		setByAddress(Boolean(endpoint.configured));
 	}
-	const endpointLocked = endpointBusy || Boolean(status.connected && status.lock_reason);
 
 	const [restore, setRestore] = useState(true),
 		[lastPending, setLastPending] = useState('');
@@ -93,7 +89,7 @@ export default function NetworkPage() {
 								setByAddress(e.target.value === 'server');
 								setTarget('');
 							}}
-							disabled={endpointLocked}
+							disabled={endpointBusy}
 						>
 							<NativeSelectOption value="team">Team number</NativeSelectOption>
 							<NativeSelectOption value="server">Server address</NativeSelectOption>
@@ -108,7 +104,7 @@ export default function NetworkPage() {
 								required
 								value={target}
 								onChange={(e) => setTarget(e.target.value)}
-								disabled={endpointLocked}
+								disabled={endpointBusy}
 							/>
 						) : (
 							<Input
@@ -120,15 +116,14 @@ export default function NetworkPage() {
 								required
 								value={target}
 								onChange={(e) => setTarget(e.target.value)}
-								disabled={endpointLocked}
+								disabled={endpointBusy}
 							/>
 						)}
 						<p>
 							Saving reconnects NetworkTables. Use a server address for an NT4 server on a laptop or simulator. Jetson
 							IP settings are configured below.
 						</p>
-						<Feedback>{status.connected ? status.lock_reason : ''}</Feedback>
-						<Button type="submit" className="self-start" disabled={endpointLocked || !target}>
+						<Button type="submit" className="self-start" disabled={endpointBusy || !target}>
 							Save robot endpoint
 						</Button>
 					</form>
@@ -137,20 +132,6 @@ export default function NetworkPage() {
 							? 'Robot endpoint saved for future boots. Reconnecting NetworkTables.'
 							: saveEndpoint.error?.message}
 					</Feedback>
-					<Button
-						variant="outline"
-						className="self-start"
-						disabled={status.connected}
-						onClick={() =>
-							standalone.mutate(
-								{ operation: 'standalone', payload: {} },
-								{ onSuccess: () => announce('Standalone setup session started') },
-							)
-						}
-					>
-						{status.standalone ? 'Standalone setup active' : 'Begin standalone setup'}
-					</Button>
-					<Feedback id="page-feedback">{standalone.error?.message}</Feedback>
 				</Panel>
 				<Panel title="Link">
 					<DataList
@@ -186,9 +167,7 @@ export default function NetworkPage() {
 					}}
 				/>
 				<Feedback>
-					{network.available
-						? (status.connected && status.lock_reason) || ''
-						: network.error || 'Install the Spot network helper to change Ethernet addresses.'}
+					{network.available ? '' : network.error || 'Install the Spot network helper to change Ethernet addresses.'}
 				</Feedback>
 				{pending ? (
 					<div className="flex flex-col items-start gap-2">
@@ -250,13 +229,7 @@ export default function NetworkPage() {
 					<Button
 						className="self-start"
 						type="submit"
-						disabled={
-							busy ||
-							!network.available ||
-							(mode === 'static' && !address.trim()) ||
-							Boolean(pending) ||
-							Boolean(status.connected && status.lock_reason)
-						}
+						disabled={busy || !network.available || (mode === 'static' && !address.trim()) || Boolean(pending)}
 					>
 						Apply for 90 seconds
 					</Button>

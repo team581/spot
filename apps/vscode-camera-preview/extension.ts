@@ -1,16 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { promises as fs, readFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { discover } from './project';
-import { parseProfile, type PreviewProfile } from './profile';
+import { parseConfig, type SpotConfig } from './profile';
 import { renderWebview } from './webview';
 export function activate(context: vscode.ExtensionContext) {
-	const output = vscode.window.createOutputChannel('Spot Camera Preview');
 	const panels = new Map<string, vscode.WebviewPanel>();
 	const suppressed = new Set<string>();
-	context.subscriptions.push(output);
 	async function open(uri?: vscode.Uri, automatic = false) {
 		uri ??= vscode.window.activeTextEditor?.document.uri;
 		if (
@@ -26,9 +23,9 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!automatic) panels.get(key)!.reveal(vscode.ViewColumn.Beside, true);
 			return;
 		}
-		let project: ReturnType<typeof discover>;
+		let config: string;
 		try {
-			project = discover(key);
+			config = discover(key);
 		} catch (e) {
 			if (!automatic) vscode.window.showErrorMessage(String(e));
 			return;
@@ -53,84 +50,35 @@ export function activate(context: vscode.ExtensionContext) {
 			script: asset('preview.bundle.js'),
 		});
 		let disposed = false,
-			running = false,
-			generation = 0,
-			timer: NodeJS.Timeout | undefined,
-			child: ReturnType<typeof spawn> | undefined;
-		let latest: PreviewProfile | undefined;
-		const dirty = () =>
-			vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.fsPath.startsWith(project.root + path.sep));
+			latest: SpotConfig | undefined;
 		const status = (text: string) => panel.webview.postMessage({ status: text });
-		async function run() {
-			if (disposed || running) return;
-			running = true;
-			const current = generation;
-			status('Building saved configuration…');
+		async function load() {
 			try {
-				const wrapper = path.join(project.root, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
-				output.appendLine(`Exporting ${key}`);
-				await new Promise<void>((resolve, reject) => {
-					child = spawn(wrapper, [project.task, '--console=plain'], {
-						cwd: project.root,
-						shell: process.platform === 'win32',
-					});
-					child.stdout?.on('data', (data) => output.append(data.toString()));
-					child.stderr?.on('data', (data) => output.append(data.toString()));
-					child.once('error', reject);
-					child.once('exit', (code) => (code === 0 ? resolve() : reject(Error(`Gradle exited ${code}`))));
-				});
-				const data = parseProfile(
-					await fs.readFile(path.join(project.project, 'build/spot-camera-preview/profile.json'), 'utf8'),
-				);
-				if (!disposed && current === generation) {
-					latest = data;
-					panel.webview.postMessage({
-						data,
-						status: dirty() ? 'Unsaved changes · showing saved configuration' : 'Current · saved configuration',
-					});
-				}
+				latest = parseConfig(await fs.readFile(config, 'utf8'));
+				if (!disposed) panel.webview.postMessage({ data: latest, status: 'Current · saved spot-config.json' });
 			} catch (e) {
-				if (!disposed && current === generation)
-					status(`${latest ? 'Stale preview' : 'Export failed'} · ${String(e)} · see Build output`);
-			} finally {
-				running = false;
-				child = undefined;
-				if (!disposed && current !== generation) void run();
+				if (!disposed) status(`${latest ? 'Stale preview' : 'Cannot read spot-config.json'} · ${String(e)}`);
 			}
 		}
-		const schedule = () => {
-			generation++;
-			clearTimeout(timer);
-			timer = setTimeout(() => void run(), 400);
-		};
 		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(project.root, '**/*.{java,gradle,json}'),
+			new vscode.RelativePattern(path.dirname(config), path.basename(config)),
 		);
-		const changed = (u: vscode.Uri) => {
-			if (!u.fsPath.includes(`${path.sep}build${path.sep}`)) schedule();
-		};
 		const subscriptions = [
 			watcher,
-			watcher.onDidChange(changed),
-			watcher.onDidCreate(changed),
-			watcher.onDidDelete(changed),
+			watcher.onDidChange(load),
+			watcher.onDidCreate(load),
+			watcher.onDidDelete(load),
 			vscode.workspace.onDidChangeTextDocument((e) => {
-				if (e.document.uri.fsPath.startsWith(project.root + path.sep) && e.document.isDirty)
-					status('Unsaved changes · showing last exported configuration');
+				if (e.document.uri.fsPath === config && e.document.isDirty)
+					status('Unsaved changes · showing saved spot-config.json');
 			}),
 			panel.webview.onDidReceiveMessage((message: { type?: string }) => {
-				if (message.type === 'ready') {
-					if (latest) panel.webview.postMessage({ data: latest });
-					else schedule();
-				}
-				if (message.type === 'refresh') schedule();
-				if (message.type === 'output') output.show(true);
+				if (message.type === 'ready' && latest) panel.webview.postMessage({ data: latest });
+				else if (message.type === 'ready' || message.type === 'refresh') void load();
 			}),
 		];
 		panel.onDidDispose(() => {
 			disposed = true;
-			clearTimeout(timer);
-			child?.kill();
 			subscriptions.forEach((s) => s.dispose());
 			panels.delete(key);
 			suppressed.add(key);

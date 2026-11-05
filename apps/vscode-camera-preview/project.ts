@@ -1,26 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+/** The robot project's spot-config.json for an opened spot-config.json or VisionConfig.java. */
 export function discover(file: string) {
+	if (path.basename(file) === 'spot-config.json') return file;
 	let dir = path.dirname(file);
-	while (true) {
-		if (fs.existsSync(path.join(dir, 'build.gradle'))) {
-			const project = dir;
-			let root = dir;
-			while (!fs.existsSync(path.join(root, 'gradlew'))) {
-				const parent = path.dirname(root);
-				if (parent === root) throw Error('Gradle wrapper not found');
-				root = parent;
-			}
-			return {
-				project,
-				root,
-				task:
-					(project === root ? '' : ':' + path.relative(root, project).split(path.sep).join(':') + ':') +
-					'exportSpotCameraPreview',
-			};
-		}
+	while (!fs.existsSync(path.join(dir, 'build.gradle'))) {
 		const parent = path.dirname(dir);
 		if (parent === dir) throw Error('No Gradle project found for this file');
 		dir = parent;
 	}
+	return path.join(dir, 'src/main/deploy/spot-config.json');
 }

@@ -10,22 +10,23 @@ def manifest():
     profile = wire.Profile(
         max_age_s=0.25,
         future_tolerance_s=0.005,
-        reorder_window_s=0.02,
     )
-    camera = wire.CameraDefinition(name="front", enabled=True, required=True)
+    camera = wire.CameraDefinition(
+        name="front",
+        required=True,
+        robot_to_camera=wire.Mount(x_m=0.2, z_m=0.5),
+        allowed_modes=[
+            wire.OpticalMode(
+                id="640x480",
+                width=640,
+                height=480,
+                pixel_format="MJPEG",
+                fps=30,
+            )
+        ],
+    )
     camera.detector = replace(camera.detector, backend="cpu")
     profile.cameras.append(camera)
-    camera.robot_to_camera = copy.deepcopy(wire.Pose(x_m=0.2, z_m=0.5, qw=1))
-    camera.allowed_modes.append(
-        wire.OpticalMode(
-            id="640x480",
-            width=640,
-            height=480,
-            pixel_format="MJPEG",
-            fps=30,
-            optical_signature="fixed-lens-1",
-        )
-    )
     camera.controls.append(wire.ControlPolicy(name="gain", default_value=1, allow_override=True))
     camera.controls.append(
         wire.ControlPolicy(name="contrast", default_value=16, allow_override=False)
@@ -71,11 +72,8 @@ class RobotPublisher:
             "cameraConfig", snapshot(wire.RobotConfiguration(p.cameras, p.processing)).decode()
         )
         for key, value in (
-            ("fusionEnabled", p.fusion_enabled),
-            ("headingEnabled", p.heading_enabled),
             ("maxAgeS", p.max_age_s),
             ("futureToleranceS", p.future_tolerance_s),
-            ("reorderWindowS", p.reorder_window_s),
             ("Field/origin", p.field.origin),
             ("Field/lengthM", p.field.length_m),
             ("Field/widthM", p.field.width_m),

@@ -5,10 +5,5 @@ export const Route = createFileRoute('/cameras/$id/')({ component: CameraDetailR
 function CameraDetailRoute() {
 	// The parent route only renders this once the camera exists.
 	const camera = useCamera(Route.useParams().id)!;
-	return (
-		<CameraDetail
-			key={camera.identity + '/' + Boolean(camera.logical_name) + '/' + Boolean(camera.standalone_setup)}
-			camera={camera}
-		/>
-	);
+	return <CameraDetail key={camera.identity + '/' + camera.logical_name} camera={camera} />;
 }

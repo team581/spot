@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 from spot_vision.http_server import HttpServer
+from spot_vision.protocol_models import RobotConfiguration
 
 
 class FixtureRuntime:
@@ -106,7 +107,8 @@ class FixtureRuntime:
             subscribe=lambda identity, notify: lambda: None, frame=self.frame
         )
         self.configuration = SimpleNamespace(
-            state=SimpleNamespace(data={"development_fixture": True})
+            state=SimpleNamespace(data={"development_fixture": True}),
+            export_configuration=lambda: RobotConfiguration(),
         )
         self.debug = {}
         self.calibration_sessions = {
@@ -185,12 +187,8 @@ class FixtureRuntime:
             "cameras": copy.deepcopy(self.cameras),
             "names": ["front-left", "front-right", "rear", "turret"] if self.cameras else [],
             "fresh": False,
-            "standalone": self.scenario == "mixed",
-            "lock_reason": "Connect robot code or begin standalone setup"
-            if self.scenario == "locked"
-            else "No robot profile · locked"
-            if self.scenario == "empty"
-            else "",
+            "has_configuration": self.scenario == "mixed",
+            "overrides": self.overrides(),
             "clock": {
                 "state": "Waiting",
                 "offset_us": None,
@@ -271,10 +269,27 @@ class FixtureRuntime:
             },
         }
 
+    def overrides(self):
+        """Tuned fixture controls stand in for saved dashboard overrides."""
+        return [
+            {
+                "path": f"cameras/{camera['logical_name']}/controls/{control['name']}",
+                "value": {"name": control["name"], "default_value": control["value"]},
+                "code_value": {"name": control["name"], "default_value": control["default"]},
+                "code_changed": False,
+            }
+            for camera in self.cameras
+            if camera["logical_name"]
+            for control in camera["controls"]
+            if control["value"] != control["default"]
+        ]
+
     def submit(self, operation, payload):
         future = Future()
         if self.scenario != "mixed":
-            future.set_exception(ValueError("Connect robot code or begin standalone setup"))
+            future.set_exception(
+                ValueError("Connect robot code once to load its camera configuration")
+            )
             return future
         if payload.get("revision", self.revision) != self.revision:
             future.set_exception(ValueError("Revision conflict; reconcile current values"))
@@ -289,6 +304,12 @@ class FixtureRuntime:
                     control["value"] = control["default"]
                 elif control["name"] in payload.get("values", {}):
                     control["value"] = payload["values"][control["name"]]
+        elif operation == "configuration/clear-overrides":
+            for camera in self.cameras:
+                for control in camera["controls"]:
+                    path = f"cameras/{camera['logical_name']}/controls/{control['name']}"
+                    if path.startswith(payload.get("path", "")):
+                        control["value"] = control["default"]
         elif operation == "calibration/apply":
             identities = payload["identities"]
             if not identities or any(
@@ -333,7 +354,7 @@ class FixtureRuntime:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=5808)
-    parser.add_argument("--scenario", choices=("mixed", "empty", "locked"), default="mixed")
+    parser.add_argument("--scenario", choices=("mixed", "empty"), default="mixed")
     args = parser.parse_args()
     server = HttpServer(("127.0.0.1", args.port), FixtureRuntime(args.scenario))
     print(f"SYNTHETIC GUI FIXTURE http://127.0.0.1:{args.port}", flush=True)

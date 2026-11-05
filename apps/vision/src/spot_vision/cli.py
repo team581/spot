@@ -53,8 +53,6 @@ def _check_health_status(status: dict, package_path: str, *, robot: bool) -> Non
         or status["applied_generation"] != status["revision"]
     ):
         raise ConfigError("Robot configuration or clock synchronization pending")
-    if status["lock_reason"]:
-        raise ConfigError("Robot connection required for readiness check")
     required = [
         camera
         for camera in status["cameras"]

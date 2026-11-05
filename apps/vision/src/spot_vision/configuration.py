@@ -59,6 +59,11 @@ class ConfigurationService:
         )
         if not isinstance(self.overrides, dict):
             raise ConfigError("Dashboard overrides must be an object")
+        # Robot-code value each override replaced, keyed by override path.
+        self.code_path = store.root / "dashboard-override-code.json"
+        self.override_code = (
+            json.loads(self.code_path.read_bytes()) if self.code_path.exists() else {}
+        )
         self.robot_manifest: wire.Manifest | None = None
         self._device_exists = device_exists
         self._supported_controls = supported_controls
@@ -69,7 +74,6 @@ class ConfigurationService:
         self.manifest: wire.Manifest | None = None
         self.fresh = False
         self.connected = False
-        self.standalone = False
         self._selection: TagSelection | None = None
         self.applied_generation = ""
         self._load_cached_manifest()
@@ -78,6 +82,27 @@ class ConfigurationService:
         if self.baseline_path.exists():
             self.robot_manifest = parse_manifest(self.baseline_path.read_bytes())
             self.manifest = self._effective(self.robot_manifest, self.overrides)
+
+    @staticmethod
+    def _code_values(baseline: wire.Manifest) -> dict:
+        return overlay.values(
+            wire.RobotConfiguration(baseline.profile.cameras, baseline.profile.processing)
+        )
+
+    @classmethod
+    def _prune(cls, baseline: wire.Manifest, overrides: dict, code: dict) -> tuple[dict, dict]:
+        """Drop overrides that robot code now matches, so deploying adopted edits clears them."""
+        values = cls._code_values(baseline)
+        for entry in overlay.entries(overrides):
+            if overlay.lookup(values, entry["path"]) == entry["value"]:
+                overrides = overlay.clear(overrides, entry["path"])
+        paths = {entry["path"] for entry in overlay.entries(overrides)}
+        return overrides, {path: value for path, value in code.items() if path in paths}
+
+    def _save_overrides(self, overrides: dict, code: dict) -> None:
+        durable_replace(self.overrides_path, canonical_bytes(overrides))
+        durable_replace(self.code_path, canonical_bytes(code))
+        self.overrides, self.override_code = overrides, code
 
     @staticmethod
     def _effective(baseline: wire.Manifest, overrides: dict) -> wire.Manifest:
@@ -105,8 +130,6 @@ class ConfigurationService:
             self.fresh = False
             self.applied_generation = ""
             self._selection = None
-            if connected:
-                self.standalone = False
 
     def robot_state(self, state: wire.RobotState) -> None:
         with self._eligibility_lock:
@@ -126,99 +149,20 @@ class ConfigurationService:
         with self._eligibility_lock:
             return self._selection if self.connected and self.fresh else None
 
-    def require_eligible(self) -> None:
-        if self.connected or self.standalone:
-            return
-        raise ConfigError("Connect robot code or begin standalone setup")
-
-    def begin_standalone(self) -> None:
-        with self._eligibility_lock:
-            if self.connected:
-                raise ConfigError("standalone setup requires a known disconnected robot link")
-            self.standalone = True
-
-    def _unbound_device(self, identity: str) -> None:
-        if not self._device_exists(identity):
-            raise ConfigError("camera is disconnected")
-        if self.manifest and any(c.binding_id == identity for c in self.manifest.profile.cameras):
-            raise ConfigError("Use robot camera settings for a configured camera")
-
-    def setup_device(self, identity: str, mode: dict, defaults: dict, expected: str):
-        with self._lock:
-            self._unbound_device(identity)
-            if not self.connected:
-                self.begin_standalone()
-            self.require_eligible()
-            data = copy.deepcopy(self.state.data)
-            devices = data.setdefault("standalone_cameras", {})
-            if identity not in devices and len(devices) >= 128:
-                raise ConfigError("Standalone camera setup limit reached")
-            devices.setdefault(
-                identity,
-                {
-                    "mode": copy.deepcopy(mode),
-                    "settings": dict(defaults),
-                    "defaults": dict(defaults),
-                },
-            )
-            return self._commit(data, expected)
-
-    def tune_device(self, identity: str, values: dict, expected: str, *, reset=False):
-        with self._lock:
-            self.require_eligible()
-            self._unbound_device(identity)
-            data = copy.deepcopy(self.state.data)
-            entry = data.get("standalone_cameras", {}).get(identity)
-            if entry is None:
-                raise ConfigError("Open standalone camera setup first")
-            if reset:
-                values = entry["defaults"]
-            supported = self._supported_controls(identity)
-            if not isinstance(values, dict) or not values or len(values) > 64:
-                raise ConfigError("empty or oversized tuning request")
-            for key, value in values.items():
-                if supported is not None and key not in supported:
-                    raise ConfigError(f"{key}: unavailable on the connected device")
-                if type(value) not in (int, float) or not math.isfinite(value):
-                    raise ConfigError(f"{key}: numeric value required")
-            previous = optical_controls(entry["settings"])
-            entry["settings"].update(values)
-            if optical_controls(entry["settings"]) != previous:
-                data["calibrations"] = {
-                    key: record
-                    for key, record in data.get("calibrations", {}).items()
-                    if record["identity"] != identity
-                }
-            return self._commit(data, expected)
-
-    def set_device_mode(self, identity: str, mode: dict, expected: str):
-        with self._lock:
-            self.require_eligible()
-            self._unbound_device(identity)
-            data = copy.deepcopy(self.state.data)
-            entry = data.get("standalone_cameras", {}).get(identity)
-            if entry is None:
-                raise ConfigError("Open standalone camera setup first")
-            entry["mode"] = mode
-            return self._commit(data, expected)
-
     def _activate(
         self,
         data: dict,
         target: wire.Manifest | None,
         *,
         code: bool = False,
-        overrides: dict | None = None,
+        overrides: tuple[dict, dict] | None = None,
     ) -> StateSnapshot:
         old_state, old_manifest = self.state, self.manifest
         version = self._connection_version
 
         def eligible():
-            if code:
-                if not self.connected or version != self._connection_version:
-                    raise ConfigError("Robot connection changed while applying configuration")
-            else:
-                self.require_eligible()
+            if code and (not self.connected or version != self._connection_version):
+                raise ConfigError("Robot connection changed while applying configuration")
 
         eligible()
         persistent = copy.deepcopy(data)
@@ -241,11 +185,10 @@ class ConfigurationService:
                 raise
         if overrides is not None:
             try:
-                durable_replace(self.overrides_path, canonical_bytes(overrides))
+                self._save_overrides(*overrides)
             except OSError:
                 self._apply(old_state, old_manifest)
                 raise
-            self.overrides = overrides
         self.state = StateSnapshot(state.generation, copy.deepcopy(data))
         self.manifest = target
         self.applied_generation = state.generation
@@ -254,7 +197,7 @@ class ConfigurationService:
     def _commit(self, data: dict, expected: str) -> StateSnapshot:
         if expected != self.state.generation:
             raise ConfigError("revision conflict; fetch current configuration")
-        if self.manifest is not None and self.fresh:
+        if self.robot_manifest is not None:
             return self._configure(self.export_configuration(data), expected, data)
         return self._activate(data, self.manifest)
 
@@ -265,12 +208,17 @@ class ConfigurationService:
                 raise ConfigError("Robot config requires an NT connection")
             changed = manifest != self.robot_manifest
             self.robot_manifest = copy.deepcopy(manifest)
-            target = self._effective(manifest, self.overrides)
+            pruned = self._prune(manifest, self.overrides, self.override_code)
+            if pruned == (self.overrides, self.override_code):
+                pruned = None
+            target = self._effective(manifest, self.overrides if pruned is None else pruned[0])
             if self.fresh and target == self.manifest:
                 if changed:
                     durable_replace(self.baseline_path, snapshot(manifest))
+                if pruned is not None:
+                    self._save_overrides(*pruned)
                 return self.state
-            state = self._activate(self.state.data, target, code=True)
+            state = self._activate(self.state.data, target, code=True, overrides=pruned)
             durable_replace(self.baseline_path, snapshot(manifest))
             self.fresh = True
             self._selection = None
@@ -285,7 +233,7 @@ class ConfigurationService:
             identity = camera.binding_id
             mode = camera.allowed_modes[0]
             record = data.get("calibrations", {}).get(identity + ":" + mode_signature(mode))
-            # Calibration edits are explicit; saved standalone results are not defaults.
+            # Calibration edits are explicit; saved library results are not defaults.
             if data is not self.state.data:
                 old = self.state.data.get("calibrations", {}).get(
                     identity + ":" + mode_signature(mode)
@@ -300,13 +248,12 @@ class ConfigurationService:
     def _configure(
         self, settings: wire.RobotConfiguration, expected: str, data: dict
     ) -> StateSnapshot:
-        self.require_eligible()
         if expected != self.state.generation:
             raise ConfigError("revision conflict; fetch current configuration")
         baseline = self.robot_manifest
         current = self.manifest
-        if baseline is None or current is None or not self.fresh:
-            raise ConfigError("Connect robot code before editing camera settings")
+        if baseline is None or current is None:
+            raise ConfigError("Connect robot code once to load its camera configuration")
         if [c.name for c in settings.cameras] != [c.name for c in baseline.profile.cameras]:
             raise ConfigError("Change camera names and order in robot code")
         validate_manifest(
@@ -322,10 +269,14 @@ class ConfigurationService:
             wire.RobotConfiguration(current.profile.cameras, current.profile.processing)
         )
         delta = overlay.changes(before, overlay.values(settings))
-        # Existing overrides stay saved even when a new baseline matches their value.
         overrides = overlay.merge(overrides, delta)
+        values = self._code_values(baseline)
+        code = dict(self.override_code)
+        for entry in overlay.entries(delta):
+            code[entry["path"]] = overlay.lookup(values, entry["path"])
+        overrides, code = self._prune(baseline, overrides, code)
         target = self._effective(baseline, overrides)
-        return self._activate(data, target, overrides=overrides)
+        return self._activate(data, target, overrides=(overrides, code))
 
     def configure(self, settings: wire.RobotConfiguration, expected: str) -> StateSnapshot:
         with self._lock:
@@ -334,7 +285,21 @@ class ConfigurationService:
     def override_entries(self) -> list[dict]:
         if self.robot_manifest is None:
             return []
-        return overlay.entries(self.overrides)
+        values = self._code_values(self.robot_manifest)
+        result = []
+        for entry in overlay.entries(self.overrides):
+            path = entry["path"]
+            code_value = overlay.lookup(values, path)
+            result.append(
+                {
+                    **entry,
+                    "code_value": code_value,
+                    # Robot code changed this value after the override was saved.
+                    "code_changed": path in self.override_code
+                    and self.override_code[path] != code_value,
+                }
+            )
+        return result
 
     def clear_overrides(self, expected: str, path: str = "") -> StateSnapshot:
         with self._lock:
@@ -344,8 +309,9 @@ class ConfigurationService:
                 raise ConfigError("Connect robot code before clearing overrides")
             overrides = copy.deepcopy(self.overrides)
             overrides = overlay.clear(overrides, path)
-            target = self._effective(self.robot_manifest, overrides)
-            return self._activate(self.state.data, target, overrides=overrides)
+            pruned = self._prune(self.robot_manifest, overrides, self.override_code)
+            target = self._effective(self.robot_manifest, pruned[0])
+            return self._activate(self.state.data, target, overrides=pruned)
 
     def configure_document(self, document: dict, expected: str) -> StateSnapshot:
         try:
@@ -441,7 +407,6 @@ class ConfigurationService:
         validate_timing_record: Callable[[dict], None],
     ) -> StateSnapshot:
         with self._lock:
-            self.require_eligible()
             if (
                 not isinstance(document, dict)
                 or set(document) != {"schema_version", "data"}
@@ -453,7 +418,6 @@ class ConfigurationService:
                 "calibrations",
                 "calibration_options",
                 "timestamp_qualifications",
-                "standalone_cameras",
             }:
                 raise ConfigError("Unknown imported state fields")
             data = copy.deepcopy(self.state.data)
@@ -477,7 +441,6 @@ class ConfigurationService:
         self, record: dict, expected: str, validate: Callable[[dict], None]
     ) -> StateSnapshot:
         with self._lock:
-            self.require_eligible()
             validate(record)
             data = copy.deepcopy(self.state.data)
             data.setdefault("timestamp_qualifications", {})[record["identity"]] = copy.deepcopy(
@@ -489,7 +452,6 @@ class ConfigurationService:
         self, records: list[dict], expected: str, validate: Callable[[dict], None]
     ) -> StateSnapshot:
         with self._lock:
-            self.require_eligible()
             if not records or len(records) > 32:
                 raise ConfigError("select a non-empty bounded calibration group")
             data = copy.deepcopy(self.state.data)
@@ -504,14 +466,10 @@ class ConfigurationService:
                 stored = copy.deepcopy(record)
                 stored["id"] = uuid.uuid4().hex
                 calibrations[key] = stored
-            if (
-                self.manifest is not None
-                and self.fresh
-                and any(
-                    camera.binding_id == record["identity"]
-                    for camera in self.manifest.profile.cameras
-                    for record in records
-                )
+            if self.manifest is not None and any(
+                camera.binding_id == record["identity"]
+                for camera in self.manifest.profile.cameras
+                for record in records
             ):
                 settings = self.export_configuration(data)
                 for camera in settings.cameras:
@@ -534,7 +492,6 @@ class ConfigurationService:
         calibration_ids: list[str] | None = None,
     ) -> StateSnapshot:
         with self._lock:
-            self.require_eligible()
             old = self.store.read_generation(generation)
             # Restore calibration results while retaining current bindings and capture settings.
             records = {
@@ -557,7 +514,7 @@ class ConfigurationService:
                 validate(calibration)
             data = copy.deepcopy(self.state.data)
             data.setdefault("calibrations", {}).update(copy.deepcopy(records))
-            if self.manifest is not None and self.fresh:
+            if self.manifest is not None:
                 settings = self.export_configuration(data)
                 changed = False
                 for camera in settings.cameras:

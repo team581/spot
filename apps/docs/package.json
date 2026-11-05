@@ -7,6 +7,7 @@
 		"check": "astro sync && tsc --noEmit --runExternalCode",
 		"build": "pnpm check && NODE_ENV=production astro build",
 		"build:jetson": "DOCS_TARGET=jetson NODE_ENV=production astro build",
+		"generate:schema": "../../.venv/bin/python ../vision/tools/config_schema.py > public/spot-config.schema.json && oxfmt public/spot-config.schema.json",
 		"preview": "astro preview --host 127.0.0.1 --port 5814",
 		"format": "oxfmt --check",
 		"format:fix": "oxfmt",

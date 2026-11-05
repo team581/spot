@@ -47,29 +47,17 @@ def test_configuration_edits_do_not_require_disabled_state(tmp_path):
     assert not list(service.store.generations.glob("*.json"))
 
 
-def test_device_setup_and_tuning_persist_without_robot_configuration(tmp_path):
-    service = ConfigurationService(
-        StateStore(tmp_path), lambda *_: None, device_exists=lambda _: True
-    )
-    mode = {"width": 640, "height": 480, "fps": 120, "pixel_format": "MJPG"}
-    service.setup_device("usb-a", mode, {"gain": 10}, service.state.generation)
-    service.tune_device("usb-a", {"gain": 11}, service.state.generation)
-    restarted = ConfigurationService(
-        StateStore(tmp_path), lambda *_: None, device_exists=lambda _: True
-    )
-    assert restarted.state.data["standalone_cameras"]["usb-a"]["settings"] == {"gain": 11}
-    with pytest.raises(ConfigError, match="Connect"):
-        restarted.tune_device("usb-a", {"gain": 12}, restarted.state.generation)
-    restarted.setup_device("usb-a", mode, {"gain": 99}, restarted.state.generation)
-    restarted.tune_device("usb-a", {}, restarted.state.generation, reset=True)
-    assert restarted.state.data["standalone_cameras"]["usb-a"]["settings"] == {"gain": 10}
+def test_cached_robot_configuration_is_editable_while_disconnected(tmp_path):
+    configured(tmp_path)
+    restarted = ConfigurationService(StateStore(tmp_path), lambda *_: None)
+    restarted.tune("front", {"gain": 3}, restarted.state.generation)
+    assert restarted.effective_controls("front")["gain"] == 3
 
 
-def test_device_setup_cannot_override_bound_camera(tmp_path):
-    service = configured(tmp_path)
-    service.rename("usb-a", "front", service.state.generation)
-    with pytest.raises(ConfigError, match="robot camera settings"):
-        service.setup_device("usb-a", {}, {}, service.state.generation)
+def test_editing_requires_robot_configuration_once(tmp_path):
+    service = ConfigurationService(StateStore(tmp_path), lambda *_: None)
+    with pytest.raises(ConfigError, match="Connect robot code once"):
+        service.configure_document({"cameras": [], "processing": {}}, service.state.generation)
 
 
 def test_rejected_apply_keeps_saved_overrides_and_effective_settings(tmp_path):
@@ -89,13 +77,41 @@ def test_rejected_apply_keeps_saved_overrides_and_effective_settings(tmp_path):
     assert service.overrides_path.read_bytes() == saved
 
 
-def test_explicit_override_is_retained_even_if_new_defaults_match(tmp_path):
+def test_override_is_removed_once_robot_code_adopts_it(tmp_path):
     service = configured(tmp_path)
     service.tune("front", {"gain": 7}, service.state.generation)
     changed = manifest()
     changed.profile.cameras[0].controls[0].default_value = 7
     service.accept_manifest(changed)
-    assert service.override_entries()
+    assert not service.override_entries()
+    restarted = ConfigurationService(StateStore(tmp_path), lambda *_: None)
+    assert not restarted.override_entries()
+    changed.profile.cameras[0].controls[0].default_value = 9
+    service.accept_manifest(changed)
+    assert service.effective_controls("front")["gain"] == 9
+
+
+def test_tuning_back_to_robot_code_value_removes_override(tmp_path):
+    service = configured(tmp_path)
+    original = service.effective_controls("front")["gain"]
+    service.tune("front", {"gain": original + 1}, service.state.generation)
+    service.tune("front", {"gain": original}, service.state.generation)
+    assert not service.override_entries()
+
+
+def test_override_flags_robot_code_changes_underneath_it(tmp_path):
+    service = configured(tmp_path)
+    service.tune("front", {"gain": 7}, service.state.generation)
+    [entry] = service.override_entries()
+    assert not entry["code_changed"]
+    changed = manifest()
     changed.profile.cameras[0].controls[0].default_value = 9
     service.accept_manifest(changed)
     assert service.effective_controls("front")["gain"] == 7
+    restarted = ConfigurationService(StateStore(tmp_path), lambda *_: None)
+    [entry] = restarted.override_entries()
+    assert entry["code_changed"] and entry["code_value"]["default_value"] == 9
+    restarted.connection_changed(True)
+    restarted.accept_manifest(changed)
+    restarted.tune("front", {"gain": 8}, restarted.state.generation)
+    assert not restarted.override_entries()[0]["code_changed"]

@@ -11,15 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CalibrationRouteImport } from './routes/calibration'
+import { Route as ChangesRouteImport } from './routes/changes'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as SystemRouteImport } from './routes/system'
 import { Route as CalibrationIndexRouteImport } from './routes/calibration.index'
 import { Route as CalibrationResultsRouteImport } from './routes/calibration.results'
-import { Route as CamerasIndexRouteImport } from './routes/cameras.index'
 import { Route as CamerasIdRouteImport } from './routes/cameras.$id'
 import { Route as HelpSplatRouteImport } from './routes/help.$'
 import { Route as CamerasIdIndexRouteImport } from './routes/cameras.$id.index'
-import { Route as CamerasIdGeometryRouteImport } from './routes/cameras.$id.geometry'
+import { Route as CamerasIdMountRouteImport } from './routes/cameras.$id.mount'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const CalibrationRoute = CalibrationRouteImport.update({
   id: '/calibration',
   path: '/calibration',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangesRoute = ChangesRouteImport.update({
+  id: '/changes',
+  path: '/changes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetworkRoute = NetworkRouteImport.update({
@@ -51,11 +56,6 @@ const CalibrationResultsRoute = CalibrationResultsRouteImport.update({
   path: '/results',
   getParentRoute: () => CalibrationRoute,
 } as any)
-const CamerasIndexRoute = CamerasIndexRouteImport.update({
-  id: '/cameras/',
-  path: '/cameras/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CamerasIdRoute = CamerasIdRouteImport.update({
   id: '/cameras/$id',
   path: '/cameras/$id',
@@ -71,48 +71,48 @@ const CamerasIdIndexRoute = CamerasIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CamerasIdRoute,
 } as any)
-const CamerasIdGeometryRoute = CamerasIdGeometryRouteImport.update({
-  id: '/geometry',
-  path: '/geometry',
+const CamerasIdMountRoute = CamerasIdMountRouteImport.update({
+  id: '/mount',
+  path: '/mount',
   getParentRoute: () => CamerasIdRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calibration': typeof CalibrationRouteWithChildren
+  '/changes': typeof ChangesRoute
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/calibration/results': typeof CalibrationResultsRoute
   '/cameras/$id': typeof CamerasIdRouteWithChildren
   '/help/$': typeof HelpSplatRoute
   '/calibration/': typeof CalibrationIndexRoute
-  '/cameras/': typeof CamerasIndexRoute
-  '/cameras/$id/geometry': typeof CamerasIdGeometryRoute
+  '/cameras/$id/mount': typeof CamerasIdMountRoute
   '/cameras/$id/': typeof CamerasIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/changes': typeof ChangesRoute
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/calibration/results': typeof CalibrationResultsRoute
   '/help/$': typeof HelpSplatRoute
   '/calibration': typeof CalibrationIndexRoute
-  '/cameras': typeof CamerasIndexRoute
-  '/cameras/$id/geometry': typeof CamerasIdGeometryRoute
+  '/cameras/$id/mount': typeof CamerasIdMountRoute
   '/cameras/$id': typeof CamerasIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/calibration': typeof CalibrationRouteWithChildren
+  '/changes': typeof ChangesRoute
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/calibration/results': typeof CalibrationResultsRoute
   '/cameras/$id': typeof CamerasIdRouteWithChildren
   '/help/$': typeof HelpSplatRoute
   '/calibration/': typeof CalibrationIndexRoute
-  '/cameras/': typeof CamerasIndexRoute
-  '/cameras/$id/geometry': typeof CamerasIdGeometryRoute
+  '/cameras/$id/mount': typeof CamerasIdMountRoute
   '/cameras/$id/': typeof CamerasIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -120,49 +120,49 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/calibration'
+    | '/changes'
     | '/network'
     | '/system'
     | '/calibration/results'
     | '/cameras/$id'
     | '/help/$'
     | '/calibration/'
-    | '/cameras/'
-    | '/cameras/$id/geometry'
+    | '/cameras/$id/mount'
     | '/cameras/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/changes'
     | '/network'
     | '/system'
     | '/calibration/results'
     | '/help/$'
     | '/calibration'
-    | '/cameras'
-    | '/cameras/$id/geometry'
+    | '/cameras/$id/mount'
     | '/cameras/$id'
   id:
     | '__root__'
     | '/'
     | '/calibration'
+    | '/changes'
     | '/network'
     | '/system'
     | '/calibration/results'
     | '/cameras/$id'
     | '/help/$'
     | '/calibration/'
-    | '/cameras/'
-    | '/cameras/$id/geometry'
+    | '/cameras/$id/mount'
     | '/cameras/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CalibrationRoute: typeof CalibrationRouteWithChildren
+  ChangesRoute: typeof ChangesRoute
   NetworkRoute: typeof NetworkRoute
   SystemRoute: typeof SystemRoute
   CamerasIdRoute: typeof CamerasIdRouteWithChildren
   HelpSplatRoute: typeof HelpSplatRoute
-  CamerasIndexRoute: typeof CamerasIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -179,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/calibration'
       fullPath: '/calibration'
       preLoaderRoute: typeof CalibrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changes': {
+      id: '/changes'
+      path: '/changes'
+      fullPath: '/changes'
+      preLoaderRoute: typeof ChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network': {
@@ -209,13 +216,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalibrationResultsRouteImport
       parentRoute: typeof CalibrationRoute
     }
-    '/cameras/': {
-      id: '/cameras/'
-      path: '/cameras'
-      fullPath: '/cameras/'
-      preLoaderRoute: typeof CamerasIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cameras/$id': {
       id: '/cameras/$id'
       path: '/cameras/$id'
@@ -237,11 +237,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CamerasIdIndexRouteImport
       parentRoute: typeof CamerasIdRoute
     }
-    '/cameras/$id/geometry': {
-      id: '/cameras/$id/geometry'
-      path: '/geometry'
-      fullPath: '/cameras/$id/geometry'
-      preLoaderRoute: typeof CamerasIdGeometryRouteImport
+    '/cameras/$id/mount': {
+      id: '/cameras/$id/mount'
+      path: '/mount'
+      fullPath: '/cameras/$id/mount'
+      preLoaderRoute: typeof CamerasIdMountRouteImport
       parentRoute: typeof CamerasIdRoute
     }
   }
@@ -262,12 +262,12 @@ const CalibrationRouteWithChildren = CalibrationRoute._addFileChildren(
 )
 
 interface CamerasIdRouteChildren {
-  CamerasIdGeometryRoute: typeof CamerasIdGeometryRoute
+  CamerasIdMountRoute: typeof CamerasIdMountRoute
   CamerasIdIndexRoute: typeof CamerasIdIndexRoute
 }
 
 const CamerasIdRouteChildren: CamerasIdRouteChildren = {
-  CamerasIdGeometryRoute: CamerasIdGeometryRoute,
+  CamerasIdMountRoute: CamerasIdMountRoute,
   CamerasIdIndexRoute: CamerasIdIndexRoute,
 }
 
@@ -278,11 +278,11 @@ const CamerasIdRouteWithChildren = CamerasIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalibrationRoute: CalibrationRouteWithChildren,
+  ChangesRoute: ChangesRoute,
   NetworkRoute: NetworkRoute,
   SystemRoute: SystemRoute,
   CamerasIdRoute: CamerasIdRouteWithChildren,
   HelpSplatRoute: HelpSplatRoute,
-  CamerasIndexRoute: CamerasIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
