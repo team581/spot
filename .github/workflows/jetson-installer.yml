@@ -12,8 +12,11 @@ concurrency:
 
 jobs:
   installer:
-    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: blacksmith-16vcpu-ubuntu-2404-arm
     timeout-minutes: 180
+    concurrency:
+      group: nix-cache-${{ github.repository }}-aarch64-linux
+      queue: max
     env:
       CLOUDFLARE_ACCOUNT_ID: 8bb70056a503857d02b48fc5db648f61
       R2_BUCKET: spot-jetson-images
@@ -21,13 +24,6 @@ jobs:
       - uses: useblacksmith/checkout@v1
         with:
           persist-credentials: false
-      - name: Check upload credentials
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          : "${AWS_ACCESS_KEY_ID:?Set the R2_ACCESS_KEY_ID repository secret}"
-          : "${AWS_SECRET_ACCESS_KEY:?Set the R2_SECRET_ACCESS_KEY repository secret}"
       - name: Mount Nix cache
         uses: useblacksmith/stickydisk@v1
         with:
@@ -41,7 +37,7 @@ jobs:
       - name: Refresh pnpm dependency cache hash
         run: bash tools/update-pnpm-deps-hash.sh
       - name: Build offline installer
-        run: nix build path:.#packages.aarch64-linux.installer -L --cores 2 --max-jobs 2
+        run: nix build path:.#packages.aarch64-linux.installer -L --cores 8 --max-jobs 2
       - name: Upload latest installer
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
