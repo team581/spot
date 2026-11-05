@@ -31,7 +31,7 @@ def capture(monkeypatch, packets):
         operations.append(("decode", data.tobytes()))
         return data.tobytes()
 
-    source.cv2 = SimpleNamespace(imdecode=decode, IMREAD_COLOR=1)
+    source.cv2 = SimpleNamespace(imdecode=decode, IMREAD_GRAYSCALE=0)
     monkeypatch.setattr(module, "_ioctl", ioctl)
     monkeypatch.setattr(
         module.select, "select", lambda *_: ([9], [], []) if queue else ([], [], [])

@@ -8,7 +8,7 @@ import pytest
 
 from spot_vision import camera_capture
 from spot_vision.camera_capture import CameraCapture, write_controls
-from spot_vision.capture import orient_yuyv_frame
+from spot_vision.capture import gray_to_yuyv_frame, orient_yuyv_frame
 from spot_vision.config import CameraConfig, CameraSelector, ConfigError, DetectorConfig
 
 
@@ -128,8 +128,6 @@ def test_owner_controls_and_frames_are_serialized_with_owned_readonly_storage():
 
 @pytest.mark.parametrize("pixel_format", ["YUYV", "MJPG"])
 def test_capture_reconnect_releases_buffers_and_resets_epoch_and_sequence(pixel_format):
-    import cv2
-
     camera = CameraConfig(
         "test",
         True,
@@ -144,7 +142,7 @@ def test_capture_reconnect_releases_buffers_and_resets_epoch_and_sequence(pixel_
         image_rotation_deg=180,
     )
     raw = np.arange(128, dtype=np.uint8).reshape(8, 8, 2)
-    bgr = np.full((8, 8, 3), 64, np.uint8)
+    gray = np.full((8, 8), 64, np.uint8)
     captures, frames = [], []
 
     class Capture:
@@ -159,7 +157,7 @@ def test_capture_reconnect_releases_buffers_and_resets_epoch_and_sequence(pixel_
             self.last_sequence += 1
             if self.last_sequence == 43:
                 return False, None
-            return True, bgr if pixel_format == "MJPG" else raw
+            return True, gray if pixel_format == "MJPG" else raw
 
         def release(self):
             self.released = True
@@ -182,7 +180,7 @@ def test_capture_reconnect_releases_buffers_and_resets_epoch_and_sequence(pixel_
     try:
         worker.join(timeout=2)
         assert not worker.is_alive()
-        expected = cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV_YUY2) if pixel_format == "MJPG" else raw
+        expected = gray_to_yuyv_frame(gray, camera) if pixel_format == "MJPG" else raw
         assert np.array_equal(frames[0].image, orient_yuyv_frame(expected, camera))
         assert [frame.sequence for frame in frames] == [1, 2, 1]
         assert frames[0].capture_epoch == frames[1].capture_epoch != frames[2].capture_epoch

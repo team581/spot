@@ -7,7 +7,7 @@ import pytest
 
 from spot_vision.capture import (
     CameraError,
-    bgr_to_yuyv_frame,
+    gray_to_yuyv_frame,
     orient_yuyv_frame,
     validate_yuyv_frame,
 )
@@ -29,13 +29,16 @@ def camera(format="YUY2"):
     )
 
 
-def test_mjpeg_decode_converts_to_packed_yuyv():
-    cv2 = pytest.importorskip("cv2")
+def test_mjpeg_luma_packs_as_yuyv_with_neutral_chroma():
     configured = camera("MJPEG")
-    frame = np.zeros((configured.height, configured.width, 3), dtype=np.uint8)
-    converted = bgr_to_yuyv_frame(frame, configured, cv2)
-    assert converted.shape == (configured.height, configured.width, 2)
-    assert converted.dtype == np.uint8
+    gray = np.arange(configured.height * configured.width, dtype=np.uint8).reshape(
+        configured.height, configured.width
+    )
+    packed = gray_to_yuyv_frame(gray, configured)
+    assert validate_yuyv_frame(packed, configured) is packed
+    assert np.array_equal(packed[..., 0], gray) and (packed[..., 1] == 128).all()
+    with pytest.raises(CameraError):
+        gray_to_yuyv_frame(gray[:, :-2], configured)
 
 
 def test_frame_validation_rejects_shape_and_non_contiguous():

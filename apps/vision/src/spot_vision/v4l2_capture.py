@@ -209,7 +209,7 @@ class V4l2Capture:
                     image = image[:, : self.width * 2].reshape(self.height, self.width, 2).copy()
                 else:
                     image = self.cv2.imdecode(
-                        np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_COLOR
+                        np.frombuffer(latest, dtype=np.uint8), self.cv2.IMREAD_GRAYSCALE
                     )
                 if image is not None:
                     assert sequence is not None

@@ -35,11 +35,11 @@ def orient_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:
     return rotated.reshape(camera.height, camera.width, 2)
 
 
-def bgr_to_yuyv_frame(frame: np.ndarray, camera: CameraConfig, cv2) -> np.ndarray:
-    expected = (camera.height, camera.width, 3)
+def gray_to_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:
+    """Pack decoded luma as YUYV with neutral chroma; detection only reads luma."""
+    expected = (camera.height, camera.width)
     if frame.dtype != np.uint8 or frame.shape != expected:
-        raise CameraError(f"expected BGR shape {expected}, received {frame.shape}")
-    conversion = getattr(cv2, "COLOR_BGR2YUV_YUY2", None)
-    if conversion is None:
-        raise CameraError("OpenCV does not provide BGR-to-YUYV conversion")
-    return validate_yuyv_frame(cv2.cvtColor(frame, conversion), camera)
+        raise CameraError(f"expected grayscale shape {expected}, received {frame.shape}")
+    packed = np.full((*expected, 2), 128, np.uint8)
+    packed[..., 0] = frame
+    return packed

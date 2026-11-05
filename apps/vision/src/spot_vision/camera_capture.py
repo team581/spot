@@ -11,7 +11,7 @@ from typing import cast
 
 import numpy as np
 
-from .capture import bgr_to_yuyv_frame, orient_yuyv_frame
+from .capture import gray_to_yuyv_frame, orient_yuyv_frame
 from .clock import FrameRateCounter, nt_now_us
 from .config import CameraConfig, ConfigError
 from .devices import _run, parse_capability_controls
@@ -201,7 +201,7 @@ class CameraCapture(threading.Thread):
                     if not ok or image is None:
                         raise RuntimeError("bounded camera read returned no frame")
                     if self.camera.format in {"MJPG", "MJPEG"}:
-                        image = bgr_to_yuyv_frame(image, self.camera, cv2)
+                        image = gray_to_yuyv_frame(image, self.camera)
                     image = orient_yuyv_frame(image, self.camera)
                     # Explicitly own storage before returning it to consumers.
                     image = np.array(image, copy=True, order="C")
