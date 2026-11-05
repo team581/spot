@@ -24,8 +24,8 @@ in
         method = "auto";
         may-fail = true;
         address1 = maintenanceAddress;
-        never-default = true;
-        ignore-auto-dns = true;
+        never-default = false;
+        ignore-auto-dns = false;
       };
       ipv6 = {
         method = "link-local";
