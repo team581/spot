@@ -3,12 +3,12 @@
 #include <gtest/gtest.h>
 
 #include "apriltag_gpu.h"
-#include "apriltag_utils.h"
 #include "line_fit_filter.h"
 #include "opencv2/opencv.hpp"
 
 extern "C" {
 #include "apriltag.h"
+#include "tag36h11.h"
 }
 
 using namespace cv;
@@ -20,7 +20,6 @@ class GpuDetectorTest : public ::testing::Test {
 
   apriltag_family_t *tf = nullptr;
   apriltag_detector_t *td = nullptr;
-  const char *tag_family = "tag36h11";
   frc971::apriltag::CameraMatrix cam;
   frc971::apriltag::DistCoeffs dist;
 
@@ -34,7 +33,7 @@ class GpuDetectorTest : public ::testing::Test {
     cvtColor(bgr_img_notags, yuyv_img_notags, COLOR_BGR2YUV_YUYV);
 
     // Setup Tag Family and tag detector
-    setup_tag_family(&tf, tag_family);
+    tf = tag36h11_create();
     td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
 
@@ -63,7 +62,7 @@ class GpuDetectorTest : public ::testing::Test {
   void TearDown() override {
     // Cleanup code here if needed
     apriltag_detector_destroy(td);
-    teardown_tag_family(&tf, tag_family);
+    tag36h11_destroy(tf);
   }
 };
 

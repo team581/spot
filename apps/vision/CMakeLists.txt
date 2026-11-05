@@ -69,7 +69,6 @@ if(SPOT_BUILD_CUDA)
   set(TEAM766_SOURCES
     cpp/team766/apriltag_detect.cu
     cpp/team766/apriltag_gpu.cu
-    cpp/team766/apriltag_utils.cu
     cpp/team766/cuda_frc971.cu
     cpp/team766/labeling_allegretti_2019_BKE.cu
     cpp/team766/line_fit_filter.cu

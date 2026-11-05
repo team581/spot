@@ -15,12 +15,11 @@
 #include "apriltag_gpu.h"
 #endif
 #include "camera_geometry.h"
-#ifdef SPOT_WITH_CUDA
-#include "apriltag_utils.h"
-#endif
-
 extern "C" {
 #include "apriltag.h"
+#ifdef SPOT_WITH_CUDA
+#include "tag36h11.h"
+#endif
 }
 
 namespace py = pybind11;
@@ -45,11 +44,6 @@ struct DistortionCoefficients {
 
 #ifdef SPOT_WITH_CUDA
 struct DetectorOptions {
-  std::string family = "tag36h11";
-  double decimate = 2.0;
-  double blur = 0.0;
-  int threads = 1;
-  bool refine_edges = true;
   int max_hamming = 2;
 };
 
@@ -113,22 +107,21 @@ Detection ConvertDetection(const apriltag_detection_t &source) {
 class DetectorState {
  public:
   explicit DetectorState(const DetectorOptions &options) : options_(options) {
-    if (options_.threads < 1) throw py::value_error("threads must be positive");
-    setup_tag_family(&family_, options_.family.c_str());
-    if (family_ == nullptr) throw py::value_error("unsupported AprilTag family");
+    family_ = tag36h11_create();
     detector_ = apriltag_detector_create();
     if (detector_ == nullptr) throw std::runtime_error("failed to create AprilTag detector");
     apriltag_detector_add_family_bits(detector_, family_, options_.max_hamming);
-    detector_->quad_decimate = options_.decimate;
-    detector_->quad_sigma = options_.blur;
-    detector_->nthreads = options_.threads;
-    detector_->refine_edges = options_.refine_edges;
-    detector_->wp = workerpool_create(options_.threads);
+    // The CUDA detector requires 2x decimation; the remaining values are fixed for Spot.
+    detector_->quad_decimate = 2.0;
+    detector_->quad_sigma = 0.0;
+    detector_->nthreads = 1;
+    detector_->refine_edges = true;
+    detector_->wp = workerpool_create(1);
   }
 
   virtual ~DetectorState() {
     if (detector_ != nullptr) apriltag_detector_destroy(detector_);
-    if (family_ != nullptr) teardown_tag_family(&family_, options_.family.c_str());
+    if (family_ != nullptr) tag36h11_destroy(family_);
   }
 
   DetectorState(const DetectorState &) = delete;
@@ -174,9 +167,6 @@ class CudaDetector final : public DetectorState {
       : DetectorState(options), width_(width), height_(height) {
     if (width <= 0 || height <= 0 || width % 8 != 0 || height % 8 != 0) {
       throw py::value_error("CUDA detector dimensions must be positive multiples of 8");
-    }
-    if (options.decimate != 2.0) {
-      throw py::value_error("CUDA detector requires decimate=2");
     }
     int device_count = 0;
     const cudaError_t device_status = cudaGetDeviceCount(&device_count);
@@ -280,12 +270,7 @@ PYBIND11_MODULE(_spot_cuda, module) {
       .def_readwrite("k3", &DistortionCoefficients::k3);
 #ifdef SPOT_WITH_CUDA
   py::class_<DetectorOptions>(module, "DetectorOptions")
-      .def(py::init<>()).def_readwrite("family", &DetectorOptions::family)
-      .def_readwrite("decimate", &DetectorOptions::decimate)
-      .def_readwrite("blur", &DetectorOptions::blur)
-      .def_readwrite("threads", &DetectorOptions::threads)
-      .def_readwrite("refine_edges", &DetectorOptions::refine_edges)
-      .def_readwrite("max_hamming", &DetectorOptions::max_hamming);
+      .def(py::init<>()).def_readwrite("max_hamming", &DetectorOptions::max_hamming);
   py::class_<Detection>(module, "Detection")
       .def_readonly("id", &Detection::id).def_readonly("hamming", &Detection::hamming)
       .def_readonly("decision_margin", &Detection::decision_margin)
