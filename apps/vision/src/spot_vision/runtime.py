@@ -36,13 +36,12 @@ from .health import Watchdog
 from .models import DetectedFrame
 from .native import create_detector
 from .nt_transport import NtTransport, make_observation
-from .optical_modes import mode_supported, preview_mode, preview_modes
+from .optical_modes import advertised_modes, mode_supported, preview_mode, preview_modes
 from .persistence import StateSnapshot, StateStore, canonical_bytes, durable_replace
 from .pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
 from .processing import CameraDetector, ProcessingBudget, ProcessingPolicy, solve_tag_selection
 from .runtime_status import StatusSnapshot, build_status
 from .system_metrics import SystemMetrics
-from .timing_qualification import validate_timing, validate_timing_evidence
 
 if TYPE_CHECKING:
     from .calibration import CalibrationManager
@@ -208,11 +207,6 @@ class Runtime:
                             payload["document"],
                             payload["revision"],
                             validate_record,
-                            validate_timing_evidence,
-                        )
-                    elif operation == "configuration/qualify-timing":
-                        result = self.configuration.qualify_timing(
-                            payload["record"], payload["revision"], self.validate_timing_record
                         )
                     elif operation == "debug/record":
                         if payload["revision"] != self.configuration.state.generation:
@@ -244,18 +238,23 @@ class Runtime:
                         )
                     elif operation == "camera/mode":
                         camera = self.configuration.camera(payload["name"])
+                        device = self.devices.get(camera.binding_id) if camera.binding_id else None
                         mode = next(
-                            (m for m in camera.allowed_modes if m.id == payload["mode_id"]), None
+                            (
+                                m
+                                for m in [
+                                    *camera.allowed_modes,
+                                    *(advertised_modes(device) if device else []),
+                                ]
+                                if m.id == payload["mode_id"]
+                            ),
+                            None,
                         )
-                        binding = {"identity": camera.binding_id} if camera.binding_id else None
-                        device = self.devices.get(binding["identity"]) if binding else None
                         if mode is None or device is None or not mode_supported(device, mode):
                             raise ConfigError(
                                 "Selected optical mode is not advertised by the connected device"
                             )
-                        result = self.configuration.set_mode(
-                            camera.name, mode.id, payload["revision"]
-                        )
+                        result = self.configuration.set_mode(camera.name, mode, payload["revision"])
                     elif operation == "camera/replace":
                         identity = payload.get("identity")
                         worker = self.workers.get(identity) if identity else None
@@ -572,21 +571,10 @@ class Runtime:
                         raise ConfigError(
                             f"Camera settings verification failed: {faults[identity]}"
                         )
-            for identity, worker in self.workers.items():
-                definition = definitions.get(roles.get(identity))
-                record = definition.timestamp_qualification if definition else None
-                uncertainty, correction = None, 0
-                if record:
-                    try:
-                        validate_timing(record, identity, modes[identity], worker.readback)
-                        uncertainty, correction = record["uncertainty_s"], record["correction_us"]
-                    except ConfigError:
-                        pass  # changed mode/settings require new measured qualification
+            correction = -round(manifest.profile.latency_ms * 1000) if manifest else 0
+            for worker in self.workers.values():
                 with worker._lock:
-                    worker.timestamp_uncertainty_s, worker.timestamp_correction_us = (
-                        uncertainty,
-                        correction,
-                    )
+                    worker.timestamp_correction_us = correction
             self._field = field
             self.processing = processing
             self.processing_budget.policy = processing
@@ -644,9 +632,7 @@ class Runtime:
                     )
                     name = self.roles.get(identity)
                     if name and not self.devices.registry.fault:
-                        context = self.transport.context(
-                            name, frame.captured_monotonic_ns, frame.timestamp_uncertainty_s
-                        )
+                        context = self.transport.context(name, frame.captured_monotonic_ns)
                         if context and context.generation == frame.runtime_generation:
                             published = self.transport.publish(
                                 make_observation(
@@ -687,14 +673,6 @@ class Runtime:
         )
         worker = self.workers.get(identity)
         return dict(worker.readback) if worker else {}
-
-    def validate_timing_record(self, record: dict) -> None:
-        identity = record.get("identity") if isinstance(record, dict) else None
-        worker = self.workers.get(identity)
-        mode = self.modes.get(identity)
-        if not isinstance(identity, str) or not worker or not worker.verified or not mode:
-            raise ConfigError("Timing qualification requires a connected verified camera")
-        validate_timing(record, identity, mode, worker.readback)
 
     def _debug_tick(self) -> None:
         now = time.monotonic()

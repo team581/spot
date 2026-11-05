@@ -9,8 +9,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 from .camera_controls import frame_limited_exposure
 from .configuration import mode_signature
-from .optical_modes import mode_supported, preview_mode, preview_modes
-from .timing_qualification import timing_signature
+from .optical_modes import advertised_modes, mode_supported, preview_mode, preview_modes
 
 if TYPE_CHECKING:
     from . import protocol_models as wire
@@ -142,12 +141,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             "name": name or device["display_id"],
             "logical_name": name,
             "required": bool(definition and definition.required),
-            "timing_signature": timing_signature(runtime.modes[identity], worker.readback)
-            if worker and identity in runtime.modes
-            else None,
-            "timestamp_qualified": bool(
-                worker and getattr(worker, "timestamp_uncertainty_s", None)
-            ),
             "present": True,
             "connected": bool(worker and worker.verified),
             "controls": capabilities,
@@ -203,7 +196,19 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     "pixel_format": m.pixel_format,
                     "supported": mode_supported(runtime.devices.get(identity), m),
                 }
-                for m in definition.allowed_modes
+                # Robot-code modes first, then any other mode the device advertises.
+                for m in [
+                    *definition.allowed_modes,
+                    *(
+                        m
+                        for m in advertised_modes(runtime.devices.get(identity))
+                        if (m.width, m.height, m.fps, m.pixel_format)
+                        not in {
+                            (c.width, c.height, c.fps, c.pixel_format)
+                            for c in definition.allowed_modes
+                        }
+                    ),
+                ]
             ]
             if definition
             else [
@@ -248,7 +253,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     "logical_name": definition.name,
                     "required": definition.required,
                     "health": "Missing" if definition.enabled else "Disabled",
-                    "timestamp_qualified": False,
                     "present": False,
                     "connected": False,
                     "calibrated": bool(record),

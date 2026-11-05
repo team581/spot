@@ -68,9 +68,7 @@ class RobotPublisher:
         from spot_vision.structs import FieldTag, pose_value
 
         p = message.profile
-        self.put(
-            "cameraConfig", snapshot(wire.RobotConfiguration(p.cameras, p.processing)).decode()
-        )
+        self.put("cameraConfig", snapshot(wire.robot_configuration(p)).decode())
         for key, value in (
             ("maxAgeS", p.max_age_s),
             ("futureToleranceS", p.future_tolerance_s),

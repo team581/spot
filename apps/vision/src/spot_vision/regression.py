@@ -86,7 +86,6 @@ def run_image_regression(
                         name=camera.id, robot_to_camera=wire.Mount(), allowed_modes=[]
                     ),
                     True,
-                    0.0,
                 ),
                 (time.perf_counter_ns() - started) / 1e6,
             )

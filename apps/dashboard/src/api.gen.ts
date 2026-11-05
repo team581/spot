@@ -293,23 +293,6 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/configuration/qualify-timing': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Configuration Qualify Timing */
-		post: operations['configuration_qualify_timing'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
 	'/api/debug/record': {
 		parameters: {
 			query?: never;
@@ -662,15 +645,6 @@ export interface components {
 			team?: number | null;
 			/** Server */
 			server?: string | null;
-		};
-		/** QualifyTiming */
-		QualifyTiming: {
-			/** Revision */
-			revision: string;
-			/** Record */
-			record: {
-				[key: string]: unknown;
-			};
 		};
 		/** Rename */
 		Rename: {
@@ -1234,39 +1208,6 @@ export interface operations {
 		requestBody: {
 			content: {
 				'application/json': components['schemas']['Restore'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['Applied'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	configuration_qualify_timing: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['QualifyTiming'];
 			};
 		};
 		responses: {

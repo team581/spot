@@ -15,8 +15,12 @@ it. Edits made on the dashboard take priority until robot code matches them.
    measured: metres from the robot origin (WPILib NWU: +X forward, +Y left, +Z up)
    and `roll_deg`, `pitch_deg`, `yaw_deg` as in WPILib's `Rotation3d`. Positive
    pitch points the lens down. Otherwise measure it on the dashboard's **Mount** tab.
-   Omitted settings use their defaults; the dashboard fills in `binding_id`,
-   `calibration`, and `timestamp_qualification`.
+   Give each camera the capture mode you expect from its datasheet; if the camera
+   does not support it, choose a supported mode on its **Tuning** tab.
+   Omitted settings use their defaults, and the dashboard fills in `binding_id` and
+   `calibration`. The top-level `latency_ms` (default 5) is a fixed allowance for the
+   delay between exposure and Spot reading a frame; Spot shifts every capture
+   timestamp earlier by it.
 3. Publish the file's contents as a string; robot code never parses it. The offseason robot's
    [`VisionConfig.java`](https://github.com/team581/offseason-2026/blob/main/offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java)
    reads it and the shared
@@ -39,7 +43,8 @@ A setting lives with whoever reads it:
   `/Spot/Config/` in NetworkTables, so the roboRIO never parses JSON. The field
   layout and tag sizes, `maxAgeS`, and `futureToleranceS`.
 - **Only robot code reads it:** robot code, never sent to Spot. Fusion, heading use,
-  and measurement ordering, for example.
+  measurement ordering, and the timing uncertainty used to weight vision
+  measurements, for example.
 
 ## Schema
 

@@ -2,7 +2,7 @@
 intermediate models for NetworkTables struct construction."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from dataclasses import field as data_field
 from typing import Annotated, Literal
 
@@ -115,9 +115,6 @@ class CameraDefinition:
     calibration: Annotated[
         dict | None, Field(description="Calibration record applied from the dashboard.")
     ] = None
-    timestamp_qualification: Annotated[
-        dict | None, Field(description="Timing record applied from the dashboard.")
-    ] = None
     detector: DetectorConfig = data_field(default_factory=DetectorConfig)
 
 
@@ -139,6 +136,15 @@ class FieldLayout:
 
 
 Cameras = Annotated[list[CameraDefinition], Field(max_length=32)]
+Latency = Annotated[
+    float,
+    Field(
+        ge=0,
+        le=250,
+        description="Fixed delay from exposure to Spot reading a frame; Spot shifts every"
+        " capture timestamp earlier by it.",
+    ),
+]
 
 
 @with_config(CONFIG)
@@ -149,6 +155,7 @@ class Profile:
     max_age_s: float = 0.0
     future_tolerance_s: float = 0.0
     processing: ProcessingPolicy = data_field(default_factory=ProcessingPolicy)
+    latency_ms: Latency = 5.0
 
 
 @with_config(CONFIG)
@@ -158,12 +165,27 @@ class RobotConfiguration:
 
     cameras: Cameras = data_field(default_factory=list)
     processing: ProcessingPolicy = data_field(default_factory=ProcessingPolicy)
+    latency_ms: Latency = 5.0
 
 
 @with_config(CONFIG)
 @dataclass
 class Manifest:
     profile: Profile = data_field(default_factory=Profile)
+
+
+def robot_configuration(profile: Profile) -> RobotConfiguration:
+    """The spot-config.json settings within a profile."""
+    return RobotConfiguration(profile.cameras, profile.processing, profile.latency_ms)
+
+
+def with_configuration(profile: Profile, settings: RobotConfiguration) -> Profile:
+    return replace(
+        profile,
+        cameras=settings.cameras,
+        processing=settings.processing,
+        latency_ms=settings.latency_ms,
+    )
 
 
 @dataclass
@@ -208,7 +230,6 @@ class Observation:
     calibration_valid: bool = False
     capture_local_nt_us: int = 0
     timestamp_source: str = ""
-    timestamp_uncertainty_s: float = 0.0
     candidates: list[PoseCandidate] = data_field(default_factory=list)
     tags: list[TagObservation] = data_field(default_factory=list)
     timing: ProcessingTiming = data_field(default_factory=ProcessingTiming)

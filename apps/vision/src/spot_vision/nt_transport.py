@@ -38,7 +38,6 @@ class ObservationContext:
     generation: str
     camera: wire.CameraDefinition
     calibrated: bool
-    timestamp_uncertainty_s: float | None
 
 
 def make_observation(
@@ -60,12 +59,11 @@ def make_observation(
         calibration_valid=context.calibrated,
         capture_local_nt_us=frame.capture_timestamp_us,
         timestamp_source=frame.timestamp_source,
-        timestamp_uncertainty_s=context.timestamp_uncertainty_s or 0,
     )
     detections = detected.batch.detections[:MAX_TAGS]
     by_id = {tag.id: tag for tag in detections}
     h, w = frame.image.shape[:2]
-    if context.calibrated and context.timestamp_uncertainty_s is not None:
+    if context.calibrated:
         for candidate in solution.candidates[:2]:
             pose = wire.Pose(
                 x_m=float(candidate.translation[0]),
@@ -232,9 +230,7 @@ class NtTransport:
             self._generation = ""
             self._applied_ns = time.monotonic_ns()
 
-    def context(
-        self, camera_name: str, captured_ns: int, uncertainty_s: float | None
-    ) -> ObservationContext | None:
+    def context(self, camera_name: str, captured_ns: int) -> ObservationContext | None:
         with self._lock:
             config = self.configuration
             if (
@@ -242,7 +238,7 @@ class NtTransport:
                 or not config.fresh
                 or config.manifest is None
                 or self.clock.snapshot().offset_us is None
-                or captured_ns - int((uncertainty_s or 0) * 1e9) <= self._applied_ns
+                or captured_ns <= self._applied_ns
             ):
                 return None
             camera = next(
@@ -254,14 +250,11 @@ class NtTransport:
                 self._generation,
                 copy.deepcopy(camera),
                 self._camera_ready(camera_name),
-                uncertainty_s,
             )
 
     def publish(self, observation: wire.Observation, captured_ns: int) -> bool:
         with self._lock:
-            context = self.context(
-                observation.camera_name, captured_ns, observation.timestamp_uncertainty_s
-            )
+            context = self.context(observation.camera_name, captured_ns)
             selection = self.configuration.tag_selection()
             manifest = self.configuration.manifest
             if (

@@ -85,9 +85,7 @@ class ConfigurationService:
 
     @staticmethod
     def _code_values(baseline: wire.Manifest) -> dict:
-        return overlay.values(
-            wire.RobotConfiguration(baseline.profile.cameras, baseline.profile.processing)
-        )
+        return overlay.values(wire.robot_configuration(baseline.profile))
 
     @classmethod
     def _prune(cls, baseline: wire.Manifest, overrides: dict, code: dict) -> tuple[dict, dict]:
@@ -106,7 +104,7 @@ class ConfigurationService:
 
     @staticmethod
     def _effective(baseline: wire.Manifest, overrides: dict) -> wire.Manifest:
-        original = wire.RobotConfiguration(baseline.profile.cameras, baseline.profile.processing)
+        original = wire.robot_configuration(baseline.profile)
         document = overlay.merge(overlay.values(original), overrides)
         names = {camera.name for camera in original.cameras}
         document["cameras"] = {
@@ -115,9 +113,7 @@ class ConfigurationService:
         settings = overlay.settings(document)
         result = replace(
             baseline,
-            profile=replace(
-                baseline.profile, cameras=settings.cameras, processing=settings.processing
-            ),
+            profile=wire.with_configuration(baseline.profile, settings),
         )
         validate_manifest(result)
         return result
@@ -240,10 +236,9 @@ class ConfigurationService:
                 )
                 if record != old:
                     camera.calibration = copy.deepcopy(record)
-                timing = data.get("timestamp_qualifications", {}).get(identity)
-                if timing != self.state.data.get("timestamp_qualifications", {}).get(identity):
-                    camera.timestamp_qualification = copy.deepcopy(timing)
-        return wire.RobotConfiguration(cameras, copy.deepcopy(self.manifest.profile.processing))
+        return replace(
+            wire.robot_configuration(copy.deepcopy(self.manifest.profile)), cameras=cameras
+        )
 
     def _configure(
         self, settings: wire.RobotConfiguration, expected: str, data: dict
@@ -259,15 +254,11 @@ class ConfigurationService:
         validate_manifest(
             replace(
                 current,
-                profile=replace(
-                    current.profile, cameras=settings.cameras, processing=settings.processing
-                ),
+                profile=wire.with_configuration(current.profile, settings),
             )
         )
         overrides = copy.deepcopy(self.overrides)
-        before = overlay.values(
-            wire.RobotConfiguration(current.profile.cameras, current.profile.processing)
-        )
+        before = overlay.values(wire.robot_configuration(current.profile))
         delta = overlay.changes(before, overlay.values(settings))
         overrides = overlay.merge(overrides, delta)
         values = self._code_values(baseline)
@@ -340,9 +331,9 @@ class ConfigurationService:
             for other in settings.cameras:
                 if other.binding_id == identity:
                     other.binding_id = ""
-                    other.calibration = other.timestamp_qualification = None
+                    other.calibration = None
             camera.binding_id = identity
-            camera.calibration = camera.timestamp_qualification = None
+            camera.calibration = None
             return self._configure(settings, expected, self.state.data)
 
     def replace_camera(
@@ -355,7 +346,7 @@ class ConfigurationService:
             if not identity or not self._device_exists(identity):
                 raise ConfigError("Replacement camera is disconnected; confirm its preview")
             camera.binding_id = identity
-            camera.calibration = camera.timestamp_qualification = None
+            camera.calibration = None
             return self._configure(settings, expected, self.state.data)
 
     def tune(
@@ -384,19 +375,19 @@ class ConfigurationService:
             if optical_controls(self.effective_controls(name)) != optical_controls(
                 {c.name: c.default_value for c in camera.controls}
             ):
-                camera.calibration = camera.timestamp_qualification = None
+                camera.calibration = None
             return self._configure(settings, expected, self.state.data)
 
     def effective_controls(self, name: str) -> dict[str, float]:
         return {c.name: c.default_value for c in self.camera(name).controls}
 
-    def set_mode(self, name: str, mode_id: str, expected: str) -> StateSnapshot:
+    def set_mode(self, name: str, mode: wire.OpticalMode, expected: str) -> StateSnapshot:
+        """Make a mode active; one robot code does not list becomes a Spot change."""
         with self._lock:
             settings = self.export_configuration()
             camera = next(c for c in settings.cameras if c.name == name)
-            if mode_id not in {mode.id for mode in camera.allowed_modes}:
-                raise ConfigError("Mode is not allowed by robot code")
-            camera.allowed_modes.sort(key=lambda mode: mode.id != mode_id)
+            others = [m for m in camera.allowed_modes if m.id != mode.id]
+            camera.allowed_modes = [mode, *others]
             return self._configure(settings, expected, self.state.data)
 
     def import_data(
@@ -404,7 +395,6 @@ class ConfigurationService:
         document: dict,
         expected: str,
         validate: Callable[[dict], None],
-        validate_timing_record: Callable[[dict], None],
     ) -> StateSnapshot:
         with self._lock:
             if (
@@ -417,7 +407,6 @@ class ConfigurationService:
             if not isinstance(incoming, dict) or set(incoming) - {
                 "calibrations",
                 "calibration_options",
-                "timestamp_qualifications",
             }:
                 raise ConfigError("Unknown imported state fields")
             data = copy.deepcopy(self.state.data)
@@ -426,26 +415,8 @@ class ConfigurationService:
                 if key != record["identity"] + ":" + record["mode_signature"]:
                     raise ConfigError("Imported calibration identity/key mismatch")
             data["calibrations"] = copy.deepcopy(incoming.get("calibrations", {}))
-            for key, record in incoming.get("timestamp_qualifications", {}).items():
-                validate_timing_record(record)
-                if key != record["identity"]:
-                    raise ConfigError("Imported timing identity/key mismatch")
-            data["timestamp_qualifications"] = copy.deepcopy(
-                incoming.get("timestamp_qualifications", {})
-            )
             # Board options are captured separately through their validated UI
             # path; import does not alter an in-progress calibration session.
-            return self._commit(data, expected)
-
-    def qualify_timing(
-        self, record: dict, expected: str, validate: Callable[[dict], None]
-    ) -> StateSnapshot:
-        with self._lock:
-            validate(record)
-            data = copy.deepcopy(self.state.data)
-            data.setdefault("timestamp_qualifications", {})[record["identity"]] = copy.deepcopy(
-                record
-            )
             return self._commit(data, expected)
 
     def calibration_group(

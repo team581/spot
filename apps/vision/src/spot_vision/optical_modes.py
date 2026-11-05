@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from . import protocol_models as wire
 
 
@@ -42,3 +44,32 @@ def preview_mode(mode):
         fps=round(mode["fps"]),
         **{key: mode[key] for key in ("width", "height", "pixel_format")},
     )
+
+
+FORMATS: dict[str, Literal["MJPEG", "YUYV"]] = {"MJPG": "MJPEG", "YUYV": "YUYV"}
+
+
+def advertised_modes(device) -> list[wire.OpticalMode]:
+    """Every capture mode the device advertises that Spot can process."""
+    modes = []
+    for mode in device.modes:
+        pixel_format = FORMATS.get(mode["pixel_format"])
+        fps = round(mode["fps"])
+        if (
+            pixel_format
+            and 0 < mode["width"] <= 4096
+            and 0 < mode["height"] <= 4096
+            and mode["width"] % 8 == 0
+            and mode["height"] % 8 == 0
+            and 0 < fps <= 240
+        ):
+            modes.append(
+                wire.OpticalMode(
+                    id=f"{mode['width']}x{mode['height']}-{fps}-{pixel_format}",
+                    width=mode["width"],
+                    height=mode["height"],
+                    pixel_format=pixel_format,
+                    fps=fps,
+                )
+            )
+    return modes

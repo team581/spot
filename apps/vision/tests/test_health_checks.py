@@ -27,7 +27,6 @@ def ready():
                 "required": True,
                 "connected": True,
                 "calibrated": True,
-                "timestamp_qualified": True,
                 "metrics": {"detect_age_s": 0.1},
             }
         ],
@@ -53,7 +52,6 @@ def test_health_rejects_a_different_running_package(ready):
         "no cameras",
         "disconnected",
         "uncalibrated",
-        "unqualified",
         "slow",
         "no detections",
     ],
@@ -72,8 +70,6 @@ def test_robot_qualification_requires_all_readiness_checks(ready, fault):
         camera["connected"] = False
     elif fault == "uncalibrated":
         camera["calibrated"] = False
-    elif fault == "unqualified":
-        camera["timestamp_qualified"] = False
     elif fault == "slow":
         camera["metrics"]["detect_age_s"] = 1.5
     elif fault == "no detections":

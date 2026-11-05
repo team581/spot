@@ -45,7 +45,6 @@ class FramePacket:
     capture_epoch: str = ""
     runtime_generation: str = ""
     timestamp_source: str = "read-completion-local-nt"
-    timestamp_uncertainty_s: float | None = None
 
 
 @dataclass(frozen=True)

@@ -96,6 +96,7 @@ class ProfileSubscriber:
                 max_age_s=age,
                 future_tolerance_s=future,
                 processing=settings.processing,
+                latency_ms=settings.latency_ms,
             )
         )
 

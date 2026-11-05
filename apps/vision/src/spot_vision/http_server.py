@@ -31,8 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
+from . import protocol_models as wire
 from .protocol import SCHEMA_URL
-from .protocol_models import RobotConfiguration
 
 MAX_BODY = 256 * 1024
 MAX_IMPORT_BODY = 2 * 1024 * 1024
@@ -108,10 +108,6 @@ class Configure(Revisioned):
     document: Document
 
 
-class QualifyTiming(Revisioned):
-    record: Document
-
-
 class Rename(Device):
     name: Text
 
@@ -174,7 +170,6 @@ OPERATIONS: dict[str, type[Payload]] = {
     "configuration/import": Configure,
     "configuration/clear-overrides": ClearOverrides,
     "configuration/restore": Restore,
-    "configuration/qualify-timing": QualifyTiming,
     "debug/record": Debug,
     "calibration/board": CalibrationBoard,
     "calibration/select": CalibrationCameras,
@@ -340,7 +335,7 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
         manifest = runtime.configuration.robot_manifest
         if manifest is None:
             raise ValueError("Connect robot code before exporting its configuration")
-        return asdict(RobotConfiguration(manifest.profile.cameras, manifest.profile.processing))
+        return asdict(wire.robot_configuration(manifest.profile))
 
     @app.get("/api/support")
     def support() -> dict:

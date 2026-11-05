@@ -61,7 +61,6 @@ def _check_health_status(status: dict, package_path: str, *, robot: bool) -> Non
     if not required or any(
         not camera["connected"]
         or not camera["calibrated"]
-        or not camera.get("timestamp_qualified")
         or camera.get("metrics", {}).get("detect_age_s") is None
         or camera["metrics"]["detect_age_s"] > 0.5
         for camera in required

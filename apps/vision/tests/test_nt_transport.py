@@ -81,7 +81,7 @@ def ready(link):
 
 def observation(link):
     captured = time.monotonic_ns()
-    context = link.transport.context("front", captured, 1e-6)
+    context = link.transport.context("front", captured)
     assert context is not None
     frame = FramePacket(
         "usb-a",
@@ -148,7 +148,7 @@ def test_reconnect_reapplies_defaults_and_withholds_preconnection_frames(link):
     old, captured = observation(link)
     link.client.stopClient()
     wait(link, lambda: not link.config.connected)
-    assert link.transport.context("front", time.monotonic_ns(), 0) is None
+    assert link.transport.context("front", time.monotonic_ns()) is None
     link.client.startClient4("spot-test")
     wait(link, lambda: link.config.fresh and link.config.tag_selection() is not None)
     assert not link.transport.publish(old, captured)

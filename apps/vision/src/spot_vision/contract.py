@@ -55,12 +55,6 @@ def validate_manifest(message: wire.Manifest) -> None:
             validate_record(camera.calibration)
             if camera.calibration["identity"] != camera.binding_id:
                 raise ConfigError("calibration belongs to another camera")
-        if camera.timestamp_qualification is not None:
-            from .timing_qualification import validate_timing_evidence
-
-            validate_timing_evidence(camera.timestamp_qualification)
-            if camera.timestamp_qualification["identity"] != camera.binding_id:
-                raise ConfigError("timing qualification belongs to another camera")
         if len({mode.id for mode in camera.allowed_modes}) != len(camera.allowed_modes):
             raise ConfigError(f"{camera.name}: duplicate mode ID")
         if len({control.name for control in camera.controls}) != len(camera.controls):
@@ -123,15 +117,13 @@ def validate_observation(message: wire.Observation) -> None:
             timing.detect_ms,
             timing.solve_ms,
             timing.total_ms,
-            message.timestamp_uncertainty_s,
         )
         or min(
             timing.capture_to_detect_ms,
             timing.detect_ms,
             timing.solve_ms,
             timing.total_ms,
-            message.timestamp_uncertainty_s,
         )
         < 0
     ):
-        raise ConfigError("invalid processing or timestamp uncertainty")
+        raise ConfigError("invalid processing timing")

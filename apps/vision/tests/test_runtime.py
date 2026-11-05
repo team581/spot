@@ -199,6 +199,46 @@ def test_unsupported_mode_is_not_opened_or_falsely_calibrated(runtime):
     assert "not advertised" in app.status()["cameras"][0]["fault"]
 
 
+def test_configured_latency_shifts_capture_timestamps(runtime):
+    app, identity, _, _ = runtime
+    worker = app.workers[identity]
+    assert worker.timestamp_correction_us == -5000
+    slower = manifest()
+    slower.profile.latency_ms = 12
+    app.configuration.accept_manifest(slower)
+    assert worker.timestamp_correction_us == -12000
+
+
+def test_dashboard_can_switch_to_an_advertised_mode_robot_code_lacks(runtime):
+    app, identity, _, _ = runtime
+    unsupported = manifest()
+    unsupported.profile.cameras[0].allowed_modes[0].fps = 60
+    assert [m["id"] for m in app.status()["cameras"][0]["allowed_modes"]] == ["640x480"]
+    app.configuration.accept_manifest(unsupported)
+    assert identity not in app.workers
+    modes = app.status()["cameras"][0]["allowed_modes"]
+    assert [(m["id"], m["supported"]) for m in modes] == [
+        ("640x480", False),
+        ("640x480-30-MJPEG", True),
+    ]
+    app.threads[0].start()
+    try:
+        app.submit(
+            "camera/mode",
+            {
+                "name": "front",
+                "mode_id": "640x480-30-MJPEG",
+                "revision": app.configuration.state.generation,
+            },
+        ).result(2)
+    finally:
+        app.stop_event.set()
+        app.threads[0].join(2)
+    assert app.workers[identity].camera.fps == 30
+    [entry] = [e for e in app.configuration.override_entries() if "allowed_modes" in e["path"]]
+    assert entry["value"][0]["id"] == "640x480-30-MJPEG"
+
+
 def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(runtime):
     app, identity, nodes, _ = runtime
     old_worker = app.workers[identity]

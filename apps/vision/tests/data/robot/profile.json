@@ -39,7 +39,6 @@
         ],
         "binding_id": "",
         "calibration": null,
-        "timestamp_qualification": null,
         "detector": {
           "backend": "cpu",
           "max_hamming": 2
@@ -84,6 +83,7 @@
     "processing": {
       "max_fps": 30,
       "utilization_budget": 0.8
-    }
+    },
+    "latency_ms": 5.0
   }
 }

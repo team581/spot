@@ -9,7 +9,7 @@ from dataclasses import asdict
 from . import protocol_models as data
 from .protocol import restore
 
-GROUPS = {"robot_to_camera", "allowed_modes", "calibration", "timestamp_qualification"}
+GROUPS = {"robot_to_camera", "allowed_modes", "calibration"}
 
 
 def values(settings: data.RobotConfiguration) -> dict:

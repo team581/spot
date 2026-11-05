@@ -60,19 +60,6 @@
 					"default": null,
 					"description": "Calibration record applied from the dashboard."
 				},
-				"timestamp_qualification": {
-					"anyOf": [
-						{
-							"additionalProperties": true,
-							"type": "object"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Timing record applied from the dashboard."
-				},
 				"detector": {
 					"$ref": "#/$defs/DetectorConfig"
 				}
@@ -224,6 +211,13 @@
 		},
 		"processing": {
 			"$ref": "#/$defs/ProcessingPolicy"
+		},
+		"latency_ms": {
+			"default": 5.0,
+			"description": "Fixed delay from exposure to Spot reading a frame; Spot shifts every capture timestamp earlier by it.",
+			"maximum": 250,
+			"minimum": 0,
+			"type": "number"
 		}
 	},
 	"type": "object",

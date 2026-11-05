@@ -15,6 +15,6 @@ def test_docs_starter_config_is_accepted_by_spot():
     validate_manifest(
         replace(
             base,
-            profile=replace(base.profile, cameras=settings.cameras, processing=settings.processing),
+            profile=wire.with_configuration(base.profile, settings),
         )
     )

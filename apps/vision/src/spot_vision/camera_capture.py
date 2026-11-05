@@ -125,7 +125,6 @@ class CameraCapture(threading.Thread):
         self.commands: queue.Queue[ControlRequest] = queue.Queue(maxsize=1)
         self.last_progress = time.monotonic()
         self.verified = False
-        self.timestamp_uncertainty_s = None
         self.timestamp_correction_us = 0
         self.frame = None
         self._lock = threading.RLock()
@@ -195,7 +194,6 @@ class CameraCapture(threading.Thread):
                     with self._lock:
                         generation = self.generation
                         correction = self.timestamp_correction_us
-                        uncertainty = self.timestamp_uncertainty_s
                     ok, image = capture.read()
                     captured_ns, local_us = time.monotonic_ns(), nt_now_us()
                     if not ok or image is None:
@@ -220,7 +218,6 @@ class CameraCapture(threading.Thread):
                         image,
                         capture_epoch,
                         generation,
-                        timestamp_uncertainty_s=uncertainty,
                     )
                     self.frame = packet
                     if self.slot.put(packet):

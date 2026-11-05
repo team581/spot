@@ -44,7 +44,6 @@ class FrameResult:
     tagSelectionGeneration: int64 = 0
     captureLocalNtUs: int64 = 0
     timestampSource: int32 = 0
-    timestampUncertainty: double = 0.0
     observedTags: int64 = 0
     candidateCount: int32 = 0
     robotToCamera: Transform3d = field(default_factory=Transform3d)
@@ -183,7 +182,6 @@ def result_value(observation: data.Observation, layout: data.FieldLayout) -> Fra
         observation.tag_selection_generation,
         observation.capture_local_nt_us,
         SOURCES.index(observation.timestamp_source),
-        observation.timestamp_uncertainty_s,
         tag_mask(
             [
                 tag.id

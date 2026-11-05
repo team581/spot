@@ -85,7 +85,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							id="optical-mode"
 							className="w-full"
 							value={c.mode_id || ''}
-							disabled={!c.connected || tuner.inFlight}
+							disabled={!c.present || tuner.inFlight}
 							onChange={(e) => {
 								if (!c.logical_name) return;
 								operation.mutate(
@@ -97,6 +97,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 								);
 							}}
 						>
+							{c.mode_id ? null : <NativeSelectOption value="">Choose a supported mode</NativeSelectOption>}
 							{(c.allowed_modes ?? []).map((m) => (
 								<NativeSelectOption key={m.id} value={m.id} disabled={!m.supported}>
 									{m.width} × {m.height} · {m.fps} FPS · {m.pixel_format}

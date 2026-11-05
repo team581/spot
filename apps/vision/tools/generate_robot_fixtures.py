@@ -31,7 +31,6 @@ def generate(root: Path) -> None:
             robot_to_camera=message.profile.cameras[0].robot_to_camera.pose(),
             capture_local_nt_us=1_000_000,
             timestamp_source="read-completion-local-nt",
-            timestamp_uncertainty_s=0.003,
         )
         if name != "empty":
             observation.tags.append(

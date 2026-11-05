@@ -3,7 +3,6 @@ import type { Camera, Override } from '../types';
 const settings: Record<string, string> = {
 	robot_to_camera: 'Mount',
 	calibration: 'Calibration',
-	timestamp_qualification: 'Timestamp qualification',
 	allowed_modes: 'Capture mode',
 	binding_id: 'Physical camera',
 	enabled: 'Enabled',
@@ -19,7 +18,7 @@ export const controlPath = (camera: string, control: string) => `cameras/${camer
 /** Readable camera and setting names for an override path. */
 export function describe(path: string, cameras: Camera[]): { camera?: string; setting: string } {
 	const [group, name, key, control] = path.split('/');
-	if (group !== 'cameras') return { setting: path.split('/').join(' · ') };
+	if (group !== 'cameras') return { setting: group === 'latency_ms' ? 'Latency' : path.split('/').join(' · ') };
 	if (key === 'controls') {
 		const label = cameras.find((c) => c.logical_name === name)?.controls?.find((c) => c.name === control)?.label;
 		return { camera: name, setting: label ?? control };
@@ -30,6 +29,7 @@ export function describe(path: string, cameras: Camera[]): { camera?: string; se
 /** Short display text for one side of an override. */
 export function display(path: string, value: unknown): string {
 	if (value == null) return 'Not set';
+	if (path === 'latency_ms') return `${Number(value)} ms`;
 	const key = path.split('/')[2];
 	const v = value as Record<string, unknown> & unknown[];
 	if (key === 'controls') return String(v.default_value);

@@ -14,6 +14,7 @@ uptime_s
 has_configuration
 
 # Pydantic, FastAPI and uvicorn read these attributes.
+mode_id
 model_config
 _.route_class
 _.should_exit
