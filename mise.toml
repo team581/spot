@@ -36,6 +36,14 @@ run = "bash tools/jetson-ssh.sh"
 description = "Build and test a NixOS generation on Spot without changing its boot default"
 run = "nix run .#deploy -- test"
 
+[tasks."jetson:installer"]
+description = "Build the ARM64 installer in Docker and export the ISO to dist/installer"
+run = """
+docker buildx build --platform linux/arm64 \\
+  --file tools/jetson-installer.Dockerfile \\
+  --output type=local,dest=dist/installer .
+"""
+
 [tasks.format]
 run = ["pnpm format", "uv run --no-sync ruff format --check"]
 
