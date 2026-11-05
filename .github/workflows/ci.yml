@@ -10,7 +10,7 @@ permissions:
 jobs:
   hooks:
     name: Hook configuration
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 5
     steps:
       - uses: useblacksmith/checkout@v1
@@ -28,9 +28,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: blacksmith-4vcpu-ubuntu-2404
+          - runner: blacksmith-4vcpu-ubuntu-2604
             system: x86_64-linux
-          - runner: blacksmith-4vcpu-ubuntu-2404-arm
+          - runner: blacksmith-4vcpu-ubuntu-2604-arm
             system: aarch64-linux
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -58,7 +58,7 @@ jobs:
 
   javascript:
     name: JavaScript and documentation
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 10
     steps:
       - uses: useblacksmith/checkout@v1
@@ -85,7 +85,7 @@ jobs:
   application:
     name: Python application and CUDA geometry
     needs: javascript
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 10
     env:
       # The setup actions manage these tools; mise only runs the application checks.
@@ -110,7 +110,7 @@ jobs:
       - name: Mount Playwright browsers
         uses: useblacksmith/stickydisk@v1
         with:
-          key: ${{ github.repository }}-playwright-browsers-ubuntu-2404-${{ runner.arch }}
+          key: ${{ github.repository }}-playwright-browsers-ubuntu-2604-${{ runner.arch }}
           path: ~/.cache/ms-playwright
           commit: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       - run: pnpm --filter spot-dashboard exec playwright install --with-deps chromium

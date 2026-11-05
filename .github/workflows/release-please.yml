@@ -20,7 +20,7 @@ concurrency:
 jobs:
   release-please:
     if: ${{ github.event_name == 'push' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 5
     permissions:
       contents: write
@@ -39,7 +39,7 @@ jobs:
   publish:
     needs: release-please
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 10
     permissions:
       contents: write

@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   installer:
-    runs-on: blacksmith-16vcpu-ubuntu-2404-arm
+    runs-on: blacksmith-16vcpu-ubuntu-2604-arm
     timeout-minutes: 180
     concurrency:
       group: nix-cache-${{ github.repository }}-aarch64-linux
