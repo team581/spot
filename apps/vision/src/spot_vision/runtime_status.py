@@ -79,6 +79,14 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
     devices = runtime.devices.snapshot()[:32]
     manifest = config.manifest
     definitions = list(manifest.profile.cameras) if manifest else []
+    defaults = (
+        {
+            camera.name: {control.name: control.default_value for control in camera.controls}
+            for camera in config.robot_manifest.profile.cameras
+        }
+        if config.robot_manifest
+        else {}
+    )
     bindings = {c.name: {"identity": c.binding_id} for c in definitions if c.binding_id}
     by_identity = {b["identity"]: name for name, b in bindings.items()}
     cameras = []
@@ -116,7 +124,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                             or standalone_setup
                         )
                     ),
-                    "default": policy.default_value if policy else None,
+                    "default": defaults.get(name, {}).get(control["name"]),
                     "required": bool(policy and policy.required),
                     "reason": ""
                     if (definition is not None and (policy is None or policy.allow_override))

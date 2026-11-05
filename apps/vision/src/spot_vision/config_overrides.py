@@ -40,7 +40,7 @@ def merge(baseline: dict, overrides: dict) -> dict:
     return result
 
 
-def changes(before: dict, after: dict) -> dict:
+def changes(before: dict, after: dict, path: tuple[str, ...] = ()) -> dict:
     result = {}
     for key in before.keys() | after.keys():
         if key not in after:
@@ -48,10 +48,11 @@ def changes(before: dict, after: dict) -> dict:
         elif key not in before or before[key] != after[key]:
             if (
                 key not in GROUPS
+                and not (len(path) == 3 and path[0] == "cameras" and path[2] == "controls")
                 and isinstance(before.get(key), dict)
                 and isinstance(after[key], dict)
             ):
-                result[key] = changes(before[key], after[key])
+                result[key] = changes(before[key], after[key], (*path, key))
             else:
                 result[key] = copy.deepcopy(after[key])
     return result

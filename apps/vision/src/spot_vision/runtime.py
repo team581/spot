@@ -454,7 +454,6 @@ class Runtime:
                 if mode is None or not mode_supported(physical, mode):
                     faults[identity] = "Code optical mode is not advertised by this device"
                     continue
-                saved = {c.name: c.default_value for c in definition.controls}
                 available = {c["name"] for c in physical.controls}
                 missing_required = [
                     c.name for c in definition.controls if c.required and c.name not in available
@@ -464,22 +463,13 @@ class Runtime:
                         missing_required
                     )
                     continue
-                if set(saved) - available:
-                    raise ConfigError("Saved controls unavailable on connected camera")
                 controls[identity] = {
                     c["name"]: c["default"] * c["factor"]
                     for c in physical.controls
                     if c["writable"] and c["default"] is not None
                 }
-                controls[identity].update(saved)
                 controls[identity].update(
-                    {
-                        c.name: saved.get(c.name, c.default_value)
-                        if c.allow_override
-                        else c.default_value
-                        for c in definition.controls
-                        if c.name in available
-                    }
+                    {c.name: c.default_value for c in definition.controls if c.name in available}
                 )
             else:
                 # Probe only bounded advertised modes. Never infer a logical

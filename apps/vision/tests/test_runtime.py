@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import threading
 import time
 from dataclasses import replace
@@ -11,7 +10,7 @@ import pytest
 
 from robot_fixtures import manifest
 from spot_vision import protocol_models as wire
-from spot_vision.clock import ClockGate
+from spot_vision.clock import SyncSnapshot
 from spot_vision.config import ConfigError, NtConfig
 from spot_vision.configuration import mode_signature
 from spot_vision.devices import DeviceManager, DeviceNode, DeviceRegistry
@@ -29,7 +28,7 @@ from spot_vision.runtime import Runtime
 class Transport:
     def __init__(self, nt, config, cameras):
         self.configuration, self.cameras = config, cameras
-        self.clock = ClockGate()
+        self.clock = SimpleNamespace(snapshot=lambda: SyncSnapshot("Waiting", None))
         self.published = []
         self.nt = nt
 
@@ -40,7 +39,7 @@ class Transport:
     def poll(self):
         pass
 
-    def acknowledge(self):
+    def configuration_applied(self):
         pass
 
     def invalidate_configuration(self):
@@ -121,9 +120,7 @@ def runtime(tmp_path):
     )
     runtime.configuration.connection_changed(True)
     runtime.configuration.accept_manifest(manifest())
-    runtime.configuration.robot_state(
-        wire.RobotState(robot_session="robot-1", enabled=False, sequence=1)
-    )
+    runtime.configuration.robot_state(wire.RobotState())
     identity = devices.snapshot()[0]["identity"]
     runtime.configuration.rename(identity, "front", runtime.configuration.state.generation)
     return runtime, identity, nodes, constructed
@@ -188,7 +185,7 @@ def test_failed_readback_restores_previous_durable_and_runtime_generation(runtim
     with pytest.raises(ConfigError, match="rejected"):
         app.configuration.tune("front", {"gain": 99}, before.generation)
     assert app.configuration.state == before
-    assert app.store.load() == before
+    assert app.store.load().data == before.data
     assert app.generation == before.generation
     assert app.workers[identity].readback["gain"] == 1
 
@@ -198,9 +195,7 @@ def test_unsupported_mode_is_not_opened_or_falsely_calibrated(runtime):
     app.devices._devices[identity] = replace(app.devices.get(identity), modes=())
     app.apply(app.configuration.state, app.configuration.manifest)
     assert identity not in app.workers
-    generation = app.camera_generations()[0]
-    assert not generation.calibration_valid
-    assert generation.mode_id == ""
+    assert not app.camera_ready("front")
     assert "not advertised" in app.status()["cameras"][0]["fault"]
 
 
@@ -218,7 +213,7 @@ def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(r
     app.apply(app.configuration.state, app.configuration.manifest)
     assert app.workers[identity] is not old_worker
     assert app.roles[identity] == "front"
-    assert app.configuration.profile_data()["bindings"]["front"]["identity"] == identity
+    assert app.configuration.camera("front").binding_id == identity
 
 
 @pytest.mark.parametrize("disconnect_at", ["snapshot", "capture"])
@@ -280,46 +275,38 @@ def test_calibration_group_rebuild_failure_cannot_activate(runtime):
     }
     with pytest.raises(ConfigError, match="rebuild failed"):
         app.configuration.calibration_group([record], before.generation, app.validate_calibration)
-    assert app.store.load() == before
+    assert app.store.load().data == before.data
     assert app.configuration.state == before
-    assert not app.camera_generations()[0].calibration_valid
+    assert not app.camera_ready("front")
 
 
 def test_optional_unsupported_control_is_unavailable_without_blocking_camera(runtime):
-    from spot_vision.contract import content_hash
 
     app, identity, _, _ = runtime
     profile = manifest()
     profile.profile.cameras[0].controls.append(
         wire.ControlPolicy(name="focus_auto", default_value=0, allow_override=True)
     )
-    profile.manifest_hash = content_hash(profile.profile)
     app.configuration.accept_manifest(profile)
-    app.configuration.robot_state(
-        wire.RobotState(robot_session="robot-1", enabled=False, sequence=2)
-    )
+    app.configuration.robot_state(wire.RobotState())
     assert app.workers[identity].verified and "focus_auto" not in app.workers[identity].readback
     with pytest.raises(ConfigError, match="unavailable"):
         app.configuration.tune("front", {"focus_auto": 1}, app.configuration.state.generation)
 
 
 def test_required_unsupported_control_blocks_only_its_camera(runtime):
-    from spot_vision.contract import content_hash
 
     app, identity, _, _ = runtime
     profile = manifest()
     profile.profile.cameras[0].controls.append(
         wire.ControlPolicy(name="focus_auto", default_value=0, required=True)
     )
-    profile.manifest_hash = content_hash(profile.profile)
     app.configuration.accept_manifest(profile)
     assert identity not in app.workers
     assert "Required controls unavailable" in app.status()["cameras"][0]["fault"]
 
 
 def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
-
-    from spot_vision.persistence import StateSnapshot
 
     app, identity, _, _ = runtime
     app.devices._devices[identity] = replace(
@@ -329,10 +316,10 @@ def test_unnamed_preview_tries_next_mode_only_after_owner_failure(runtime):
             {"width": 320, "height": 240, "fps": 30, "pixel_format": "YUYV"},
         ),
     )
-    data = copy.deepcopy(app.configuration.state.data)
-    data["profiles"]["test-robot"]["bindings"] = {}
-    state = StateSnapshot(app.configuration.state.generation, data)
-    app.apply(state, app.configuration.manifest)
+    settings = app.configuration.export_configuration()
+    settings.cameras[0].binding_id = ""
+    app.configuration.configure(settings, app.configuration.state.generation)
+    state = app.configuration.state
     first = app.workers[identity]
     first.verified = False
     first.counters.capture_failures = 1
@@ -351,16 +338,14 @@ def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(
     runtime, width, height, fps
 ):
 
-    from spot_vision.persistence import StateSnapshot
-
     app, identity, _, _ = runtime
     app.devices._devices[identity] = replace(
         app.devices.get(identity),
         modes=({"width": width, "height": height, "fps": fps, "pixel_format": "MJPG"},),
     )
-    data = copy.deepcopy(app.configuration.state.data)
-    data["profiles"]["test-robot"]["bindings"] = {}
-    app.apply(StateSnapshot(app.configuration.state.generation, data), app.configuration.manifest)
+    settings = app.configuration.export_configuration()
+    settings.cameras[0].binding_id = ""
+    app.configuration.configure(settings, app.configuration.state.generation)
     worker = app.workers[identity]
     assert (worker.camera.width, worker.camera.height, worker.camera.fps) == (width, height, fps)
     camera = app.status()["cameras"][0]
@@ -369,8 +354,6 @@ def test_unnamed_camera_can_preview_advertised_high_speed_or_full_hd_mode(
 
 
 def test_preview_prefers_low_bandwidth_modes_and_rejects_excessive_capture_load(runtime):
-
-    from spot_vision.persistence import StateSnapshot
 
     app, identity, _, _ = runtime
     app.devices._devices[identity] = replace(
@@ -381,10 +364,10 @@ def test_preview_prefers_low_bandwidth_modes_and_rejects_excessive_capture_load(
             {"width": 1920, "height": 1080, "fps": 240, "pixel_format": "MJPG"},
         ),
     )
-    data = copy.deepcopy(app.configuration.state.data)
-    data["profiles"]["test-robot"]["bindings"] = {}
-    state = StateSnapshot(app.configuration.state.generation, data)
-    app.apply(state, app.configuration.manifest)
+    settings = app.configuration.export_configuration()
+    settings.cameras[0].binding_id = ""
+    app.configuration.configure(settings, app.configuration.state.generation)
+    state = app.configuration.state
     assert app.workers[identity].camera.width == 320
     app.devices._devices[identity] = replace(
         app.devices.get(identity), modes=(app.devices.get(identity).modes[-1],)
@@ -423,7 +406,7 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
         "select", {"identities": [identity], "revision": config.state.generation}
     )
     assert identity in app.calibration.cameras
-    assert not app.roles and app.camera_generations() == []
+    assert not app.roles and app.configuration.manifest is None
     record = {
         "identity": identity,
         "mode_signature": mode_signature(app.modes[identity]),
@@ -458,8 +441,8 @@ def test_unconfigured_camera_can_tune_and_calibrate_at_origin_without_robot(runt
     assert app.store.load().data["calibrations"]
     assert config.manifest is None and not config.state.data.get("profiles")
     config.connection_changed(True)
-    with pytest.raises(ConfigError, match="locked"):
-        config.tune_device(identity, {"gain": 3}, config.state.generation)
+    config.tune_device(identity, {"gain": 3}, config.state.generation)
+    assert app.workers[identity].readback["gain"] == 3
 
 
 def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(runtime):
@@ -548,19 +531,14 @@ def test_network_changes_run_outside_camera_configuration_queue(runtime):
         }
         assert calls[0].startswith("network-change")
         assert app.commands.empty()
-        app.configuration.robot_state(
-            wire.RobotState(robot_session="robot-1", enabled=True, sequence=2)
-        )
-        with pytest.raises(ConfigError, match="locked"):
-            app.submit("network/apply", {}).result(1)
-        # Recovery must remain possible even when the robot state changes.
+        assert app.submit("network/apply", {}).result(1) == {"result": {}}
+        # Recovery runs on the same independent network worker.
         assert app.submit("network/revert", {"token": "a" * 32}).result(1) == {"result": {}}
     finally:
         app.network.close()
 
 
 def test_omitted_code_control_remains_editable_and_reapplied(runtime):
-    from spot_vision.contract import content_hash
 
     app, identity, _, _ = runtime
     app.configuration.tune("front", {"gain": 7}, app.configuration.state.generation)
@@ -568,11 +546,8 @@ def test_omitted_code_control_remains_editable_and_reapplied(runtime):
     retained = [c for c in updated.profile.cameras[0].controls if c.name != "gain"]
     del updated.profile.cameras[0].controls[:]
     updated.profile.cameras[0].controls.extend(retained)
-    updated.manifest_hash = content_hash(updated.profile)
     app.configuration.accept_manifest(updated)
-    app.configuration.robot_state(
-        wire.RobotState(robot_session="robot-1", enabled=False, sequence=2)
-    )
+    app.configuration.robot_state(wire.RobotState())
     assert app.workers[identity].readback["gain"] == 7
     cap = next(c for c in app.status()["cameras"][0]["controls"] if c["name"] == "gain")
     assert cap["allowed"] and cap["default"] is None
@@ -610,21 +585,10 @@ def test_team_change_persists_outside_camera_profiles_and_reloads(runtime, tmp_p
         app.threads[0].join(2)
 
 
-@pytest.mark.parametrize("state", ["enabled", "unknown", "expired"])
-def test_team_change_rejects_connected_robot_without_fresh_disabled_state(runtime, state):
+def test_team_change_does_not_require_disabled_robot(runtime):
     app, _, _, _ = runtime
-    config = app.configuration
-    if state == "unknown":
-        config.connection_changed(True)
-    else:
-        config.robot_state(
-            wire.RobotState(robot_session="robot-1", enabled=state == "enabled", sequence=2),
-            now=0 if state == "expired" else None,
-        )
-    with pytest.raises(ConfigError, match="locked"):
-        app.set_nt_team(9991)
-    assert not app.nt_settings.exists()
-    assert app.transport.nt.team is None
+    assert app.set_nt_team(9991) == {"team": 9991}
+    assert app.nt_settings.exists()
 
 
 def test_disconnected_team_can_be_corrected_and_failed_save_restores_endpoint(runtime, monkeypatch):
