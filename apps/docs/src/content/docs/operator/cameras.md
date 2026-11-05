@@ -9,9 +9,10 @@ Open <http://spot.local:5800> or the default maintenance address
 `192.168.69.171/24`. The Network page shows current addresses and the robot link.
 
 Fresh images request a DHCP address and also keep the maintenance address.
-Use **Network → Connection** to set the NetworkTables team number; it reconnects
-immediately and saves the selection across reboots.
-Changing the team number does not change a static Jetson IP address.
+Use **Network → Connection** to set the NetworkTables robot endpoint: a team
+number, or a server address for an NT4 server on a laptop or simulator. It
+reconnects immediately and saves the selection across reboots.
+Changing the endpoint does not change a static Jetson IP address.
 
 Use **Network → Jetson address** to change Ethernet settings. Check the new
 connection and click **Keep settings** before the trial expires; an unconfirmed

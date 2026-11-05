@@ -11,22 +11,26 @@ export default function NetworkPage() {
 	const { announce } = useDashboard(),
 		status = useStatus(),
 		networkChange = useOperation<'network/apply' | 'network/confirm' | 'network/revert'>(),
-		saveTeam = useOperation<'nt/team'>(),
+		saveEndpoint = useOperation<'nt/endpoint'>(),
 		standalone = useOperation<'standalone'>(),
 		busy = networkChange.isPending,
-		teamBusy = saveTeam.isPending,
+		endpointBusy = saveEndpoint.isPending,
 		network = status.network ?? {},
 		endpoint = status.endpoint ?? {};
 	const [mode, setMode] = useState(network.mode ?? 'automatic'),
 		[address, setAddress] = useState(network.address ?? ''),
 		[feedback, setFeedback] = useState('');
 
-	const [team, setTeam] = useState(endpoint.team?.toString() ?? ''),
-		[lastTeam, setLastTeam] = useState(endpoint.team);
-	if (lastTeam !== endpoint.team) {
-		setLastTeam(endpoint.team);
-		setTeam(endpoint.team?.toString() ?? '');
+	const savedTarget = endpoint.configured || endpoint.team?.toString() || '',
+		[target, setTarget] = useState(savedTarget),
+		[byAddress, setByAddress] = useState(Boolean(endpoint.configured)),
+		[lastTarget, setLastTarget] = useState(savedTarget);
+	if (lastTarget !== savedTarget) {
+		setLastTarget(savedTarget);
+		setTarget(savedTarget);
+		setByAddress(Boolean(endpoint.configured));
 	}
+	const endpointLocked = endpointBusy || Boolean(status.connected && status.lock_reason);
 
 	const [restore, setRestore] = useState(true),
 		[lastPending, setLastPending] = useState('');
@@ -52,7 +56,7 @@ export default function NetworkPage() {
 			},
 		});
 	const pending = network.pending,
-		target = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
+		pendingUrl = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
 	return (
 		<>
 			<h1>Network</h1>
@@ -70,31 +74,63 @@ export default function NetworkPage() {
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
-							saveTeam.mutate({ operation: 'nt/team', payload: { team: Number(team) } });
+							saveEndpoint.mutate({
+								operation: 'nt/endpoint',
+								payload: byAddress ? { server: target.trim() } : { team: Number(target) },
+							});
 						}}
 					>
-						<label htmlFor="nt-team">Team number</label>
-						<input
-							id="nt-team"
-							type="number"
-							min="1"
-							max="25599"
-							step="1"
-							required
-							value={team}
-							onChange={(e) => setTeam(e.target.value)}
-							disabled={teamBusy || Boolean(status.connected && status.lock_reason)}
-						/>
-						<p>Changing the team number reconnects NetworkTables. Jetson IP settings are configured below.</p>
+						<label htmlFor="nt-mode">Connect using</label>
+						<select
+							id="nt-mode"
+							value={byAddress ? 'server' : 'team'}
+							onChange={(e) => {
+								setByAddress(e.target.value === 'server');
+								setTarget('');
+							}}
+							disabled={endpointLocked}
+						>
+							<option value="team">Team number</option>
+							<option value="server">Server address</option>
+						</select>
+						<label htmlFor="nt-target">{byAddress ? 'Server address' : 'Team number'}</label>
+						{byAddress ? (
+							<input
+								id="nt-target"
+								type="text"
+								placeholder="10.5.81.2"
+								pattern="[A-Za-z0-9.\-]{1,253}"
+								required
+								value={target}
+								onChange={(e) => setTarget(e.target.value)}
+								disabled={endpointLocked}
+							/>
+						) : (
+							<input
+								id="nt-target"
+								type="number"
+								min="1"
+								max="25599"
+								step="1"
+								required
+								value={target}
+								onChange={(e) => setTarget(e.target.value)}
+								disabled={endpointLocked}
+							/>
+						)}
+						<p>
+							Saving reconnects NetworkTables. Use a server address for an NT4 server on a laptop or simulator. Jetson
+							IP settings are configured below.
+						</p>
 						<p className="lock">{status.connected ? status.lock_reason : ''}</p>
-						<button type="submit" disabled={teamBusy || !team || Boolean(status.connected && status.lock_reason)}>
-							Save team number
+						<button type="submit" disabled={endpointLocked || !target}>
+							Save robot endpoint
 						</button>
 					</form>
-					<p id="team-feedback" className="feedback" role="status">
-						{saveTeam.isSuccess
-							? 'Team number saved for future boots. Reconnecting NetworkTables.'
-							: saveTeam.error?.message}
+					<p id="endpoint-feedback" className="feedback" role="status">
+						{saveEndpoint.isSuccess
+							? 'Robot endpoint saved for future boots. Reconnecting NetworkTables.'
+							: saveEndpoint.error?.message}
 					</p>
 					<button
 						disabled={status.connected}
@@ -155,7 +191,7 @@ export default function NetworkPage() {
 					<div>
 						<p id="network-countdown" role="status">
 							Testing network settings. Automatic rollback in {pending.remaining_s} seconds.{' '}
-							{target ? <a href={target}>Open the new address</a> : 'Check the assigned DHCP address above.'}
+							{pendingUrl ? <a href={pendingUrl}>Open the new address</a> : 'Check the assigned DHCP address above.'}
 						</p>
 						<button
 							disabled={busy}

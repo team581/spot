@@ -61,8 +61,17 @@ class Revisioned(Payload):
     revision: Text
 
 
-class Team(Payload):
-    team: Annotated[int, Field(strict=True, ge=1, le=25599)]
+class NtEndpoint(Payload):
+    """Connect to the robot by FRC team number or by hostname/IPv4 address (exactly one)."""
+
+    team: Annotated[int, Field(strict=True, ge=1, le=25599)] | None = None
+    server: Annotated[str, Field(pattern=r"^[A-Za-z0-9.-]{1,253}$")] | None = None
+
+    @model_validator(mode="after")
+    def one_endpoint(self):
+        if (self.team is None) == (self.server is None):
+            raise ValueError("Set exactly one of team or server")
+        return self
 
 
 class NetworkChange(Payload):
@@ -160,7 +169,7 @@ class CalibrationCamera(Device):
 
 # Each operation is served at POST /api/<operation> and runs on the runtime's worker.
 OPERATIONS: dict[str, type[Payload]] = {
-    "nt/team": Team,
+    "nt/endpoint": NtEndpoint,
     "network/apply": NetworkChange,
     "network/confirm": NetworkToken,
     "network/revert": NetworkToken,

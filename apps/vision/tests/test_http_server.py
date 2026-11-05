@@ -298,9 +298,10 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
 @pytest.mark.parametrize(
     "payload",
     [{"team": t} for t in (0, -1, 25600, True, 9991.0, "9991", None)]
+    + [{"server": s} for s in ("", "a b", "http://x", 5)]
     + [{}, {"team": 9991, "server": "other"}],
 )
-def test_team_number_request_rejects_invalid_payloads(web, payload):
+def test_nt_endpoint_request_rejects_invalid_payloads(web, payload):
     request, submissions, _ = web
-    assert request("POST", "/api/nt/team", payload, HEADERS)[0] == 400
+    assert request("POST", "/api/nt/endpoint", payload, HEADERS)[0] == 400
     assert submissions == []

@@ -26,7 +26,7 @@ from .config import (
     ConfigError,
     DetectorConfig,
     NtConfig,
-    validate_team,
+    validate_nt_endpoint,
 )
 from .configuration import ConfigurationService, mode_signature, optical_controls
 from .devices import DeviceManager, DeviceRegistry
@@ -110,10 +110,8 @@ class Runtime:
         self.store = StateStore(state_root)
         self.nt_settings = state_root / "networktables.json"
         if self.nt_settings.exists():
-            saved = json.loads(self.nt_settings.read_bytes())
-            if not isinstance(saved, dict) or set(saved) != {"team"}:
-                raise ConfigError("Invalid saved NetworkTables settings")
-            nt = replace(nt, team=validate_team(saved["team"]), server=None)
+            saved = validate_nt_endpoint(json.loads(self.nt_settings.read_bytes()))
+            nt = replace(nt, team=saved.get("team"), server=saved.get("server"))
         self.nt_config = nt
         self.frames = FrameHub()
         self._pipeline_lock, self._operation_lock = threading.RLock(), threading.RLock()
@@ -196,8 +194,8 @@ class Runtime:
                 continue
             try:
                 with self._operation_lock:
-                    if operation == "nt/team":
-                        result = self.set_nt_team(payload["team"])
+                    if operation == "nt/endpoint":
+                        result = self.set_nt_endpoint(payload)
                     elif operation == "rediscover":
                         self.apply(self.configuration.state, self.configuration.manifest)
                         result = self.configuration.state
@@ -348,22 +346,23 @@ class Runtime:
             except Exception as exc:  # noqa: BLE001 - isolate backend/job failures at the worker boundary
                 future.set_exception(exc)
 
-    def set_nt_team(self, team: int) -> dict:
-        team = validate_team(team)
+    def set_nt_endpoint(self, endpoint: dict) -> dict:
+        endpoint = validate_nt_endpoint(endpoint)
+        team, server = endpoint.get("team"), endpoint.get("server")
         with self._pipeline_lock:
             if self.configuration.connected:
                 self.configuration.require_eligible()
             previous = self.nt_config
-            updated = replace(previous, team=team, server=None)
+            updated = replace(previous, team=team, server=server)
             try:
                 self.transport.set_endpoint(updated)
-                durable_replace(self.nt_settings, canonical_bytes({"team": team}))
+                durable_replace(self.nt_settings, canonical_bytes(endpoint))
             except Exception:
                 self.transport.set_endpoint(previous)
                 raise
             self.nt_config = updated
-            self.endpoint.update(configured=None, team=team)
-        return {"team": team}
+            self.endpoint.update(configured=server, team=team)
+        return endpoint
 
     def _discover(self) -> None:
         previous = None

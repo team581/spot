@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,20 @@ def validate_team(team: object) -> int:
     if type(team) is not int or not 1 <= team <= 25599:
         raise ConfigError("Team number must be an integer from 1 through 25599")
     return team
+
+
+def validate_nt_endpoint(endpoint: object) -> dict:
+    """Return exactly one of {"team": int} or {"server": hostname-or-IP}."""
+    if isinstance(endpoint, dict):
+        endpoint = {key: value for key, value in endpoint.items() if value is not None}
+    if not isinstance(endpoint, dict) or len(endpoint) != 1:
+        raise ConfigError("NetworkTables endpoint needs exactly one of team or server")
+    if "team" in endpoint:
+        return {"team": validate_team(endpoint["team"])}
+    server = endpoint.get("server")
+    if not isinstance(server, str) or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", server):
+        raise ConfigError("Server must be a hostname or IPv4 address")
+    return {"server": server}
 
 
 @dataclass(frozen=True)

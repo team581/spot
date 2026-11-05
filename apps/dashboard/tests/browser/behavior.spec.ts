@@ -363,31 +363,38 @@ test('mode and replacement operations use the camera identity and require feed c
 	);
 });
 
-test('team number saves through an operation and can be corrected while disconnected', async ({ page }) => {
+test('robot endpoint saves through an operation and can be corrected while disconnected', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	status.connected = true;
 	status.lock_reason = '';
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
 	const writes = await captureOperations(page, ({ payload }) => {
-		status.endpoint.team = payload.team;
-		status.endpoint.configured = null;
+		status.endpoint.team = payload.team ?? null;
+		status.endpoint.configured = payload.server ?? null;
 		status.connected = false;
 		status.lock_reason = 'Connect robot code or begin standalone setup';
 		return { revision: status.revision, applied_generation: null };
 	});
 	await page.goto('/#network');
-	const team = page.getByLabel('Team number', { exact: true });
-	const save = page.getByRole('button', { name: 'Save team number', exact: true });
-	await expect(team).toHaveValue('581');
-	await team.fill('9991');
+	const target = page.locator('#nt-target');
+	const save = page.getByRole('button', { name: 'Save robot endpoint', exact: true });
+	await expect(target).toHaveValue('581');
+	await target.fill('9991');
 	await save.click();
-	await expect(page.locator('#team-feedback')).toContainText('saved for future boots');
+	await expect(page.locator('#endpoint-feedback')).toContainText('saved for future boots');
 	await expect(page.locator('#connection-data')).toContainText('Team 9991');
 	await expect(save).toBeEnabled();
 	await page.reload();
-	await expect(team).toHaveValue('9991');
+	await expect(target).toHaveValue('9991');
+	await page.getByLabel('Connect using').selectOption('server');
+	await target.fill('10.0.0.5');
+	await save.click();
+	await expect(page.locator('#connection-data')).toContainText('10.0.0.5');
 	status.connected = true;
 	await expect(save).toBeDisabled();
-	await expect(team).toBeDisabled();
-	expect(writes).toEqual([expect.objectContaining({ operation: 'nt/team', payload: { team: 9991 } })]);
+	await expect(target).toBeDisabled();
+	expect(writes).toEqual([
+		expect.objectContaining({ operation: 'nt/endpoint', payload: { team: 9991 } }),
+		expect.objectContaining({ operation: 'nt/endpoint', payload: { server: '10.0.0.5' } }),
+	]);
 });

@@ -561,7 +561,7 @@ def test_team_change_persists_outside_camera_profiles_and_reloads(runtime, tmp_p
     worker = next(iter(app.workers.values()))
     app.threads[0].start()
     try:
-        result = app.submit("nt/team", {"team": 9991}).result(2)
+        result = app.submit("nt/endpoint", {"team": 9991}).result(2)
         assert result["result"] == {"team": 9991}
         assert app.transport.nt.team == app.endpoint["team"] == 9991
         assert app.transport.nt.server is None
@@ -587,7 +587,7 @@ def test_team_change_persists_outside_camera_profiles_and_reloads(runtime, tmp_p
 
 def test_team_change_does_not_require_disabled_robot(runtime):
     app, _, _, _ = runtime
-    assert app.set_nt_team(9991) == {"team": 9991}
+    assert app.set_nt_endpoint({"team": 9991}) == {"team": 9991}
     assert app.nt_settings.exists()
 
 
@@ -596,7 +596,7 @@ def test_disconnected_team_can_be_corrected_and_failed_save_restores_endpoint(ru
 
     app, _, _, _ = runtime
     app.configuration.connection_changed(False)
-    assert app.set_nt_team(9991) == {"team": 9991}
+    assert app.set_nt_endpoint({"team": 9991}) == {"team": 9991}
     saved = app.nt_settings.read_bytes()
 
     def fail_save(*args):
@@ -604,6 +604,25 @@ def test_disconnected_team_can_be_corrected_and_failed_save_restores_endpoint(ru
 
     monkeypatch.setattr(runtime_module, "durable_replace", fail_save)
     with pytest.raises(OSError, match="disk full"):
-        app.set_nt_team(581)
+        app.set_nt_endpoint({"team": 581})
     assert app.transport.nt.team == app.endpoint["team"] == 9991
     assert app.nt_settings.read_bytes() == saved
+
+
+def test_server_address_replaces_team_and_reloads(runtime, tmp_path):
+    app, _, _, _ = runtime
+    assert app.set_nt_endpoint({"server": "10.0.0.5"}) == {"server": "10.0.0.5"}
+    assert app.transport.nt.server == app.endpoint["configured"] == "10.0.0.5"
+    assert app.transport.nt.team is app.endpoint["team"] is None
+    restarted = Runtime(
+        tmp_path,
+        NtConfig(team=581),
+        backend="cpu",
+        devices=app.devices,
+        transport_factory=Transport,
+    )
+    try:
+        assert restarted.transport.nt.server == "10.0.0.5"
+        assert restarted.transport.nt.team is None
+    finally:
+        restarted.close()

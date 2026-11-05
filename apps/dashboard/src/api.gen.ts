@@ -106,7 +106,7 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/nt/team': {
+	'/api/nt/endpoint': {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -115,8 +115,8 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
-		/** Nt Team */
-		post: operations['nt_team'];
+		/** Nt Endpoint */
+		post: operations['nt_endpoint'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -773,6 +773,16 @@ export interface components {
 			/** Token */
 			token: string;
 		};
+		/**
+		 * NtEndpoint
+		 * @description Connect to the robot by FRC team number or by hostname/IPv4 address (exactly one).
+		 */
+		NtEndpoint: {
+			/** Team */
+			team?: number | null;
+			/** Server */
+			server?: string | null;
+		};
 		/** Payload */
 		Payload: Record<string, never>;
 		/** QualifyTiming */
@@ -821,11 +831,6 @@ export interface components {
 			 * @default []
 			 */
 			calibration_ids?: string[];
-		};
-		/** Team */
-		Team: {
-			/** Team */
-			team: number;
 		};
 		/** Tune */
 		Tune: {
@@ -1000,7 +1005,7 @@ export interface operations {
 			};
 		};
 	};
-	nt_team: {
+	nt_endpoint: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -1009,7 +1014,7 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['Team'];
+				'application/json': components['schemas']['NtEndpoint'];
 			};
 		};
 		responses: {
