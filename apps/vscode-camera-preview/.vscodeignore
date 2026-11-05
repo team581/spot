@@ -3,7 +3,6 @@ node_modules/**
 *.ts
 tsconfig.json
 test/**
-DEVELOPMENT.md
 *.vsix
 package.mts
 *.vsix.sha256

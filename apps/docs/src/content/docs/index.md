@@ -1,29 +1,14 @@
 ---
-title: Spot operator guide
-description: Set up, calibrate, and troubleshoot Team 581's Jetson vision system.
+title: Spot Vision
 ---
 
-Spot detects AprilTags on the Jetson and sends vision measurements to the robot.
-These guides cover the dashboard, camera setup, robot integration, and recovery.
+Team 581's Jetson AprilTag service and camera tools.
 
-Start with [Connect to Spot](operator/connect) when Spot is already installed,
-or [Install and update Spot](operator/deployment) for a new Jetson.
+- [Camera setup](./operator/cameras/): connection, assignments, mounts, and calibration.
+- [Jetson installation and recovery](./operator/deployment/): SSH, NixOS deployment, and rollback.
+- [Development](./development/): local setup, checks, and documentation changes.
+- [VS Code camera preview](./operator/vscode-camera-preview/): inspect robot-code mounts offline.
 
-## Set up cameras
-
-1. [Name the physical cameras](operator/name).
-2. [Check camera geometry](operator/geometry).
-3. [Calibrate the lenses](operator/calibrate).
-4. [Verify detections and robot decisions](operator/verify).
-
-## Work on robot code
-
-Use [Cameras in Java](operator/camera-configuration) for configuration and the
-[VS Code preview](operator/vscode-camera-preview) to inspect camera mounts.
-The [robot integration session](operator/robot-integration-session) records the
-current commissioning status and remaining checks.
-
-## Get help at the robot
-
-The same operator guides are available in the Jetson dashboard's **Docs** link,
-including when the Jetson has no internet connection.
+These guides are the documentation source of truth. The same content is published
+at [spot.frc581.com](https://spot.frc581.com/) and bundled at `/docs/` on the Jetson.
+Use the installed service's documentation for its version.

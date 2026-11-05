@@ -136,7 +136,7 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 					</button>
 					<small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small>
 					<p>
-						<a href="/docs/operator/geometry/">Measuring camera geometry</a>
+						<a href="/docs/operator/cameras/#geometry">Measuring camera geometry</a>
 					</p>
 				</section>
 				<div>

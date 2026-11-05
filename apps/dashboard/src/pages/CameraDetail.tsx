@@ -202,7 +202,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 					<p id="page-feedback" className="feedback">
 						{error}
 					</p>
-					<a href="/docs/operator/tuning/">Tuning and history</a>
+					<a href="/docs/operator/cameras/#tune">Tuning and history</a>
 				</section>
 				<div>
 					<Feed id={c.identity} outlines={outlines} />

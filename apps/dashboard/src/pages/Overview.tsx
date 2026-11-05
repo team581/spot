@@ -47,7 +47,7 @@ export default function Overview({ page }: { page: string }) {
 					<div className="panel empty">
 						<h2>No cameras discovered</h2>
 						<p>Connect a powered USB camera. Discovery continues automatically.</p>
-						<a href="/docs/operator/connect/">Connection guide</a>
+						<a href="/docs/operator/cameras/#connect">Connection guide</a>
 					</div>
 				)}
 			</div>

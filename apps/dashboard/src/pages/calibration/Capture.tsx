@@ -139,7 +139,7 @@ export default function Capture({ action, onError }: { action: Action; onError: 
 					Start automatic capture
 				</button>
 				<p>
-					<a href="/docs/operator/calibrate/">Capture and validation guide</a>
+					<a href="/docs/operator/cameras/#calibrate">Capture and validation guide</a>
 				</p>
 			</section>
 		</div>

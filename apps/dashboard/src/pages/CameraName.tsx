@@ -78,7 +78,7 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 					<p id="page-feedback" className="feedback">
 						{error}
 					</p>
-					<a href="/docs/operator/name/">Configure camera names in robot code</a>
+					<a href="/docs/operator/cameras/#assign-cameras">Configure camera names in robot code</a>
 				</section>
 			</div>
 		</>

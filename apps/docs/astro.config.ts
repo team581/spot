@@ -9,7 +9,7 @@ const jetson = process.env.DOCS_TARGET === 'jetson';
 const base = jetson ? '/docs/' : '/';
 
 export default defineConfig({
-	site: process.env.URL,
+	site: 'https://spot.frc581.com',
 	base,
 	trailingSlash: 'always',
 	outDir: jetson ? '../../dist/jetson-docs' : '../../dist/docs',
@@ -41,24 +41,10 @@ export default defineConfig({
 			customCss: ['./src/styles/diagrams.css'],
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
-				{
-					label: 'Getting started',
-					items: ['operator/connect', 'operator/name', 'operator/geometry', 'operator/calibrate', 'operator/verify'],
-				},
-				{
-					label: 'Guides',
-					items: ['operator/tuning', 'operator/replacement', 'operator/recovery', 'operator/deployment'],
-				},
-				{
-					label: 'Reference',
-					items: [
-						'operator/java',
-						'operator/faults',
-						'operator/camera-configuration',
-						'operator/vscode-camera-preview',
-					],
-				},
-				{ label: 'Testing', items: ['operator/robot-integration-session'] },
+				{ slug: 'operator/cameras', label: 'Camera setup' },
+				{ slug: 'operator/deployment', label: 'Jetson installation and recovery' },
+				{ slug: 'development', label: 'Development' },
+				{ slug: 'operator/vscode-camera-preview', label: 'VS Code camera preview' },
 			],
 		}),
 		mdx(),
