@@ -49,7 +49,7 @@ def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
     def inspect():
         try:
             assert created.wait(15), "Application did not create its HTTP server"
-            assets = servers[0].assets
+            assets = servers[0].app.state.assets
             paths = ["/", "/health", "/docs/", "/docs/pagefind/pagefind.js"]
             paths.extend(
                 "/" + p.relative_to(assets).as_posix()

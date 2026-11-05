@@ -114,7 +114,8 @@ def run(args) -> int:
                 raise RuntimeError(runtime.fatal or "HTTP service worker exited")
     finally:
         server.shutdown()
-        server.server_close()
+        if web_thread.is_alive():
+            web_thread.join(5)
         runtime.network.close()
         runtime.close()
         for signum, handler in prior.items():

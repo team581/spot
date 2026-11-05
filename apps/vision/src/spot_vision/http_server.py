@@ -1,119 +1,215 @@
 """Installed HTTP boundary. Handlers enqueue configuration and read snapshots only."""
 
-from __future__ import annotations
-
 import json
-import mimetypes
-import re
 import secrets
+import socket
 import threading
 import time
 from concurrent.futures import Future
-from http import HTTPStatus
-from http.cookies import SimpleCookie
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from dataclasses import asdict
 from importlib.resources import files
 from pathlib import Path
-from typing import cast
-from urllib.parse import unquote, urlsplit
+from typing import Annotated, Any, Literal, Union
+from urllib.parse import urlsplit
 
-from .config import ConfigError, validate_team
+import uvicorn
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Path as PathParam
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from fastapi.staticfiles import StaticFiles
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StringConstraints,
+    create_model,
+    model_validator,
+)
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from .config import ConfigError
 from .protocol_models import RobotConfiguration
 
 MAX_BODY = 256 * 1024
-OPERATIONS = {
-    "nt/team": {"team"},
-    "network/apply": {"mode", "address"},
-    "network/confirm": {"token"},
-    "network/revert": {"token"},
-    "device/setup": {"identity", "revision"},
-    "device/tune": {"identity", "values", "revision", "reset"},
-    "device/mode": {"identity", "mode_id", "revision"},
-    "standalone": set(),
-    "debug": {"seconds", "revision"},
-    "clear-overrides": {"path", "revision"},
-    "configure": {"document", "revision"},
-    "import": {"document", "revision"},
-    "qualify-timing": {"record", "revision"},
-    "rename": {"identity", "name", "revision"},
-    "tune": {"name", "values", "revision", "reset"},
-    "mode": {"name", "mode_id", "revision"},
-    "replace": {"name", "identity", "revision"},
-    "restore": {"generation", "identities", "calibration_ids", "revision"},
-    "calibration/board": {"board", "options", "revision"},
-    "calibration/select": {"identities", "revision"},
-    "calibration/reset": {"revision"},
-    "calibration/pause-all": {"revision"},
-    "calibration/start-all": {"revision", "phase"},
-    "calibration/apply": {"identities", "revision"},
-    **{
-        f"calibration/{action}": {"identity", "revision", "phase", "automatic"}
-        for action in ("start", "pause", "capture", "compute", "validate")
-    },
-}
-REQUIRED = {
-    "nt/team": {"team"},
-    "network/apply": {"mode", "address"},
-    "network/confirm": {"token"},
-    "network/revert": {"token"},
-    "device/setup": {"identity", "revision"},
-    "device/tune": {"identity", "revision"},
-    "device/mode": {"identity", "mode_id", "revision"},
-    "debug": {"seconds", "revision"},
-    "clear-overrides": {"revision"},
-    "configure": {"document", "revision"},
-    "import": {"document", "revision"},
-    "qualify-timing": {"record", "revision"},
-    "rename": {"identity", "name", "revision"},
-    "tune": {"name", "revision"},
-    "mode": {"name", "mode_id", "revision"},
-    "replace": {"name", "revision"},
-    "restore": {"generation", "revision"},
-    "calibration/board": {"board", "options", "revision"},
-    "calibration/select": {"identities", "revision"},
-    "calibration/apply": {"identities", "revision"},
-    **{
-        f"calibration/{action}": {"identity", "revision"}
-        for action in ("start", "pause", "capture", "compute", "validate")
-    },
-}
+MAX_IMPORT_BODY = 2 * 1024 * 1024
+COOKIE = "spot_session"
+CSP = (
+    "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; "
+    "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+    "form-action 'self'"
+)
+# Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly.
+DOCS_CSP = (
+    "default-src 'self'; img-src 'self' data:; font-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+)
+
+Text = Annotated[str, StringConstraints(max_length=128, pattern=r"^[^\x00-\x1f]*$")]
+Identities = Annotated[list[Text], Field(max_length=32)]
+Document = dict[str, Any]
 
 
-def validate_request(operation: str, payload: dict) -> None:
-    if operation not in OPERATIONS or not isinstance(payload, dict):
-        raise ConfigError("Unknown operation or invalid request")
-    if set(payload) - OPERATIONS[operation] or REQUIRED.get(operation, set()) - set(payload):
-        raise ConfigError("Unknown or missing request fields")
-    if operation == "nt/team":
-        validate_team(payload["team"])
-    if operation == "network/apply":
+class Payload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class Revisioned(Payload):
+    revision: Text
+
+
+class Team(Payload):
+    team: Annotated[int, Field(strict=True, ge=1, le=25599)]
+
+
+class NetworkChange(Payload):
+    mode: Literal["automatic", "static"]
+    address: Annotated[str, Field(max_length=32)]
+
+    @model_validator(mode="after")
+    def usable_address(self):
         from .networking import validate_change
 
-        validate_change(payload)
-    if operation in {"network/confirm", "network/revert"} and not (
-        isinstance(payload["token"], str) and re.fullmatch(r"[a-f0-9]{32}", payload["token"])
-    ):
-        raise ConfigError("Invalid network confirmation")
-    for key, value in payload.items():
-        if key in {"identity", "name", "revision", "generation", "mode_id", "phase", "path"}:
-            if (
-                not isinstance(value, str)
-                or len(value) > (512 if key == "path" else 128)
-                or any(ord(c) < 32 for c in value)
-            ):
-                raise ConfigError(f"{key}: bounded text required")
-        elif key in {"reset", "automatic"} and type(value) is not bool:
-            raise ConfigError(f"{key}: boolean required")
-        elif key in {"board", "options", "values", "record", "document"} and not isinstance(
-            value, dict
-        ):
-            raise ConfigError(f"{key}: object required")
-        elif key in {"identities", "calibration_ids"} and (
-            not isinstance(value, list)
-            or len(value) > 32
-            or any(not isinstance(v, str) or len(v) > 128 for v in value)
-        ):
-            raise ConfigError("identities: bounded text list required")
+        validate_change(self.model_dump())
+        return self
+
+
+class NetworkToken(Payload):
+    token: Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")]
+
+
+class Device(Revisioned):
+    identity: Text
+
+
+class DeviceTune(Device):
+    values: Document = {}
+    reset: StrictBool = False
+
+
+class DeviceMode(Device):
+    mode_id: Text
+
+
+class Debug(Revisioned):
+    seconds: Annotated[int, Field(strict=True, ge=1, le=30)]
+
+
+class ClearOverrides(Revisioned):
+    path: Annotated[str, StringConstraints(max_length=512, pattern=r"^[^\x00-\x1f]*$")] = ""
+
+
+class Configure(Revisioned):
+    document: Document
+
+
+class QualifyTiming(Revisioned):
+    record: Document
+
+
+class Rename(Device):
+    name: Text
+
+
+class Tune(Revisioned):
+    name: Text
+    values: Document = {}
+    reset: StrictBool = False
+
+
+class Mode(Revisioned):
+    name: Text
+    mode_id: Text
+
+
+class Replace(Revisioned):
+    name: Text
+    identity: Text = ""
+
+
+class Restore(Revisioned):
+    generation: Text
+    identities: Identities = []
+    calibration_ids: Identities = []
+
+
+class CalibrationBoard(Revisioned):
+    board: Document
+    options: Document
+
+
+class CalibrationCameras(Revisioned):
+    identities: Identities
+
+
+class CalibrationAll(Payload):
+    revision: Text = ""
+
+
+class CalibrationStartAll(CalibrationAll):
+    phase: Text = ""
+
+
+class CalibrationCamera(Device):
+    phase: Text = ""
+    automatic: StrictBool = False
+
+
+PAYLOADS: dict[str, type[Payload]] = {
+    "nt/team": Team,
+    "network/apply": NetworkChange,
+    "network/confirm": NetworkToken,
+    "network/revert": NetworkToken,
+    "device/setup": Device,
+    "device/tune": DeviceTune,
+    "device/mode": DeviceMode,
+    "standalone": Payload,
+    "debug": Debug,
+    "clear-overrides": ClearOverrides,
+    "configure": Configure,
+    "import": Configure,
+    "qualify-timing": QualifyTiming,
+    "rename": Rename,
+    "tune": Tune,
+    "mode": Mode,
+    "replace": Replace,
+    "restore": Restore,
+    "calibration/board": CalibrationBoard,
+    "calibration/select": CalibrationCameras,
+    "calibration/apply": CalibrationCameras,
+    "calibration/reset": CalibrationAll,
+    "calibration/pause-all": CalibrationAll,
+    "calibration/start-all": CalibrationStartAll,
+    **{
+        f"calibration/{action}": CalibrationCamera
+        for action in ("start", "pause", "capture", "compute", "validate")
+    },
+}
+Operation = Union[  # noqa: UP007 - Union[] accepts the generated tuple
+    tuple(
+        create_model(
+            "".join(part.title() for part in name.replace("/", "-").split("-")) + "Operation",
+            __config__=ConfigDict(extra="forbid"),
+            operation=(Literal[name], ...),  # ty: ignore[invalid-type-form]
+            payload=(payload, ...),
+            request_id=(Annotated[str, Field(pattern=r"^[a-zA-Z0-9_-]{8,64}$")], ...),
+        )
+        for name, payload in PAYLOADS.items()
+    )
+]
+
+
+class Session(BaseModel):
+    csrf: str
+    client: str
+
+
+class JobAccepted(BaseModel):
+    job_id: str
+    state: Literal["pending"] = "pending"
 
 
 class BrowserSession:
@@ -125,45 +221,16 @@ class BrowserSession:
         self.requests = {}
 
 
-class HttpServer(ThreadingHTTPServer):
-    block_on_close = False
-
-    def __init__(self, address, runtime, *, assets: Path | None = None, allowed_hosts=()):
+class Sessions:
+    def __init__(self, runtime) -> None:
         self.runtime = runtime
-        self.assets = (assets or Path(str(files("spot_vision.web")))).resolve()
-        self.sessions, self.jobs = {}, {}
-        self._lock = threading.RLock()
-        self._slots = threading.BoundedSemaphore(16)
-        self.allowed_hosts = {"localhost", "127.0.0.1", "::1", *allowed_hosts}
-        if address[0] not in {"", "0.0.0.0", "::"}:
-            self.allowed_hosts.add(address[0])
-        super().__init__(address, Handler)
-        self.ready = True
+        self.sessions: dict[str, BrowserSession] = {}
+        self.jobs: dict[str, tuple[str, Future, float]] = {}
+        self.lock = threading.RLock()
 
-    def process_request(self, request, client_address):
-        if not self._slots.acquire(blocking=False):
-            self.shutdown_request(request)
-            return
-        try:
-            super().process_request(request, client_address)
-        except BaseException:
-            self._slots.release()
-            raise
-
-    def process_request_thread(self, request, client_address):
-        try:
-            super().process_request_thread(request, client_address)
-        finally:
-            self._slots.release()
-
-    def session(self, cookie: str, *, create=False) -> BrowserSession | None:
-        try:
-            parsed = SimpleCookie(cookie)
-            identity = parsed["spot_session"].value if "spot_session" in parsed else ""
-        except Exception:  # noqa: BLE001 - untrusted cookie parser boundary
-            identity = ""
+    def get(self, identity: str, *, create=False) -> BrowserSession | None:
         now = time.monotonic()
-        with self._lock:
+        with self.lock:
             self.sessions = {
                 key: s for key, s in self.sessions.items() if now - s.touched < 8 * 3600
             }
@@ -178,7 +245,7 @@ class HttpServer(ThreadingHTTPServer):
     def enqueue(
         self, session: BrowserSession, operation: str, payload: dict, request_id: str
     ) -> str:
-        with self._lock:
+        with self.lock:
             if request_id in session.requests:
                 return session.requests[request_id]
             now = time.monotonic()
@@ -203,252 +270,250 @@ class HttpServer(ThreadingHTTPServer):
             return job_id
 
 
-class Handler(BaseHTTPRequestHandler):
-    @property
-    def spot_server(self) -> HttpServer:
-        return cast(HttpServer, self.server)
-
-    server_version = "SpotVision"
-    protocol_version = "HTTP/1.1"
-
-    def setup(self) -> None:
-        super().setup()
-        self.connection.settimeout(5)
-
-    def log_message(self, format, *args) -> None:
-        pass  # Per-frame browser polling is deliberately absent from default logs.
-
-    def _host(self) -> str:
-        host = self.headers.get("Host", "")
-        parsed = urlsplit("http://" + host)
-        if (
-            (
-                parsed.hostname not in self.spot_server.allowed_hosts
-                and parsed.hostname != self.connection.getsockname()[0]
-                and parsed.hostname
-                != getattr(getattr(self.spot_server.runtime, "network", None), "snapshot", {}).get(
-                    "hostname"
-                )
-            )
-            or parsed.username
-            or parsed.password
-            or parsed.path
-            or parsed.query
-            or parsed.fragment
-            or (parsed.port or 80) != self.spot_server.server_port
-        ):
-            raise PermissionError("Host is not an installed Spot address")
-        return host
-
-    def _reply(
-        self, status: int, payload, *, mime="application/json", cookie=None, docs=False
-    ) -> None:
-        if mime == "application/json" and not isinstance(payload, bytes):
-            payload = json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", "no-store" if mime == "application/json" else "no-cache")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "same-origin")
-        self.send_header(
-            "Content-Security-Policy",
-            # Static Starlight pages use inline theme scripts/styles and Pagefind WebAssembly.
-            "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
-            if docs
-            else "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-        )
-        if cookie:
-            self.send_header(
-                "Set-Cookie",
-                f"spot_session={cookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800",
-            )
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def do_GET(self) -> None:
-        try:
-            self._host()
-            path = unquote(urlsplit(self.path).path)
-            if path == "/api/session":
-                if self.headers.get("Sec-Fetch-Site") == "cross-site":
-                    raise PermissionError("Same-origin browser session required")
-                session = self.spot_server.session(self.headers.get("Cookie", ""), create=True)
-                if session is None:
-                    self._reply(
-                        HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Browser session limit reached"}
-                    )
-                else:
-                    self._reply(
-                        200, {"csrf": session.csrf, "client": session.id}, cookie=session.id
-                    )
-                return
-            if path in {"/api/status", "/health"}:
-                status = self.spot_server.runtime.status()
-                self._reply(200, status)
-                return
-            session = self.spot_server.session(self.headers.get("Cookie", ""))
-            if path == "/api/calibrations":
-                if not session:
-                    raise PermissionError("Browser session required")
-                records = self.spot_server.runtime.configuration.state.data.get("calibrations", {})
-                self._reply(200, {"calibrations": list(records.values())})
-                return
-            if path in {"/api/robot-config", "/api/robot-defaults"}:
-                if not session:
-                    raise PermissionError("Browser session required")
-                from dataclasses import asdict
-
-                config = self.spot_server.runtime.configuration
-                if config.manifest is None:
-                    raise ConfigError("Connect robot code before exporting its configuration")
-                settings = (
-                    RobotConfiguration(
-                        config.robot_manifest.profile.cameras,
-                        config.robot_manifest.profile.processing,
-                    )
-                    if path == "/api/robot-defaults" and config.robot_manifest is not None
-                    else config.export_configuration()
-                )
-                self._reply(200, asdict(settings))
-                return
-            if path in {"/api/export", "/api/support"}:
-                if not session:
-                    raise PermissionError("Browser session required")
-                snapshot = json.loads(self.spot_server.runtime.store.export())
-                if path == "/api/export":
-                    self._reply(200, snapshot)
-                else:
-                    self._reply(
-                        200,
-                        {
-                            "schema_version": 2,
-                            "status": self.spot_server.runtime.status(),
-                            "configuration": snapshot,
-                            "debug": self.spot_server.runtime.debug,
-                        },
-                    )
-                return
-            if path.startswith("/api/jobs/"):
-                with self.spot_server._lock:
-                    job = self.spot_server.jobs.get(path.removeprefix("/api/jobs/"))
-                if not session or not job or job[0] != session.id:
-                    self._reply(404, {"error": "Job unavailable"})
-                    return
-                future: Future = job[1]
-                if not future.done():
-                    self._reply(200, {"state": "pending"})
-                    return
-                try:
-                    self._reply(200, {"state": "applied", **future.result()})
-                except Exception as exc:  # noqa: BLE001 - structured configuration rejection
-                    self._reply(200, {"state": "rejected", "error": str(exc)})
-                return
-            if path.startswith("/api/frame/"):
-                if not session:
-                    raise PermissionError("Browser session required")
-                identity = path.removeprefix("/api/frame/")
-                if not re.fullmatch(r"[a-f0-9]{64}", identity):
-                    raise ConfigError("Invalid physical camera identity")
-                now = time.monotonic()
-                with self.spot_server._lock:
-                    if now - session.previews.get(identity, 0) < 1 / 25:
-                        self._reply(429, {"error": "Preview rate exceeded"})
-                        return
-                    session.previews[identity] = now
-                self._reply(
-                    200,
-                    self.spot_server.runtime.frames.preview(identity, session.id + ":" + identity),
-                )
-                return
-            if path.startswith("/api/"):
-                self._reply(404, {"error": "Unknown endpoint"})
-                return
-            relative = "index.html" if path in {"", "/"} else path.lstrip("/")
-            asset = (self.spot_server.assets / relative).resolve()
-            if asset.is_relative_to(self.spot_server.assets / "docs") and asset.is_dir():
-                if not path.endswith("/"):
-                    self.send_response(HTTPStatus.MOVED_PERMANENTLY)
-                    self.send_header("Location", path + "/")
-                    self.send_header("Content-Length", "0")
-                    self.end_headers()
-                    return
-                asset /= "index.html"
+class BoundedJsonRequest(Request):
+    async def body(self) -> bytes:
+        if not hasattr(self, "_body"):
+            length = self.headers.get("content-length", "")
             if (
-                not asset.is_relative_to(self.spot_server.assets)
-                or not asset.is_file()
-                or asset.stat().st_size > 4 * 1024 * 1024
+                self.headers.get("transfer-encoding")
+                or not length.isdigit()
+                or not 0 < int(length) <= MAX_IMPORT_BODY
             ):
-                self._reply(404, {"error": "Asset unavailable"})
-                return
-            self._reply(
-                200,
-                asset.read_bytes(),
-                mime=mimetypes.guess_type(asset.name)[0] or "application/octet-stream",
-                docs=asset.is_relative_to(self.spot_server.assets / "docs"),
-            )
-        except (ConfigError, ValueError) as exc:
-            self._reply(400, {"error": str(exc)})
-        except PermissionError as exc:
-            self._reply(403, {"error": str(exc)})
-        except (BrokenPipeError, ConnectionError, TimeoutError):
-            self.close_connection = True
+                raise HTTPException(400, "Bounded request body required")
+        return await super().body()
 
-    def do_POST(self) -> None:
-        try:
-            host = self._host()
-            if urlsplit(self.path).path != "/api/operations":
-                raise ConfigError("Unknown mutation endpoint")
-            if self.headers.get("Origin") != "http://" + host:
-                raise PermissionError("Same-origin request required")
-            session = self.spot_server.session(self.headers.get("Cookie", ""))
-            if session is None or not secrets.compare_digest(
-                self.headers.get("X-Spot-CSRF", ""), session.csrf
-            ):
-                raise PermissionError("Session/CSRF check failed")
-            if (
-                self.headers.get("Transfer-Encoding")
-                or self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json"
-            ):
-                raise ConfigError("Bounded JSON body required")
-            length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 2 * 1024 * 1024:
-                raise ConfigError("Request body size exceeded")
-            raw = self.rfile.read(length)
-            if len(raw) != length:
-                raise ConfigError("Incomplete request")
+    async def json(self) -> Any:
+        if not hasattr(self, "_json"):
 
             def reject_constant(value):
-                raise ConfigError(f"Invalid JSON numeric constant {value}")
+                raise HTTPException(400, f"Invalid JSON numeric constant {value}")
 
-            document = json.loads(raw, parse_constant=reject_constant)
-            if not isinstance(document, dict) or set(document) != {
-                "operation",
-                "payload",
-                "request_id",
-            }:
-                raise ConfigError("Structured operation, payload and request_id required")
-            operation, payload, request_id = (
-                document["operation"],
-                document["payload"],
-                document["request_id"],
-            )
-            if (
-                not isinstance(operation, str)
-                or not isinstance(request_id, str)
-                or not re.fullmatch(r"[a-zA-Z0-9_-]{8,64}", request_id)
+            body = await self.body()
+            document = json.loads(body, parse_constant=reject_constant)
+            if len(body) > MAX_BODY and (
+                not isinstance(document, dict) or document.get("operation") != "import"
             ):
-                raise ConfigError("Invalid operation/request identity")
-            if length > MAX_BODY and operation != "import":
-                raise ConfigError("Request body size exceeded")
-            validate_request(operation, payload)
-            job_id = self.spot_server.enqueue(session, operation, payload, request_id)
-            self._reply(202, {"job_id": job_id, "state": "pending"})
-        except (ConfigError, ValueError, TypeError) as exc:
-            self.close_connection = True  # reject unread/oversized body safely
-            self._reply(400, {"error": str(exc)})
-        except PermissionError as exc:
-            self.close_connection = True
-            self._reply(403, {"error": str(exc)})
-        except (BrokenPipeError, ConnectionError, TimeoutError):
-            self.close_connection = True
+                raise HTTPException(400, "Request body size exceeded")
+            self._json = document
+        return self._json
+
+
+class BoundedJsonRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def bounded(request: Request) -> Response:
+            return await handler(BoundedJsonRequest(request.scope, request.receive))
+
+        return bounded
+
+
+def _error(status: int, message: str, headers=None) -> JSONResponse:
+    return JSONResponse({"error": message}, status, headers=headers)
+
+
+def _validation_message(exc: RequestValidationError) -> str:
+    error = exc.errors()[0]
+    if "error" in error.get("ctx", {}):
+        return str(error["ctx"]["error"])
+    location = ".".join(str(part) for part in error["loc"][1:])
+    return f"{location}: {error['msg']}" if location else error["msg"]
+
+
+def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> FastAPI:
+    # FastAPI's interactive docs load from a CDN and would collide with the operator docs at /docs.
+    app = FastAPI(
+        title="Spot Vision",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url="/api/openapi.json",
+        generate_unique_id_function=lambda route: route.name,
+    )
+    app.router.route_class = BoundedJsonRoute
+    app.state.assets = (assets or Path(str(files("spot_vision.web")))).resolve()
+    app.state.allowed_hosts = {"localhost", "127.0.0.1", "::1", *allowed_hosts}
+    sessions = app.state.sessions = Sessions(runtime)
+
+    app.add_exception_handler(ValueError, lambda _, exc: _error(400, str(exc)))
+    app.add_exception_handler(PermissionError, lambda _, exc: _error(403, str(exc)))
+    app.add_exception_handler(
+        StarletteHTTPException,
+        lambda _, exc: _error(exc.status_code, exc.detail, getattr(exc, "headers", None)),
+    )
+    app.add_exception_handler(
+        RequestValidationError, lambda _, exc: _error(400, _validation_message(exc))
+    )
+
+    def trusted_host(request: Request) -> bool:
+        parsed = urlsplit("http://" + request.headers.get("host", ""))
+        try:
+            port = parsed.port or 80
+        except ValueError:
+            return False
+        address, server_port = request.scope.get("server") or ("", 0)
+        network = getattr(getattr(runtime, "network", None), "snapshot", {})
+        return (
+            parsed.hostname in {*app.state.allowed_hosts, address, network.get("hostname")}
+            and port == server_port
+            and not (
+                parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment
+            )
+        )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        if not trusted_host(request):
+            response = _error(403, "Host is not an installed Spot address")
+        else:
+            response = await call_next(request)
+        json_response = response.headers.get("content-type") == "application/json"
+        docs = request.url.path == "/docs" or request.url.path.startswith("/docs/")
+        response.headers["Cache-Control"] = "no-store" if json_response else "no-cache"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Content-Security-Policy"] = DOCS_CSP if docs else CSP
+        return response
+
+    def optional_session(request: Request) -> BrowserSession | None:
+        return sessions.get(request.cookies.get(COOKIE, ""))
+
+    def browser_session(
+        session: Annotated[BrowserSession | None, Depends(optional_session)],
+    ) -> BrowserSession:
+        if session is None:
+            raise PermissionError("Browser session required")
+        return session
+
+    def mutation_session(request: Request) -> BrowserSession:
+        if request.headers.get("origin") != "http://" + request.headers.get("host", ""):
+            raise PermissionError("Same-origin request required")
+        session = optional_session(request)
+        if session is None or not secrets.compare_digest(
+            request.headers.get("x-spot-csrf", ""), session.csrf
+        ):
+            raise PermissionError("Session/CSRF check failed")
+        if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+            raise ConfigError("JSON body required")
+        return session
+
+    BrowserSessionDep = Annotated[BrowserSession, Depends(browser_session)]
+
+    @app.get("/api/session")
+    def create_session(request: Request, response: Response) -> Session:
+        if request.headers.get("sec-fetch-site") == "cross-site":
+            raise PermissionError("Same-origin browser session required")
+        session = sessions.get(request.cookies.get(COOKIE, ""), create=True)
+        if session is None:
+            raise HTTPException(503, "Browser session limit reached")
+        response.set_cookie(
+            COOKIE, session.id, max_age=28800, path="/", httponly=True, samesite="strict"
+        )
+        return Session(csrf=session.csrf, client=session.id)
+
+    @app.get("/health", include_in_schema=False)
+    @app.get("/api/status")
+    def status() -> dict:
+        return runtime.status()
+
+    @app.get("/api/calibrations")
+    def calibrations(_: BrowserSessionDep) -> dict:
+        records = runtime.configuration.state.data.get("calibrations", {})
+        return {"calibrations": list(records.values())}
+
+    def robot_configuration(defaults: bool) -> dict:
+        config = runtime.configuration
+        if config.manifest is None:
+            raise ConfigError("Connect robot code before exporting its configuration")
+        if defaults and config.robot_manifest is not None:
+            profile = config.robot_manifest.profile
+            return asdict(RobotConfiguration(profile.cameras, profile.processing))
+        return asdict(config.export_configuration())
+
+    @app.get("/api/robot-config")
+    def robot_config(_: BrowserSessionDep) -> dict:
+        return robot_configuration(defaults=False)
+
+    @app.get("/api/robot-defaults")
+    def robot_defaults(_: BrowserSessionDep) -> dict:
+        return robot_configuration(defaults=True)
+
+    @app.get("/api/export")
+    def export(_: BrowserSessionDep) -> dict:
+        return json.loads(runtime.store.export())
+
+    @app.get("/api/support")
+    def support(_: BrowserSessionDep) -> dict:
+        return {
+            "schema_version": 2,
+            "status": runtime.status(),
+            "configuration": json.loads(runtime.store.export()),
+            "debug": runtime.debug,
+        }
+
+    @app.get("/api/jobs/{job_id}")
+    def job(
+        job_id: str, session: Annotated[BrowserSession | None, Depends(optional_session)]
+    ) -> dict:
+        with sessions.lock:
+            job = sessions.jobs.get(job_id)
+        if not session or not job or job[0] != session.id:
+            raise HTTPException(404, "Job unavailable")
+        future = job[1]
+        if not future.done():
+            return {"state": "pending"}
+        try:
+            return {"state": "applied", **future.result()}
+        except Exception as exc:  # noqa: BLE001 - structured configuration rejection
+            return {"state": "rejected", "error": str(exc)}
+
+    @app.get("/api/frame/{identity}")
+    def frame(
+        identity: Annotated[str, PathParam(pattern=r"^[a-f0-9]{64}$")],
+        session: BrowserSessionDep,
+    ) -> dict:
+        now = time.monotonic()
+        with sessions.lock:
+            if now - session.previews.get(identity, 0) < 1 / 25:
+                raise HTTPException(429, "Preview rate exceeded")
+            session.previews[identity] = now
+        return runtime.frames.preview(identity, session.id + ":" + identity)
+
+    @app.post("/api/operations", status_code=202)
+    def submit(
+        operation: Annotated[Operation, Body(discriminator="operation")],  # ty: ignore[invalid-type-form]
+        session: Annotated[BrowserSession, Depends(mutation_session)],
+    ) -> JobAccepted:
+        payload = operation.payload.model_dump(exclude_unset=True)
+        job_id = sessions.enqueue(session, operation.operation, payload, operation.request_id)
+        return JobAccepted(job_id=job_id)
+
+    app.mount("/", StaticFiles(directory=app.state.assets, html=True), name="web")
+    return app
+
+
+class HttpServer:
+    """Binds on construction so the port is known and in use before serving starts."""
+
+    def __init__(self, address, runtime, *, assets: Path | None = None, allowed_hosts=()):
+        hosts = [*allowed_hosts]
+        if address[0] not in {"", "0.0.0.0", "::"}:
+            hosts.append(address[0])
+        self.app = create_app(runtime, assets=assets, allowed_hosts=hosts)
+        self.listener = socket.create_server(address)
+        self.server_port = self.listener.getsockname()[1]
+        self.server = uvicorn.Server(
+            uvicorn.Config(
+                self.app,
+                log_config=None,
+                access_log=False,  # Per-frame browser polling is deliberately absent from logs.
+                limit_concurrency=16,
+                timeout_keep_alive=5,
+                timeout_graceful_shutdown=2,
+            )
+        )
+
+    def serve_forever(self) -> None:
+        self.server.run(sockets=[self.listener])
+
+    def shutdown(self) -> None:
+        self.server.should_exit = True

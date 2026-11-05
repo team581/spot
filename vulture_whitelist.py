@@ -15,14 +15,14 @@ has_configuration
 has_overrides
 override_paths
 
-# socketserver/http.server read these attributes and dispatch these methods.
-block_on_close
-server_version
-protocol_version
-_.close_connection
+# Pydantic, FastAPI and uvicorn read these attributes.
+model_config
+_.route_class
+_.should_exit
+
+# test_health_checks.py serves a stub through http.server.
 _.log_message
 _.do_GET
-_.do_POST
 
 # pybind11 reads these native configuration attributes.
 _.k1

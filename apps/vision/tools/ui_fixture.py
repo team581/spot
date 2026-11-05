@@ -333,7 +333,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     server = HttpServer(("127.0.0.1", args.port), FixtureRuntime(args.scenario))
     print(f"SYNTHETIC GUI FIXTURE http://127.0.0.1:{args.port}", flush=True)
-    try:
-        server.serve_forever()
-    finally:
-        server.server_close()
+    server.serve_forever()

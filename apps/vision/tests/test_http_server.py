@@ -8,8 +8,9 @@ from concurrent.futures import Future
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 
-from spot_vision.http_server import HttpServer
+from spot_vision.http_server import HttpServer, create_app
 
 
 @pytest.fixture
@@ -24,18 +25,14 @@ def web(tmp_path):
         return future
 
     runtime = SimpleNamespace(submit=submit, status=lambda: {"revision": "old", "cameras": []})
-    server = HttpServer(("127.0.0.1", 0), runtime, assets=tmp_path)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host = f"127.0.0.1:{server.server_port}"
+    app = create_app(runtime, assets=tmp_path)
+    host = "127.0.0.1:5800"
+    client = TestClient(app, base_url="http://" + host, follow_redirects=False)
 
     def request(method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
-        connection.request(method, path, body=body, headers=headers or {})
-        response = connection.getresponse()
-        result = response.status, dict(response.getheaders()), response.read()
-        connection.close()
-        return result
+        client.cookies.clear()  # Each request carries only the headers a test passes.
+        response = client.request(method, path, content=body, headers=headers or {})
+        return response.status_code, response.headers, response.content
 
     status, headers, raw = request("GET", "/api/session")
     assert status == 200
@@ -46,10 +43,14 @@ def web(tmp_path):
         "Origin": "http://" + host,
         "Content-Type": "application/json",
     }
-    yield request, session_headers, submissions, server
-    server.shutdown()
-    server.server_close()
-    thread.join(2)
+    yield (
+        request,
+        session_headers,
+        submissions,
+        SimpleNamespace(
+            runtime=runtime, assets=tmp_path, allowed_hosts=app.state.allowed_hosts, port=5800
+        ),
+    )
 
 
 def operation(**changes):
@@ -79,7 +80,7 @@ def test_direct_address_works_when_interface_was_absent_at_startup(web):
     request, _, _, server = web
     # Model a wildcard listener started before its interface address existed.
     server.allowed_hosts.discard("127.0.0.1")
-    port = server.server_port
+    port = server.port
     assert request("GET", "/api/status", headers={"Host": f"127.0.0.1:{port}"})[0] == 200
     for hostname in ("evil.invalid", "192.0.2.1"):
         assert request("GET", "/api/status", headers={"Host": f"{hostname}:{port}"})[0] == 403
@@ -175,9 +176,9 @@ def test_docs_directory_pages_assets_and_missing_paths(web):
 
     for path in ("/docs", "/docs/operator/calibrate"):
         status, headers, body = request("GET", path)
-        assert status == 301 and headers["Location"] == path + "/" and body == b""
+        assert status == 307 and headers["Location"].endswith(path + "/") and body == b""
     status, headers, body = request("GET", "/docs/operator/calibrate/")
-    assert status == 200 and headers["Content-Type"] == "text/html" and body == page
+    assert status == 200 and headers["Content-Type"].startswith("text/html") and body == page
     # The static docs policy permits Starlight and search without changing the dashboard's policy.
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
     assert "'wasm-unsafe-eval'" in headers["Content-Security-Policy"]
@@ -265,14 +266,9 @@ def test_network_changes_use_existing_session_guards_and_strict_payloads(web):
             == 400
         )
     server.runtime.network = SimpleNamespace(snapshot={"hostname": "spot-2.local"})
+    assert request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.port}"})[0] == 200
     assert (
-        request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.server_port}"})[0]
-        == 200
-    )
-    assert (
-        request("GET", "/api/status", headers={"Host": f"unregistered.local:{server.server_port}"})[
-            0
-        ]
+        request("GET", "/api/status", headers={"Host": f"unregistered.local:{server.port}"})[0]
         == 403
     )
 
@@ -284,14 +280,13 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
     thread.start()
     try:
         # Request every emitted chunk, including lazy pages absent from index.html.
-        assets = list((server.assets / "assets").rglob("*"))
+        root = server.app.state.assets
+        assets = list((root / "assets").rglob("*"))
         assert any(path.suffix == ".js" for path in assets)
         assert any(path.suffix == ".css" for path in assets)
-        assert not list(server.assets.rglob("*.tsx"))
+        assert not list(root.rglob("*.tsx"))
         paths = ["/", "/blazing-bulldogs.svg", "/docs/", "/docs/pagefind/pagefind.js"]
-        paths.extend(
-            "/" + path.relative_to(server.assets).as_posix() for path in assets if path.is_file()
-        )
+        paths.extend("/" + path.relative_to(root).as_posix() for path in assets if path.is_file())
         for path in paths:
             connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
             try:
@@ -302,22 +297,20 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
                 if path.endswith(".js"):
                     assert "javascript" in response.getheader("Content-Type"), path
                 elif path.endswith(".css"):
-                    assert response.getheader("Content-Type") == "text/css", path
+                    assert response.getheader("Content-Type").startswith("text/css"), path
             finally:
                 connection.close()
     finally:
         server.shutdown()
-        server.server_close()
-        thread.join(2)
+        thread.join(5)
 
 
 @pytest.mark.parametrize("team", [0, -1, 25600, True, 9991.0, "9991", None])
-def test_team_number_request_rejects_invalid_numbers(team):
-    from spot_vision.config import ConfigError
-    from spot_vision.http_server import validate_request
-
-    with pytest.raises(ConfigError, match="Team number"):
-        validate_request("nt/team", {"team": team})
+def test_team_number_request_rejects_invalid_numbers(web, team):
+    request, headers, submissions, _ = web
+    body = operation(operation="nt/team", payload={"team": team})
+    assert request("POST", "/api/operations", body, headers)[0] == 400
+    assert submissions == []
 
 
 def test_team_number_request_uses_the_session_and_job_boundary(web):
