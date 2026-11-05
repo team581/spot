@@ -17,7 +17,7 @@
 	"main": "./out/extension.cjs",
 	"scripts": {
 		"package": "pnpm build && node package.mts",
-		"test": "node --test test/*.cjs",
+		"test": "mkdir -p test-results && node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=test-results/junit.xml test/*.cjs",
 		"build": "vp pack && NODE_ENV=production vp build",
 		"check": "tsc -p . --noEmit && tsc -p tsconfig.webview.json",
 		"format": "oxfmt --check",

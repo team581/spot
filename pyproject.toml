@@ -20,7 +20,7 @@ spot-vision = { workspace = true }
 [tool.pytest.ini_options]
 testpaths = ["apps/vision/tests"]
 pythonpath = ["apps/vision/src", "apps/vision/tests"]
-addopts = "-ra"
+addopts = "-ra --junitxml=test-results/junit.xml"
 
 [tool.coverage.run]
 branch = true

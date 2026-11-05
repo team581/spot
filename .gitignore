@@ -23,6 +23,6 @@ wheelhouse/
 node_modules/
 apps/docs/.astro/
 
-# Local browser test output.
+# Local test output.
 **/test-results/
 **/playwright-report/

@@ -21,5 +21,9 @@ export default defineConfig({
 			'/docs': { target: backend, changeOrigin: true },
 		},
 	},
-	test: { include: ['src/**/*.test.ts', 'tests/*.test.{ts,js}'] },
+	test: {
+		include: ['src/**/*.test.ts', 'tests/*.test.{ts,js}'],
+		reporters: ['default', 'junit'],
+		outputFile: { junit: 'test-results/unit-junit.xml' },
+	},
 });
