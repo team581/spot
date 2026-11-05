@@ -1,9 +1,7 @@
-"""Bounded shared snapshots and disposable previews; HTTP never captures/encodes."""
+"""Bounded shared snapshots and pushed previews; HTTP never captures/encodes."""
 
 from __future__ import annotations
 
-import base64
-import copy
 import threading
 import time
 from collections import deque
@@ -13,7 +11,7 @@ class FrameHub:
     def __init__(self, *, max_cameras: int = 8, width: int = 960, fps: float = 20) -> None:
         self._lock = threading.RLock()
         self.latest, self.results, self.encoded = {}, {}, {}
-        self.interests = {}
+        self.subscribers: dict[str, set] = {}
         self.max_cameras, self.width, self.interval = max_cameras, width, 1 / fps
         self.stop_event = threading.Event()
         self.worker = threading.Thread(target=self._encode, name="preview-encoder", daemon=True)
@@ -40,23 +38,34 @@ class FrameHub:
         with self._lock:
             return self.latest.get(identity)
 
-    def preview(self, identity: str) -> dict:
-        now = time.monotonic()
+    def subscribe(self, identity: str, notify):
+        """Encode previews for this camera and call `notify` after each one; returns unsubscribe."""
         with self._lock:
-            self.interests = {
-                key: stamp for key, stamp in self.interests.items() if now - stamp < 3
-            }
-            if identity not in self.interests and len(self.interests) >= self.max_cameras:
+            if identity not in self.subscribers and len(self.subscribers) >= self.max_cameras:
                 raise ValueError("Preview camera limit reached")
-            self.interests[identity] = now
-            result = copy.deepcopy(self.encoded.get(identity, {"image": None, "tags": []}))
-            captured = result.get("captured_monotonic_ns")
-            result["age_s"] = None if captured is None else (time.monotonic_ns() - captured) / 1e9
-            if result["age_s"] is None or result["age_s"] > 0.5:
-                result["tags"], result["stale"] = [], True
-            else:
-                result["stale"] = False
-            return result
+            self.subscribers.setdefault(identity, set()).add(notify)
+
+        def unsubscribe():
+            with self._lock:
+                listeners = self.subscribers.get(identity, set())
+                listeners.discard(notify)
+                if not listeners:
+                    self.subscribers.pop(identity, None)
+
+        return unsubscribe
+
+    def frame(self, identity: str) -> tuple[dict, bytes] | None:
+        """Latest encoded preview as JSON-safe metadata and JPEG bytes."""
+        with self._lock:
+            encoded = self.encoded.get(identity)
+        if encoded is None:
+            return None
+        image, header = encoded["image"], {k: v for k, v in encoded.items() if k != "image"}
+        header["age_s"] = (time.monotonic_ns() - encoded["captured_monotonic_ns"]) / 1e9
+        header["stale"] = header["age_s"] > 0.5
+        if header["stale"]:
+            header["tags"] = []
+        return header, image
 
     def _encode(self) -> None:
         import cv2
@@ -67,11 +76,7 @@ class FrameHub:
         while not self.stop_event.wait(0.01):
             self.last_progress = time.monotonic()
             with self._lock:
-                interested = {
-                    identity
-                    for identity, stamp in self.interests.items()
-                    if time.monotonic() - stamp < 3
-                }
+                interested = set(self.subscribers)
             order = deque(key for key in order if key in interested)
             order.extend(sorted(interested - set(order)))
             if not order:
@@ -133,7 +138,7 @@ class FrameHub:
                 if not ok or jpeg.nbytes > 512 * 1024:
                     raise ValueError("Preview encoding exceeded bound")
                 result = {
-                    "image": base64.b64encode(jpeg).decode(),
+                    "image": jpeg.tobytes(),
                     "sequence": frame.sequence,
                     "capture_epoch": frame.capture_epoch,
                     "generation": frame.runtime_generation,
@@ -146,6 +151,9 @@ class FrameHub:
                 }
                 with self._lock:
                     self.encoded[identity] = result
+                    listeners = list(self.subscribers.get(identity, ()))
+                for notify in listeners:
+                    notify()
                 self.fault = ""
             except Exception as exc:  # noqa: BLE001 - isolate backend/job failures at the worker boundary
                 self.fault = str(exc)

@@ -106,23 +106,6 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/frames/{identity}': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Frame */
-		get: operations['frame'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
 	'/api/nt/team': {
 		parameters: {
 			query?: never;
@@ -1013,39 +996,6 @@ export interface operations {
 					'application/json': {
 						[key: string]: unknown;
 					};
-				};
-			};
-		};
-	};
-	frame: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				identity: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': {
-						[key: string]: unknown;
-					};
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};

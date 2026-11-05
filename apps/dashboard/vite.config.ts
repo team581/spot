@@ -12,10 +12,14 @@ export default defineConfig({
 			'/api': {
 				target: backend,
 				changeOrigin: true,
+				ws: true,
 				configure(proxy) {
-					proxy.on('proxyReq', (req) => {
+					// The service only accepts writes and streams from its own origin.
+					const origin = (req: { getHeader(name: string): unknown; setHeader(name: string, value: string): void }) => {
 						if (req.getHeader('origin')) req.setHeader('Origin', backend);
-					});
+					};
+					proxy.on('proxyReq', origin);
+					proxy.on('proxyReqWs', origin);
 				},
 			},
 			'/docs': { target: backend, changeOrigin: true },

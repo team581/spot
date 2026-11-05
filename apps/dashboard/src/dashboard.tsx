@@ -20,14 +20,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 	const { data: status, isError } = useStatusQuery();
 	useEffect(() => {
 		previews.start(readStatus);
-		const visible = () => {
-			if (!document.hidden) previews.markStale();
-		};
-		document.addEventListener('visibilitychange', visible);
-		return () => {
-			previews.stop();
-			document.removeEventListener('visibilitychange', visible);
-		};
+		return () => previews.stop();
 	}, [previews]);
 	useEffect(() => {
 		if (!isError) return;

@@ -1,4 +1,3 @@
-import { api } from './api';
 import type { Frame, Geometry, Status } from './types';
 export interface Preview {
 	paused: boolean;
@@ -13,14 +12,23 @@ export interface Preview {
 	};
 }
 const empty: Preview = { paused: false };
-/** Shared scheduler keeps preview traffic bounded to eight visible feeds at 20 Hz. */
+const maxStreams = 8;
+/** One frame message: u32 header length, JSON header, JPEG bytes. */
+function parseFrame(message: ArrayBuffer): { frame: Frame; jpeg: Blob } {
+	const length = new DataView(message).getUint32(0);
+	const frame = JSON.parse(new TextDecoder().decode(new Uint8Array(message, 4, length))) as Frame;
+	return { frame, jpeg: new Blob([new Uint8Array(message, 4 + length)], { type: 'image/jpeg' }) };
+}
+/** Streams previews only for on-screen, unpaused feeds; the service pushes each new frame. */
 export class PreviewStore {
 	private views = new Map<string, Preview>();
 	private elements = new Map<string, Set<Element>>();
+	private onScreen = new Set<Element>();
 	private listeners = new Map<string, Set<() => void>>();
-	private timer: ReturnType<typeof setTimeout> | undefined;
-	private running = false;
-	private epoch = 0;
+	private sockets = new Map<string, WebSocket>();
+	private observer?: IntersectionObserver;
+	private status?: () => Status;
+	private retry?: ReturnType<typeof setTimeout>;
 	get = (id: string) => this.views.get(id) ?? empty;
 	subscribe = (id: string, listener: () => void) => {
 		const set = this.listeners.get(id) ?? new Set();
@@ -35,9 +43,13 @@ export class PreviewStore {
 		const set = this.elements.get(id) ?? new Set();
 		set.add(element);
 		this.elements.set(id, set);
+		this.observer?.observe(element);
 		return () => {
 			set.delete(element);
 			if (!set.size) this.elements.delete(id);
+			this.observer?.unobserve(element);
+			this.onScreen.delete(element);
+			this.reconcile();
 		};
 	}
 	private update(id: string, view: Preview) {
@@ -62,10 +74,12 @@ export class PreviewStore {
 					heldAt: performance.now(),
 				},
 			});
+		this.reconcile();
 	}
-	markStale() {
-		for (const [id, view] of this.views)
-			if (view.data) this.update(id, { ...view, data: { ...view.data, stale: true } });
+	markStale(id?: string) {
+		for (const [key, view] of this.views)
+			if ((id === undefined || key === id) && view.data)
+				this.update(key, { ...view, data: { ...view.data, stale: true } });
 	}
 	prune(ids: string[]) {
 		for (const [id, view] of this.views)
@@ -73,60 +87,75 @@ export class PreviewStore {
 				for (const bitmap of new Set([view.bitmap, view.held?.bitmap])) bitmap?.close();
 				this.views.delete(id);
 			}
+		this.reconcile();
 	}
+	private onVisibility = () => this.reconcile();
 	start(status: () => Status) {
-		if (this.running) return;
-		this.running = true;
-		const epoch = ++this.epoch;
-		const poll = async () => {
-			const started = performance.now();
-			if (!document.hidden) {
-				const visible = [...this.elements]
-					.filter(([, elements]) =>
-						[...elements].some((el) => {
-							const r = el.getBoundingClientRect();
-							return r.bottom > 0 && r.top < innerHeight;
-						}),
-					)
-					.slice(0, 8);
-				await Promise.allSettled(
-					visible.map(async ([id]) => {
-						const before = this.get(id);
-						if (before.paused || !/^[a-f0-9]{64}$/.test(id)) return;
-						try {
-							const data = await api<Frame>('/api/frames/' + id);
-							let bitmap = before.bitmap;
-							if (
-								data.image &&
-								(!bitmap ||
-									data.capture_epoch !== before.data?.capture_epoch ||
-									data.sequence !== before.data?.sequence)
-							) {
-								const bytes = Uint8Array.from(atob(data.image), (c) => c.charCodeAt(0));
-								bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
-							}
-							if (epoch !== this.epoch || this.get(id).paused || !status().cameras.some((c) => c.identity === id)) {
-								if (bitmap !== before.bitmap) bitmap?.close();
-								return;
-							}
-							if (bitmap !== before.bitmap) before.bitmap?.close();
-							this.update(id, { paused: false, data, bitmap, received: performance.now() });
-						} catch {
-							const current = this.get(id);
-							if (current.data) this.update(id, { ...current, data: { ...current.data, stale: true } });
-						}
-					}),
-				);
-			}
-			if (this.running && epoch === this.epoch)
-				this.timer = setTimeout(poll, Math.max(0, 50 - (performance.now() - started)));
-		};
-		void poll();
+		this.status = status;
+		this.observer = new IntersectionObserver((entries) => {
+			for (const entry of entries)
+				entry.isIntersecting ? this.onScreen.add(entry.target) : this.onScreen.delete(entry.target);
+			this.reconcile();
+		});
+		for (const set of this.elements.values()) for (const element of set) this.observer.observe(element);
+		document.addEventListener('visibilitychange', this.onVisibility);
 	}
 	stop() {
-		this.running = false;
-		this.epoch++;
-		clearTimeout(this.timer);
+		this.status = undefined;
+		this.observer?.disconnect();
+		this.observer = undefined;
+		this.onScreen.clear();
+		clearTimeout(this.retry);
+		document.removeEventListener('visibilitychange', this.onVisibility);
+		this.reconcile();
 		this.prune([]);
+	}
+	/** Open sockets for wanted feeds and close the rest. */
+	private reconcile() {
+		const cameras = new Set(this.status?.().cameras.map((c) => c.identity));
+		const wanted = new Set(
+			document.hidden || !this.status
+				? []
+				: [...this.elements]
+						.filter(
+							([id, elements]) =>
+								cameras.has(id) && !this.get(id).paused && [...elements].some((el) => this.onScreen.has(el)),
+						)
+						.map(([id]) => id)
+						.slice(0, maxStreams),
+		);
+		for (const [id, socket] of this.sockets)
+			if (!wanted.has(id)) {
+				this.sockets.delete(id);
+				socket.close();
+			}
+		for (const id of wanted) if (!this.sockets.has(id)) this.open(id);
+	}
+	private open(id: string) {
+		const socket = new WebSocket(
+			`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/frames/${id}`,
+		);
+		socket.binaryType = 'arraybuffer';
+		let latest = 0;
+		socket.onmessage = async (event: MessageEvent<ArrayBuffer>) => {
+			const order = ++latest,
+				{ frame, jpeg } = parseFrame(event.data),
+				bitmap = await createImageBitmap(jpeg).catch(() => undefined);
+			// Drop undecodable frames and decodes that finished after a newer frame, a pause, or a closed stream.
+			if (!bitmap || order !== latest || this.sockets.get(id) !== socket || this.get(id).paused) {
+				bitmap?.close();
+				return;
+			}
+			this.get(id).bitmap?.close();
+			this.update(id, { paused: false, data: frame, bitmap, received: performance.now() });
+		};
+		socket.onclose = () => {
+			if (this.sockets.get(id) !== socket) return;
+			this.sockets.delete(id);
+			this.markStale(id);
+			clearTimeout(this.retry);
+			this.retry = setTimeout(() => this.reconcile(), 1000);
+		};
+		this.sockets.set(id, socket);
 	}
 }

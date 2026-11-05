@@ -1,7 +1,10 @@
 """Installed HTTP boundary. Mutations wait for the runtime's configuration worker."""
 
+import asyncio
 import json
+import re
 import socket
+import struct
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import asdict
 from importlib.resources import files
@@ -10,14 +13,23 @@ from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
-from fastapi import Path as PathParam
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import HTTPConnection
 
 from .protocol_models import RobotConfiguration
 
@@ -265,7 +277,7 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
         RequestValidationError, lambda _, exc: _error(400, _validation_message(exc))
     )
 
-    def trusted_host(request: Request) -> bool:
+    def trusted_host(request: HTTPConnection) -> bool:
         """Reject DNS-rebinding hostnames; the service has no other authentication."""
         parsed = urlsplit("http://" + request.headers.get("host", ""))
         try:
@@ -329,9 +341,55 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
             "debug": runtime.debug,
         }
 
-    @app.get("/api/frames/{identity}")
-    def frame(identity: Annotated[str, PathParam(pattern=r"^[a-f0-9]{64}$")]) -> dict:
-        return runtime.frames.preview(identity)
+    @app.websocket("/api/frames/{identity}")
+    async def frames(websocket: WebSocket, identity: str) -> None:
+        """Push each new preview as one binary message: u32 header length, JSON header, JPEG."""
+        # Browsers do not apply CORS to WebSockets, so check the page origin explicitly.
+        if (
+            not trusted_host(websocket)
+            or websocket.headers.get("origin") != "http://" + websocket.headers.get("host", "")
+            or not re.fullmatch(r"[a-f0-9]{64}", identity)
+        ):
+            await websocket.close(code=1008)
+            return
+        loop, ready = asyncio.get_running_loop(), asyncio.Event()
+
+        def notify():
+            if not loop.is_closed():
+                loop.call_soon_threadsafe(ready.set)
+
+        try:
+            unsubscribe = runtime.frames.subscribe(identity, notify)
+        except ValueError:
+            await websocket.close(code=1013)
+            return
+        await websocket.accept()
+        disconnected = asyncio.ensure_future(websocket.receive())
+        try:
+            sent = None
+            ready.set()  # Send the current frame without waiting for the next encode.
+            while True:
+                waiting = asyncio.ensure_future(ready.wait())
+                await asyncio.wait({waiting, disconnected}, return_when=asyncio.FIRST_COMPLETED)
+                if disconnected.done():
+                    waiting.cancel()
+                    return
+                ready.clear()
+                frame = runtime.frames.frame(identity)
+                if frame is None:
+                    continue
+                header, image = frame
+                key = (header["capture_epoch"], header["sequence"], header["processed"])
+                if key == sent:
+                    continue
+                encoded = json.dumps(header, allow_nan=False, separators=(",", ":")).encode()
+                await websocket.send_bytes(struct.pack(">I", len(encoded)) + encoded + image)
+                sent = key
+        except WebSocketDisconnect:
+            pass
+        finally:
+            disconnected.cancel()
+            unsubscribe()
 
     operations = APIRouter(
         prefix="/api", route_class=BoundedJsonRoute, dependencies=[Depends(same_origin_json)]
@@ -375,7 +433,8 @@ class HttpServer:
                 self.app,
                 log_config=None,
                 access_log=False,  # Per-frame browser polling is deliberately absent from logs.
-                limit_concurrency=16,
+                # Each open camera preview holds a WebSocket connection.
+                limit_concurrency=32,
                 timeout_keep_alive=5,
                 timeout_graceful_shutdown=2,
             )

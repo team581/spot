@@ -65,7 +65,6 @@ export interface Camera {
 	};
 }
 export interface Frame {
-	image?: string;
 	sequence: number;
 	capture_epoch: string;
 	generation: string;

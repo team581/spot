@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import http.client
 import json
+import struct
 import threading
 from concurrent.futures import Future
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from spot_vision.http_server import HttpServer, create_app
 
@@ -44,7 +46,11 @@ def web(tmp_path):
         request,
         submissions,
         SimpleNamespace(
-            runtime=runtime, assets=tmp_path, allowed_hosts=app.state.allowed_hosts, port=5800
+            runtime=runtime,
+            assets=tmp_path,
+            allowed_hosts=app.state.allowed_hosts,
+            port=5800,
+            client=client,
         ),
     )
 
@@ -119,15 +125,36 @@ def test_rejected_and_unacknowledged_mutations(web, monkeypatch):
     assert request("POST", "/api/camera/tune", TUNE, HEADERS)[0] == 504
 
 
-def test_asset_paths_are_bounded_and_frames_require_a_camera_identity(web):
-    request, _, server = web
+def test_asset_paths_are_bounded(web):
+    request, _, _ = web
     assert request("GET", "/../http_server.py")[0] == 404
     assert request("GET", "/%2e%2e/%2e%2e/etc/passwd")[0] == 404
     response = request("GET", "/")
     assert response[0] == 200 and "default-src" in response[1]["Content-Security-Policy"]
-    server.runtime.frames = SimpleNamespace(preview=lambda identity: {"identity": identity})
-    assert request("GET", "/api/frames/" + "a" * 64)[0] == 200
-    assert request("GET", "/api/frames/front")[0] == 400
+
+
+def test_frames_stream_binary_previews_only_to_same_origin_pages(web):
+    _, _, server = web
+    header = {"capture_epoch": "epoch", "sequence": 1, "processed": True}
+    unsubscribed = []
+    server.runtime.frames = SimpleNamespace(
+        subscribe=lambda identity, notify: lambda: unsubscribed.append(identity),
+        frame=lambda identity: (header, b"jpeg"),
+    )
+    url = f"ws://{HOST}/api/frames/" + "a" * 64
+    with server.client.websocket_connect(url, headers={"Origin": "http://" + HOST}) as socket:
+        message = socket.receive_bytes()
+    (length,) = struct.unpack(">I", message[:4])
+    assert json.loads(message[4 : 4 + length]) == header and message[4 + length :] == b"jpeg"
+    assert unsubscribed == ["a" * 64]
+    for path, headers in (
+        (url, {}),
+        (url, {"Origin": "http://evil.invalid"}),
+        (f"ws://{HOST}/api/frames/front", {"Origin": "http://" + HOST}),
+    ):
+        with pytest.raises(WebSocketDisconnect):
+            with server.client.websocket_connect(path, headers=headers):
+                pass
 
 
 def test_docs_directory_pages_assets_and_missing_paths(web):
@@ -220,7 +247,8 @@ def test_network_changes_use_strict_payloads_and_hostname_checks(web):
 
 def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    server = HttpServer(("127.0.0.1", 0), SimpleNamespace())
+    frames = SimpleNamespace(subscribe=lambda identity, notify: lambda: None, frame=lambda _: None)
+    server = HttpServer(("127.0.0.1", 0), SimpleNamespace(frames=frames))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -245,6 +273,23 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
                     assert response.getheader("Content-Type").startswith("text/css"), path
             finally:
                 connection.close()
+        # TestClient bypasses uvicorn, so check the real server can upgrade preview streams.
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+        try:
+            connection.request(
+                "GET",
+                "/api/frames/" + "a" * 64,
+                headers={
+                    "Upgrade": "websocket",
+                    "Connection": "Upgrade",
+                    "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+                    "Sec-WebSocket-Version": "13",
+                    "Origin": f"http://127.0.0.1:{server.server_port}",
+                },
+            )
+            assert connection.getresponse().status == 101
+        finally:
+            connection.close()
     finally:
         server.shutdown()
         thread.join(5)

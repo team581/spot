@@ -7,7 +7,6 @@ uv run --no-sync python apps/vision/tools/ui_fixture.py --port 5808
 from __future__ import annotations
 
 import argparse
-import base64
 import copy
 import hashlib
 import time
@@ -101,8 +100,11 @@ class FixtureRuntime:
                 "error_px": 0.2,
             }
         ]
-        self.jpeg = base64.b64encode(cv2.imencode(".jpg", image)[1]).decode()
-        self.frames = SimpleNamespace(preview=self.preview)
+        self.jpeg = cv2.imencode(".jpg", image)[1].tobytes()
+        # The fixture image never changes, so subscribers only need the current frame.
+        self.frames = SimpleNamespace(
+            subscribe=lambda identity, notify: lambda: None, frame=self.frame
+        )
         self.configuration = SimpleNamespace(
             state=SimpleNamespace(data={"development_fixture": True})
         )
@@ -152,10 +154,9 @@ class FixtureRuntime:
             "flags": [],
         }
 
-    def preview(self, identity):
+    def frame(self, identity):
         camera = next(c for c in self.cameras if c["identity"] == identity)
         return {
-            "image": self.jpeg,
             "sequence": 101,
             "capture_epoch": "fixture-capture",
             "generation": self.revision,
@@ -175,7 +176,7 @@ class FixtureRuntime:
                     "distance_m": 3.1,
                 }
             ],
-        }
+        }, self.jpeg
 
     def status(self):
         return {

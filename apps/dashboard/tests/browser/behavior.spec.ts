@@ -189,18 +189,11 @@ test('empty inventory and service disconnect show explicit states', async ({ pag
 
 test('stale frames hide detections and disconnect retains a labelled last image', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
-	let stale = false,
-		offline = false;
+	let offline = false;
 	await page.route('**/api/status', (route) => (offline ? route.abort() : route.fulfill({ json: status })));
-	await page.route('**/api/frames/**', async (route) => {
-		const response = await route.fetch();
-		const frame = await response.json();
-		if (stale) frame.stale = true;
-		await route.fulfill({ json: frame });
-	});
 	await page.goto('/#camera/' + status.cameras[0].identity);
 	await expect(page.locator('#detections')).toContainText('3.1 m');
-	stale = true;
+	status.cameras[0].age_s = 1;
 	await expect(page.locator('#detections')).toContainText('Waiting for current detection frame');
 	await expect(page.locator('.image-state')).toContainText('Stale image');
 	offline = true;

@@ -1,8 +1,6 @@
-import { afterEach, expect, test, vi } from 'vite-plus/test';
-import { api } from '../src/api';
+import { afterEach, beforeEach, expect, test, vi } from 'vite-plus/test';
 import { PreviewStore } from '../src/previews';
 import { initialStatus, type Frame, type Status } from '../src/types';
-vi.mock('../src/api', () => ({ api: vi.fn() }));
 const frame: Frame = {
 	sequence: 1,
 	capture_epoch: 'capture',
@@ -13,93 +11,99 @@ const frame: Frame = {
 	stale: false,
 	processed: true,
 	tags: [],
-	image: 'AA==',
 };
 const status = (ids: string[]): Status => ({
 	...initialStatus,
 	revision: 'a',
 	cameras: ids.map((identity) => ({ identity, name: identity, connected: true, calibrated: true })),
 });
-const visible = { getBoundingClientRect: () => ({ top: 0, bottom: 10 }) } as Element;
-const offscreen = { getBoundingClientRect: () => ({ top: 2000, bottom: 2100 }) } as Element;
-afterEach(() => {
-	vi.useRealTimers();
-	vi.unstubAllGlobals();
-	vi.resetAllMocks();
-});
-function setup() {
-	vi.useFakeTimers();
-	vi.stubGlobal('document', { hidden: false });
-	vi.stubGlobal('innerHeight', 1000);
-	vi.mocked(api).mockResolvedValue(frame);
-	return new PreviewStore();
+/** Encode a frame message the way the service does. */
+function message(value: Frame) {
+	const header = new TextEncoder().encode(JSON.stringify(value)),
+		bytes = new Uint8Array(4 + header.length + 2);
+	new DataView(bytes.buffer).setUint32(0, header.length);
+	bytes.set(header, 4);
+	return { data: bytes.buffer } as MessageEvent<ArrayBuffer>;
 }
-test('one scheduler requests at most eight visible cameras; hidden pages make no requests', async () => {
-	const store = setup(),
-		ids = Array.from({ length: 10 }, (_, i) => String(i).repeat(64));
+class FakeSocket {
+	static open: FakeSocket[] = [];
+	binaryType = '';
+	onmessage?: (event: MessageEvent<ArrayBuffer>) => Promise<void>;
+	onclose?: () => void;
+	constructor(readonly url: string) {
+		FakeSocket.open.push(this);
+	}
+	close() {
+		FakeSocket.open = FakeSocket.open.filter((socket) => socket !== this);
+	}
+}
+let intersect: (entries: { target: Element; isIntersecting: boolean }[]) => void;
+beforeEach(() => {
+	FakeSocket.open = [];
+	vi.stubGlobal('document', { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+	vi.stubGlobal('location', { protocol: 'http:', host: 'spot.local:5800' });
+	vi.stubGlobal('WebSocket', FakeSocket);
 	vi.stubGlobal(
-		'createImageBitmap',
-		vi.fn(async () => ({ close: vi.fn() })),
+		'IntersectionObserver',
+		class {
+			constructor(callback: typeof intersect) {
+				intersect = callback;
+			}
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
 	);
-	ids.forEach((id) => store.register(id, visible));
-	store.register('f'.repeat(64), offscreen);
-	store.start(() => status(ids));
-	await vi.advanceTimersByTimeAsync(1);
-	expect(api).toHaveBeenCalledTimes(8);
-	vi.mocked(api).mockClear();
-	vi.stubGlobal('document', { hidden: true });
-	await vi.advanceTimersByTimeAsync(100);
-	expect(api).not.toHaveBeenCalled();
+});
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+function show(store: PreviewStore, id: string, visible = true) {
+	const element = {} as Element;
+	store.register(id, element);
+	intersect([{ target: element, isIntersecting: visible }]);
+}
+test('streams at most eight on-screen cameras and closes every stream when the page is hidden', () => {
+	const store = new PreviewStore(),
+		ids = Array.from({ length: 10 }, (_, i) => String(i).repeat(64));
+	store.start(() => status([...ids, 'f'.repeat(64)]));
+	ids.forEach((id) => show(store, id));
+	show(store, 'f'.repeat(64), false);
+	expect(FakeSocket.open.map((s) => s.url)).toEqual(
+		ids.slice(0, 8).map((id) => `ws://spot.local:5800/api/frames/${id}`),
+	);
+	vi.stubGlobal('document', { hidden: true, removeEventListener: vi.fn() });
+	store.prune([...ids]);
+	expect(FakeSocket.open).toEqual([]);
 	store.stop();
 });
-test('an in-flight response cannot replace a paused inspection frame; resume releases the bitmap', async () => {
-	const store = setup(),
+test('pausing closes the stream; a frame decoded after the pause cannot replace the held frame', async () => {
+	const store = new PreviewStore(),
 		id = 'a'.repeat(64),
 		snapshot = status([id]),
-		bitmap = { close: vi.fn() };
+		bitmaps = [{ close: vi.fn() }, { close: vi.fn() }];
+	let finish!: (bitmap: unknown) => void;
 	vi.stubGlobal(
 		'createImageBitmap',
-		vi.fn(async () => bitmap),
+		vi
+			.fn()
+			.mockResolvedValueOnce(bitmaps[0])
+			.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve))),
 	);
-	store.register(id, visible);
 	store.start(() => snapshot);
-	await vi.advanceTimersByTimeAsync(1);
-	let finish!: (frame: Frame) => void;
-	vi.mocked(api).mockImplementationOnce(
-		() =>
-			new Promise<Frame>((resolve) => {
-				finish = resolve;
-			}),
-	);
-	await vi.advanceTimersByTimeAsync(50);
+	show(store, id);
+	const [socket] = FakeSocket.open;
+	await socket.onmessage!(message(frame));
+	expect(store.get(id).data?.sequence).toBe(1);
+	const late = socket.onmessage!(message({ ...frame, sequence: 2 }));
 	store.toggle(id, snapshot);
-	finish({ ...frame, sequence: 2 });
-	await vi.advanceTimersByTimeAsync(1);
-	expect(store.get(id).paused).toBe(true);
+	expect(FakeSocket.open).toEqual([]);
+	finish(bitmaps[1]);
+	await late;
 	expect(store.get(id).held?.sequence).toBe(1);
+	expect(bitmaps[1].close).toHaveBeenCalled();
 	store.toggle(id, snapshot);
-	expect(bitmap.close).toHaveBeenCalled();
-	expect(store.get(id).data).toBeUndefined();
+	expect(bitmaps[0].close).toHaveBeenCalled();
+	expect(FakeSocket.open).toHaveLength(1);
 	store.stop();
-});
-test('unmounting the scheduler closes late bitmaps without publishing stale data', async () => {
-	const store = setup(),
-		id = 'a'.repeat(64),
-		bitmap = { close: vi.fn() };
-	let finish!: (bitmap: ImageBitmap) => void;
-	vi.stubGlobal(
-		'createImageBitmap',
-		() =>
-			new Promise<ImageBitmap>((resolve) => {
-				finish = resolve;
-			}),
-	);
-	store.register(id, visible);
-	store.start(() => status([id]));
-	await vi.advanceTimersByTimeAsync(1);
-	store.stop();
-	finish(bitmap as unknown as ImageBitmap);
-	await vi.advanceTimersByTimeAsync(1);
-	expect(bitmap.close).toHaveBeenCalledOnce();
-	expect(store.get(id).data).toBeUndefined();
 });

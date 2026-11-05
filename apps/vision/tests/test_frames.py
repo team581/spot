@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import numpy as np
@@ -9,7 +10,7 @@ from spot_vision.frames import FrameHub
 from spot_vision.models import DetectedFrame, Detection, DetectionBatch, FramePacket, PoseSolution
 
 
-def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
+def test_subscribers_are_notified_of_one_coherent_processed_frame_and_bounded():
     hub = FrameHub(max_cameras=1)
     packet = FramePacket(
         "one", 1, 1, time.monotonic_ns(), np.zeros((8, 8, 2), np.uint8), "epoch", "generation"
@@ -23,21 +24,22 @@ def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
             used_tag_ids=frozenset([1]), tag_diagnostics={1: {"distance_m": 2.0, "error_px": 0.2}}
         ),
     )
-    hub.preview("one")
+    encoded = threading.Event()
+    unsubscribe = hub.subscribe("one", encoded.set)
     hub.start()
     try:
-        deadline = time.monotonic() + 2
-        result = {}
-        while not result.get("image") and time.monotonic() < deadline:
-            time.sleep(0.01)
-            result = hub.preview("one")
+        assert encoded.wait(2)
+        result, image = hub.frame("one")
+        assert image.startswith(b"\xff\xd8")  # JPEG bytes, not base64 text
         assert (
             result["processed"] and result["sequence"] == 1 and result["capture_epoch"] == "epoch"
         )
         assert result["tags"][0]["error_px"] == 0.2 and result["tags"][0]["distance_m"] == 2
         assert result["tags"][0]["used"] and result["tags"][0]["reason"] == ""
         with pytest.raises(ValueError, match="limit"):
-            hub.preview("two")
+            hub.subscribe("two", lambda: None)
+        unsubscribe()
+        hub.subscribe("two", lambda: None)
     finally:
         hub.close()
 
@@ -51,18 +53,13 @@ def test_disconnected_bound_image_retains_age_but_unbound_snapshots_are_pruned()
     hub.capture(FramePacket("extra", 1, 1, 1, packet.image))
     hub.encoded = {
         "bound": {
-            "image": "last",
+            "image": b"last",
             "tags": [{"id": 1}],
             "captured_monotonic_ns": packet.captured_monotonic_ns,
         },
-        "extra": {"image": "unused"},
+        "extra": {"image": b"unused"},
     }
     hub.retain({"bound"})
     assert set(hub.latest) == set(hub.encoded) == {"bound"}
-    result = hub.preview("bound")
-    assert (
-        result["image"] == "last"
-        and result["stale"]
-        and result["age_s"] >= 1
-        and result["tags"] == []
-    )
+    result, image = hub.frame("bound")
+    assert image == b"last" and result["stale"] and result["age_s"] >= 1 and result["tags"] == []
