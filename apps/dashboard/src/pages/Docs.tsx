@@ -1,12 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 /** Show the bundled docs site in a pane, keeping the dashboard URL in step with the page it shows. */
 export default function Docs() {
-	const splat = useParams({ from: '/help/$', select: (params) => params._splat ?? '' }),
-		hash = useLocation({ select: (location) => location.hash }),
+	// Read the path and hash together; they can update separately while a navigation is pending.
+	const src = useLocation({
+			select: ({ pathname, hash }) => {
+				// Every docs page URL has a trailing slash.
+				const page = pathname.slice('/help/'.length).replace(/[^/]$/, '$&/');
+				return '/docs/' + page + (hash ? '#' + hash : '');
+			},
+		}),
 		navigate = useNavigate(),
-		frame = useRef<HTMLIFrameElement>(null),
-		src = '/docs/' + splat + (hash ? '#' + hash : '');
+		frame = useRef<HTMLIFrameElement>(null);
 	useEffect(() => {
 		const location = frame.current?.contentWindow?.location;
 		if (location && location.pathname + location.hash !== src) location.replace(src);
