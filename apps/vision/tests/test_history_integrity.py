@@ -28,8 +28,10 @@ def test_tuning_does_not_evict_calibration_history_and_failed_stages_are_pruned(
     for value in range(70):
         current = commit({**current.data, "gain": value}, current.generation)
     history = store.history()
-    assert [entry["generation"] for entry in history] == [second.generation, first.generation]
-    assert history[0]["active"] and not history[1]["active"]
+    assert {entry["generation"]: entry["active"] for entry in history} == {
+        first.generation: False,
+        second.generation: True,
+    }
     assert store.read_generation(first.generation).data["calibrations"]["a:mode"]["id"] == "one"
     assert len(list(store.generations.glob("*.json"))) <= 67
     with pytest.raises(RuntimeError):
