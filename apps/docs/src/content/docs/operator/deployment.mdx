@@ -76,15 +76,6 @@ sudo spot-install --root /mnt
 The ISO includes the prebuilt Spot system and all runtime dependencies. Installation
 does not require internet access or a repository checkout on the Jetson.
 
-### CI storage setup
-
-Enable R2 in the Team 581 Cloudflare account, then run
-`bash tools/setup-installer-bucket.sh` with the Cloudflare CLI authenticated.
-This also enables public downloads at `downloads.spot.frc581.com` using the
-versioned domain configuration in `.github/installer-r2-domain.json`.
-Create an R2 Object Read & Write key scoped to `spot-jetson-images`, and save its
-credentials as the repository secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
-
 ## Deploy to an existing NixOS installation
 
 Run from the development checkout; no checkout on the Jetson is needed:
