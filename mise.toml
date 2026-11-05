@@ -1,6 +1,6 @@
 [tools]
 hk = "2.11.1"
-pkl = "0.31.1"
+pkl = "0.32.2"
 
 [settings]
 idiomatic_version_file_enable_tools = ["node", "pnpm"]
