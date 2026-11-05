@@ -339,3 +339,52 @@ def test_policy_change_rejects_inflight_solve_and_expiry_without_reapplying_mani
     config._robot_updated -= 3  # deterministic expiry; no waiting for time to pass
     assert config.tag_selection() is None
     assert not transport.publish(current, captured)
+
+
+def test_endpoint_change_drops_old_robot_context_and_connects_to_new_server(link):
+    import ntcore
+
+    _, client, transport, config, _, _, _, _ = link
+    handshake(link)
+    old_session = transport.context("front", time.monotonic_ns(), None)
+    assert old_session is not None
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    new_server = ntcore.NetworkTableInstance.create()
+    new_server.startServer("", "127.0.0.1", 0, port)
+    publisher = RobotPublisher(new_server, ntcore.PubSubOptions(keepDuplicates=True, sendAll=True))
+    teams = []
+
+    class TeamClient:
+        def __getattr__(self, name):
+            return getattr(client, name)
+
+        def setServerTeam(self, team):
+            teams.append(team)
+            client.setServer("127.0.0.1", port)
+
+    transport.instance = TeamClient()
+    try:
+        transport.set_endpoint(NtConfig(team=9991))
+        assert teams == [9991]
+        assert not config.fresh and not config.acknowledged_generation
+        assert transport._ack is None
+        assert transport.context("front", time.monotonic_ns(), None) is None
+        new_manifest = manifest(session="offseason-session")
+
+        def step():
+            publisher.set(new_manifest)
+            transport.poll()
+
+        wait_for(lambda: config.fresh and transport._ack is not None, step)
+        context = transport.context("front", time.monotonic_ns(), None)
+        assert context is not None and context.acknowledgement.robot_session == "offseason-session"
+        assert (
+            context.acknowledgement.connection_epoch != old_session.acknowledgement.connection_epoch
+        )
+    finally:
+        client.stopClient()
+        publisher.close()
+        new_server.stopServer()
+        ntcore.NetworkTableInstance.destroy(new_server)

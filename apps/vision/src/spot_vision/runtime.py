@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
 import queue
 import threading
 import time
 from concurrent.futures import Future
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
@@ -19,7 +20,15 @@ from .calibration_record import validate_record
 from .camera_capture import CameraCapture
 from .camera_controls import EXPOSURE_NAMES, frame_limited_exposure
 from .clock import FrameRateCounter
-from .config import Calibration, CameraConfig, CameraSelector, ConfigError, DetectorConfig, NtConfig
+from .config import (
+    Calibration,
+    CameraConfig,
+    CameraSelector,
+    ConfigError,
+    DetectorConfig,
+    NtConfig,
+    validate_team,
+)
 from .configuration import ConfigurationService, mode_signature, optical_controls
 from .contract import content_hash
 from .devices import DeviceManager, DeviceRegistry
@@ -101,6 +110,13 @@ class Runtime:
         )
         self.devices = devices or DeviceManager(DeviceRegistry(state_root))
         self.store = StateStore(state_root)
+        self.nt_settings = state_root / "networktables.json"
+        if self.nt_settings.exists():
+            saved = json.loads(self.nt_settings.read_bytes())
+            if not isinstance(saved, dict) or set(saved) != {"team"}:
+                raise ConfigError("Invalid saved NetworkTables settings")
+            nt = replace(nt, team=validate_team(saved["team"]), server=None)
+        self.nt_config = nt
         self.frames = FrameHub()
         self._pipeline_lock, self._operation_lock = threading.RLock(), threading.RLock()
         self.workers: dict[str, CameraCapture] = {}
@@ -144,7 +160,7 @@ class Runtime:
             None  # attached by installed application before starting
         )
         self.network: NetworkClient | None = None
-        self.endpoint: dict = {}
+        self.endpoint: dict = {"configured": nt.server, "team": nt.team, "mode": "NT4 client"}
 
     def submit(self, operation: str, payload: dict) -> Future:
         future = Future()
@@ -182,7 +198,9 @@ class Runtime:
                 continue
             try:
                 with self._operation_lock:
-                    if operation == "rediscover":
+                    if operation == "nt/team":
+                        result = self.set_nt_team(payload["team"])
+                    elif operation == "rediscover":
                         self.apply(self.configuration.state, self.configuration.manifest)
                         result = self.configuration.state
                     elif operation == "import":
@@ -326,6 +344,23 @@ class Runtime:
                 self.faults.pop("configuration", None)
             except Exception as exc:  # noqa: BLE001 - isolate backend/job failures at the worker boundary
                 future.set_exception(exc)
+
+    def set_nt_team(self, team: int) -> dict:
+        team = validate_team(team)
+        with self._pipeline_lock:
+            if self.configuration.connected:
+                self.configuration.require_eligible()
+            previous = self.nt_config
+            updated = replace(previous, team=team, server=None)
+            try:
+                self.transport.set_endpoint(updated)
+                durable_replace(self.nt_settings, canonical_bytes({"team": team}))
+            except Exception:
+                self.transport.set_endpoint(previous)
+                raise
+            self.nt_config = updated
+            self.endpoint.update(configured=None, team=team)
+        return {"team": team}
 
     def _discover(self) -> None:
         previous = None

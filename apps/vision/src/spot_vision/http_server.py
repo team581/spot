@@ -17,10 +17,11 @@ from pathlib import Path
 from typing import cast
 from urllib.parse import unquote, urlsplit
 
-from .config import ConfigError
+from .config import ConfigError, validate_team
 
 MAX_BODY = 64 * 1024
 OPERATIONS = {
+    "nt/team": {"team"},
     "network/apply": {"mode", "address"},
     "network/confirm": {"token"},
     "network/revert": {"token"},
@@ -48,6 +49,7 @@ OPERATIONS = {
     },
 }
 REQUIRED = {
+    "nt/team": {"team"},
     "network/apply": {"mode", "address"},
     "network/confirm": {"token"},
     "network/revert": {"token"},
@@ -77,6 +79,8 @@ def validate_request(operation: str, payload: dict) -> None:
         raise ConfigError("Unknown operation or invalid request")
     if set(payload) - OPERATIONS[operation] or REQUIRED.get(operation, set()) - set(payload):
         raise ConfigError("Unknown or missing request fields")
+    if operation == "nt/team":
+        validate_team(payload["team"])
     if operation == "network/apply":
         from .networking import validate_change
 

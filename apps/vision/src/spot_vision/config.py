@@ -70,6 +70,12 @@ class NtConfig:
     identity: str = "spot-vision"
 
 
+def validate_team(team: object) -> int:
+    if type(team) is not int or not 1 <= team <= 25599:
+        raise ConfigError("Team number must be an integer from 1 through 25599")
+    return team
+
+
 @dataclass(frozen=True)
 class DiagnosticConfig:
     field_layout: Path | None

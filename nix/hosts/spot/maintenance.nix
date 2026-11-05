@@ -21,7 +21,8 @@ in
       bridge.stp = true;
       ethernet.cloned-mac-address = "stable";
       ipv4 = {
-        method = "manual";
+        method = "auto";
+        may-fail = true;
         address1 = maintenanceAddress;
         never-default = true;
         ignore-auto-dns = true;

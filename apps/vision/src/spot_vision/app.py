@@ -83,12 +83,7 @@ def run(args) -> int:
     )
     runtime.network = NetworkClient()
     runtime.software = software
-    runtime.endpoint = {
-        "configured": nt.server,
-        "team": nt.team,
-        "mode": "NT4 client",
-        "local_addresses": addresses,
-    }
+    runtime.endpoint["local_addresses"] = addresses
     runtime.calibration = CalibrationManager(runtime)
     assets = Path(str(files("spot_vision.web")))
     for relative in (

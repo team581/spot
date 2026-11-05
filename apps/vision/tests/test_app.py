@@ -40,7 +40,9 @@ def test_service_starts_with_the_built_dashboard(tmp_path, monkeypatch):
             connection.close()
             handlers[signal.SIGTERM](signal.SIGTERM, None)
 
-    runtime = SimpleNamespace(start=Mock(), close=Mock(), watchdog=SimpleNamespace(ready=ready))
+    runtime = SimpleNamespace(
+        start=Mock(), close=Mock(), watchdog=SimpleNamespace(ready=ready), endpoint={}
+    )
     network = SimpleNamespace(worker=SimpleNamespace(start=Mock()), close=Mock())
     monkeypatch.setattr(app, "local_addresses", lambda: ["127.0.0.1"])
     monkeypatch.setattr(app, "software_info", lambda: {})

@@ -31,6 +31,11 @@ class Transport:
         self.configuration, self.cameras = config, cameras
         self.clock = ClockGate()
         self.published = []
+        self.nt = nt
+
+    def set_endpoint(self, nt):
+        self.nt = nt
+        self.configuration.connection_changed(False)
 
     def poll(self):
         pass
@@ -573,3 +578,68 @@ def test_omitted_code_control_remains_editable_and_reapplied(runtime):
     assert cap["allowed"] and cap["default"] is None
     app.configuration.tune("front", {"gain": 8}, app.configuration.state.generation)
     assert app.workers[identity].readback["gain"] == 8
+
+
+def test_team_change_persists_outside_camera_profiles_and_reloads(runtime, tmp_path):
+    app, _, _, _ = runtime
+    generation = app.configuration.state.generation
+    worker = next(iter(app.workers.values()))
+    app.threads[0].start()
+    try:
+        result = app.submit("nt/team", {"team": 9991}).result(2)
+        assert result["result"] == {"team": 9991}
+        assert app.transport.nt.team == app.endpoint["team"] == 9991
+        assert app.transport.nt.server is None
+        assert not app.configuration.connected and not app.configuration.fresh
+        assert app.configuration.state.generation == generation
+        assert next(iter(app.workers.values())) is worker
+        restarted = Runtime(
+            tmp_path,
+            NtConfig(team=581, server="old-server"),
+            backend="cpu",
+            devices=app.devices,
+            transport_factory=Transport,
+        )
+        try:
+            assert restarted.transport.nt.team == restarted.endpoint["team"] == 9991
+            assert restarted.transport.nt.server is None
+        finally:
+            restarted.close()
+    finally:
+        app.stop_event.set()
+        app.threads[0].join(2)
+
+
+@pytest.mark.parametrize("state", ["enabled", "unknown", "expired"])
+def test_team_change_rejects_connected_robot_without_fresh_disabled_state(runtime, state):
+    app, _, _, _ = runtime
+    config = app.configuration
+    if state == "unknown":
+        config.connection_changed(True)
+    else:
+        config.robot_state(
+            wire.RobotState(robot_session="robot-1", enabled=state == "enabled", sequence=2),
+            now=0 if state == "expired" else None,
+        )
+    with pytest.raises(ConfigError, match="locked"):
+        app.set_nt_team(9991)
+    assert not app.nt_settings.exists()
+    assert app.transport.nt.team is None
+
+
+def test_disconnected_team_can_be_corrected_and_failed_save_restores_endpoint(runtime, monkeypatch):
+    from spot_vision import runtime as runtime_module
+
+    app, _, _, _ = runtime
+    app.configuration.connection_changed(False)
+    assert app.set_nt_team(9991) == {"team": 9991}
+    saved = app.nt_settings.read_bytes()
+
+    def fail_save(*args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(runtime_module, "durable_replace", fail_save)
+    with pytest.raises(OSError, match="disk full"):
+        app.set_nt_team(581)
+    assert app.transport.nt.team == app.endpoint["team"] == 9991
+    assert app.nt_settings.read_bytes() == saved

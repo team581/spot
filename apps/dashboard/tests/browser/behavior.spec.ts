@@ -403,3 +403,36 @@ test('mode and replacement operations use the camera identity and require feed c
 		}),
 	);
 });
+
+test('team number saves through a job and can be corrected while disconnected', async ({ page }) => {
+	const status = await (await page.request.get('/api/status')).json();
+	status.connected = true;
+	status.lock_reason = '';
+	const writes: unknown[] = [];
+	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
+	await page.route('**/api/operations', async (route) => {
+		const body = route.request().postDataJSON();
+		writes.push(body);
+		status.endpoint.team = body.payload.team;
+		status.endpoint.configured = null;
+		status.connected = false;
+		status.lock_reason = 'Robot enabled or state unknown · locked';
+		await route.fulfill({ json: { job_id: 'team' } });
+	});
+	await page.route('**/api/jobs/team', (route) => route.fulfill({ json: { state: 'applied' } }));
+	await page.goto('/#network');
+	const team = page.getByLabel('Team number', { exact: true });
+	const save = page.getByRole('button', { name: 'Save team number', exact: true });
+	await expect(team).toHaveValue('581');
+	await team.fill('9991');
+	await save.click();
+	await expect(page.locator('#team-feedback')).toContainText('saved for future boots');
+	await expect(page.locator('#connection-data')).toContainText('Team 9991');
+	await expect(save).toBeEnabled();
+	await page.reload();
+	await expect(team).toHaveValue('9991');
+	status.connected = true;
+	await expect(save).toBeDisabled();
+	await expect(team).toBeDisabled();
+	expect(writes).toEqual([expect.objectContaining({ operation: 'nt/team', payload: { team: 9991 } })]);
+});

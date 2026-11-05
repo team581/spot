@@ -311,3 +311,28 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
         server.shutdown()
         server.server_close()
         thread.join(2)
+
+
+@pytest.mark.parametrize("team", [0, -1, 25600, True, 9991.0, "9991", None])
+def test_team_number_request_rejects_invalid_numbers(team):
+    from spot_vision.config import ConfigError
+    from spot_vision.http_server import validate_request
+
+    with pytest.raises(ConfigError, match="Team number"):
+        validate_request("nt/team", {"team": team})
+
+
+def test_team_number_request_uses_the_session_and_job_boundary(web):
+    request, headers, submissions, _ = web
+    for payload in ({}, {"team": 9991, "server": "other"}):
+        assert (
+            request(
+                "POST", "/api/operations", operation(operation="nt/team", payload=payload), headers
+            )[0]
+            == 400
+        )
+    response = request(
+        "POST", "/api/operations", operation(operation="nt/team", payload={"team": 9991}), headers
+    )
+    assert response[0] == 202
+    assert submissions[0][:2] == ("nt/team", {"team": 9991})

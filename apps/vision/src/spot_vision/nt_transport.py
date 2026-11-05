@@ -203,6 +203,41 @@ class NtTransport:
                 raise ConfigError("NT client needs robot endpoint or team")
             self.instance.startClient4(config.identity)
 
+    def set_endpoint(self, config: NtConfig) -> None:
+        self.instance.stopClient()
+        if not self.instance.waitForListenerQueue(1):
+            raise ConfigError("NetworkTables is busy; retry changing the team number")
+        with self._lock:
+            self.clock.connection(None)
+            self._ack = None
+            self._frame_contexts.clear()
+            self._connection_after_us = nt_now_us()
+            self._robot_decisions, self._decisions_at = {}, 0.0
+            self.configuration.connection_changed(False)
+            for subscriber in (self._manifest, self._robot_state, self._decisions):
+                subscriber.readQueue()
+            # Do not replay observations or acknowledgements from the previous robot.
+            for publisher in self._observations.values():
+                publisher.close()
+            self._observations.clear()
+            self._ack_publisher.close()
+            self._ack_publisher = AcknowledgementPublisher(
+                self.instance,
+                ROOT,
+                self.ntcore.PubSubOptions(
+                    keepDuplicates=True, sendAll=True, periodic=0.005, pollStorage=32
+                ),
+            )
+            self._config = config
+            if config.enabled:
+                if config.server:
+                    self.instance.setServer(config.server)
+                elif config.team:
+                    self.instance.setServerTeam(config.team)
+                else:
+                    raise ConfigError("NT client needs robot endpoint or team")
+                self.instance.startClient4(config.identity)
+
     def _connection_event(self, event) -> None:
         connected = event.is_(self.ntcore.EventFlags.kConnected)
         with self._lock:

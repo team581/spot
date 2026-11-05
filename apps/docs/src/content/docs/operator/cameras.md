@@ -8,6 +8,11 @@ Open <http://spot.local:5800> or the default maintenance address
 <http://192.168.69.170:5800>. For direct Ethernet, give the laptop
 `192.168.69.171/24`. The Network page shows current addresses and the robot link.
 
+Fresh images request a DHCP address and also keep the maintenance address.
+Use **Network → Connection** to set the NetworkTables team number; it reconnects
+immediately and saves the selection across reboots. Keep the robot disabled.
+Changing the team number does not change a static Jetson IP address.
+
 Use **Network → Jetson address** to change Ethernet settings. Check the new
 connection and click **Keep settings** before the trial expires; an unconfirmed
 trial rolls back. Both Ethernet ports share one network.

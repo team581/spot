@@ -11,6 +11,15 @@ export default function NetworkPage() {
 		[feedback, setFeedback] = useState(''),
 		[error, setError] = useState('');
 
+	const [team, setTeam] = useState(endpoint.team?.toString() ?? ''),
+		[lastTeam, setLastTeam] = useState(endpoint.team),
+		[teamBusy, setTeamBusy] = useState(false),
+		[teamFeedback, setTeamFeedback] = useState('');
+	if (lastTeam !== endpoint.team) {
+		setLastTeam(endpoint.team);
+		setTeam(endpoint.team?.toString() ?? '');
+	}
+
 	const [restore, setRestore] = useState(true),
 		[lastPending, setLastPending] = useState('');
 	const token = network.pending?.token ?? '';
@@ -60,7 +69,41 @@ export default function NetworkPage() {
 							'Connection mode': endpoint.mode || 'NT4 client',
 						}}
 					/>
-					<p className="capability-lock spaced">Endpoint pinned by installation configuration</p>
+					<form
+						onSubmit={async (e) => {
+							e.preventDefault();
+							setTeamBusy(true);
+							try {
+								await mutate('nt/team', { team: Number(team) });
+								setTeamFeedback('Team number saved for future boots. Reconnecting NetworkTables.');
+							} catch (e) {
+								setTeamFeedback(errorMessage(e));
+							} finally {
+								setTeamBusy(false);
+							}
+						}}
+					>
+						<label htmlFor="nt-team">Team number</label>
+						<input
+							id="nt-team"
+							type="number"
+							min="1"
+							max="25599"
+							step="1"
+							required
+							value={team}
+							onChange={(e) => setTeam(e.target.value)}
+							disabled={teamBusy || Boolean(status.connected && status.lock_reason)}
+						/>
+						<p>Changing the team number reconnects NetworkTables. Jetson IP settings are configured below.</p>
+						<p className="lock">{status.connected ? status.lock_reason : ''}</p>
+						<button type="submit" disabled={teamBusy || !team || Boolean(status.connected && status.lock_reason)}>
+							Save team number
+						</button>
+					</form>
+					<p id="team-feedback" className="feedback" role="status">
+						{teamFeedback}
+					</p>
 					<button
 						disabled={status.connected}
 						onClick={async () => {
