@@ -1,72 +1,12 @@
 from __future__ import annotations
 
-import glob
-import subprocess
-from pathlib import Path
-
 import numpy as np
 
-from .config import CameraConfig, CameraSelector
+from .config import CameraConfig
 
 
 class CameraError(RuntimeError):
     pass
-
-
-def _real_device(path: str) -> str:
-    resolved = str(Path(path).resolve())
-    if not Path(resolved).exists():
-        raise CameraError(f"camera device does not exist: {path}")
-    return resolved
-
-
-def resolve_device(selector: CameraSelector) -> str:
-    if selector.device:
-        return _real_device(selector.device)
-    if selector.by_id:
-        candidate = selector.by_id
-        if not candidate.startswith("/"):
-            candidate = f"/dev/v4l/by-id/{candidate}"
-        return _real_device(candidate)
-    if selector.by_path:
-        candidate = selector.by_path
-        if not candidate.startswith("/"):
-            candidate = f"/dev/v4l/by-path/{candidate}"
-        return _real_device(candidate)
-    if selector.serial:
-        for candidate in sorted(glob.glob("/dev/v4l/by-id/*")):
-            if selector.serial in Path(candidate).name:
-                return _real_device(candidate)
-        for candidate in sorted(glob.glob("/dev/video*")):
-            result = subprocess.run(
-                ["udevadm", "info", "--query=property", f"--name={candidate}"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            properties = dict(
-                line.split("=", 1) for line in result.stdout.splitlines() if "=" in line
-            )
-            if properties.get("ID_SERIAL_SHORT") == selector.serial:
-                return _real_device(candidate)
-        raise CameraError(f"no camera with serial {selector.serial!r}")
-    raise CameraError("camera selector is empty")
-
-
-def enumerate_camera(device: str) -> str:
-    try:
-        result = subprocess.run(
-            ["v4l2-ctl", "--device", device, "--all", "--list-formats-ext", "--list-ctrls-menus"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except FileNotFoundError as exc:
-        raise CameraError("v4l2-ctl is required to enumerate cameras") from exc
-    if result.returncode:
-        raise CameraError(result.stderr.strip() or f"v4l2-ctl failed with {result.returncode}")
-    return result.stdout
 
 
 def validate_yuyv_frame(frame: np.ndarray, camera: CameraConfig) -> np.ndarray:

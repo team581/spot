@@ -37,9 +37,9 @@ def test_cpu_detection_with_calibration_does_not_require_native_extension(monkey
     from pathlib import Path
 
     import spot_vision
-    from spot_vision.cli import _recording_frames
     from spot_vision.config import load_calibration, load_config
     from spot_vision.native import CpuDetector, create_detector
+    from spot_vision.regression import load_image_frame
     from spot_vision.uncertainty import distortion_factors
 
     monkeypatch.delattr(spot_vision, "_spot_cuda", raising=False)
@@ -50,7 +50,7 @@ def test_cpu_detection_with_calibration_does_not_require_native_extension(monkey
     calibration = load_calibration(camera.calibration)
     detector = create_detector(camera, calibration)
     assert isinstance(detector, CpuDetector)
-    frame = next(_recording_frames(root / "center.png", camera))
+    frame = load_image_frame(root / "center.png", camera)
     batch = detector.detect(frame)
     assert [d.id for d in batch.detections] == [1]
     expected = distortion_factors(np.asarray([d.corners for d in batch.detections]), calibration)

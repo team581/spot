@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 
 from spot_vision.config import Calibration, ConfigError, load_calibration, load_config
-from spot_vision.pose import FieldLayout
 
 
 def valid_config(tmp_path):
@@ -70,45 +68,6 @@ def test_invalid_robot_extrinsics_are_rejected(tmp_path):
         load_config(path)
 
 
-def test_diagnostic_config_loads_welded_layout_mounts_and_provisional_calibrations():
-    root = Path(__file__).resolve().parents[1]
-    config = load_config(root / "config" / "spot.json")
-    assert [camera.id for camera in config.cameras] == ["1", "2", "3", "4"]
-    assert config.camera("1").selector.by_id == "usb-Generic_USB_Camera_200901010001-video-index0"
-    assert config.camera("2").selector.by_path.endswith("0:2.3:1.0-video-index0")
-    assert config.camera("3").selector.by_path.endswith("0:2.1:1.0-video-index0")
-    assert config.camera("4").selector.by_path.endswith("0:2.2:1.0-video-index0")
-    assert config.camera("1").robot_from_camera_translation == (0.0, 0.1, 0.0)
-    assert config.camera("1").image_rotation_deg == 0
-    assert config.camera("1").contrast == 16 and config.camera("1").sharpness == 0
-    assert config.camera("2").robot_from_camera_translation == (0.0, -0.1, 0.0)
-    assert config.camera("2").image_rotation_deg == 0
-    for camera_id in ("3", "4"):
-        camera = config.camera(camera_id)
-        reference = config.camera("2")
-        assert (camera.format, camera.width, camera.height, camera.fps) == (
-            reference.format,
-            reference.width,
-            reference.height,
-            reference.fps,
-        )
-        assert (camera.exposure_us, camera.gain, camera.auto_exposure) == (
-            reference.exposure_us,
-            reference.gain,
-            reference.auto_exposure,
-        )
-        assert camera.robot_from_camera_translation == reference.robot_from_camera_translation
-        assert camera.robot_from_camera_rpy_deg == reference.robot_from_camera_rpy_deg
-        assert camera.detector == reference.detector
-    layout = FieldLayout.load(config.field_layout)
-    assert set(layout.tags) == set(range(1, 33))
-    assert 0 < layout.revision < 2**63
-    for camera in config.cameras:
-        calibration = load_calibration(camera.calibration)
-        calibration.validate_for(camera)
-        assert calibration.provisional
-
-
 def test_duplicate_camera_rejected(tmp_path):
     path = valid_config(tmp_path)
     raw = json.loads(path.read_text())
@@ -137,12 +96,12 @@ def test_unsupported_image_rotation_is_rejected(tmp_path, rotation):
         load_config(path)
 
 
-def test_rotated_calibration_projects_to_rotated_pixels():
+def test_rotated_calibration_projects_to_rotated_pixels(tmp_path):
     cv2 = pytest.importorskip("cv2")
     import numpy as np
 
-    path = Path(__file__).resolve().parents[1] / "config" / "spot.json"
-    camera = replace(load_config(path).camera("1"), width=1280, height=720, image_rotation_deg=180)
+    path = valid_config(tmp_path)
+    camera = replace(load_config(path).cameras[0], width=1280, height=720, image_rotation_deg=180)
     raw = Calibration(
         "1",
         1280,
@@ -190,14 +149,3 @@ def test_calibration_identity_validation(tmp_path):
     calibration_path.write_text(json.dumps(raw))
     with pytest.raises(ConfigError, match="calibration mismatch"):
         load_calibration(calibration_path).validate_for(camera)
-
-
-@pytest.mark.parametrize("name", ["contrast", "sharpness"])
-@pytest.mark.parametrize("value", [-1, 101, True, "16", 1.5])
-def test_invalid_image_control_defaults_are_rejected(tmp_path, name, value):
-    path = valid_config(tmp_path)
-    raw = json.loads(path.read_text())
-    raw["cameras"][0][name] = value
-    path.write_text(json.dumps(raw))
-    with pytest.raises(ConfigError, match=name):
-        load_config(path)

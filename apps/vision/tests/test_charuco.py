@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from spot_vision.calibration_session import CameraSession
-from spot_vision.charuco import CalibrationOptions, CharucoBoardConfig, calibrate, write_calibration
+from spot_vision.charuco import CalibrationOptions, CharucoBoardConfig, calibrate
 
 
 def test_board_and_options_reject_unsafe_values():
@@ -20,13 +18,6 @@ def test_empty_calibration_reports_progress_gate():
     assert result is None
     assert not report.accepted
     assert report.frames_used == 0
-
-
-def test_write_calibration_is_valid_json(tmp_path):
-    target = tmp_path / "nested" / "calibration.json"
-    write_calibration(target, {"schema_version": 2, "method": "charuco"})
-    assert json.loads(target.read_text())["schema_version"] == 2
-    assert not list(target.parent.glob("*.tmp*"))
 
 
 def sample(points=None, ids=None):

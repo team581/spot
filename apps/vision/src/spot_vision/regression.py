@@ -11,6 +11,7 @@ import numpy as np
 from wpiutil.wpistruct import pack, unpack
 
 from . import protocol_models as wire
+from .capture import orient_yuyv_frame
 from .config import ConfigError, load_calibration, load_config
 from .models import DetectedFrame, FramePacket
 from .native import create_detector
@@ -19,12 +20,23 @@ from .pose import FieldLayout, PoseSolver, robot_from_camera_transform, select_r
 from .structs import FrameResult, result_value, tag_ids
 
 
+def load_image_frame(path: str | Path, camera) -> np.ndarray:
+    """Convert a still image into the oriented YUYV frame a camera would capture."""
+    import cv2
+
+    bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise RuntimeError(f"cannot open image {path}")
+    if bgr.shape[:2] != (camera.height, camera.width):
+        raise RuntimeError(
+            f"image is {bgr.shape[1]}x{bgr.shape[0]}, expected {camera.width}x{camera.height}"
+        )
+    return orient_yuyv_frame(cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV_YUY2), camera)
+
+
 def run_image_regression(
     manifest_path: str | Path, *, backend: str = "cpu", repeats: int = 5
 ) -> dict:
-    # Import lazily to keep the CLI's recording conversion as the one pixel boundary.
-    from .cli import _recording_frames
-
     if repeats < 1:
         raise ValueError("repeats must be positive")
     if backend not in {"cpu", "cuda"}:
@@ -55,7 +67,7 @@ def run_image_regression(
         calibration = calibration.for_image_rotation(camera)
         detector = create_detector(camera, calibration)
         solver = PoseSolver(calibration, layout, config.tag_size_m)
-        image = next(_recording_frames(base / case["image"], camera))
+        image = load_image_frame(base / case["image"], camera)
         detector.detect(image)  # Warm-up excluded from comparable timing samples.
         timings = []
         for _ in range(repeats):

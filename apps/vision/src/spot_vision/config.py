@@ -45,9 +45,6 @@ class CameraConfig:
     width: int
     height: int
     fps: int
-    exposure_us: int | None
-    gain: int | None
-    auto_exposure: bool
     calibration: Path | None
     timestamp_correction_us: int
     detector: DetectorConfig
@@ -57,8 +54,6 @@ class CameraConfig:
     # right-handed rotations (Rz(yaw) @ Ry(pitch) @ Rx(roll)).
     robot_from_camera_translation: tuple[float, float, float] = (0.0, 0.0, 0.0)
     robot_from_camera_rpy_deg: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    contrast: int | None = None
-    sharpness: int | None = None
 
 
 @dataclass(frozen=True)
@@ -237,9 +232,6 @@ def load_config(path: str | Path) -> DiagnosticConfig:
                 width=width,
                 height=height,
                 fps=fps,
-                exposure_us=(None if item.get("exposure_us") is None else int(item["exposure_us"])),
-                gain=(None if item.get("gain") is None else int(item["gain"])),
-                auto_exposure=bool(item.get("auto_exposure", False)),
                 calibration=_path(source.parent, item.get("calibration")),
                 timestamp_correction_us=int(item.get("timestamp_correction_us", 0)),
                 detector=detector,
@@ -250,8 +242,6 @@ def load_config(path: str | Path) -> DiagnosticConfig:
                     float(translation[2]),
                 ),
                 robot_from_camera_rpy_deg=(float(rpy[0]), float(rpy[1]), float(rpy[2])),
-                contrast=_image_control(item, "contrast", where),
-                sharpness=_image_control(item, "sharpness", where),
             )
         )
 
@@ -261,13 +251,6 @@ def load_config(path: str | Path) -> DiagnosticConfig:
         tag_size_m=float(raw.get("tag_size_m", 0.1651)),
         cameras=tuple(cameras),
     )
-
-
-def _image_control(item: dict, name: str, where: str) -> int | None:
-    value = item.get(name)
-    if value is not None and (type(value) is not int or not 0 <= value <= 100):
-        raise ConfigError(f"{where}.{name} must be an integer between 0 and 100")
-    return value
 
 
 def load_calibration(path: str | Path) -> Calibration:

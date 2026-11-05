@@ -16,9 +16,6 @@ def camera_config(name="front", backend="cuda"):
         480,
         30,
         None,
-        None,
-        False,
-        None,
         0,
         DetectorConfig(backend=backend),
     )

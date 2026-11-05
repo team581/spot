@@ -1,5 +1,6 @@
 """Calibration oracle: independently project known optics across board poses."""
 
+import json
 from dataclasses import replace
 
 import cv2
@@ -11,7 +12,6 @@ from spot_vision.charuco import (
     CharucoBoardConfig,
     CharucoFrame,
     calibrate,
-    write_calibration,
 )
 from spot_vision.config import load_calibration
 
@@ -66,7 +66,7 @@ def test_real_opencv_calibration_recovers_independently_projected_intrinsics(mod
     assert np.allclose(actual, expected, atol=0.1)
     result.update(camera_id="front", pixel_format="YUY2")
     path = tmp_path / "calibration.json"
-    write_calibration(path, result)
+    path.write_text(json.dumps(result))
     loaded = load_calibration(path)
     assert not loaded.provisional and loaded.width == 1280
     assert np.allclose(loaded.camera_matrix, matrix, atol=0.1)
@@ -102,19 +102,3 @@ def test_quality_gates_prevent_invalid_calibration(gate):
         options = replace(options, max_rms_px=0.001)
     result, report = calibrate(frames, board, options)
     assert result is None and not report.accepted
-
-
-def test_atomic_save_failure_preserves_existing_calibration(tmp_path, monkeypatch):
-    from spot_vision import charuco
-
-    path = tmp_path / "calibration.json"
-    path.write_text('{"previous":true}\n')
-
-    def fail(*_):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(charuco.os, "replace", fail)
-    with pytest.raises(OSError, match="disk full"):
-        write_calibration(path, {"new": True})
-    assert path.read_text() == '{"previous":true}\n'
-    assert list(tmp_path.iterdir()) == [path]

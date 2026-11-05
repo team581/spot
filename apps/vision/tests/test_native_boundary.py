@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from spot_vision.cli import _recording_frames
 from spot_vision.config import DetectorConfig, load_config
 from spot_vision.native import CpuDetector
+from spot_vision.regression import load_image_frame
 
 DATA = Path(__file__).parent / "data/regression"
 
@@ -62,8 +62,8 @@ def test_cpu_rejects_invalid_minimum_contrast(min_contrast):
 
 def test_real_detector_does_not_retain_tags_from_previous_frame():
     camera = load_config(DATA / "config.json").camera("front")
-    tag = next(_recording_frames(DATA / "multi.png", camera))
-    blank = next(_recording_frames(DATA / "blank.png", camera))
+    tag = load_image_frame(DATA / "multi.png", camera)
+    blank = load_image_frame(DATA / "blank.png", camera)
     detector = CpuDetector(camera.width, camera.height, DetectorConfig())
     for image, expected in [(tag, [1, 2]), (blank, []), (tag, [1, 2]), (blank, [])]:
         assert sorted(d.id for d in detector.detect(image).detections) == expected
@@ -71,7 +71,7 @@ def test_real_detector_does_not_retain_tags_from_previous_frame():
 
 def test_independent_native_detectors_can_run_concurrently():
     camera = load_config(DATA / "config.json").camera("front")
-    image = next(_recording_frames(DATA / "center.png", camera))
+    image = load_image_frame(DATA / "center.png", camera)
 
     def detect(_):
         detector = CpuDetector(camera.width, camera.height, DetectorConfig())

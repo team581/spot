@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -257,19 +253,3 @@ def calibrate(
     return result, CalibrationReport(
         True, "calibration passed", len(frames), coverage, diversity, float(rms), rejected
     )
-
-
-def write_calibration(path: str | Path, result: dict[str, Any]) -> None:
-    destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=destination.name + ".", dir=destination.parent)
-    try:
-        with os.fdopen(fd, "w") as stream:
-            json.dump(result, stream, indent=2)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
