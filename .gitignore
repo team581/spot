@@ -22,6 +22,7 @@ wheelhouse/
 # Astro build state and dependencies.
 node_modules/
 apps/docs/.astro/
+apps/dashboard/.tanstack/
 
 # Local test output.
 **/test-results/

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { createLink, useNavigate } from '@tanstack/react-router';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { cn } from 'cn';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,13 +105,14 @@ export function CameraSelector({
 	id: string;
 	geometry?: boolean;
 }) {
+	const navigate = useNavigate();
 	return (
 		<NativeSelect
 			className="w-full lg:hidden"
 			aria-label="Select camera"
 			value={id}
 			onChange={(e) => {
-				location.hash = 'camera/' + encodeURIComponent(e.target.value) + (geometry ? '/geometry' : '');
+				void navigate({ to: geometry ? '/cameras/$id/geometry' : '/cameras/$id', params: { id: e.target.value } });
 			}}
 		>
 			{cameras.map((c) => (
@@ -121,40 +123,35 @@ export function CameraSelector({
 		</NativeSelect>
 	);
 }
-/** Hash-routed tabs styled like shadcn's tab list. */
-export function LinkTabs({
-	tabs,
-	children,
-}: {
-	tabs: { href: string; label: string; active: boolean }[];
-	children?: ReactNode;
-}) {
+/** A route link styled as a tab; the router marks the active one with `aria-current`. */
+export const TabLink = createLink((props: ComponentProps<'a'>) => (
+	<a
+		{...props}
+		className="rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
+	/>
+));
+/** Route tabs styled like shadcn's tab list. */
+export function LinkTabs({ tabs, children }: { tabs: ReactNode; children?: ReactNode }) {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
-			<nav className="inline-flex rounded-lg bg-muted p-0.5">
-				{tabs.map((tab) => (
-					<a
-						key={tab.href}
-						href={tab.href}
-						aria-current={tab.active ? 'page' : undefined}
-						className="rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
-					>
-						{tab.label}
-					</a>
-				))}
-			</nav>
+			<nav className="inline-flex rounded-lg bg-muted p-0.5">{tabs}</nav>
 			{children ? <div className="ml-auto flex gap-2">{children}</div> : null}
 		</div>
 	);
 }
-export function CameraTabs({ id, geometry = false }: { id: string; geometry?: boolean }) {
-	const href = '#camera/' + encodeURIComponent(id);
+export function CameraTabs({ id }: { id: string }) {
 	return (
 		<LinkTabs
-			tabs={[
-				{ href, label: 'Camera', active: !geometry },
-				{ href: href + '/geometry', label: 'Geometry', active: geometry },
-			]}
+			tabs={
+				<>
+					<TabLink to="/cameras/$id" params={{ id }} activeOptions={{ exact: true }}>
+						Camera
+					</TabLink>
+					<TabLink to="/cameras/$id/geometry" params={{ id }}>
+						Geometry
+					</TabLink>
+				</>
+			}
 		/>
 	);
 }

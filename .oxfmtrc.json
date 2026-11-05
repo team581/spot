@@ -9,6 +9,7 @@
 		"**/.astro/**",
 		"apps/vscode-camera-preview/media/preview.bundle.js",
 		"apps/dashboard/src/components/ui/**",
-		"apps/dashboard/src/hooks/**"
+		"apps/dashboard/src/hooks/**",
+		"apps/dashboard/src/routeTree.gen.ts"
 	]
 }

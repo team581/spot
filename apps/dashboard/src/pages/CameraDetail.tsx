@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
 import { CalibrationState, CameraSelector, CameraTabs, Feedback, Panel, PageTitle, age } from '../components/common';
@@ -68,9 +69,9 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 			) : null}
 			<div className="flex items-center justify-between gap-4">
 				<PageTitle id="camera-title">{c.name}</PageTitle>
-				<a id="calibrated-state" href="#calibration">
+				<Link id="calibrated-state" to="/calibration">
 					<CalibrationState camera={c} />
-				</a>
+				</Link>
 			</div>
 			<CameraSelector cameras={status.cameras} id={c.identity} />
 			<CameraTabs id={c.identity} />

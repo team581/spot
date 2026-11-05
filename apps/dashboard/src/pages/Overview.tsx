@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useServiceError } from '../dashboard';
 import { useStatus } from '../queries';
 import { Feed, usePreview } from '../components/Feed';
@@ -9,9 +10,10 @@ function Tile({ camera: c }: { camera: Camera }) {
 		captureFresh = c.connected && c.age_s != null && c.age_s < 0.5,
 		fresh = c.connected && c.metrics?.detect_age_s != null && c.metrics.detect_age_s < 0.5;
 	return (
-		<a
+		<Link
 			className="tile group/tile rounded-lg text-foreground no-underline hover:no-underline"
-			href={'#camera/' + encodeURIComponent(c.identity)}
+			to="/cameras/$id"
+			params={{ id: c.identity }}
 			data-tile={c.identity}
 		>
 			<Card className="gap-0 py-0 transition-shadow group-hover/tile:ring-foreground/30">
@@ -32,7 +34,7 @@ function Tile({ camera: c }: { camera: Camera }) {
 					<span>{age(c.age_s)}</span>
 				</div>
 			</Card>
-		</a>
+		</Link>
 	);
 }
 export default function Overview({ page }: { page: string }) {

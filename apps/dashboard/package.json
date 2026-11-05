@@ -21,6 +21,7 @@
 		"@fontsource-variable/source-sans-3": "5.3.1",
 		"@spot/camera-viewer": "workspace:*",
 		"@tanstack/react-query": "5.105.3",
+		"@tanstack/react-router": "1.170.46",
 		"class-variance-authority": "0.7.1",
 		"cn": "0.5.2",
 		"lucide-react": "1.68.0",
@@ -31,6 +32,7 @@
 	"devDependencies": {
 		"@playwright/test": "1.64.1",
 		"@tailwindcss/vite": "4.3.4",
+		"@tanstack/router-plugin": "1.168.48",
 		"@types/node": "26.6.6",
 		"@types/react": "19.3.0",
 		"@types/react-dom": "19.3.0",

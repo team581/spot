@@ -60,7 +60,7 @@ export default function NetworkPage() {
 			},
 		});
 	const pending = network.pending,
-		pendingUrl = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
+		pendingUrl = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/network` : '';
 	return (
 		<>
 			<PageTitle>Network</PageTitle>

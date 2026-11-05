@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { createRootRoute, Link, Outlet, useLocation, useMatchRoute } from '@tanstack/react-router';
 import {
 	BookOpen,
 	Camera,
@@ -8,10 +9,10 @@ import {
 	Server,
 	TriangleAlert,
 } from 'lucide-react';
-import { useDashboard, useServiceError } from './dashboard';
-import { useStatus } from './queries';
-import { date } from './components/common';
-import { ThemeMenu } from './components/ThemeMenu';
+import { useDashboard, useServiceError } from '../dashboard';
+import { loadStatus, useStatus } from '../queries';
+import { date } from '../components/common';
+import { ThemeMenu } from '../components/ThemeMenu';
 import {
 	Sidebar,
 	SidebarContent,
@@ -31,86 +32,35 @@ import {
 } from '@/components/ui/sidebar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import Overview from './pages/Overview';
-const CameraName = lazy(() => import('./pages/CameraName'));
-const CameraDetail = lazy(() => import('./pages/CameraDetail'));
-const Geometry = lazy(() => import('./pages/Geometry'));
-const Calibration = lazy(() => import('./pages/Calibration'));
-const Network = lazy(() => import('./pages/Network'));
-const System = lazy(() => import('./pages/System'));
-function route() {
-	const parts = location.hash
-		.slice(1)
-		.split('/')
-		.map((part) => {
-			try {
-				return decodeURIComponent(part);
-			} catch {
-				return part;
-			}
-		});
-	return { page: parts[0] || 'overview', id: parts[1], tab: parts[2] };
-}
 /** Close the mobile navigation sheet after following one of its links. */
-function CloseMobileSidebar({ route }: { route: object }) {
-	const { setOpenMobile } = useSidebar();
-	useEffect(() => setOpenMobile(false), [route, setOpenMobile]);
+function CloseMobileSidebar() {
+	const { setOpenMobile } = useSidebar(),
+		pathname = useLocation({ select: (location) => location.pathname });
+	useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
 	return null;
 }
+export const Route = createRootRoute({ loader: loadStatus, component: Root });
 const top = [
-	{ page: 'overview', label: 'Overview', icon: LayoutDashboard },
-	{ page: 'cameras', label: 'Cameras', icon: Camera },
-];
+	{ to: '/', label: 'Overview', icon: LayoutDashboard },
+	{ to: '/cameras', label: 'Cameras', icon: Camera },
+] as const;
 const bottom = [
-	{ page: 'calibration', label: 'Calibration', icon: Crosshair },
-	{ page: 'network', label: 'Network', icon: NetworkIcon },
-	{ page: 'system', label: 'System', icon: Server },
-];
-export default function App() {
+	{ to: '/calibration', label: 'Calibration', icon: Crosshair },
+	{ to: '/network', label: 'Network', icon: NetworkIcon },
+	{ to: '/system', label: 'System', icon: Server },
+] as const;
+function Root() {
 	const { message } = useDashboard(),
 		status = useStatus(),
 		serviceError = useServiceError(),
-		[current, setCurrent] = useState(route);
-	useEffect(() => {
-		const changed = () => setCurrent(route());
-		addEventListener('hashchange', changed);
-		return () => removeEventListener('hashchange', changed);
-	}, []);
-	const camera = status.cameras.find((c) => c.identity === current.id);
-	const page =
-		current.page === 'overview' || current.page === 'cameras' ? (
-			<Overview page={current.page} />
-		) : current.page === 'camera' && camera ? (
-			!camera.logical_name && !camera.standalone_setup ? (
-				<CameraName key={camera.identity} camera={camera} />
-			) : current.tab === 'geometry' ? (
-				<Geometry key={camera.identity} camera={camera} />
-			) : (
-				<CameraDetail
-					key={camera.identity + '/' + Boolean(camera.logical_name) + '/' + Boolean(camera.standalone_setup)}
-					camera={camera}
-				/>
-			)
-		) : current.page === 'calibration' ? (
-			<Calibration results={current.id === 'results'} />
-		) : current.page === 'network' ? (
-			<Network />
-		) : current.page === 'system' ? (
-			<System />
-		) : (
-			<>
-				<h1 className="font-heading text-2xl font-semibold">Camera unavailable</h1>
-				<p>
-					The configured camera may be disconnected. <a href="#cameras">Open Cameras</a>
-				</p>
-			</>
-		);
-	const link = (item: (typeof top)[number]) => (
-		<SidebarMenuItem key={item.page}>
+		matchRoute = useMatchRoute();
+	const link = (item: (typeof top | typeof bottom)[number]) => (
+		<SidebarMenuItem key={item.to}>
 			<SidebarMenuButton
-				isActive={current.page === item.page}
+				// Calibration owns its tabs; the camera pages have their own sidebar entries.
+				isActive={Boolean(matchRoute({ to: item.to, fuzzy: item.to === '/calibration' }))}
 				tooltip={item.label}
-				render={<a href={'#' + item.page} />}
+				render={<Link to={item.to} />}
 			>
 				<item.icon />
 				<span>{item.label}</span>
@@ -120,7 +70,7 @@ export default function App() {
 	return (
 		<TooltipProvider>
 			<SidebarProvider defaultOpen={matchMedia('(min-width: 1150px)').matches}>
-				<CloseMobileSidebar route={current} />
+				<CloseMobileSidebar />
 				<a
 					className="fixed -top-24 left-4 z-50 rounded-md bg-background p-2 shadow focus:top-2"
 					href="#main"
@@ -135,7 +85,7 @@ export default function App() {
 					<SidebarHeader>
 						<SidebarMenu>
 							<SidebarMenuItem>
-								<SidebarMenuButton size="lg" render={<a href="#overview" />}>
+								<SidebarMenuButton size="lg" render={<Link to="/" />}>
 									<img src="/blazing-bulldogs.svg" alt="Blazing Bulldogs" className="size-8 object-contain" />
 									<span className="font-heading text-xl font-semibold">Spot</span>
 								</SidebarMenuButton>
@@ -158,9 +108,11 @@ export default function App() {
 											return (
 												<SidebarMenuSubItem key={c.identity}>
 													<SidebarMenuSubButton
-														isActive={current.page === 'camera' && current.id === c.identity}
+														isActive={Boolean(
+															matchRoute({ to: '/cameras/$id', params: { id: c.identity }, fuzzy: true }),
+														)}
 														aria-label={c.name + (warnings.length ? ': ' + warnings.join('; ') : '')}
-														render={<a href={'#camera/' + encodeURIComponent(c.identity)} />}
+														render={<Link to="/cameras/$id" params={{ id: c.identity }} />}
 													>
 														<span>{c.name}</span>
 														{warnings.length ? <TriangleAlert className="ml-auto text-warning!" aria-hidden /> : null}
@@ -210,13 +162,13 @@ export default function App() {
 								<TriangleAlert />
 								<AlertDescription>
 									<span>
-										Saved dashboard overrides are active. <a href="#system">Manage overrides</a> or export the effective
-										configuration.
+										Saved dashboard overrides are active. <Link to="/system">Manage overrides</Link> or export the
+										effective configuration.
 									</span>
 								</AlertDescription>
 							</Alert>
 						) : null}
-						<Suspense fallback={<p>Loading…</p>}>{page}</Suspense>
+						<Outlet />
 					</div>
 				</SidebarInset>
 				<div id="announcement" className="sr-only" role="status" aria-live="polite">

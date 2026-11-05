@@ -157,6 +157,16 @@ def test_frames_stream_binary_previews_only_to_same_origin_pages(web):
                 pass
 
 
+def test_dashboard_routes_load_the_shell_but_missing_files_stay_missing(web):
+    request, _, _ = web
+    html = {"Accept": "text/html"}
+    status, _, body = request("GET", "/cameras/front/geometry", headers=html)
+    assert status == 200 and b"<title>Spot</title>" in body
+    assert request("GET", "/cameras/front")[0] == 404
+    for path in ("/api/missing", "/docs/missing/", "/assets/missing.js"):
+        assert request("GET", path, headers=html)[0] == 404, path
+
+
 def test_docs_directory_pages_assets_and_missing_paths(web):
     request, submissions, server = web
     docs = server.assets / "docs"

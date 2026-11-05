@@ -264,6 +264,23 @@ def _validation_message(exc: RequestValidationError) -> str:
     return f"{location}: {error['msg']}" if location else error["msg"]
 
 
+class DashboardFiles(StaticFiles):
+    """Serve the dashboard shell for browser navigations to its client-side routes."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            accept = dict(scope["headers"]).get(b"accept", b"")
+            if (
+                exc.status_code != 404
+                or path.split("/")[0] in {"api", "docs", "assets"}
+                or b"text/html" not in accept
+            ):
+                raise
+            return await super().get_response("index.html", scope)
+
+
 def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> FastAPI:
     # FastAPI's interactive docs load from a CDN and would collide with the operator docs at /docs.
     app = FastAPI(
@@ -423,7 +440,7 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
             operation_endpoint(operation, model)
         )
     app.include_router(operations)
-    app.mount("/", StaticFiles(directory=app.state.assets, html=True), name="web")
+    app.mount("/", DashboardFiles(directory=app.state.assets, html=True), name="web")
     return app
 
 

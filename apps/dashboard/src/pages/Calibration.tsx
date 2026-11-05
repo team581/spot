@@ -1,5 +1,5 @@
 import { readStatus, useOperation, useStatus } from '../queries';
-import { Feedback, LinkTabs, PageTitle } from '../components/common';
+import { Feedback, LinkTabs, PageTitle, TabLink } from '../components/common';
 import { Button } from '@/components/ui/button';
 import Capture from './calibration/Capture';
 import Results from './calibration/Results';
@@ -11,10 +11,14 @@ export default function Calibration({ results }: { results: boolean }) {
 		<>
 			<PageTitle>Calibration</PageTitle>
 			<LinkTabs
-				tabs={[
-					{ href: '#calibration', label: 'Capture', active: !results },
-					{ href: '#calibration/results', label: 'Results / history', active: results },
-				]}
+				tabs={
+					<>
+						<TabLink to="/calibration" activeOptions={{ exact: true }}>
+							Capture
+						</TabLink>
+						<TabLink to="/calibration/results">Results / history</TabLink>
+					</>
+				}
 			>
 				<Button
 					variant="outline"

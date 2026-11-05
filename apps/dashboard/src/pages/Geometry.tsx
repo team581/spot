@@ -76,7 +76,7 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 		<>
 			<PageTitle>{c.name}</PageTitle>
 			<CameraSelector cameras={status.cameras} id={c.identity} geometry />
-			<CameraTabs id={c.identity} geometry />
+			<CameraTabs id={c.identity} />
 			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
 				<Panel
 					title="Geometry"

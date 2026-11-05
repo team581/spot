@@ -1,4 +1,5 @@
 import { useEffect, useRef, useLayoutEffect } from 'react';
+import { Link } from '@tanstack/react-router';
 import { useStatus } from '../queries';
 import { usePreview, previewData } from './Feed';
 import { theme } from '../theme';
@@ -71,12 +72,13 @@ export default function GeometryViewer({
 					Inspection · production geometry from robot code
 				</span>
 			) : (
-				<a
+				<Link
 					className="absolute bottom-9 left-3 text-xs text-muted-foreground"
-					href={'#camera/' + encodeURIComponent(c.identity) + '/geometry'}
+					to="/cameras/$id/geometry"
+					params={{ id: c.identity }}
 				>
 					Geometry · WPILib NWU
-				</a>
+				</Link>
 			)}
 		</div>
 	);

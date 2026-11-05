@@ -16,8 +16,15 @@ export const queryClient = new QueryClient({
 	}),
 });
 
+/** Settles after the first status read so pages mount with real cameras; errors surface through `useStatusQuery`. */
+export const loadStatus = () =>
+	queryClient.ensureQueryData(statusQuery).then(
+		() => undefined,
+		() => undefined,
+	);
 export const useStatusQuery = () => useQuery(statusQuery);
 export const useStatus = () => useStatusQuery().data ?? initialStatus;
+export const useCamera = (id: string) => useStatus().cameras.find((c) => c.identity === id);
 /** Latest status for async handlers that outlive the render that started them. */
 export const readStatus = () => queryClient.getQueryData(statusQuery.queryKey) ?? initialStatus;
 export const refreshStatus = () => queryClient.fetchQuery({ ...statusQuery, staleTime: 0 });
