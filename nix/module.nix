@@ -51,7 +51,17 @@ in
       pkgs.v4l-utils
     ];
     networking.networkmanager.enable = true;
-    networking.firewall.allowedTCPPorts = [ cfg.settings.http.port ];
+    networking.firewall.allowedTCPPorts = [
+      80
+      cfg.settings.http.port
+    ];
+    services.nginx = {
+      enable = true;
+      virtualHosts.spot = {
+        default = true;
+        locations."/".return = "307 http://$host:${toString cfg.settings.http.port}$request_uri";
+      };
+    };
     services.avahi = {
       enable = true;
       hostName = "spot";
