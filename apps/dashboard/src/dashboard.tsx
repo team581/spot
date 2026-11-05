@@ -44,33 +44,32 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 		[refresh],
 	);
 	useEffect(() => {
-		let stopped = false;
-		let timer: ReturnType<typeof setTimeout>;
+		const polling: { stopped: boolean; timer?: ReturnType<typeof setTimeout> } = { stopped: false };
 		const poll = async () => {
-			if (stopped) return;
+			if (polling.stopped) return;
 			if (!document.hidden)
 				try {
 					const next = await api<Status>('/api/status');
-					if (!stopped) {
+					if (!polling.stopped) {
 						snapshot.current = next;
 						setStatus(next);
 						setServiceError('');
 					}
 				} catch {
-					if (!stopped) {
+					if (!polling.stopped) {
 						setServiceError('Service unavailable · reconnecting');
 						previews.markStale();
 						announce('Service unavailable · reconnecting');
 					}
 				}
-			if (!stopped) timer = setTimeout(poll, document.hidden ? 1000 : 500);
+			if (!polling.stopped) polling.timer = setTimeout(poll, document.hidden ? 1000 : 500);
 		};
 		const visible = () => {
 			if (!document.hidden) {
 				previews.markStale();
 				void api<Status>('/api/status')
 					.then((next) => {
-						if (!stopped) {
+						if (!polling.stopped) {
 							snapshot.current = next;
 							setStatus(next);
 						}
@@ -81,18 +80,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 		document.addEventListener('visibilitychange', visible);
 		void api<{ csrf: string }>('/api/session')
 			.then((result) => {
-				if (!stopped) {
+				if (!polling.stopped) {
 					session.current = result;
 					previews.start(() => snapshot.current);
 				}
 			})
 			.catch((error) => {
-				if (!stopped) announce(String(error.message));
+				if (!polling.stopped) announce(String(error.message));
 			});
 		void poll();
 		return () => {
-			stopped = true;
-			clearTimeout(timer);
+			polling.stopped = true;
+			clearTimeout(polling.timer);
 			previews.stop();
 			document.removeEventListener('visibilitychange', visible);
 		};
