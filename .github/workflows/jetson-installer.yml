@@ -34,11 +34,20 @@ jobs:
         run: sudo rm -f /nix/receipt.json
       - uses: DeterminateSystems/nix-installer-action@v23
         id: nix
+        with:
+          extra-conf: |
+            keep-derivations = true
+            keep-outputs = true
       - name: Refresh pnpm dependency cache hash
         run: bash tools/update-pnpm-deps-hash.sh
       - name: Build offline installer
-        run: nix build path:.#packages.aarch64-linux.installer -L --cores 8 --max-jobs 2
+        run: |
+          root=/nix/var/nix/gcroots/spot-ci/installer
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
+          nix build path:.#packages.aarch64-linux.installer -L --cores 8 --max-jobs 2 --out-link "$root"
+          ln -sfn "$root" result
       - name: Upload latest installer
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -47,12 +56,22 @@ jobs:
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: nix shell --inputs-from path:. nixpkgs#awscli2 --command bash tools/upload-jetson-installer.sh
       - name: Share private download links
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
         uses: actions/upload-artifact@v7
         with:
           name: installer-downloads
           path: dist/installer/downloads.html
           if-no-files-found: error
           retention-days: 7
+      - name: Share branch installer
+        if: ${{ github.ref_name != github.event.repository.default_branch }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: spot-installer
+          path: result/iso/*.iso
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
       - name: Stop Nix before unmounting the cache
         if: ${{ always() && steps.nix.outcome == 'success' }}
         run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service

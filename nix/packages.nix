@@ -9,7 +9,7 @@ let
     ;
   cuda = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64;
   source = lib.cleanSourceWith {
-    src = self;
+    src = ../.;
     filter =
       path: type:
       lib.cleanSourceFilter path type
@@ -25,17 +25,49 @@ let
         ".ruff_cache"
       ]);
   };
+  webSource = lib.fileset.toSource {
+    root = ../.;
+    fileset = lib.fileset.intersection (lib.fileset.fromSource source) (
+      lib.fileset.unions [
+        ../package.json
+        ../pnpm-lock.yaml
+        ../pnpm-workspace.yaml
+        ../vite.config.ts
+        ../apps/dashboard
+        ../apps/docs
+        ../apps/vscode-camera-preview/package.json
+        ../packages/camera-viewer
+      ]
+    );
+  };
+  visionSource = lib.fileset.toSource {
+    root = ../apps/vision;
+    fileset = lib.fileset.intersection (lib.fileset.fromSource source) (
+      lib.fileset.unions [
+        ../apps/vision/pyproject.toml
+        ../apps/vision/README.md
+        ../apps/vision/CMakeLists.txt
+        ../apps/vision/cpp
+        ../apps/vision/src
+      ]
+    );
+  };
   web = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "spot-web";
     version = "0.2.1";
-    src = source;
+    src = webSource;
     nativeBuildInputs = [
       pkgs.nodejs
       pkgs.pnpm
       pkgs.pnpmConfigHook
     ];
+    pnpmWorkspaces = [
+      "spot"
+      "spot-dashboard..."
+      "spot-docs..."
+    ];
     pnpmDeps = pkgs.fetchPnpmDeps {
-      inherit (finalAttrs) version src;
+      inherit (finalAttrs) version src pnpmWorkspaces;
       # A changed lockfile must fetch fresh dependencies even while the old hash is pinned.
       pname = "${finalAttrs.pname}-${
         builtins.hashString "sha256" (
@@ -44,8 +76,8 @@ let
           + builtins.readFile ../flake.lock
         )
       }";
-      fetcherVersion = 3;
-      hash = "sha256-JNUkeGDOr9VmdDeV1wAkB7SPaWMCgqcdiyiUqEU/oUs=";
+      fetcherVersion = 5;
+      hash = "sha256-xhjfqA2yKtN89+eS0kHJRJ3e+DFjdhqc1jRr/+aKjSU=";
     };
     buildPhase = ''
       runHook preBuild
@@ -116,10 +148,7 @@ let
           )
           (final: prev: {
             spot-vision = prev.spot-vision.overrideAttrs (old: {
-              src = source;
-              postUnpack = (old.postUnpack or "") + ''
-                sourceRoot="$sourceRoot/apps/vision"
-              '';
+              src = visionSource;
               nativeBuildInputs =
                 (old.nativeBuildInputs or [ ])
                 ++ [

@@ -19,6 +19,7 @@
     fsType = "vfat";
   };
 
+  documentation.nixos.enable = false;
   environment.systemPackages = [
     pkgs.git
     pkgs.v4l-utils
