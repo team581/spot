@@ -60,8 +60,8 @@ export default function GeometryViewer({
 				tabIndex={0}
 				aria-label={
 					inspection
-						? 'Robot geometry in WPILib NWU. Arrow keys orbit; plus/minus zoom'
-						: '3D camera and observed tags. Arrow keys orbit; plus/minus zoom'
+						? 'Robot geometry in WPILib NWU. Arrow keys orbit; A/D pan; Q/E down/up; W/S and plus/minus zoom'
+						: '3D camera and observed tags. Arrow keys orbit; A/D pan; Q/E down/up; W/S and plus/minus zoom'
 				}
 			/>
 			<Button variant="outline" className="absolute top-3 right-3" onClick={() => viewer.current?.reset()}>

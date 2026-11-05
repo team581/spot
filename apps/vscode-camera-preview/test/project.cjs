@@ -21,34 +21,17 @@ void test('discovers standalone and subproject wrappers with spaces', () => {
 	}
 });
 void test('shared renderer handles several cameras, hidden cameras and empty scenes', () => {
-	const { SpotViewer } = require('@spot/camera-viewer');
-	const withCanvasEnvironment = require('./helpers/canvas.cjs');
-	let labels = [];
-	const context = new Proxy(
-		{},
-		{ get: (o, k) => (k === 'fillText' ? (text) => labels.push(text) : () => {}), set: () => true },
-	);
-	const canvas = {
-		width: 1000,
-		height: 720,
-		getContext: () => context,
-		addEventListener() {},
-		removeEventListener() {},
+	const { buildScene } = require('@spot/camera-viewer');
+	const withDocument = require('./helpers/document.cjs');
+	const labels = (mounts) => {
+		const texts = [];
+		withDocument(() => buildScene({ inspection: true, mounts, selectedName: 'front' })).root.traverse(
+			(object) => object.element && texts.push(object.element.textContent),
+		);
+		return texts;
 	};
-
-	let mounts = ['front', 'left'].map((name) => ({ name, translation: [0.2, 0.1, 0.3], quaternion: [1, 0, 0, 0] }));
-	withCanvasEnvironment(
-		() => {
-			const viewer = new SpotViewer(canvas, () => ({ inspection: true, mounts, selectedName: 'front' }));
-			viewer.draw();
-			assert.ok(labels.includes('front'));
-			assert.ok(labels.includes('left'));
-			labels = [];
-			mounts = [];
-			viewer.draw();
-			assert.ok(!labels.includes('front'));
-			viewer.destroy();
-		},
-		() => '#888',
-	);
+	const mounts = ['front', 'left'].map((name) => ({ name, translation: [0.2, 0.1, 0.3], quaternion: [1, 0, 0, 0] }));
+	assert.ok(labels(mounts).includes('front'));
+	assert.ok(labels(mounts).includes('left'));
+	assert.ok(!labels([]).includes('front'));
 });

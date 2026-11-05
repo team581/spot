@@ -1,43 +1,27 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const withCanvasEnvironment = require('./helpers/canvas.cjs');
+const withDocument = require('./helpers/document.cjs');
 const path = require('node:path');
 const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/spot-camera-conventions.json')));
 const math = require('@spot/camera-viewer');
 const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
 const { geometryValues, previewGeometry } = require('../../dashboard/src/state/geometry.ts');
-function renderer(provider) {
+// World-space line segments of the shared renderer's scene, grouped by color.
+function renderer(state) {
+	const { root } = withDocument(() => math.buildScene(state));
+	root.updateMatrixWorld();
 	const paths = [];
-	const context = {
-		strokeStyle: '',
-		beginPath() {
-			this.points = [];
-		},
-		moveTo(x, y) {
-			this.points.push([x, y]);
-		},
-		lineTo(x, y) {
-			this.points.push([x, y]);
-		},
-		stroke() {
-			paths.push({ color: this.strokeStyle, points: this.points });
-		},
-		closePath() {},
-		clearRect() {},
-		fillText() {},
-	};
-	const canvas = {
-		width: 1000,
-		height: 720,
-		getContext: () => context,
-		addEventListener() {},
-		removeEventListener() {},
-	};
-	withCanvasEnvironment(() => {
-		const viewer = new math.SpotViewer(canvas, provider);
-		viewer.draw();
-		viewer.destroy();
+	root.traverse((object) => {
+		const start = object.geometry?.getAttribute('instanceStart');
+		if (!start) return;
+		const end = object.geometry.getAttribute('instanceEnd'),
+			e = object.matrixWorld.elements,
+			world = (a, i) =>
+				[0, 1, 2].map((r) => e[r] * a.getX(i) + e[r + 4] * a.getY(i) + e[r + 8] * a.getZ(i) + e[r + 12]),
+			points = [];
+		for (let i = 0; i < start.count; i++) points.push(world(start, i), world(end, i));
+		paths.push({ color: object.name, points });
 	});
 	return paths;
 }
@@ -59,11 +43,12 @@ for (const fixture of fixtures)
 			close(math.rotate(readback.quaternion, axis), fixture.worldAxes[i]);
 			close(math.rotate(edited.quaternion, axis), fixture.worldAxes[i]);
 		}
-		const previewPaths = renderer(() => ({ inspection: true, mounts: [mount], selectedName: mount.name }));
-		const jetsonPaths = renderer(() => ({ inspection: true, geometry: edited }));
-		// Compare actual camera body/lens paths within subpixel floating-point tolerance.
-		const a = previewPaths.filter((p) => p.color === '--blue'),
-			b = jetsonPaths.filter((p) => p.color === '--blue');
+		const previewPaths = renderer({ inspection: true, mounts: [mount], selectedName: mount.name });
+		const jetsonPaths = renderer({ inspection: true, geometry: edited });
+		// Compare actual camera body/lens segments in world space.
+		const a = previewPaths.filter((p) => p.color === 'blue'),
+			b = jetsonPaths.filter((p) => p.color === 'blue');
+		assert.ok(a.length);
 		assert.equal(a.length, b.length);
 		a.forEach((segment, i) => {
 			assert.equal(segment.points.length, b[i].points.length);
@@ -80,18 +65,17 @@ void test('the same signed pitch points in the same direction in Java and Jetson
 });
 void test('30 inch drivebase footprint converts to metres and toggle/dimensions affect only its outline', () => {
 	const mount = fixtures[0].exported;
-	const render = (drivebase) =>
-		renderer(() => ({ inspection: true, mounts: [mount], selectedName: mount.name, drivebase }));
+	const render = (drivebase) => renderer({ inspection: true, mounts: [mount], selectedName: mount.name, drivebase });
 	const off = render({ visible: false, length: 0.762, width: 0.762 });
 	const on = render({ visible: true, length: 30 * 0.0254, width: 30 * 0.0254 });
 	const wide = render({ visible: true, length: 40 * 0.0254, width: 20 * 0.0254 });
-	const footprint = (paths) => paths.filter((p) => p.color === '--accent-text' && p.points.length === 4);
+	const footprint = (paths) => paths.filter((p) => p.color === 'accent-text' && p.points.length === 8);
 	assert.equal(footprint(off).length, 0);
 	assert.equal(footprint(on).length, 1);
 	assert.notEqual(JSON.stringify(footprint(on)), JSON.stringify(footprint(wide)));
 	assert.equal(
-		JSON.stringify(on.filter((p) => p.color === '--blue')),
-		JSON.stringify(off.filter((p) => p.color === '--blue')),
+		JSON.stringify(on.filter((p) => p.color === 'blue')),
+		JSON.stringify(off.filter((p) => p.color === 'blue')),
 	);
 	assert.equal(footprint(render({ visible: true, length: NaN, width: 0.762 })).length, 0);
 });

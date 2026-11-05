@@ -104,7 +104,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-view]')
 		}
 		persist();
 	};
-for (const event of ['pointerup', 'wheel', 'keydown']) canvas.addEventListener(event, persist);
+for (const event of ['pointerup', 'wheel', 'keydown', 'keyup']) canvas.addEventListener(event, persist);
 function syncDrivebase() {
 	element<HTMLInputElement>('#drivebase-visible').checked = drivebase.visible;
 	element<HTMLInputElement>('#drivebase-length').value = String(drivebase.lengthIn);
