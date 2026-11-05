@@ -189,10 +189,11 @@ class V4l2Capture:
                     storage = self.buffers[buffer.index]
                     if not buffer.flags & 0x40 and 0 < buffer.bytesused <= len(storage):
                         data = storage[: buffer.bytesused]
+                        # UVC cameras may pad after EOI (C920: up to 31 bytes).
                         if (
                             getattr(self, "pixel_format", "MJPG") == "MJPG"
                             and data.startswith(b"\xff\xd8")
-                            and data.endswith(b"\xff\xd9")
+                            and b"\xff\xd9" in data[-64:]
                         ) or (
                             getattr(self, "pixel_format", "MJPG") == "YUYV"
                             and len(data) >= self.bytes_per_line * self.height

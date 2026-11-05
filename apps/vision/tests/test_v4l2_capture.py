@@ -58,6 +58,13 @@ def test_error_flag_and_truncated_jpeg_are_requeued_without_decode(monkeypatch):
     assert operations == [("dequeue", 0), ("requeue", 0), ("dequeue", 1), ("requeue", 1)]
 
 
+def test_jpeg_padded_after_end_marker_is_decoded(monkeypatch):
+    source, operations = capture(monkeypatch, [(1, 0)])
+    source.buffers[1] = b"\xff\xd8padded\xff\xd9" + bytes(range(31))
+    assert source.read() == (True, source.buffers[1])
+    assert operations[-1] == ("decode", source.buffers[1])
+
+
 def test_no_usb_frames_returns_failure_for_reconnect(monkeypatch):
     source, operations = capture(monkeypatch, [])
     assert source.read() == (False, None)
