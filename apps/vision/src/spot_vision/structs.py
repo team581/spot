@@ -1,18 +1,16 @@
 """Numeric WPILib structs shared with the roboRIO.
 
-A frame is one atomic NT value. Tag masks index the ordered, acknowledged field
+A frame is one atomic NT value. Tag masks index the ordered robot field
 layout (at most 64 tags), so tag IDs do not need fixed padded arrays per frame.
 """
 
-import hashlib
 import struct
 from dataclasses import dataclass, field
 
-from wpimath.geometry import Pose3d, Quaternion, Rotation3d, Translation3d
+from wpimath.geometry import Pose3d, Quaternion, Rotation3d, Transform3d, Translation3d
 from wpiutil.wpistruct import double, int32, int64, make_wpistruct
 
 from . import protocol_models as data
-from .protocol import content_bytes
 
 SOURCES = (
     "",
@@ -20,7 +18,6 @@ SOURCES = (
     "driver-exposure-start-local-nt",
     "driver-exposure-end-local-nt",
 )
-SYNC_STATES = ("Waiting", "Synchronized", "Invalid")
 
 
 @make_wpistruct(name="SpotPoseEstimate")
@@ -39,8 +36,8 @@ class PoseEstimate:
 @make_wpistruct(name="SpotFrameResult")
 @dataclass
 class FrameResult:
-    contextHigh: int64 = 0
-    contextLow: int64 = 0
+    revisionHigh: int64 = 0
+    revisionLow: int64 = 0
     captureHigh: int64 = 0
     captureLow: int64 = 0
     sequence: int64 = 0
@@ -50,6 +47,8 @@ class FrameResult:
     timestampUncertainty: double = 0.0
     observedTags: int64 = 0
     candidateCount: int32 = 0
+    robotToCamera: Transform3d = field(default_factory=Transform3d)
+    calibrationValid: bool = False
     primary: PoseEstimate = field(default_factory=PoseEstimate)
     alternate: PoseEstimate = field(default_factory=PoseEstimate)
     captureToDetectMs: double = 0.0
@@ -61,10 +60,6 @@ class FrameResult:
 @make_wpistruct(name="SpotRobotStatus")
 @dataclass
 class RobotStatus:
-    sessionHigh: int64 = 0
-    sessionLow: int64 = 0
-    enabled: bool = False
-    sequence: int64 = 0
     selectionGeneration: int64 = 0
     allowedTags: int64 = 0
 
@@ -72,18 +67,49 @@ class RobotStatus:
 @make_wpistruct(name="SpotHeartbeat")
 @dataclass
 class Heartbeat:
-    serviceHigh: int64 = 0
-    serviceLow: int64 = 0
-    runtimeHigh: int64 = 0
-    runtimeLow: int64 = 0
+    revisionHigh: int64 = 0
+    revisionLow: int64 = 0
+    ready: bool = False
+
+
+@make_wpistruct(name="SpotCameraSettings")
+@dataclass
+class CameraSettings:
+    enabled: bool = False
+    required: bool = False
+
+
+DECISIONS = (
+    "ACCEPTED",
+    "NO_TAGS",
+    "CONFIGURATION",
+    "CALIBRATION",
+    "TIMESTAMP",
+    "STALE",
+    "FUTURE",
+    "DUPLICATE",
+    "RESET",
+    "MALFORMED",
+    "HISTORY",
+    "FIELD_BOUNDS",
+    "ROBOT_TILT",
+    "AMBIGUOUS",
+    "RESIDUAL",
+    "INNOVATION",
+    "TAG_POLICY",
+)
+
+
+@make_wpistruct(name="SpotRobotDecision")
+@dataclass
+class RobotDecision:
+    captureHigh: int64 = 0
+    captureLow: int64 = 0
     sequence: int64 = 0
-    uptime: double = 0.0
-    syncState: int32 = 0
-    offsetUs: int64 = 0
-    syncAge: double = 0.0
-    connectionEpoch: int64 = 0
-    syncEpoch: int64 = 0
-    discontinuities: int64 = 0
+    captureFpgaS: double = 0.0
+    reason: int32 = 0
+    fused: bool = False
+    fusionEnabled: bool = False
 
 
 @make_wpistruct(name="SpotFieldTag")
@@ -94,14 +120,11 @@ class FieldTag:
     size: double = 0.0
 
 
-def token(value: str) -> tuple[int, int]:
-    return struct.unpack("<qq", hashlib.sha256(value.encode()).digest()[:16])
-
-
-def frame_context(ack: data.Acknowledgement, camera_name: str) -> tuple[int, int]:
-    return struct.unpack(
-        "<qq", hashlib.sha256(content_bytes(ack) + camera_name.encode()).digest()[:16]
-    )
+def session(value: str) -> tuple[int, int]:
+    """UUID split into two little-endian wire integers."""
+    if not value:
+        return 0, 0
+    return struct.unpack("<qq", bytes.fromhex(value.replace("-", "")))
 
 
 def signed_mask(mask: int) -> int:
@@ -119,7 +142,7 @@ def tag_mask(ids, layout: data.FieldLayout) -> int:
 def tag_ids(mask: int, layout: data.FieldLayout) -> list[int]:
     unsigned = mask & ((1 << 64) - 1)
     if unsigned >> len(layout.tags):
-        raise ValueError("tag mask exceeds acknowledged field layout")
+        raise ValueError("tag mask exceeds robot field layout")
     return [tag.id for index, tag in enumerate(layout.tags) if unsigned & (1 << index)]
 
 
@@ -135,9 +158,7 @@ def pose_model(pose) -> data.Pose:
     return data.Pose(pose.X(), pose.Y(), pose.Z(), q.W(), q.X(), q.Y(), q.Z())
 
 
-def result_value(
-    observation: data.Observation, context: tuple[int, int], layout: data.FieldLayout
-) -> FrameResult:
+def result_value(observation: data.Observation, layout: data.FieldLayout) -> FrameResult:
     if len(observation.candidates) > 2:
         raise ValueError("frame exceeds two pose candidates")
     estimates = [
@@ -156,8 +177,8 @@ def result_value(
     estimates += [PoseEstimate() for _ in range(2 - len(estimates))]
     timing = observation.timing
     return FrameResult(
-        *context,
-        *token(observation.capture_epoch),
+        *session(observation.runtime_generation),
+        *session(observation.capture_epoch),
         observation.sequence,
         observation.tag_selection_generation,
         observation.capture_local_nt_us,
@@ -172,6 +193,8 @@ def result_value(
             layout,
         ),
         len(observation.candidates),
+        Transform3d(Pose3d(), pose_value(observation.robot_to_camera)),
+        observation.calibration_valid,
         *estimates,
         timing.capture_to_detect_ms,
         timing.detect_ms,

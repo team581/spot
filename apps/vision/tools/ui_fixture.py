@@ -46,7 +46,7 @@ class FixtureRuntime:
                     "required": index < 2,
                     "warning": "Calibration required" if index == 1 else "",
                     "fault": "Disconnected" if index == 2 else "",
-                    "calibration_hash": "fixture-hash",
+                    "calibration_id": "fixture-id",
                     "age_s": 0.035 if index != 2 else 4.1,
                     "timestamp_qualified": False,
                     "unique_serial": index < 2,
@@ -185,7 +185,7 @@ class FixtureRuntime:
             "names": ["front-left", "front-right", "rear", "turret"] if self.cameras else [],
             "fresh": False,
             "standalone": self.scenario == "mixed",
-            "lock_reason": "Robot enabled · locked"
+            "lock_reason": "Connect robot code or begin standalone setup"
             if self.scenario == "locked"
             else "No robot profile · locked"
             if self.scenario == "empty"
@@ -224,7 +224,7 @@ class FixtureRuntime:
                         {
                             "identity": c["identity"],
                             "mode_signature": "fixture-optical-mode",
-                            "hash": "fixture-record-" + str(i),
+                            "id": "fixture-record-" + str(i),
                             "saved_at": None,
                         }
                         for i, c in enumerate(self.cameras[:2])
@@ -273,7 +273,7 @@ class FixtureRuntime:
     def submit(self, operation, payload):
         future = Future()
         if self.scenario != "mixed":
-            future.set_exception(ValueError("Robot enabled or state unknown · locked"))
+            future.set_exception(ValueError("Connect robot code or begin standalone setup"))
             return future
         if payload.get("revision", self.revision) != self.revision:
             future.set_exception(ValueError("Revision conflict; reconcile current values"))

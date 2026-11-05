@@ -1,50 +1,43 @@
-"""NT4 v2 boundary: coherent acknowledgements and no offline backlog replay."""
+"""Typed NT configuration and self-contained vision observations."""
 
 from __future__ import annotations
 
 import copy
-import json
-import logging
-import math
+import struct
 import threading
 import time
-import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import numpy as np
 
 from . import protocol_models as wire
-from .clock import ClockGate, nt_now_us
+from .clock import NtClock, nt_now_us
 from .config import ConfigError, NtConfig
 from .configuration import ConfigurationService, TagSelection
-from .contract import MAX_TAGS, content_hash, validate_observation
+from .contract import MAX_TAGS, validate_observation
 from .models import DetectedFrame, PoseSolution
-from .nt_metadata import AcknowledgementPublisher
-from .protocol import ProfileSubscriber
+from .protocol import ConfigurationIncomplete, ProfileSubscriber
 from .structs import (
-    SYNC_STATES,
+    DECISIONS,
+    CameraSettings,
     FrameResult,
     Heartbeat,
+    RobotDecision,
     RobotStatus,
-    frame_context,
     result_value,
+    session,
     tag_ids,
-    token,
 )
 
-if TYPE_CHECKING:
-    from ntcore import StructPublisher
-
-LOGGER = logging.getLogger(__name__)
 ROOT = "/Spot"
 
 
 @dataclass(frozen=True)
 class ObservationContext:
-    acknowledgement: wire.Acknowledgement
-    camera: wire.CameraGeneration
+    generation: str
+    camera: wire.CameraDefinition
+    calibrated: bool
     timestamp_uncertainty_s: float | None
 
 
@@ -56,26 +49,15 @@ def make_observation(
     *,
     selection: TagSelection | None = None,
 ) -> wire.Observation:
-    ack, camera, frame = context.acknowledgement, context.camera, detected.frame
+    camera, frame = context.camera, detected.frame
     message = wire.Observation(
         tag_selection_generation=selection.generation if selection else 0,
-        robot_id=ack.robot_id,
-        robot_session=ack.robot_session,
-        service_session=ack.service_session,
         capture_epoch=frame.capture_epoch,
-        connection_epoch=ack.connection_epoch,
-        sync_epoch=ack.sync_epoch,
         sequence=frame.sequence,
-        camera_name=camera.camera_name,
-        binding_id=camera.binding_id,
-        binding_generation=camera.binding_generation,
-        manifest_hash=ack.manifest_hash,
-        field_hash=ack.field_hash,
-        calibration_hash=camera.calibration_hash,
-        calibration_valid=camera.calibration_valid,
-        runtime_generation=ack.runtime_generation,
-        mode_id=camera.mode_id,
-        optical_signature=camera.optical_signature,
+        camera_name=camera.name,
+        runtime_generation=context.generation,
+        robot_to_camera=copy.deepcopy(camera.robot_to_camera),
+        calibration_valid=context.calibrated,
         capture_local_nt_us=frame.capture_timestamp_us,
         timestamp_source=frame.timestamp_source,
         timestamp_uncertainty_s=context.timestamp_uncertainty_s or 0,
@@ -83,7 +65,7 @@ def make_observation(
     detections = detected.batch.detections[:MAX_TAGS]
     by_id = {tag.id: tag for tag in detections}
     h, w = frame.image.shape[:2]
-    if camera.calibration_valid and context.timestamp_uncertainty_s is not None:
+    if context.calibrated and context.timestamp_uncertainty_s is not None:
         for candidate in solution.candidates[:2]:
             pose = wire.Pose(
                 x_m=float(candidate.translation[0]),
@@ -142,398 +124,157 @@ class NtTransport:
         self,
         config: NtConfig,
         configuration: ConfigurationService,
-        cameras: Callable[[], list[wire.CameraGeneration]],
+        camera_ready: Callable[[str], bool],
         *,
         instance=None,
-        clock: ClockGate | None = None,
     ) -> None:
         import ntcore
 
         if config.mode != "client":
-            raise ConfigError("robot-integrated mode requires Jetson NT4 client, roboRIO server")
+            raise ConfigError("Spot must be an NT client of the robot")
         self.ntcore = ntcore
-        self.configuration, self._cameras = configuration, cameras
-        self.clock = clock or ClockGate()
-        self.session = uuid.uuid4().hex
-        self.started_ns = time.monotonic_ns()
-        self._lock = threading.RLock()
-        self._ack: wire.Acknowledgement | None = None
-        self._frame_contexts: dict[str, tuple[int, int]] = {}
-        self._ack_applied_ns = 0
-        self._connection_after_us = 0
-        self._health_sequence = 0
-        self._last_clock: tuple[int, int] | None = None
-        self._closed = False
-        self._config = config
-        self._last_resync_ns = 0
-        self.withheld = 0
-        self._robot_decisions, self._decisions_at = {}, 0.0
+        self.configuration, self._camera_ready = configuration, camera_ready
         self.instance = instance or ntcore.NetworkTableInstance.create()
         self._owns_instance = instance is None
-        options = ntcore.PubSubOptions(
-            keepDuplicates=True, sendAll=True, periodic=0.005, pollStorage=32
-        )
-        self._manifest = self.instance.getStringTopic(f"{ROOT}/robot/manifest").subscribe(
-            "", options
-        )
-        self._robot_session = self.instance.getStringTopic(f"{ROOT}/robot/session").subscribe("")
-        self._profile = ProfileSubscriber(self.instance, ROOT)
+        self.clock = NtClock(self.instance)
+        self._lock = threading.RLock()
+        self._config = config
+        self._closed = False
+        self._generation = ""
+        self._applied_ns = time.monotonic_ns()
+        self.withheld = 0
+        self._observations = {}
+        self._settings = {}
+        self._decisions = {}
+        self._profile = ProfileSubscriber(self.instance)
+        options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.02)
         self._robot_state = self.instance.getStructTopic(
             f"{ROOT}/robot/state", RobotStatus
         ).subscribe(RobotStatus(), options)
-        self._decisions = self.instance.getStringTopic(f"{ROOT}/robot/decisions").subscribe(
-            "", ntcore.PubSubOptions(periodic=1.0, pollStorage=2)
-        )
-        self._ack_publisher = AcknowledgementPublisher(self.instance, ROOT, options)
         self._health = self.instance.getStructTopic(f"{ROOT}/health", Heartbeat).publish(options)
-        self._observations: dict[str, StructPublisher] = {}
-        self._listeners = [
-            self.instance.addConnectionListener(True, self._connection_event),
-            self.instance.addTimeSyncListener(False, self._sync_event),
-            self.instance.addListener(
-                self._robot_state, ntcore.EventFlags.kValueRemote, self._state_event
-            ),
-        ]
+        self._error = self.instance.getStringTopic(f"{ROOT}/error").publish()
+        self._camera_names = self.instance.getStringArrayTopic(f"{ROOT}/cameras").publish()
+        self._listener = self.instance.addConnectionListener(True, self._connection_event)
         if self._owns_instance and config.enabled:
-            if config.server:
-                self.instance.setServer(config.server)
-            elif config.team:
-                self.instance.setServerTeam(config.team)
-            else:
-                raise ConfigError("NT client needs robot endpoint or team")
-            self.instance.startClient4(config.identity)
+            self._start_client()
+
+    def _start_client(self) -> None:
+        if self._config.server:
+            self.instance.setServer(self._config.server)
+        elif self._config.team:
+            self.instance.setServerTeam(self._config.team)
+        else:
+            raise ConfigError("NT client needs robot endpoint or team")
+        self.instance.startClient4(self._config.identity)
 
     def set_endpoint(self, config: NtConfig) -> None:
         self.instance.stopClient()
-        if not self.instance.waitForListenerQueue(1):
-            raise ConfigError("NetworkTables is busy; retry changing the team number")
-        with self._lock:
-            self.clock.connection(None)
-            self._ack = None
-            self._frame_contexts.clear()
-            self._connection_after_us = nt_now_us()
-            self._robot_decisions, self._decisions_at = {}, 0.0
-            self.configuration.connection_changed(False)
-            for subscriber in (self._manifest, self._robot_state, self._decisions):
-                subscriber.readQueue()
-            # Do not replay observations or acknowledgements from the previous robot.
-            for publisher in self._observations.values():
-                publisher.close()
-            self._observations.clear()
-            self._ack_publisher.close()
-            self._ack_publisher = AcknowledgementPublisher(
-                self.instance,
-                ROOT,
-                self.ntcore.PubSubOptions(
-                    keepDuplicates=True, sendAll=True, periodic=0.005, pollStorage=32
-                ),
-            )
-            self._config = config
-            if config.enabled:
-                if config.server:
-                    self.instance.setServer(config.server)
-                elif config.team:
-                    self.instance.setServerTeam(config.team)
-                else:
-                    raise ConfigError("NT client needs robot endpoint or team")
-                self.instance.startClient4(config.identity)
+        self.instance.waitForListenerQueue(1)
+        self._config = config
+        self.configuration.connection_changed(False)
+        self.invalidate_configuration()
+        if config.enabled:
+            self._start_client()
 
     def _connection_event(self, event) -> None:
         connected = event.is_(self.ntcore.EventFlags.kConnected)
-        with self._lock:
-            self.clock.connection(uuid.uuid4().hex if connected else None)
-            self._ack = None
-            self._connection_after_us = nt_now_us()
-            if connected:
-                # Allow the initial exchange to arrive before retrying a
-                # missing or rejected sample from a newly connected server.
-                self._last_resync_ns = time.monotonic_ns()
         self.configuration.connection_changed(connected)
-
-    def _sync_event(self, event) -> None:
-        data = event.data
-        # Offset getter must agree that synchronization exists on this exact
-        # publishing instance; _now() alone has no such meaning.
-        offset = self.instance.getServerTimeOffset()
-        self.clock.update(offset if data.valid else None, data.rtt2, data.valid)
-
-    def _state_event(self, event) -> None:
-        from wpiutil.wpistruct import unpack
-
-        try:
-            value = event.data.value
-            if value.time() >= self._connection_after_us:
-                self._apply_robot_state(unpack(RobotStatus, value.getRaw()))
-        except (ValueError, RuntimeError):
-            LOGGER.debug("invalid robot state struct", exc_info=True)
-
-    def _apply_robot_state(self, value: RobotStatus) -> None:
-        manifest = self.configuration.manifest
-        if manifest is None or (value.sessionHigh, value.sessionLow) != token(
-            manifest.robot_session
-        ):
-            return
-        self.configuration.robot_state(
-            wire.RobotState(
-                manifest.robot_session,
-                value.enabled,
-                value.sequence,
-                value.selectionGeneration,
-                tag_ids(value.allowedTags, manifest.profile.field),
-            )
-        )
+        self.invalidate_configuration()
 
     def poll(self) -> None:
-        """Called by runtime supervisor; potentially expensive apply is off HTTP."""
-        sync = self.clock.snapshot()
-        # NTCore 2026.2.2 ClientImpl processes only the initial RTT response.
-        # Its time-sync event is not a periodic heartbeat. Expiry therefore
-        # requests a new built-in exchange by reconnecting; it never refreshes
-        # validity merely by polling an unchanged cached offset. Qualification
-        # must establish the maximum safe interval from measured drift.
-        if (
-            self._owns_instance
-            and self._config.enabled
-            and self.instance.isConnected()
-            and sync.state != "Synchronized"
-            and (sync.update_age_s is None or sync.update_age_s > self.clock.expiry_s)
-            and time.monotonic_ns() - self._last_resync_ns > 1_000_000_000
-        ):
-            self._last_resync_ns = time.monotonic_ns()
-            self.instance.stopClient()
-            self.instance.startClient4(self._config.identity)
+        if not self.configuration.connected:
             return
-        with self._lock:
-            if self._ack is not None and (
-                sync.state != "Synchronized"
-                or self._ack.connection_epoch != sync.connection_epoch
-                or self._ack.sync_epoch != sync.sync_epoch
-            ):
-                self._ack = None
-        for sample in self._manifest.readQueue():
-            if sync.state != "Synchronized" or sample.time < self._connection_after_us:
-                continue
-            try:
-                session = self._robot_session.get()
-                if not session or not sample.value:
-                    continue
-                manifest = wire.Manifest(self._profile.read(), session, sample.value)
-                from .contract import validate_manifest
-
-                validate_manifest(manifest)
-                self.configuration.accept_manifest(manifest)
-                self.acknowledge()
-            except (ConfigError, RuntimeError, OSError) as exc:
-                self._publish_rejection(str(exc))
-        # Also handles robot states arriving just before the fresh manifest.
-        for sample in self._robot_state.readQueue():
-            if sample.time >= self._connection_after_us:
-                try:
-                    self._apply_robot_state(sample.value)
-                except Exception:
-                    LOGGER.debug("invalid robot state packet", exc_info=True)
-
-        for sample in self._decisions.readQueue():
-            if (
-                sync.state != "Synchronized"
-                or sample.time < self._connection_after_us
-                or len(sample.value) > 65536
-            ):
-                continue
-            try:
-                document = json.loads(sample.value, parse_constant=lambda _: None)
-                manifest = self.configuration.manifest
-                if (
-                    not isinstance(document, dict)
-                    or not manifest
-                    or type(document.get("fusion_enabled")) is not bool
-                    or document["robot_session"] != manifest.robot_session
-                    or document["manifest_hash"] != manifest.manifest_hash
-                ):
-                    continue
-                values = document["cameras"]
-                if not isinstance(values, dict) or len(values) > 32:
-                    continue
-                names = {c.name for c in manifest.profile.cameras}
-                valid = {}
-                for name, decision in values.items():
-                    if name not in names or not isinstance(decision, dict):
-                        continue
-                    if (
-                        type(decision.get("sequence")) is not int
-                        or decision["sequence"] <= 0
-                        or type(decision.get("fused")) is not bool
-                        or not isinstance(decision.get("state"), str)
-                        or len(decision["state"]) > 64
-                        or not isinstance(decision.get("capture_epoch"), str)
-                        or not 1 <= len(decision["capture_epoch"]) <= 128
-                        or decision.get("runtime_generation")
-                        != self.configuration.acknowledged_generation
-                        or decision.get("service_session") != self.session
-                        or decision.get("connection_epoch") != sync.connection_epoch
-                        or decision.get("sync_epoch") != sync.sync_epoch
-                    ):
-                        continue
-                    captured = decision.get("capture_fpga_s")
-                    server_now = (
-                        (nt_now_us() + sync.offset_us) / 1e6 if sync.offset_us is not None else None
-                    )
-                    if (
-                        type(captured) not in (float, int)
-                        or not math.isfinite(captured)
-                        or server_now is None
-                        or not -0.005 <= server_now - captured <= 0.5
-                    ):
-                        continue
-                    fields = (
-                        "state",
-                        "fused",
-                        "capture_epoch",
-                        "sequence",
-                        "capture_fpga_s",
-                        "service_session",
-                        "runtime_generation",
-                        "connection_epoch",
-                        "sync_epoch",
-                    )
-                    valid[name] = {
-                        **{key: decision[key] for key in fields},
-                        "fusion_enabled": document["fusion_enabled"],
-                    }
-                with self._lock:
-                    self._robot_decisions, self._decisions_at = valid, time.monotonic()
-            except (ValueError, KeyError, TypeError):
-                LOGGER.debug("invalid robot decision telemetry", exc_info=True)
-
-    @property
-    def robot_decisions(self):
-        with self._lock:
-            sync = self.clock.snapshot()
-            if (
-                sync.state != "Synchronized"
-                or self._ack is None
-                or time.monotonic() - self._decisions_at > 1.5
-            ):
-                return {}
-            return {
-                name: value
-                for name, value in self._robot_decisions.items()
-                if value.get("runtime_generation") == self.configuration.acknowledged_generation
-                and value.get("connection_epoch") == sync.connection_epoch
-                and value.get("sync_epoch") == sync.sync_epoch
-            }
-
-    def acknowledge(self) -> None:
-        with self._lock:
-            sync = self.clock.snapshot()
-            manifest = self.configuration.manifest
-            if (
-                sync.state != "Synchronized"
-                or not self.configuration.fresh
-                or manifest is None
-                or not self.configuration.acknowledged_generation
-            ):
-                self._ack = None
-                return
-            ack = wire.Acknowledgement(
-                robot_id=manifest.profile.robot_id,
-                robot_session=manifest.robot_session,
-                manifest_hash=manifest.manifest_hash,
-                service_session=self.session,
-                connection_epoch=sync.connection_epoch,
-                sync_epoch=sync.sync_epoch,
-                runtime_generation=self.configuration.state.generation,
-                field_hash=content_hash(manifest.profile.field),
-                cameras=self._cameras(),
-                applied=True,
-                tag_selection_supported=True,
+        try:
+            self.configuration.accept_manifest(self._profile.read())
+            self.configuration_applied()
+            self._error.set("")
+        except ConfigurationIncomplete:
+            return
+        except (ConfigError, RuntimeError, OSError, ValueError) as exc:
+            self.configuration.fresh = False
+            self._error.set(str(exc))
+            return
+        manifest = self.configuration.manifest
+        if manifest is None:
+            return
+        state = self._robot_state.get()
+        self.configuration.robot_state(
+            wire.RobotState(
+                state.selectionGeneration,
+                tag_ids(state.allowedTags, manifest.profile.field),
             )
-            if self._ack is None or self._ack != ack:
-                self._ack = ack
-                self._frame_contexts = {
-                    camera.camera_name: frame_context(ack, camera.camera_name)
-                    for camera in ack.cameras
-                }
-                self._ack_applied_ns = time.monotonic_ns()
-                self._ack_publisher.set(ack)
+        )
+
+    def configuration_applied(self) -> None:
+        with self._lock:
+            config = self.configuration
+            if not config.fresh or config.manifest is None:
+                return
+            if self._generation != config.state.generation:
+                self._generation = config.state.generation
+                self._applied_ns = time.monotonic_ns()
+            for camera in config.manifest.profile.cameras:
+                if camera.name not in self._settings:
+                    self._settings[camera.name] = self.instance.getStructTopic(
+                        f"{ROOT}/{camera.name}/settings", CameraSettings
+                    ).publish()
+                    self._decisions[camera.name] = self.instance.getStructTopic(
+                        f"{ROOT}/{camera.name}/decision", RobotDecision
+                    ).subscribe(RobotDecision())
+                self._settings[camera.name].set(CameraSettings(camera.enabled, camera.required))
+            self._camera_names.set([camera.name for camera in config.manifest.profile.cameras])
 
     def invalidate_configuration(self) -> None:
-        # Every application attempt, including rollback, establishes a fresh
-        # post-application capture boundary before publication can resume.
         with self._lock:
-            self._ack = None
-            self._robot_decisions, self._decisions_at = {}, 0.0
-
-    def _publish_rejection(self, error: str) -> None:
-        self._ack_publisher.set(
-            wire.Acknowledgement(service_session=self.session, applied=False, error=error)
-        )
+            self._generation = ""
+            self._applied_ns = time.monotonic_ns()
 
     def context(
         self, camera_name: str, captured_ns: int, uncertainty_s: float | None
     ) -> ObservationContext | None:
         with self._lock:
-            sync = self.clock.snapshot()
-            ack = self._ack
+            config = self.configuration
             if (
-                ack is None
-                or sync.state != "Synchronized"
-                or ack.connection_epoch != sync.connection_epoch
-                or ack.sync_epoch != sync.sync_epoch
-                or ack.runtime_generation != self.configuration.acknowledged_generation
-                or captured_ns - int((uncertainty_s or 0) * 1e9)
-                <= max(sync.ready_since_ns, self._ack_applied_ns)
+                not self._generation
+                or not config.fresh
+                or config.manifest is None
+                or self.clock.snapshot().offset_us is None
+                or captured_ns - int((uncertainty_s or 0) * 1e9) <= self._applied_ns
             ):
                 return None
-            camera = next((c for c in ack.cameras if c.camera_name == camera_name), None)
-            if camera is None or not camera.binding_id:
+            camera = next(
+                (c for c in config.manifest.profile.cameras if c.name == camera_name), None
+            )
+            if camera is None or not camera.binding_id or not camera.enabled:
                 return None
-            copied_ack = copy.deepcopy(ack)
-            copied_camera = next(c for c in copied_ack.cameras if c.camera_name == camera_name)
-            return ObservationContext(copied_ack, copied_camera, uncertainty_s)
+            return ObservationContext(
+                self._generation,
+                copy.deepcopy(camera),
+                self._camera_ready(camera_name),
+                uncertainty_s,
+            )
 
     def publish(self, observation: wire.Observation, captured_ns: int) -> bool:
-        validate_observation(observation)
         with self._lock:
             context = self.context(
                 observation.camera_name, captured_ns, observation.timestamp_uncertainty_s
             )
+            selection = self.configuration.tag_selection()
+            manifest = self.configuration.manifest
             if (
                 context is None
-                or not observation.capture_epoch
-                or observation.runtime_generation != context.acknowledgement.runtime_generation
-                or observation.sync_epoch != context.acknowledgement.sync_epoch
-                or observation.connection_epoch != context.acknowledgement.connection_epoch
-                or observation.robot_session != context.acknowledgement.robot_session
-                or observation.manifest_hash != context.acknowledgement.manifest_hash
-                or observation.field_hash != context.acknowledgement.field_hash
-                or observation.binding_id != context.camera.binding_id
-                or observation.binding_generation != context.camera.binding_generation
-                or observation.mode_id != context.camera.mode_id
-                or observation.optical_signature != context.camera.optical_signature
-                or observation.calibration_hash != context.camera.calibration_hash
-                or observation.calibration_valid != context.camera.calibration_valid
-                or observation.service_session != self.session
-            ):
-                self.withheld += 1
-                return False
-            selection = self.configuration.tag_selection()
-            if (
-                selection is None
+                or observation.runtime_generation != context.generation
+                or selection is None
+                or manifest is None
                 or observation.tag_selection_generation != selection.generation
                 or any(
                     tag not in selection.allowed_tag_ids
                     for candidate in observation.candidates
                     for tag in candidate.tag_ids
                 )
-            ):
-                self.withheld += 1
-                return False
-            now = nt_now_us()
-            age_s = (now - observation.capture_local_nt_us) / 1e6
-            manifest = self.configuration.manifest
-            if manifest is None or not (
-                -manifest.profile.future_tolerance_s <= age_s <= manifest.profile.max_age_s
+                or not -manifest.profile.future_tolerance_s
+                <= (nt_now_us() - observation.capture_local_nt_us) / 1e6
+                <= manifest.profile.max_age_s
             ):
                 self.withheld += 1
                 return False
@@ -542,60 +283,57 @@ class NtTransport:
                 publisher = self.instance.getStructTopic(
                     f"{ROOT}/{observation.camera_name}/observations", FrameResult
                 ).publish(
-                    self.ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005),
+                    self.ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)
                 )
                 self._observations[observation.camera_name] = publisher
             publisher.set(
-                result_value(
-                    observation,
-                    self._frame_contexts[observation.camera_name],
-                    manifest.profile.field,
-                ),
-                observation.capture_local_nt_us,
+                result_value(observation, manifest.profile.field), observation.capture_local_nt_us
             )
             return True
 
+    @property
+    def robot_decisions(self) -> dict:
+        sync = self.clock.snapshot()
+        if sync.offset_us is None:
+            return {}
+        now = (nt_now_us() + sync.offset_us) / 1e6
+        result = {}
+        for name, subscriber in self._decisions.items():
+            value = subscriber.get()
+            if 0 <= now - value.captureFpgaS <= 0.5 and 0 <= value.reason < len(DECISIONS):
+                result[name] = {
+                    "capture_epoch": struct.pack("<qq", value.captureHigh, value.captureLow).hex(),
+                    "sequence": value.sequence,
+                    "state": DECISIONS[value.reason],
+                    "fused": value.fused,
+                    "fusion_enabled": value.fusionEnabled,
+                }
+        return result
+
     def heartbeat(self) -> None:
-        now_ns, local_us = time.monotonic_ns(), nt_now_us()
-        if self._last_clock is not None:
-            prior_ns, prior_us = self._last_clock
-            if abs((local_us - prior_us) - (now_ns - prior_ns) // 1000) > self.clock.jump_us:
-                self.clock.invalidate_jump()
-        self._last_clock = now_ns, local_us
-        sync = self.clock.snapshot(now_ns)
-        self._health_sequence += 1
-        self._health.set(
-            Heartbeat(
-                *token(self.session),
-                *token(self.configuration.state.generation),
-                self._health_sequence,
-                (now_ns - self.started_ns) / 1e9,
-                SYNC_STATES.index(sync.state),
-                sync.offset_us or 0,
-                sync.update_age_s or 0,
-                sync.connection_epoch,
-                sync.sync_epoch,
-                sync.discontinuities,
-            ),
-            local_us,
-        )
+        with self._lock:
+            ready = bool(
+                self._generation
+                and self.configuration.fresh
+                and self.clock.snapshot().offset_us is not None
+            )
+            self._health.set(Heartbeat(*session(self._generation), ready), nt_now_us())
 
     def close(self) -> None:
         if self._closed:
             return
         self._closed = True
-        for listener in self._listeners:
-            self.instance.removeListener(listener)
-        for resource in [
-            self._manifest,
-            self._robot_session,
+        self.instance.removeListener(self._listener)
+        for resource in (
             self._profile,
-            self._decisions,
             self._robot_state,
-            self._ack_publisher,
             self._health,
+            self._error,
+            self._camera_names,
             *self._observations.values(),
-        ]:
+            *self._settings.values(),
+            *self._decisions.values(),
+        ):
             resource.close()
         if self._owns_instance:
             self.instance.stopClient()

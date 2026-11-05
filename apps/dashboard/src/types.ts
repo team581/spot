@@ -112,6 +112,8 @@ interface Network {
 	pending?: { token: string; address?: string; remaining_s: number };
 }
 export interface Status {
+	has_overrides?: boolean;
+	override_paths?: string[];
 	cameras: Camera[];
 	names: string[];
 	revision: string;
@@ -120,15 +122,11 @@ export interface Status {
 	connected?: boolean;
 	fresh?: boolean;
 	standalone?: boolean;
-	robot_id?: string;
+	has_configuration?: boolean;
 	uptime_s?: number;
 	clock: {
 		state?: string;
 		offset_us?: number;
-		update_age_s?: number;
-		connection_epoch?: number;
-		sync_epoch?: number;
-		discontinuities?: number;
 	};
 	software: {
 		package_path?: string;
@@ -147,7 +145,7 @@ export interface Status {
 		generation: string;
 		active?: boolean;
 		error?: string;
-		cameras: { identity: string; mode_signature: string; hash: string; saved_at?: string }[];
+		cameras: { identity: string; mode_signature: string; id: string; saved_at?: string }[];
 	}[];
 	network?: Network;
 	endpoint?: { configured?: string; team?: number; mode?: string; local_addresses?: string[] };

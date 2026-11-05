@@ -4,7 +4,6 @@ import pytest
 
 from robot_fixtures import manifest
 from spot_vision import protocol_models as wire
-from spot_vision.config import ConfigError
 from spot_vision.configuration import ConfigurationService, TagSelection
 from spot_vision.models import PoseSolution
 from spot_vision.persistence import StateStore
@@ -19,56 +18,27 @@ def configured(tmp_path):
     return service, applications
 
 
-def state(sequence=1, generation=1, ids=(1, 2), session="robot-1", enabled=True):
-    return wire.RobotState(
-        robot_session=session,
-        enabled=enabled,
-        sequence=sequence,
-        tag_selection_generation=generation,
-        allowed_tag_ids=ids,
-    )
+def state(generation=1, ids=(1, 2)):
+    return wire.RobotState(tag_selection_generation=generation, allowed_tag_ids=list(ids))
 
 
-def test_enabled_selection_is_global_fresh_and_does_not_reapply_configuration(tmp_path):
+def test_selection_changes_do_not_reapply_configuration(tmp_path):
     service, applications = configured(tmp_path)
-    service.robot_state(state(), now=10)
-    assert service.tag_selection(10) == TagSelection(1, (1, 2))
-    with pytest.raises(ConfigError, match="locked"):
-        service.require_eligible(10)
-    service.robot_state(state(2, 2, (2,)), now=10.2)
-    assert service.tag_selection(10.2) == TagSelection(2, (2,))
+    service.robot_state(state())
+    assert service.tag_selection() == TagSelection(1, (1, 2))
+    service.require_eligible()
+    service.robot_state(state(2, (2,)))
+    assert service.tag_selection() == TagSelection(2, (2,))
     assert len(applications) == 1
-    assert service.tag_selection(12.3) is None
-    service.robot_state(state(3, 2, (2,)), now=12.4)
-    assert service.tag_selection(12.4) == TagSelection(2, (2,))
     service.connection_changed(False)
-    assert service.tag_selection(12.4) is None
+    assert service.tag_selection() is None
 
 
 @pytest.mark.parametrize("ids", [(2, 1), (1, 1), (999,)])
-def test_invalid_selection_cannot_publish_or_unlock_enabled_robot(tmp_path, ids):
+def test_invalid_selection_cannot_publish(tmp_path, ids):
     service, _ = configured(tmp_path)
-    service.robot_state(state(ids=ids), now=10)
-    assert service.tag_selection(10) is None
-    with pytest.raises(ConfigError):
-        service.require_eligible(10)
-
-
-def test_old_session_sequence_and_generation_cannot_replace_current_selection(tmp_path):
-    service, _ = configured(tmp_path)
-    service.robot_state(state(1, 3, (2,)), now=10)
-    service.robot_state(state(1, 4, (1,)), now=11)
-    service.robot_state(state(2, 4, (1,), session="old"), now=11)
-    assert service.tag_selection(10.1) == TagSelection(3, (2,))
-    assert service.tag_selection(12.1) is None  # replay did not refresh freshness
-    service.robot_state(state(2, 2, (1,)), now=12.2)
-    assert service.tag_selection(12.2) is None
-    service.robot_state(state(3, 2, (1,)), now=12.3)
-    assert service.tag_selection(12.3) is None  # cannot lower watermark via invalid state
-    service.robot_state(state(4, 3, (2,)), now=12.4)
-    assert service.tag_selection(12.4) == TagSelection(3, (2,))
-    service.robot_state(state(5, 3, (1,)), now=12.5)
-    assert service.tag_selection(12.5) is None  # equal generation cannot change IDs
+    service.robot_state(state(ids=ids))
+    assert service.tag_selection() is None
 
 
 def test_mixed_detection_filters_before_solving_and_retains_exclusions():
@@ -95,17 +65,12 @@ def test_policy_struct_fixture_preserves_selection_generation_and_mask():
 
     from wpiutil.wpistruct import unpack
 
-    from spot_vision.protocol import restore
-    from spot_vision.structs import FrameResult, RobotStatus, token
+    from spot_vision.structs import FrameResult, RobotStatus
 
     root = Path(__file__).parent / "data/robot"
     data = (root / "policy-state.bin").read_bytes()
     request = unpack(RobotStatus, data)
-    assert (request.sessionHigh, request.sessionLow) == token("robot-1")
-    assert request.enabled and request.sequence == 7
     assert request.selectionGeneration == 3 and request.allowedTags == 3
-    ack = restore(wire.Acknowledgement, (root / "policy-ack.json").read_bytes())
-    assert ack.tag_selection_supported
     observation = unpack(FrameResult, (root / "policy-multi.bin").read_bytes())
     assert observation.tagSelectionGeneration == 3
     assert observation.primary.tagMask == 3

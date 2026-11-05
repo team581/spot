@@ -47,14 +47,14 @@
 			"editor/title": [
 				{
 					"command": "spot.previewCameras",
-					"when": "resourceFilename == VisionConfig.java",
+					"when": "resourceFilename == VisionConfig.java || resourceFilename == spot-config.json",
 					"group": "navigation"
 				}
 			],
 			"explorer/context": [
 				{
 					"command": "spot.previewCameras",
-					"when": "resourceFilename == VisionConfig.java"
+					"when": "resourceFilename == VisionConfig.java || resourceFilename == spot-config.json"
 				}
 			]
 		},
@@ -64,13 +64,14 @@
 				"spot.cameraPreview.autoOpen": {
 					"type": "boolean",
 					"default": true,
-					"description": "Open camera preview when VisionConfig.java is opened."
+					"description": "Open camera preview when VisionConfig.java or spot-config.json is opened."
 				}
 			}
 		}
 	},
 	"activationEvents": [
-		"onLanguage:java"
+		"onLanguage:java",
+		"workspaceContains:**/src/main/deploy/spot-config.json"
 	],
 	"extensionKind": [
 		"workspace"

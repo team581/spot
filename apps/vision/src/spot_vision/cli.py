@@ -38,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     health.add_argument("--url", default="http://127.0.0.1:5800")
     health.add_argument("--timeout", type=int, default=120)
     health.add_argument(
-        "--robot", action="store_true", help="require disabled robot and camera readiness"
+        "--robot", action="store_true", help="require robot connection and camera readiness"
     )
 
     probe = subcommands.add_parser("probe", help="run headless live tag detection")
@@ -422,9 +422,9 @@ def _check_health_status(status: dict, package_path: str, *, robot: bool) -> Non
         or status["clock"]["state"] != "Synchronized"
         or status["applied_generation"] != status["revision"]
     ):
-        raise ConfigError("Robot profile/synchronization acknowledgement pending")
+        raise ConfigError("Robot configuration or clock synchronization pending")
     if status["lock_reason"]:
-        raise ConfigError("Disabled robot required for readiness check")
+        raise ConfigError("Robot connection required for readiness check")
     required = [
         camera
         for camera in status["cameras"]

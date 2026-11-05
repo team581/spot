@@ -5,14 +5,14 @@ from __future__ import annotations
 import math
 
 from .config import ConfigError
-from .contract import content_hash
+from .configuration import mode_signature
 from .persistence import canonical_bytes
 
 
 def timing_signature(mode, controls: dict) -> str:
     import hashlib
 
-    return hashlib.sha256(content_hash(mode).encode() + canonical_bytes(controls)).hexdigest()
+    return hashlib.sha256(mode_signature(mode).encode() + canonical_bytes(controls)).hexdigest()
 
 
 def validate_timing_evidence(record: dict) -> None:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import RobotConfiguration from '../components/RobotConfiguration';
 import { useDashboard, errorMessage } from '../dashboard';
 import { api } from '../api';
 import { DataList, age, date, fmt } from '../components/common';
@@ -52,6 +53,7 @@ export default function System() {
 				))}
 			</div>
 			<div className="system-grid">
+				<RobotConfiguration />
 				<section className="panel">
 					<h2>Camera pipelines</h2>
 					<div className="table-scroll">
@@ -133,9 +135,6 @@ export default function System() {
 						values={{
 							Clock: s.clock.state || 'Unavailable',
 							Offset: `${s.clock.offset_us ?? '—'} µs`,
-							'Sync update age': age(s.clock.update_age_s),
-							'Sync epoch': s.clock.sync_epoch || '—',
-							Discontinuities: s.clock.discontinuities ?? '—',
 							...Object.fromEntries(
 								Object.entries(s.startup ?? {}).map(([key, value]) => [key.replaceAll('_', ' '), age(value)]),
 							),
@@ -155,7 +154,10 @@ export default function System() {
 					)}
 					<div className="inline-actions spaced">
 						<button onClick={() => void download('/api/support', 'spot-support.json')}>Export support bundle</button>
-						<button onClick={() => void download('/api/export', 'spot-state.json')}>Export configuration</button>
+						<button onClick={() => void download('/api/calibrations', 'spot-calibrations.json')}>
+							Download calibration results
+						</button>
+						<button onClick={() => void download('/api/export', 'spot-state.json')}>Export saved setup</button>
 						<label>
 							<input
 								type="file"
@@ -169,13 +171,13 @@ export default function System() {
 									}
 									try {
 										const document = JSON.parse(await file.text());
-										await run('import', { document, revision: s.revision }, 'Configuration imported and acknowledged');
+										await run('import', { document, revision: s.revision }, 'Calibration data imported');
 									} catch (error) {
 										setError(errorMessage(error));
 									}
 								}}
 							/>{' '}
-							Import configuration
+							Import saved setup
 						</label>
 						<button
 							onClick={() =>

@@ -18,8 +18,9 @@ from typing import cast
 from urllib.parse import unquote, urlsplit
 
 from .config import ConfigError, validate_team
+from .protocol_models import RobotConfiguration
 
-MAX_BODY = 64 * 1024
+MAX_BODY = 256 * 1024
 OPERATIONS = {
     "nt/team": {"team"},
     "network/apply": {"mode", "address"},
@@ -30,13 +31,15 @@ OPERATIONS = {
     "device/mode": {"identity", "mode_id", "revision"},
     "standalone": set(),
     "debug": {"seconds", "revision"},
+    "clear-overrides": {"path", "revision"},
+    "configure": {"document", "revision"},
     "import": {"document", "revision"},
     "qualify-timing": {"record", "revision"},
     "rename": {"identity", "name", "revision"},
     "tune": {"name", "values", "revision", "reset"},
     "mode": {"name", "mode_id", "revision"},
     "replace": {"name", "identity", "revision"},
-    "restore": {"generation", "identities", "calibration_hashes", "revision"},
+    "restore": {"generation", "identities", "calibration_ids", "revision"},
     "calibration/board": {"board", "options", "revision"},
     "calibration/select": {"identities", "revision"},
     "calibration/reset": {"revision"},
@@ -57,6 +60,8 @@ REQUIRED = {
     "device/tune": {"identity", "revision"},
     "device/mode": {"identity", "mode_id", "revision"},
     "debug": {"seconds", "revision"},
+    "clear-overrides": {"revision"},
+    "configure": {"document", "revision"},
     "import": {"document", "revision"},
     "qualify-timing": {"record", "revision"},
     "rename": {"identity", "name", "revision"},
@@ -90,8 +95,12 @@ def validate_request(operation: str, payload: dict) -> None:
     ):
         raise ConfigError("Invalid network confirmation")
     for key, value in payload.items():
-        if key in {"identity", "name", "revision", "generation", "mode_id", "phase"}:
-            if not isinstance(value, str) or len(value) > 128 or any(ord(c) < 32 for c in value):
+        if key in {"identity", "name", "revision", "generation", "mode_id", "phase", "path"}:
+            if (
+                not isinstance(value, str)
+                or len(value) > (512 if key == "path" else 128)
+                or any(ord(c) < 32 for c in value)
+            ):
                 raise ConfigError(f"{key}: bounded text required")
         elif key in {"reset", "automatic"} and type(value) is not bool:
             raise ConfigError(f"{key}: boolean required")
@@ -99,7 +108,7 @@ def validate_request(operation: str, payload: dict) -> None:
             value, dict
         ):
             raise ConfigError(f"{key}: object required")
-        elif key in {"identities", "calibration_hashes"} and (
+        elif key in {"identities", "calibration_ids"} and (
             not isinstance(value, list)
             or len(value) > 32
             or any(not isinstance(v, str) or len(v) > 128 for v in value)
@@ -279,6 +288,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(200, status)
                 return
             session = self.spot_server.session(self.headers.get("Cookie", ""))
+            if path == "/api/calibrations":
+                if not session:
+                    raise PermissionError("Browser session required")
+                records = self.spot_server.runtime.configuration.state.data.get("calibrations", {})
+                self._reply(200, {"calibrations": list(records.values())})
+                return
+            if path in {"/api/robot-config", "/api/robot-defaults"}:
+                if not session:
+                    raise PermissionError("Browser session required")
+                from dataclasses import asdict
+
+                config = self.spot_server.runtime.configuration
+                if config.manifest is None:
+                    raise ConfigError("Connect robot code before exporting its configuration")
+                settings = (
+                    RobotConfiguration(
+                        config.robot_manifest.profile.cameras,
+                        config.robot_manifest.profile.processing,
+                    )
+                    if path == "/api/robot-defaults" and config.robot_manifest is not None
+                    else config.export_configuration()
+                )
+                self._reply(200, asdict(settings))
+                return
             if path in {"/api/export", "/api/support"}:
                 if not session:
                     raise PermissionError("Browser session required")

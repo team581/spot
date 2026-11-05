@@ -202,7 +202,6 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
     from concurrent.futures import ThreadPoolExecutor
 
     from robot_fixtures import manifest
-    from spot_vision import protocol_models as wire
     from spot_vision.configuration import ConfigurationService
     from spot_vision.persistence import StateStore
 
@@ -210,7 +209,6 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
     config = ConfigurationService(StateStore(tmp_path / "state"), lambda *_: None)
     config.connection_changed(True)
     config.accept_manifest(manifest())
-    config.robot_state(wire.RobotState(robot_session="robot-1", enabled=False, sequence=1))
     original = config.state.generation
     _, headers, raw = request("GET", "/api/session")
     second_headers = {

@@ -11,6 +11,9 @@ duplicate_serials
 next_id
 port_slots
 uptime_s
+has_configuration
+has_overrides
+override_paths
 
 # socketserver/http.server read these attributes and dispatch these methods.
 block_on_close
@@ -28,11 +31,9 @@ _.k3
 _.p1
 _.p2
 
-# Profile fields are read by dataclass hashing and snapshot serialization.
-# ProfileSubscriber reads their NT values; SpotMetadata.java publishes them.
+# Profile fields are read through dataclass serialization.
 fusion_enabled
 heading_enabled
-revised_trust_enabled
 
 # make_wpistruct generates field access at runtime for the robot's wire format.
 # Removing these fields would change the shared Python/Java struct layouts.
@@ -40,8 +41,10 @@ reprojectionError
 averageDistance
 imageArea
 imageSpread
-contextHigh
-contextLow
+revisionHigh
+revisionLow
+robotToCamera
+calibrationValid
 captureHigh
 captureLow
 captureLocalNtUs
@@ -53,7 +56,3 @@ captureToDetectMs
 detectMs
 solveMs
 totalMs
-uptime
-offsetUs
-syncAge
-connectionEpoch

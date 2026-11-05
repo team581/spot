@@ -9,7 +9,6 @@ interface PreviewCamera {
 }
 export interface PreviewProfile {
 	schemaVersion: 1;
-	robotId: string;
 	cameras: PreviewCamera[];
 }
 export function parseProfile(text: string): PreviewProfile {

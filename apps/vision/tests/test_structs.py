@@ -2,19 +2,16 @@
 
 import pytest
 
-from spot_vision.protocol import content_hash
 
-
-def test_geometry_profile_fingerprint_survives_native_struct_normalization():
+def test_geometry_survives_native_struct_roundtrip():
     from wpimath.geometry import Pose3d, Rotation3d
     from wpiutil.wpistruct import pack, unpack
-
-    from spot_vision.structs import pose_model
 
     for rotation in (Rotation3d(0.37, -0.82, 1.93), Rotation3d(-2.8, 0.4, -0.17)):
         pose = Pose3d(1.0, 2.0, 3.0, rotation)
         decoded = unpack(Pose3d, pack(pose))
-        assert content_hash(pose_model(decoded)) == content_hash(pose_model(pose))
+        assert decoded.translation().distance(pose.translation()) < 1e-12
+        assert abs((decoded.rotation() - pose.rotation()).getQuaternion().W()) == pytest.approx(1)
 
 
 def test_tag_masks_preserve_arbitrary_ids_and_the_signed_high_bit():

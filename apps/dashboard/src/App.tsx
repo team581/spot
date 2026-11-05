@@ -135,6 +135,13 @@ export default function App() {
 			</aside>
 			<main id="main" tabIndex={-1}>
 				<div id="page">
+					{status.has_overrides ? (
+						<p className="warning" role="status">
+							Saved dashboard overrides are active. <a href="#system">Manage overrides</a> or export the effective
+							configuration.
+						</p>
+					) : null}
+
 					<Suspense fallback={<p>Loading…</p>}>{page}</Suspense>
 				</div>
 			</main>

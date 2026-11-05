@@ -59,7 +59,7 @@ function draw() {
 	const c = data?.cameras.find((c) => c.name === selected);
 	const fixed = (values: number[]) => values.map((v) => Number(v.toFixed(4))).join(', ');
 	const [yaw, pitch, roll] = c ? angles(c.quaternion) : [0, 0, 0];
-	element<HTMLHeadingElement>('h2').textContent = data ? `Spot cameras · ${data.robotId}` : 'Spot cameras';
+	element<HTMLHeadingElement>('h2').textContent = 'Spot cameras';
 	element<HTMLPreElement>('#details').textContent = c
 		? [
 				`${c.name} · ${c.required ? 'Required' : 'Optional'}`,

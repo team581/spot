@@ -82,7 +82,7 @@ export default function Results({ action }: { action: Action }) {
 						)}
 						onClick={async () => {
 							setApplying(true);
-							setFeedback('Awaiting durable runtime acknowledgement');
+							setFeedback('Applying calibration…');
 							const result = await action('apply', { identities: [...selected] });
 							setApplying(false);
 							if (result) setFeedback('Applied · ' + result.applied_generation);
@@ -102,11 +102,11 @@ export default function Results({ action }: { action: Action }) {
 							<HistoryEntry
 								key={h.generation}
 								entry={h}
-								onRestore={async (hashes) => {
+								onRestore={async (ids) => {
 									try {
 										await mutate('restore', {
 											generation: h.generation,
-											calibration_hashes: hashes,
+											calibration_ids: ids,
 											revision: read().revision,
 										});
 										announce('Selected calibration group restored');
@@ -129,7 +129,7 @@ function HistoryEntry({
 	onRestore,
 }: {
 	entry: NonNullable<Status['history']>[number];
-	onRestore: (hashes: string[]) => Promise<void>;
+	onRestore: (ids: string[]) => Promise<void>;
 }) {
 	const { status, selections } = useDashboard(),
 		[, redraw] = useReducer((n) => n + 1, 0);
@@ -142,13 +142,13 @@ function HistoryEntry({
 					const current = status.cameras.find((c) => c.identity === record.identity),
 						compatible = current?.connected && current.mode_signature === record.mode_signature;
 					return (
-						<label className="spaced" key={record.hash}>
+						<label className="spaced" key={record.id}>
 							<input
 								type="checkbox"
-								checked={selected.has(record.hash)}
+								checked={selected.has(record.id)}
 								disabled={Boolean(!compatible || h.active || status.lock_reason)}
 								onChange={(e) => {
-									e.target.checked ? selected.add(record.hash) : selected.delete(record.hash);
+									e.target.checked ? selected.add(record.id) : selected.delete(record.id);
 									selections.history.set(h.generation, selected);
 									redraw();
 								}}

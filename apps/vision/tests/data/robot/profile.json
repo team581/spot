@@ -1,6 +1,5 @@
 {
   "profile": {
-    "robot_id": "test-robot",
     "cameras": [
       {
         "name": "front",
@@ -21,7 +20,7 @@
             "id": "640x480",
             "width": 640,
             "height": 480,
-            "pixel_format": "MJPG",
+            "pixel_format": "MJPEG",
             "fps": 30,
             "optical_signature": "fixed-lens-1"
           }
@@ -39,7 +38,21 @@
             "allow_override": false,
             "required": false
           }
-        ]
+        ],
+        "binding_id": "",
+        "calibration": null,
+        "timestamp_qualification": null,
+        "detector": {
+          "backend": "cpu",
+          "family": "tag36h11",
+          "decimate": 2.0,
+          "blur": 0.0,
+          "threads": 1,
+          "refine_edges": true,
+          "max_hamming": 2,
+          "min_tag_px": 16,
+          "min_contrast": 3
+        }
       }
     ],
     "field": {
@@ -79,8 +92,7 @@
     "heading_enabled": false,
     "max_age_s": 0.25,
     "future_tolerance_s": 0.005,
-    "reorder_window_s": 0.02
-  },
-  "robot_session": "robot-1",
-  "manifest_hash": "23a76dd463060f1924027dc49f2834c6900c3d3b626aa5368606153520b32a83"
+    "reorder_window_s": 0.02,
+    "processing": {}
+  }
 }

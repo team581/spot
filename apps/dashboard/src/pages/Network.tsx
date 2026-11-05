@@ -65,7 +65,7 @@ export default function NetworkPage() {
 						id="connection-data"
 						values={{
 							'Robot endpoint': endpoint.configured || (endpoint.team ? `Team ${endpoint.team}` : 'Unavailable'),
-							'NetworkTables server': status.robot_id || 'Unavailable',
+							'NetworkTables server': status.connected ? 'Connected' : 'Disconnected',
 							'Connection mode': endpoint.mode || 'NT4 client',
 						}}
 					/>
@@ -130,10 +130,9 @@ export default function NetworkPage() {
 							Synchronization: status.clock.state || 'Unavailable',
 							Profile: status.fresh
 								? 'Current robot session'
-								: status.robot_id
+								: status.has_configuration
 									? 'Cached configuration'
 									: 'Unavailable',
-							'Connection epoch': status.clock.connection_epoch || '—',
 						}}
 					/>
 				</section>

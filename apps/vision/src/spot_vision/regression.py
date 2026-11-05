@@ -74,13 +74,14 @@ def run_image_regression(
                 DetectedFrame(frame, batch, 0),
                 solution,
                 ObservationContext(
-                    wire.Acknowledgement(),
-                    wire.CameraGeneration(camera_name=camera.id, calibration_valid=True),
+                    "0" * 32,
+                    wire.CameraDefinition(name=camera.id),
+                    True,
                     0.0,
                 ),
                 (time.perf_counter_ns() - started) / 1e6,
             )
-            result = unpack(FrameResult, pack(result_value(message, (0, 0), field)))
+            result = unpack(FrameResult, pack(result_value(message, field)))
             timings.append(
                 [(time.perf_counter_ns() - started) / 1e6, batch.detect_ms, solution.solve_ms]
             )

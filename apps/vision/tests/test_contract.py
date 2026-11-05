@@ -2,16 +2,13 @@ import pytest
 
 from robot_fixtures import manifest
 from spot_vision.config import ConfigError
-from spot_vision.contract import content_hash, parse_manifest, validate_manifest
+from spot_vision.contract import parse_manifest, validate_manifest
 from spot_vision.protocol import snapshot
 
 
-def test_complete_manifest_serialization_and_hash():
+def test_complete_manifest_serialization():
     expected = manifest()
     assert parse_manifest(snapshot(expected)) == expected
-    expected.profile.cameras[0].robot_to_camera.x_m += 0.1
-    with pytest.raises(ConfigError, match="hash"):
-        validate_manifest(expected)
 
 
 @pytest.mark.parametrize(
@@ -29,7 +26,6 @@ def test_complete_manifest_serialization_and_hash():
 def test_invalid_complete_profiles_fail_closed(mutation):
     message = manifest()
     mutation(message.profile)
-    message.manifest_hash = content_hash(message.profile)
     with pytest.raises(ConfigError):
         validate_manifest(message)
 

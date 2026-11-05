@@ -34,7 +34,7 @@ test('navigation, images, detections, pause and geometry inspection', async ({ p
 	await x.fill('0.38');
 	await x.press('Enter');
 	await expect(page.locator('#transform-readout')).toContainText('X 0.380 m');
-	await page.getByRole('button', { name: 'Reset to code defaults', exact: true }).click();
+	await page.getByRole('button', { name: 'Reset preview', exact: true }).click();
 	await expect(x).toHaveValue('0.31');
 	await page.getByRole('link', { name: 'System', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Camera pipelines' })).toBeVisible();
@@ -95,7 +95,7 @@ test('calibration actions and passing results require acknowledgement', async ({
 
 test('robot lock disables tuning and calibration', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
-	status.lock_reason = 'Robot enabled · locked';
+	status.lock_reason = 'Connect robot code or begin standalone setup';
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
 	await page.goto('/#camera/' + status.cameras[0].identity);
 	await expect(page.getByRole('slider', { name: 'Gain', exact: true })).toBeDisabled();
@@ -258,7 +258,7 @@ test('board drafts survive polls and calibration sends the selected capture phas
 	);
 });
 
-test('failed calibration validation cannot be selected for apply; compatible history restores selected hashes', async ({
+test('failed calibration validation cannot be selected for apply; compatible history restores selected records', async ({
 	page,
 }) => {
 	const status = await (await page.request.get('/api/status')).json(),
@@ -282,7 +282,7 @@ test('failed calibration validation cannot be selected for apply; compatible his
 			operation: 'restore',
 			payload: expect.objectContaining({
 				generation: 'fixture-previous-calibration',
-				calibration_hashes: ['fixture-record-0'],
+				calibration_ids: ['fixture-record-0'],
 			}),
 		}),
 	);
@@ -336,9 +336,9 @@ test('system downloads, import bound and diagnostics preserve their API contract
 	await page.route('**/api/jobs/system', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#system');
 	const download = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Export configuration', exact: true }).click();
+	await page.getByRole('button', { name: 'Export saved setup', exact: true }).click();
 	expect((await download).suggestedFilename()).toBe('spot-state.json');
-	const file = page.locator('input[type=file]');
+	const file = page.getByLabel('Import saved setup', { exact: true });
 	await file.setInputFiles({
 		name: 'oversized.json',
 		mimeType: 'application/json',
@@ -416,7 +416,7 @@ test('team number saves through a job and can be corrected while disconnected', 
 		status.endpoint.team = body.payload.team;
 		status.endpoint.configured = null;
 		status.connected = false;
-		status.lock_reason = 'Robot enabled or state unknown · locked';
+		status.lock_reason = 'Connect robot code or begin standalone setup';
 		await route.fulfill({ json: { job_id: 'team' } });
 	});
 	await page.route('**/api/jobs/team', (route) => route.fulfill({ json: { state: 'applied' } }));

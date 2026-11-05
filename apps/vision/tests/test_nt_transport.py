@@ -1,14 +1,11 @@
-"""Local NT4 integration. This is not roboRIO clock qualification."""
+"""Local NT4 integration of the robot/Spot boundary."""
 
 import socket
-import threading
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from wpiutil.wpistruct import getSize, pack, unpack
 
 from robot_fixtures import RobotPublisher, StatePublisher, manifest
 from spot_vision import protocol_models as wire
@@ -18,373 +15,170 @@ from spot_vision.configuration import ConfigurationService
 from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 from spot_vision.nt_transport import NtTransport, make_observation
 from spot_vision.persistence import StateStore
-from spot_vision.protocol import restore
-from spot_vision.structs import FrameResult, Heartbeat, token
+from spot_vision.structs import FrameResult, RobotDecision, session
 
 
-@pytest.mark.parametrize("state", ["missing", "invalid", "expired", "synchronized"])
-def test_owned_client_retries_unqualified_sync_without_accepting_cached_offset(monkeypatch, state):
-    from spot_vision import nt_transport
-    from spot_vision.clock import ClockGate
-
-    transport = object.__new__(NtTransport)
-    transport.clock = ClockGate()
-    transport.clock.connection("new-link")
-    if state == "invalid":
-        transport.clock.update(100, 6000, True, now_ns=0)
-    elif state in {"expired", "synchronized"}:
-        transport.clock.update(100, 10, True, now_ns=0)
-    now = [31_000_000_000 if state == "expired" else 2_000_000_000]
-    monkeypatch.setattr(nt_transport.time, "monotonic_ns", lambda: now[0])
-    calls = []
-    transport.instance = SimpleNamespace(
-        isConnected=lambda: True,
-        stopClient=lambda: calls.append("stop"),
-        startClient4=lambda identity: calls.append(identity),
-    )
-    transport._owns_instance = True
-    transport._config = NtConfig(identity="retry-test")
-    transport._last_resync_ns = now[0] - 500_000_000
-    transport._lock, transport._ack = threading.RLock(), None
-    transport._manifest = transport._robot_state = transport._decisions = SimpleNamespace(
-        readQueue=lambda: []
-    )
-    # A new connection gets a full initial-exchange grace period.
-    transport.poll()
-    assert calls == []
-    now[0] += 1_000_000_000
-    transport.poll()
-    assert calls == ([] if state == "synchronized" else ["stop", "retry-test"])
-    if state != "synchronized":
-        assert transport.clock.snapshot().state != "Synchronized"
-        now[0] += 100_000_000
-        transport.poll()
-        assert calls == ["stop", "retry-test"]
+def wait(link, predicate):
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        link.server.flush()
+        link.client.flush()
+        link.transport.poll()
+        if predicate():
+            return
+        time.sleep(0.005)
+    raise AssertionError("NT exchange did not complete")
 
 
 @pytest.fixture
 def link(tmp_path):
-    ntcore = pytest.importorskip("ntcore")
-    server = ntcore.NetworkTableInstance.create()
-    client = ntcore.NetworkTableInstance.create()
-    try:
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
-    except PermissionError:
-        ntcore.NetworkTableInstance.destroy(server)
-        ntcore.NetworkTableInstance.destroy(client)
-        pytest.skip("local NT server requires socket permission")
-    server.startServer("", "127.0.0.1", 0, port)
-    applied = []
-    configuration = ConfigurationService(
-        StateStore(tmp_path), lambda state, _: applied.append(state)
-    )
-    camera = wire.CameraGeneration(
-        camera_name="front",
-        binding_id="usb-a",
-        binding_generation=1,
-        mode_id="640x480",
-        optical_signature="fixed-lens-1",
-    )
-    transport = NtTransport(
-        NtConfig(server="127.0.0.1"), configuration, lambda: [camera], instance=client
-    )
-    options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.005)
-    profile = RobotPublisher(server, options)
-    state = StatePublisher(server, options)
-    observation = server.getStructTopic("/Spot/front/observations", FrameResult).subscribe(
-        FrameResult(), ntcore.PubSubOptions(sendAll=True, pollStorage=32)
-    )
-    client.setServer("127.0.0.1", port)
-    yield server, client, transport, configuration, applied, profile, state, observation
-    transport.close()
-    profile.close()
-    state.close()
-    observation.close()
-    client.stopClient()
-    server.stopServer()
-    ntcore.NetworkTableInstance.destroy(client)
-    ntcore.NetworkTableInstance.destroy(server)
-
-
-def wait_for(predicate, step=lambda: None, seconds=3):
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        step()
-        if predicate():
-            return
-        time.sleep(0.01)
-    assert predicate(), "NT condition did not converge"
-
-
-def handshake(link):
-    _, client, transport, config, _, publisher, state, _ = link
-    client.startClient4("spot-robot-test")
-
-    def step():
-        publisher.set(manifest())
-        state.set(
-            wire.RobotState(
-                robot_session="robot-1",
-                sequence=1,
-                tag_selection_generation=1,
-                allowed_tag_ids=[1, 2],
-            )
-        )
-        transport.poll()
-
-    wait_for(lambda: config.fresh and transport._ack is not None, step)
-
-
-def test_partial_native_profile_waits_for_a_complete_matching_snapshot(link):
-    _, client, transport, config, applied, publisher, _, _ = link
-    client.startClient4("partial-profile-test")
-    publisher.session.set("robot-1")
-    publisher.header.set(manifest().manifest_hash)
-    wait_for(client.isConnected, transport.poll)
-    for _ in range(10):
-        transport.poll()
-        time.sleep(0.01)
-    assert not config.fresh and not applied
-    handshake(link)
-    assert config.fresh and len(applied) == 1
-
-
-def test_nt_exchange_handshake_withhold_and_no_tag_server_timestamp(link):
-    _server, client, transport, _config, applied, _, _, subscriber = link
-    before_ns = time.monotonic_ns()
-    assert transport.context("front", before_ns, None) is None
-    handshake(link)
-    assert applied and transport.clock.snapshot().state == "Synchronized"
-    assert transport.context("front", before_ns, None) is None
-    captured_ns = time.monotonic_ns()
-    context = transport.context("front", captured_ns, None)
-    assert context is not None
-    frame = FramePacket(
-        "front",
-        1,
-        nt_now_us(),
-        captured_ns,
-        np.zeros((480, 640, 2), dtype=np.uint8),
-        capture_epoch="capture-1",
-    )
-    detected = DetectedFrame(frame, DetectionBatch((), 0), 0)
-    message = make_observation(
-        detected, PoseSolution(), context, 1, selection=_config.tag_selection()
-    )
-    assert not message.candidates and transport.publish(message, captured_ns)
-    wait_for(lambda: subscriber.get().sequence == 1)
-    packet = subscriber.getAtomic()
-    decoded = packet.value
-    assert decoded.sequence == 1 and decoded.candidateCount == 0
-    expected = frame.capture_timestamp_us + client.getServerTimeOffset()
-    assert packet.time == expected
-    # The server-local stamp and explicit server stamp agree for a remote value.
-    assert packet.serverTime in (0, 1, expected)
-
-
-def test_disconnect_expiry_and_reconnect_require_new_ack_and_new_frames(link):
-    _, client, transport, config, _, _publisher, _, _ = link
-    handshake(link)
-    first = transport._ack
-    capture_before = time.monotonic_ns()
-    client.stopClient()
-    wait_for(lambda: not config.connected)
-    assert transport.context("front", time.monotonic_ns(), 0.003) is None
-    assert not config.standalone
-    handshake(link)
-    second = transport._ack
-    assert second.connection_epoch > first.connection_epoch
-    assert second.sync_epoch > first.sync_epoch
-    assert transport.context("front", capture_before, 0.003) is None
-    wait_for(lambda: transport.context("front", time.monotonic_ns(), 0.003) is not None)
-    transport.clock.snapshot(time.monotonic_ns() + 31_000_000_000)
-    assert transport.context("front", time.monotonic_ns(), 0.003) is None
-
-
-def test_robot_state_listener_can_lock_configuration_independently_of_apply(link):
-    _, _, _transport, config, _, _, publisher, _ = link
-    handshake(link)
-    publisher.set(wire.RobotState(robot_session="robot-1", enabled=True, sequence=2))
-    wait_for(lambda: config._robot_state is not None and config._robot_state.enabled)
-    with pytest.raises(ValueError, match="locked"):
-        config.require_eligible()
-
-
-def test_heartbeat_reports_current_context_and_sync_loss_to_robot(link):
-    server, _, transport, config, *_ = link
-    subscriber = server.getStructTopic("/Spot/health", Heartbeat).subscribe(Heartbeat())
-    try:
-        handshake(link)
-        transport.heartbeat()
-        wait_for(lambda: subscriber.get().sequence == 1)
-        first = subscriber.get()
-        assert (first.serviceHigh, first.serviceLow) == token(transport.session)
-        assert (first.runtimeHigh, first.runtimeLow) == token(config.state.generation)
-        assert first.syncState == 1  # Synchronized
-        transport.clock.invalidate_jump()
-        transport.heartbeat()
-        wait_for(lambda: subscriber.get().sequence == 2)
-        second = subscriber.get()
-        assert second.syncState == 2  # Invalid
-        assert second.syncEpoch > first.syncEpoch
-        assert second.discontinuities == first.discontinuities + 1
-    finally:
-        subscriber.close()
-
-
-def test_golden_python_packets_round_trip_and_match_hashes():
-    from spot_vision.contract import content_hash
-
-    root = Path(__file__).parent / "data/robot"
-    golden = restore(wire.Manifest, (root / "manifest.json").read_bytes())
-    assert golden.manifest_hash == content_hash(golden.profile)
-    for name in ("empty", "multi", "ippe", "ambiguous"):
-        data = (root / f"{name}.bin").read_bytes()
-        message = unpack(FrameResult, data)
-        assert getSize(FrameResult) == len(data) == 328
-        assert pack(message) == data
-
-
-def test_robot_decision_diagnostics_are_bounded_current_and_cleared_on_apply(link):
-    import json
-
     import ntcore
 
-    server, _, transport, config, *_ = link
-    handshake(link)
-    publisher = server.getStringTopic("/Spot/robot/decisions").publish(
-        ntcore.PubSubOptions(periodic=0.005, sendAll=True)
-    )
-    try:
-        sync = transport.clock.snapshot()
-        decision = {
-            "state": "ACCEPTED",
-            "fused": False,
-            "capture_epoch": "current-camera",
-            "sequence": 1,
-            "capture_fpga_s": (nt_now_us() + sync.offset_us) / 1e6,
-            "service_session": transport.session,
-            "runtime_generation": config.acknowledged_generation,
-            "connection_epoch": sync.connection_epoch,
-            "sync_epoch": sync.sync_epoch,
-            "ignored_nonfinite": float("inf"),
-        }
-
-        def publish():
-            publisher.set(
-                json.dumps(
-                    {
-                        "robot_session": "robot-1",
-                        "manifest_hash": config.manifest.manifest_hash,
-                        "fusion_enabled": False,
-                        "cameras": {"front": decision},
-                    }
-                )
-            )
-            transport.poll()
-
-        wait_for(lambda: bool(transport.robot_decisions), publish)
-        observed = transport.robot_decisions["front"]
-        assert not observed["fusion_enabled"] and not observed["fused"]
-        assert "ignored_nonfinite" not in observed
-        # Malformed diagnostic JSON cannot break later polling/HTTP JSON.
-        publisher.set("[]")
-        wait_for(lambda: not transport._decisions.readQueue(), transport.poll, seconds=0.1)
-        transport.invalidate_configuration()
-        assert transport.robot_decisions == {}
-    finally:
-        publisher.close()
-
-
-def test_policy_change_rejects_inflight_solve_and_expiry_without_reapplying_manifest(link):
-    _, _, transport, config, applications, _, state_publisher, _ = link
-    handshake(link)
-    wait_for(lambda: config.tag_selection() is not None, transport.poll)
-    assert transport._ack.tag_selection_supported
-    first = config.tag_selection()
-    captured = time.monotonic_ns()
-    context = transport.context("front", captured, None)
-    frame = FramePacket(
-        "front",
-        1,
-        nt_now_us(),
-        captured,
-        np.zeros((480, 640, 2), dtype=np.uint8),
-        capture_epoch="capture-policy",
-    )
-    detected = DetectedFrame(frame, DetectionBatch((), 0), 0)
-    old = make_observation(detected, PoseSolution(), context, 1, selection=first)
-    generation = config.acknowledged_generation
-    state_publisher.set(
-        wire.RobotState(
-            robot_session="robot-1",
-            enabled=True,
-            sequence=2,
-            tag_selection_generation=2,
-            allowed_tag_ids=[2],
-        )
-    )
-    wait_for(
-        lambda: config.tag_selection() is not None and config.tag_selection().generation == 2,
-        transport.poll,
-    )
-    assert len(applications) == 1 and config.acknowledged_generation == generation
-    assert not transport.publish(old, captured)
-    current = make_observation(
-        detected, PoseSolution(), context, 1, selection=config.tag_selection()
-    )
-    assert current.tag_selection_generation == 2 and transport.publish(current, captured)
-    config._robot_updated -= 3  # deterministic expiry; no waiting for time to pass
-    assert config.tag_selection() is None
-    assert not transport.publish(current, captured)
-
-
-def test_endpoint_change_drops_old_robot_context_and_connects_to_new_server(link):
-    import ntcore
-
-    _, client, transport, config, _, _, _, _ = link
-    handshake(link)
-    old_session = transport.context("front", time.monotonic_ns(), None)
-    assert old_session is not None
+    server, client = ntcore.NetworkTableInstance.create(), ntcore.NetworkTableInstance.create()
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    new_server = ntcore.NetworkTableInstance.create()
-    new_server.startServer("", "127.0.0.1", 0, port)
-    publisher = RobotPublisher(new_server, ntcore.PubSubOptions(keepDuplicates=True, sendAll=True))
-    teams = []
-
-    class TeamClient:
-        def __getattr__(self, name):
-            return getattr(client, name)
-
-        def setServerTeam(self, team):
-            teams.append(team)
-            client.setServer("127.0.0.1", port)
-
-    transport.instance = TeamClient()
+    server.startServer("", "127.0.0.1", 0, port)
+    applied = []
+    config = ConfigurationService(StateStore(tmp_path), lambda *args: applied.append(args))
+    transport = NtTransport(NtConfig(server="127.0.0.1"), config, lambda _: True, instance=client)
+    options = ntcore.PubSubOptions(sendAll=True, keepDuplicates=True, periodic=0.005)
+    publisher = RobotPublisher(server, options)
+    states = StatePublisher(server, options)
+    frames = server.getStructTopic("/Spot/front/observations", FrameResult).subscribe(FrameResult())
+    client.setServer("127.0.0.1", port)
+    client.startClient4("spot-test")
+    result = SimpleNamespace(
+        server=server,
+        client=client,
+        transport=transport,
+        config=config,
+        publisher=publisher,
+        states=states,
+        frames=frames,
+        applied=applied,
+    )
     try:
-        transport.set_endpoint(NtConfig(team=9991))
-        assert teams == [9991]
-        assert not config.fresh and not config.acknowledged_generation
-        assert transport._ack is None
-        assert transport.context("front", time.monotonic_ns(), None) is None
-        new_manifest = manifest(session="offseason-session")
-
-        def step():
-            publisher.set(new_manifest)
-            transport.poll()
-
-        wait_for(lambda: config.fresh and transport._ack is not None, step)
-        context = transport.context("front", time.monotonic_ns(), None)
-        assert context is not None and context.acknowledgement.robot_session == "offseason-session"
-        assert (
-            context.acknowledgement.connection_epoch != old_session.acknowledgement.connection_epoch
-        )
+        wait(result, lambda: config.connected and transport.clock.snapshot().offset_us is not None)
+        yield result
     finally:
-        client.stopClient()
+        transport.close()
+        frames.close()
+        states.close()
         publisher.close()
-        new_server.stopServer()
-        ntcore.NetworkTableInstance.destroy(new_server)
+        client.stopClient()
+        ntcore.NetworkTableInstance.destroy(client)
+        ntcore.NetworkTableInstance.destroy(server)
+
+
+def ready(link):
+    message = manifest()
+    message.profile.cameras[0].binding_id = "usb-a"
+    link.publisher.set(message)
+    link.states.set(wire.RobotState(1, [1, 2]))
+    wait(link, lambda: link.config.fresh and link.config.tag_selection() is not None)
+
+
+def observation(link):
+    captured = time.monotonic_ns()
+    context = link.transport.context("front", captured, 1e-6)
+    assert context is not None
+    frame = FramePacket(
+        "usb-a",
+        1,
+        nt_now_us(),
+        captured,
+        np.zeros((4, 4), np.uint8),
+        "2" * 32,
+        link.config.state.generation,
+    )
+    message = make_observation(
+        DetectedFrame(frame, DetectionBatch((), 0), 0),
+        PoseSolution(),
+        context,
+        1,
+        selection=link.config.tag_selection(),
+    )
+    return message, captured
+
+
+def test_configuration_waits_for_the_complete_baseline_and_publishes_camera_metadata(link):
+    link.publisher.put("cameraConfig", '{"cameras":[],"processing":{}}')
+    link.server.flush()
+    link.transport.poll()
+    assert not link.config.fresh
+    ready(link)
+    names = link.server.getStringArrayTopic("/Spot/cameras").subscribe([])
+    try:
+        wait(link, lambda: names.get() == ["front"])
+        assert link.config.camera("front").binding_id == "usb-a"
+        assert len(link.applied) == 1
+    finally:
+        names.close()
+
+
+def test_zero_tag_frame_keeps_capture_timestamp_mount_and_configuration_revision(link):
+    ready(link)
+    message, captured = observation(link)
+    assert link.transport.publish(message, captured)
+    wait(link, lambda: link.frames.get().sequence == 1)
+    sample = link.frames.getAtomic()
+    assert sample.value.candidateCount == 0
+    assert sample.value.robotToCamera.X() == pytest.approx(0.2)
+    assert sample.value.robotToCamera.Z() == pytest.approx(0.5)
+    assert (sample.value.revisionHigh, sample.value.revisionLow) == session(
+        link.config.state.generation
+    )
+    assert abs(sample.time - message.capture_local_nt_us) < 2000
+
+
+def test_settings_change_rejects_inflight_observations_without_acknowledgement(link):
+    ready(link)
+    old, captured = observation(link)
+    link.config.tune("front", {"gain": 4}, link.config.state.generation)
+    link.transport.configuration_applied()
+    assert not link.transport.publish(old, captured)
+    current, captured = observation(link)
+    assert link.transport.publish(current, captured)
+    assert link.config.effective_controls("front")["gain"] == 4
+
+
+def test_reconnect_reapplies_defaults_and_withholds_preconnection_frames(link):
+    ready(link)
+    old, captured = observation(link)
+    link.client.stopClient()
+    wait(link, lambda: not link.config.connected)
+    assert link.transport.context("front", time.monotonic_ns(), 0) is None
+    link.client.startClient4("spot-test")
+    wait(link, lambda: link.config.fresh and link.config.tag_selection() is not None)
+    assert not link.transport.publish(old, captured)
+    current, captured = observation(link)
+    assert link.transport.publish(current, captured)
+
+
+def test_policy_change_rejects_inflight_solve_without_reapplying_configuration(link):
+    ready(link)
+    old, captured = observation(link)
+    link.states.set(wire.RobotState(2, [2]))
+    wait(link, lambda: link.config.tag_selection().generation == 2)
+    assert not link.transport.publish(old, captured)
+    assert len(link.applied) == 1
+    current, captured = observation(link)
+    assert link.transport.publish(current, captured)
+
+
+def test_binary_robot_decision_is_exposed_only_while_capture_is_fresh(link):
+    ready(link)
+    publisher = link.server.getStructTopic("/Spot/front/decision", RobotDecision).publish()
+    try:
+        offset = link.transport.clock.snapshot().offset_us
+        now = (nt_now_us() + offset) / 1e6
+        publisher.set(RobotDecision(*session("2" * 32), 1, now, 0, True, True))
+        wait(link, lambda: "front" in link.transport.robot_decisions)
+        decision = link.transport.robot_decisions["front"]
+        assert decision["capture_epoch"] == "2" * 32
+        assert decision["state"] == "ACCEPTED" and decision["fused"]
+        publisher.set(RobotDecision(*session("2" * 32), 1, now - 1, 0, True, True))
+        wait(link, lambda: not link.transport.robot_decisions)
+    finally:
+        publisher.close()

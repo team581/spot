@@ -1,6 +1,9 @@
 """Intermediate models for profile snapshots and NetworkTables struct construction."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as data_field
+
+from .config import DetectorConfig
 
 
 @dataclass
@@ -37,16 +40,20 @@ class CameraDefinition:
     name: str = ""
     required: bool = False
     enabled: bool = False
-    robot_to_camera: Pose = field(default_factory=Pose)
+    robot_to_camera: Pose = data_field(default_factory=Pose)
     image_rotation_deg: int = 0
-    allowed_modes: list[OpticalMode] = field(default_factory=list)
-    controls: list[ControlPolicy] = field(default_factory=list)
+    allowed_modes: list[OpticalMode] = data_field(default_factory=list)
+    controls: list[ControlPolicy] = data_field(default_factory=list)
+    binding_id: str = ""
+    calibration: dict | None = None
+    timestamp_qualification: dict | None = None
+    detector: DetectorConfig = data_field(default_factory=DetectorConfig)
 
 
 @dataclass
 class FieldTag:
     id: int = 0
-    field_to_tag: Pose = field(default_factory=Pose)
+    field_to_tag: Pose = data_field(default_factory=Pose)
     size_m: float = 0.0
 
 
@@ -55,69 +62,43 @@ class FieldLayout:
     origin: str = ""
     length_m: float = 0.0
     width_m: float = 0.0
-    tags: list[FieldTag] = field(default_factory=list)
+    tags: list[FieldTag] = data_field(default_factory=list)
 
 
 @dataclass
 class Profile:
-    robot_id: str = ""
-    cameras: list[CameraDefinition] = field(default_factory=list)
-    field: FieldLayout = field(default_factory=FieldLayout)
+    cameras: list[CameraDefinition] = data_field(default_factory=list)
+    field: FieldLayout = data_field(default_factory=FieldLayout)
     fusion_enabled: bool = False
     heading_enabled: bool = False
     max_age_s: float = 0.0
     future_tolerance_s: float = 0.0
     reorder_window_s: float = 0.0
+    processing: dict = data_field(default_factory=dict)
+
+
+@dataclass
+class RobotConfiguration:
+    cameras: list[CameraDefinition] = data_field(default_factory=list)
+    processing: dict = data_field(default_factory=dict)
 
 
 @dataclass
 class Manifest:
-    profile: Profile = field(default_factory=Profile)
-    robot_session: str = ""
-    manifest_hash: str = ""
+    profile: Profile = data_field(default_factory=Profile)
 
 
 @dataclass
 class RobotState:
-    robot_session: str = ""
-    enabled: bool = False
-    sequence: int = 0
     tag_selection_generation: int = 0
-    allowed_tag_ids: list[int] = field(default_factory=list)
-
-
-@dataclass
-class CameraGeneration:
-    camera_name: str = ""
-    binding_id: str = ""
-    binding_generation: int = 0
-    calibration_hash: str = ""
-    mode_id: str = ""
-    optical_signature: str = ""
-    calibration_valid: bool = False
-
-
-@dataclass
-class Acknowledgement:
-    robot_id: str = ""
-    robot_session: str = ""
-    manifest_hash: str = ""
-    service_session: str = ""
-    connection_epoch: int = 0
-    sync_epoch: int = 0
-    runtime_generation: str = ""
-    field_hash: str = ""
-    cameras: list[CameraGeneration] = field(default_factory=list)
-    applied: bool = False
-    error: str = ""
-    tag_selection_supported: bool = False
+    allowed_tag_ids: list[int] = data_field(default_factory=list)
 
 
 @dataclass
 class PoseCandidate:
-    field_to_camera: Pose = field(default_factory=Pose)
+    field_to_camera: Pose = data_field(default_factory=Pose)
     method: int = 0
-    tag_ids: list[int] = field(default_factory=list)
+    tag_ids: list[int] = data_field(default_factory=list)
     reprojection_error_px: float = 0.0
     average_tag_distance_m: float = 0.0
     image_area_fraction: float = 0.0
@@ -128,7 +109,7 @@ class PoseCandidate:
 @dataclass
 class TagObservation:
     id: int = 0
-    corners_xy_px: list[float] = field(default_factory=list)
+    corners_xy_px: list[float] = data_field(default_factory=list)
 
 
 @dataclass
@@ -141,27 +122,16 @@ class ProcessingTiming:
 
 @dataclass
 class Observation:
-    robot_id: str = ""
-    robot_session: str = ""
-    service_session: str = ""
     capture_epoch: str = ""
-    connection_epoch: int = 0
-    sync_epoch: int = 0
     sequence: int = 0
     camera_name: str = ""
-    binding_id: str = ""
-    binding_generation: int = 0
-    manifest_hash: str = ""
-    field_hash: str = ""
-    calibration_hash: str = ""
-    calibration_valid: bool = False
     runtime_generation: str = ""
-    mode_id: str = ""
-    optical_signature: str = ""
+    robot_to_camera: Pose = data_field(default_factory=Pose)
+    calibration_valid: bool = False
     capture_local_nt_us: int = 0
     timestamp_source: str = ""
     timestamp_uncertainty_s: float = 0.0
-    candidates: list[PoseCandidate] = field(default_factory=list)
-    tags: list[TagObservation] = field(default_factory=list)
-    timing: ProcessingTiming = field(default_factory=ProcessingTiming)
+    candidates: list[PoseCandidate] = data_field(default_factory=list)
+    tags: list[TagObservation] = data_field(default_factory=list)
+    timing: ProcessingTiming = data_field(default_factory=ProcessingTiming)
     tag_selection_generation: int = 0
