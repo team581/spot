@@ -188,7 +188,7 @@ function CalibrationCard({
 					<option value="fit">Fitting captures</option>
 					<option value="holdout">Validation captures</option>
 				</select>
-				{['start', 'capture', 'compute', 'validate'].map((operation) => (
+				{(['start', 'capture', 'compute', 'validate'] as const).map((operation) => (
 					<button
 						key={operation}
 						disabled={Boolean(status.lock_reason || session?.solving)}

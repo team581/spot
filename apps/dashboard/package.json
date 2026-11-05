@@ -12,12 +12,14 @@
 		"lint": "vp lint",
 		"lint:fix": "vp lint --fix",
 		"test": "vp test",
-		"test:browser": "playwright test"
+		"test:browser": "playwright test",
+		"generate:api": "../../.venv/bin/python ../vision/tools/openapi.py | pnpm dlx --package=openapi-typescript@7.13.0 --package=typescript@5.9.3 openapi-typescript --default-non-nullable=false -o src/api.gen.ts && vp fmt src/api.gen.ts"
 	},
 	"dependencies": {
 		"@spot/camera-viewer": "workspace:*",
 		"react": "19.3.1",
-		"react-dom": "19.3.1"
+		"react-dom": "19.3.1",
+		"up-fetch": "2.6.1"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.64.1",

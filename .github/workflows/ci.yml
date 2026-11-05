@@ -112,6 +112,10 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
+      - name: Check generated API types
+        run: |
+          pnpm --filter spot-dashboard generate:api
+          git diff --exit-code apps/dashboard/src/api.gen.ts
       - name: Mount Playwright browsers
         uses: useblacksmith/stickydisk@v1
         with:

@@ -1,3 +1,4 @@
+import type { OperationName, OperationPayload } from '../api';
 import { lazy, Suspense, useState } from 'react';
 import { useDashboard, errorMessage } from '../dashboard';
 import { CameraSelector, CameraTabs, Icon, WarningLink, age } from '../components/common';
@@ -32,7 +33,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 	const replacementId = replacements.some((cam) => cam.identity === replacement)
 		? replacement
 		: (replacements[0]?.identity ?? '');
-	const run = async (operation: string, payload: Record<string, unknown>) => {
+	const run = async <N extends OperationName>(operation: N, payload: OperationPayload<N>) => {
 		try {
 			return await mutate(operation, payload);
 		} catch (e) {
@@ -178,6 +179,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							className="spaced"
 							disabled={Boolean(!c.logical_name || status.lock_reason || !replacements.length)}
 							onClick={() => {
+								if (!c.logical_name) return;
 								if (!confirmed) {
 									setError('Identify the replacement feed before replacing this camera');
 									return;

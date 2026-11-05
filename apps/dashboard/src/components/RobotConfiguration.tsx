@@ -28,7 +28,7 @@ export default function RobotConfiguration() {
 		setBusy(true);
 		setError('');
 		try {
-			const document: unknown = JSON.parse(text);
+			const document = JSON.parse(text) as Record<string, unknown>;
 			const job = await mutate('configure', { document, revision });
 			setRevision(job.revision);
 			announce('Dashboard overrides saved.');

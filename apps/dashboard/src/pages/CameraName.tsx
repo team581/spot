@@ -1,3 +1,4 @@
+import type { OperationName, OperationPayload } from '../api';
 import { useState } from 'react';
 import { useDashboard, errorMessage } from '../dashboard';
 import { availableCameraNames } from '../state/editing';
@@ -11,7 +12,7 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 		[confirmed, setConfirmed] = useState(false),
 		[busy, setBusy] = useState(false),
 		[error, setError] = useState('');
-	const run = async (operation: string, payload: Record<string, unknown>) => {
+	const run = async <N extends OperationName>(operation: N, payload: OperationPayload<N>) => {
 		setBusy(true);
 		try {
 			await mutate(operation, payload);

@@ -35,6 +35,8 @@ jobs:
           version-file: .tool-versions
       - run: uv sync --locked --no-install-workspace
       - run: pnpm --filter spot-docs exec astro sync
+      - run: pnpm --filter spot-dashboard generate:api
+        continue-on-error: true
       - run: pnpm format:fix
         continue-on-error: true
       - run: pnpm lint:fix

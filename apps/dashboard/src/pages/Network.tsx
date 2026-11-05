@@ -1,3 +1,4 @@
+import type { OperationPayload } from '../api';
 import { useState } from 'react';
 import { useDashboard, errorMessage } from '../dashboard';
 import { DataList } from '../components/common';
@@ -35,10 +36,13 @@ export default function NetworkPage() {
 		}
 	}
 
-	async function change(operation: string, payload: Record<string, unknown>) {
+	async function change<A extends 'apply' | 'confirm' | 'revert'>(
+		operation: A,
+		payload: OperationPayload<`network/${A}`>,
+	) {
 		setBusy(true);
 		try {
-			await mutate('network/' + operation, payload);
+			await mutate(`network/${operation}`, payload);
 			setFeedback(
 				operation === 'apply'
 					? 'Check the address below, then Keep settings before the countdown ends.'

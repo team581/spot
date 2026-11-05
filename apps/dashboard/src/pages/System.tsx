@@ -1,3 +1,4 @@
+import type { OperationName, OperationPayload } from '../api';
 import { useState } from 'react';
 import RobotConfiguration from '../components/RobotConfiguration';
 import { useDashboard, errorMessage } from '../dashboard';
@@ -8,7 +9,7 @@ export default function System() {
 		m = s.system ?? {},
 		r = s.software;
 	const [error, setError] = useState('');
-	const run = async (operation: string, payload: Record<string, unknown>, message: string) => {
+	const run = async <N extends OperationName>(operation: N, payload: OperationPayload<N>, message: string) => {
 		try {
 			await mutate(operation, payload);
 			announce(message);
