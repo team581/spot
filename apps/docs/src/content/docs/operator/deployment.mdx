@@ -24,11 +24,15 @@ they are on the same network.
 
 ## First installation
 
-Run the **Jetson offline installer** workflow manually in GitHub Actions, then
-download the `installer-downloads` artifact and open `downloads.html` for the ISO
-and checksum links. The private R2 bucket retains
-only the latest uploaded build and expires it after seven days; deletion can lag
-by about a day. Verify the checksum before writing the ISO to a USB drive.
+Download the [latest offline installer](https://downloads.spot.frc581.com/latest/spot-installer.iso)
+and its [SHA-256 checksum](https://downloads.spot.frc581.com/latest/spot-installer.iso.sha256).
+These links always refer to the latest uploaded build. Builds expire after seven
+days; if no build is available, run the **Jetson offline installer** workflow
+manually in GitHub Actions. Verify the checksum before writing the ISO to a USB drive:
+
+```sh
+shasum -a 256 -c spot-installer.iso.sha256
+```
 
 To build locally:
 
@@ -79,6 +83,8 @@ does not require internet access or a repository checkout on the Jetson.
 
 Enable R2 in the Team 581 Cloudflare account, then run
 `bash tools/setup-installer-bucket.sh` with the Cloudflare CLI authenticated.
+This also enables public downloads at `downloads.spot.frc581.com` using the
+versioned domain configuration in `.github/installer-r2-domain.json`.
 Create an R2 Object Read & Write key scoped to `spot-jetson-images`, and save its
 credentials as the repository secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
 

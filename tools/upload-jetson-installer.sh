@@ -16,10 +16,10 @@ sha256sum spot-installer.iso > spot-installer.iso.sha256
 
 # Replacing fixed keys retains only the latest uploaded build.
 aws s3 cp spot-installer.iso "$destination/spot-installer.iso" \
-  --endpoint-url "$endpoint" --only-show-errors \
+  --endpoint-url "$endpoint" --only-show-errors --cache-control no-store \
   --metadata "commit=$GITHUB_SHA,run-id=$GITHUB_RUN_ID"
 aws s3 cp spot-installer.iso.sha256 "$destination/spot-installer.iso.sha256" \
-  --endpoint-url "$endpoint" --only-show-errors --content-type text/plain
+  --endpoint-url "$endpoint" --only-show-errors --content-type text/plain --cache-control no-store
 
 iso_url=$(aws s3 presign "$destination/spot-installer.iso" --endpoint-url "$endpoint" --expires-in 604800)
 checksum_url=$(aws s3 presign "$destination/spot-installer.iso.sha256" --endpoint-url "$endpoint" --expires-in 604800)
