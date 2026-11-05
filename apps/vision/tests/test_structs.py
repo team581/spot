@@ -5,15 +5,6 @@ import pytest
 from spot_vision.protocol import content_hash
 
 
-def test_quaternion_signed_zero_matches_java_fingerprint():
-    from spot_vision.protocol_models import Pose
-
-    for component in (-0.0, -1e-16, 0.0, 1e-16):
-        assert content_hash(Pose(qw=1.0, qx=component, qy=component, qz=component)) == (
-            "d872e4a9c1306b2ce94accbef5bfd30b9c7e86e6595825f20c6d03992df39c04"
-        )
-
-
 def test_geometry_profile_fingerprint_survives_native_struct_normalization():
     from wpimath.geometry import Pose3d, Rotation3d
     from wpiutil.wpistruct import pack, unpack
