@@ -11,7 +11,7 @@ from spot_vision.http_server import HttpServer
 
 assets = os.environ.get("SPOT_DASHBOARD_ASSETS")
 server = HttpServer(
-    ("127.0.0.1", 5818),
+    ("127.0.0.1", int(os.environ["SPOT_TEST_PORT"])),
     FixtureRuntime(),
     assets=Path(assets) if assets else Path(__file__).resolve().parents[3] / "dist/dashboard",
 )

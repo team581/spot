@@ -9,8 +9,6 @@ export default defineConfig({
 	build: { outDir: '../../dist/dashboard', emptyOutDir: true, assetsInlineLimit: 0 },
 	server: {
 		host: '127.0.0.1',
-		port: 5815,
-		strictPort: true,
 		proxy: {
 			'/api': {
 				target: backend,

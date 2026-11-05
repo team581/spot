@@ -16,7 +16,7 @@ run = [
 ]
 
 [tasks.dev]
-description = "Run the dashboard with synthetic cameras at http://127.0.0.1:5815"
+description = "Run the dashboard with synthetic cameras"
 depends = ["dev:backend", "dev:dashboard"]
 
 [tasks."dev:backend"]

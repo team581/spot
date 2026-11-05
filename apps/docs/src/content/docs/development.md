@@ -10,7 +10,7 @@ mise run setup
 mise run dev
 ```
 
-The dashboard opens at <http://127.0.0.1:5815> with synthetic cameras.
+Open the dashboard URL that Vite prints to see synthetic cameras.
 Run `mise tasks` for available checks and build commands, and
 `uv run --package spot-vision spot-vision --help` for service commands.
 

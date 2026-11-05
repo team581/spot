@@ -1,4 +1,17 @@
+import { createServer } from 'node:net';
 import { defineConfig } from '@playwright/test';
+const freePort = () =>
+	new Promise<string>((resolve) => {
+		const server = createServer().listen(0, '127.0.0.1', () => {
+			const { port } = server.address() as { port: number };
+			server.close(() => resolve(String(port)));
+		});
+	});
+// Workers inherit these from the runner, so every process agrees on the ports.
+process.env.SPOT_TEST_PORT ||= await freePort();
+process.env.SPOT_TEST_DEV_PORT ||= await freePort();
+const backend = 'http://127.0.0.1:' + process.env.SPOT_TEST_PORT,
+	dev = 'http://127.0.0.1:' + process.env.SPOT_TEST_DEV_PORT;
 export default defineConfig({
 	testDir: './tests/browser',
 	workers: 1,
@@ -10,19 +23,19 @@ export default defineConfig({
 		trace: 'retain-on-failure',
 	},
 	projects: [
-		{ name: 'production', testMatch: '**/behavior.spec.ts', use: { baseURL: 'http://127.0.0.1:5818' } },
-		{ name: 'development', testMatch: '**/development.spec.ts', use: { baseURL: 'http://127.0.0.1:5815' } },
+		{ name: 'production', testMatch: '**/behavior.spec.ts', use: { baseURL: backend } },
+		{ name: 'development', testMatch: '**/development.spec.ts', use: { baseURL: dev } },
 	],
 	webServer: [
 		{
 			command: '../../.venv/bin/python tests/serve.py',
-			url: 'http://127.0.0.1:5818/api/status',
+			url: backend + '/api/status',
 			reuseExistingServer: false,
 		},
 		{
-			command: 'pnpm dev',
-			url: 'http://127.0.0.1:5815',
-			env: { SPOT_BACKEND: 'http://127.0.0.1:5818' },
+			command: `pnpm dev --port ${process.env.SPOT_TEST_DEV_PORT} --strictPort`,
+			url: dev,
+			env: { SPOT_BACKEND: backend },
 			reuseExistingServer: false,
 		},
 	],
