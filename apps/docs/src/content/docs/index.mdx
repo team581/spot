@@ -1,0 +1,45 @@
+---
+title: Spot Vision
+description: Set up, calibrate, and develop Team 581's Jetson AprilTag vision system.
+template: splash
+hero:
+  tagline: Team 581's Jetson AprilTag vision system and camera tools.
+  actions:
+    - text: Download a Jetson image
+      link: ./downloads/
+      icon: download
+    - text: Installation guide
+      link: ./operator/deployment/#first-installation
+      icon: right-arrow
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Explore the guides
+
+<CardGrid>
+	<LinkCard
+		title="Camera setup"
+		href="./operator/cameras/"
+		description="Connect cameras, assign feeds, measure mounts, and calibrate."
+	/>
+	<LinkCard
+		title="Deploy and recover"
+		href="./operator/deployment/"
+		description="Connect over SSH, update an existing Jetson, or roll back a deployment."
+	/>
+	<LinkCard
+		title="VS Code camera preview"
+		href="./operator/vscode-camera-preview/"
+		description="Inspect robot-code camera mounts beside your Java configuration."
+	/>
+	<LinkCard
+		title="Development"
+		href="./development/"
+		description="Run Spot locally, build the project, and contribute changes."
+	/>
+</CardGrid>
+
+These guides are available at [spot.frc581.com](https://spot.frc581.com/) and on the Jetson at `/docs/`.
+Use the installed service's documentation for its version.

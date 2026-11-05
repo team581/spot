@@ -41,6 +41,7 @@ export default defineConfig({
 			customCss: ['./src/styles/diagrams.css'],
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
+				{ slug: 'downloads', label: 'Downloads' },
 				{ slug: 'operator/cameras', label: 'Camera setup' },
 				{ slug: 'operator/deployment', label: 'Jetson installation and recovery' },
 				{ slug: 'development', label: 'Development' },

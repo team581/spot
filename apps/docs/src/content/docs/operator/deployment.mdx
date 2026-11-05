@@ -2,7 +2,7 @@
 title: Jetson installation and recovery
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
 
 This flake targets an Orin Nano on the **Seeed reComputer Robotics J401** carrier.
 Never flash NVIDIA developer-kit firmware onto it. Firmware provisioning is
@@ -24,15 +24,12 @@ they are on the same network.
 
 ## First installation
 
-Download the [latest offline installer](https://downloads.spot.frc581.com/latest/spot-installer.iso)
-and its [SHA-256 checksum](https://downloads.spot.frc581.com/latest/spot-installer.iso.sha256).
-These links always refer to the latest uploaded build. Builds expire after seven
-days; if no build is available, run the **Jetson offline installer** workflow
-manually in GitHub Actions. Verify the checksum before writing the ISO to a USB drive:
+<LinkButton href="../../downloads/" icon="download">
+	Download a Jetson image
+</LinkButton>
 
-```sh
-shasum -a 256 -c spot-installer.iso.sha256
-```
+Download the installer ISO and its checksum from the downloads page. Verify the
+checksum before writing the ISO to a USB drive.
 
 To build locally:
 
