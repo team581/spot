@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { api, submit } from '../api';
-import { saveJson } from './common';
+import { Feedback, Panel, saveJson } from './common';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { errorMessage, useDashboard } from '../dashboard';
 import { readStatus, useStatus, useTask } from '../queries';
 
@@ -45,44 +49,44 @@ export default function RobotConfiguration() {
 		}
 	};
 	return (
-		<section className="panel wide">
-			<h2>Robot configuration</h2>
+		<Panel title="Robot configuration" className="lg:col-span-2">
 			<p>
 				Robot code supplies the baseline. Dashboard overrides are saved on Spot and take priority until you clear them,
 				including after restarts and deployments.
 			</p>
-			{status.has_overrides ? <p className="warning">Saved dashboard overrides are active.</p> : null}
+			{status.has_overrides ? <p className="text-warning">Saved dashboard overrides are active.</p> : null}
 			{(status.override_paths ?? []).length > 0 ? (
 				<>
-					<ul>
+					<ul className="flex flex-col gap-1">
 						{status.override_paths?.map((path) => (
-							<li key={path}>
+							<li key={path} className="flex items-center gap-2">
 								<code>{path}</code>{' '}
-								<button disabled={busy || Boolean(status.lock_reason)} onClick={() => clear(path)}>
+								<Button variant="outline" disabled={busy || Boolean(status.lock_reason)} onClick={() => clear(path)}>
 									Clear override
-								</button>
+								</Button>
 							</li>
 						))}
 					</ul>
-					<button disabled={busy || Boolean(status.lock_reason)} onClick={() => clear()}>
+					<Button variant="outline" disabled={busy || Boolean(status.lock_reason)} onClick={() => clear()}>
 						Clear all overrides
-					</button>
+					</Button>
 				</>
 			) : null}
 			<p>
 				Download the effective configuration and replace <code>src/main/deploy/spot-config.json</code> in the robot
 				project. Calibration results can be copied between this file and standalone calibration exports.
 			</p>
-			<div className="inline-actions spaced">
-				<button disabled={busy || !status.fresh} onClick={() => load()}>
+			<div className="flex flex-wrap items-center gap-2">
+				<Button variant="outline" disabled={busy || !status.fresh} onClick={() => load()}>
 					Read current configuration
-				</button>
-				<button disabled={busy || !status.fresh} onClick={() => load(true)}>
+				</Button>
+				<Button variant="outline" disabled={busy || !status.fresh} onClick={() => load(true)}>
 					Read deployed defaults
-				</button>
-				<label>
-					Open configuration file{' '}
-					<input
+				</Button>
+				<Label className="gap-2">
+					Open configuration file
+					<Input
+						className="w-auto"
 						type="file"
 						accept="application/json,.json"
 						disabled={busy || !status.fresh}
@@ -103,28 +107,29 @@ export default function RobotConfiguration() {
 							}
 						}}
 					/>
-				</label>
+				</Label>
 			</div>
 			{text ? (
 				<>
-					<label htmlFor="robot-configuration">Camera and processing configuration</label>
-					<textarea
+					<Label htmlFor="robot-configuration">Camera and processing configuration</Label>
+					<Textarea
+						className="font-mono"
 						id="robot-configuration"
 						rows={20}
 						value={text}
 						disabled={busy}
 						spellCheck={false}
 						onChange={(e) => setText(e.target.value)}
-						style={{ width: '100%' }}
 					/>
-					<div className="inline-actions spaced">
-						<button disabled={busy || Boolean(status.lock_reason) || !status.fresh} onClick={() => apply()}>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button disabled={busy || Boolean(status.lock_reason) || !status.fresh} onClick={() => apply()}>
 							Save dashboard overrides
-						</button>
-						<button disabled={busy} onClick={download}>
+						</Button>
+						<Button variant="outline" disabled={busy} onClick={download}>
 							Download spot-config.json
-						</button>
-						<button
+						</Button>
+						<Button
+							variant="outline"
 							disabled={busy}
 							onClick={() =>
 								void navigator.clipboard.writeText(text).then(
@@ -134,13 +139,11 @@ export default function RobotConfiguration() {
 							}
 						>
 							Copy configuration
-						</button>
+						</Button>
 					</div>
 				</>
 			) : null}
-			<p className="feedback" role="status">
-				{busy ? 'Applying settings…' : notice || task.error?.message}
-			</p>
-		</section>
+			<Feedback>{busy ? 'Applying settings…' : notice || task.error?.message}</Feedback>
+		</Panel>
 	);
 }

@@ -1,7 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
-import { CameraSelector, CameraTabs, Icon, WarningLink, age } from '../components/common';
+import { CalibrationState, CameraSelector, CameraTabs, Feedback, Panel, PageTitle, age } from '../components/common';
+import { Redo2, TriangleAlert, Undo2 } from 'lucide-react';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Feed, usePreview, previewData, frameAge } from '../components/Feed';
 import { Detections } from '../components/Detections';
 import { useTuner } from '../components/useTuner';
@@ -38,40 +45,47 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 	return (
 		<>
 			{!c.logical_name ? (
-				<div className="panel warning">
-					<strong>Not configured with the robot.</strong> Standalone tuning and calibration; the 3D camera is at (0, 0,
-					0), with zero rotation.{' '}
-					<button
-						onClick={() =>
-							operation.mutate({
-								operation: 'device/setup',
-								payload: { identity: c.identity, revision: status.revision },
-							})
-						}
-					>
-						Enable standalone setup
-					</button>
-				</div>
+				<Alert>
+					<TriangleAlert />
+					<AlertTitle>Not configured with the robot.</AlertTitle>
+					<AlertDescription>
+						Standalone tuning and calibration; the 3D camera is at (0, 0, 0), with zero rotation.
+					</AlertDescription>
+					<AlertAction>
+						<Button
+							size="sm"
+							onClick={() =>
+								operation.mutate({
+									operation: 'device/setup',
+									payload: { identity: c.identity, revision: status.revision },
+								})
+							}
+						>
+							Enable standalone setup
+						</Button>
+					</AlertAction>
+				</Alert>
 			) : null}
-			<div className="page-heading">
-				<h1 id="camera-title">{c.name}</h1>
-				<span id="calibrated-state">
-					<WarningLink camera={c} />
-				</span>
+			<div className="flex items-center justify-between gap-4">
+				<PageTitle id="camera-title">{c.name}</PageTitle>
+				<a id="calibrated-state" href="#calibration">
+					<CalibrationState camera={c} />
+				</a>
 			</div>
 			<CameraSelector cameras={status.cameras} id={c.identity} />
 			<CameraTabs id={c.identity} />
-			<div className="camera-layout">
-				<section className="panel config-panel">
-					<div className="panel-heading">
-						<h2>Config</h2>
-						<span className="history-buttons">
+			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
+				<Panel
+					title="Config"
+					action={
+						<span className="flex">
 							{(['undo', 'redo'] as const).map((direction) => {
 								const stack = direction === 'undo' ? tuner.history.undoStack : tuner.history.redoStack;
 								return (
-									<button
+									<Button
 										key={direction}
-										className="icon-button"
+										variant="ghost"
+										size="icon"
 										aria-label={direction === 'undo' ? 'Undo' : 'Redo'}
 										disabled={Boolean(
 											!stack.length ||
@@ -83,22 +97,22 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 										)}
 										onClick={() => void history(direction)}
 									>
-										<Icon name={direction} />
-									</button>
+										{direction === 'undo' ? <Undo2 /> : <Redo2 />}
+									</Button>
 								);
 							})}
 						</span>
-					</div>
-					<p id="config-lock" className="lock">
-						{status.lock_reason}
-					</p>
+					}
+				>
+					<Feedback id="config-lock">{status.lock_reason}</Feedback>
 					{primary.map((ctrl) => (
 						<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
 					))}
-					<div className="mode-control">
-						<label htmlFor="optical-mode">Capture resolution / rate</label>
-						<select
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="optical-mode">Capture resolution / rate</Label>
+						<NativeSelect
 							id="optical-mode"
+							className="w-full"
 							value={c.mode_id || ''}
 							disabled={Boolean(status.lock_reason || !c.connected || tuner.inFlight)}
 							onChange={(e) => {
@@ -112,18 +126,18 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							}}
 						>
 							{(c.allowed_modes ?? []).map((m) => (
-								<option key={m.id} value={m.id} disabled={!m.supported}>
+								<NativeSelectOption key={m.id} value={m.id} disabled={!m.supported}>
 									{m.width} × {m.height} · {m.fps} FPS · {m.pixel_format}
 									{m.supported ? '' : ' · unsupported'}
-								</option>
+								</NativeSelectOption>
 							))}
-						</select>
+						</NativeSelect>
 					</div>
-					<div id="control-feedback" className="feedback">
+					<Feedback id="control-feedback">
 						{tuner.error || (tuner.inFlight || tuner.pending ? 'Pending device acknowledgement' : '')}
-					</div>
-					<button
-						className="reset"
+					</Feedback>
+					<Button
+						variant="outline"
 						disabled={Boolean(
 							status.lock_reason ||
 							!(c.controls ?? []).some((ctrl) => ctrl.allowed) ||
@@ -133,96 +147,98 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 						onClick={() => void reset()}
 					>
 						{c.logical_name ? 'Reset to code defaults' : 'Reset setup values'}
-					</button>
-					<details>
-						<summary>Advanced</summary>
-						{advanced.map((ctrl) => (
-							<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
-						))}
-						<button
-							className="spaced"
-							onClick={async () => {
-								const value = (c.controls ?? [])
-									.map(
-										(ctrl) =>
-											`VisionProfiles.${ctrl.allowed ? 'tuning' : 'pinned'}("${ctrl.name}", ${ctrl.value}${ctrl.allowed ? '' : ', ' + Boolean(ctrl.required)})`,
-									)
-									.join(',\n');
-								setCode(value);
-								try {
-									await navigator.clipboard.writeText(value);
-									announce('Settings copied as code');
-								} catch {
-									announce('Code displayed for copying');
-								}
-							}}
-						>
-							Copy settings as code
-						</button>
-						{code ? <pre>{code}</pre> : null}
-						<label className="spaced" htmlFor="replacement-identity">
-							Replacement camera
-						</label>
-						<select id="replacement-identity" value={replacementId} onChange={(e) => setReplacement(e.target.value)}>
-							{replacements.map((cam) => (
-								<option key={cam.identity} value={cam.identity}>
-									{cam.name} · {cam.display_id || ''}
-								</option>
+					</Button>
+					<Collapsible>
+						<CollapsibleTrigger className="text-muted-foreground hover:text-foreground">Advanced</CollapsibleTrigger>
+						<CollapsibleContent className="mt-3 flex flex-col gap-3">
+							{advanced.map((ctrl) => (
+								<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
 							))}
-						</select>
-						<label className="spaced">
-							<input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> I confirmed
-							the replacement feed
-						</label>
-						<button
-							className="spaced"
-							disabled={Boolean(!c.logical_name || status.lock_reason || !replacements.length)}
-							onClick={() => {
-								if (!c.logical_name) return;
-								if (!confirmed) {
-									setNotice('Identify the replacement feed before replacing this camera');
-									return;
-								}
-								setNotice('');
-								operation.mutate(
-									{
-										operation: 'camera/replace',
-										payload: { name: c.logical_name, identity: replacementId, revision: status.revision },
-									},
-									{ onSuccess: () => announce('Physical camera calibration invalidated') },
-								);
-							}}
-						>
-							Replace camera
-						</button>
-					</details>
+							<Button
+								variant="outline"
+								onClick={async () => {
+									const value = (c.controls ?? [])
+										.map(
+											(ctrl) =>
+												`VisionProfiles.${ctrl.allowed ? 'tuning' : 'pinned'}("${ctrl.name}", ${ctrl.value}${ctrl.allowed ? '' : ', ' + Boolean(ctrl.required)})`,
+										)
+										.join(',\n');
+									setCode(value);
+									try {
+										await navigator.clipboard.writeText(value);
+										announce('Settings copied as code');
+									} catch {
+										announce('Code displayed for copying');
+									}
+								}}
+							>
+								Copy settings as code
+							</Button>
+							{code ? <pre className="overflow-auto rounded-md bg-muted p-2 text-xs">{code}</pre> : null}
+							<Label htmlFor="replacement-identity">Replacement camera</Label>
+							<NativeSelect
+								id="replacement-identity"
+								className="w-full"
+								value={replacementId}
+								onChange={(e) => setReplacement(e.target.value)}
+							>
+								{replacements.map((cam) => (
+									<NativeSelectOption key={cam.identity} value={cam.identity}>
+										{cam.name} · {cam.display_id || ''}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+							<Label>
+								<Checkbox checked={confirmed} onCheckedChange={setConfirmed} /> I confirmed the replacement feed
+							</Label>
+							<Button
+								variant="outline"
+								disabled={Boolean(!c.logical_name || status.lock_reason || !replacements.length)}
+								onClick={() => {
+									if (!c.logical_name) return;
+									if (!confirmed) {
+										setNotice('Identify the replacement feed before replacing this camera');
+										return;
+									}
+									setNotice('');
+									operation.mutate(
+										{
+											operation: 'camera/replace',
+											payload: { name: c.logical_name, identity: replacementId, revision: status.revision },
+										},
+										{ onSuccess: () => announce('Physical camera calibration invalidated') },
+									);
+								}}
+							>
+								Replace camera
+							</Button>
+						</CollapsibleContent>
+					</Collapsible>
 					{tuner.history.conflict ? (
-						<button className="spaced" onClick={() => void reconcile()}>
+						<Button variant="outline" onClick={() => void reconcile()}>
 							Reconcile current values
-						</button>
+						</Button>
 					) : null}
-					<p id="page-feedback" className="feedback" role="status">
-						{notice || operation.error?.message}
-					</p>
+					<Feedback id="page-feedback">{notice || operation.error?.message}</Feedback>
 					<a href="/docs/operator/cameras/#tune">Tuning and history</a>
-				</section>
-				<div>
+				</Panel>
+				<div className="flex min-w-0 flex-col gap-4">
 					<Feed id={c.identity} outlines={outlines} />
-					<div className="feed-controls">
-						<label>
-							<input type="checkbox" checked={outlines} onChange={(e) => setOutlines(e.target.checked)} />
+					<div className="flex flex-wrap items-center gap-4">
+						<Label>
+							<Checkbox checked={outlines} onCheckedChange={setOutlines} />
 							Show detection outlines
-						</label>
-						<button onClick={() => previews.toggle(c.identity, status)}>
+						</Label>
+						<Button variant="outline" onClick={() => previews.toggle(c.identity, status)}>
 							{view.paused ? 'Resume image' : 'Pause image'}
-						</button>
-						<small id="frame-info">
+						</Button>
+						<small id="frame-info" className="ml-auto text-xs text-muted-foreground">
 							{data
 								? `Frame ${data.sequence} · ${age(frameAge(view))} · ${data.width} × ${data.height}`
 								: 'Waiting for frame'}
 						</small>
 					</div>
-					<div className="detail-bottom">
+					<div className="grid gap-4 xl:grid-cols-2">
 						<Detections camera={c} />
 						<Suspense fallback={<p>Loading geometry…</p>}>
 							<GeometryViewer camera={c} />

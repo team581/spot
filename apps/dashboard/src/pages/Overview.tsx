@@ -1,38 +1,37 @@
 import { useServiceError } from '../dashboard';
 import { useStatus } from '../queries';
 import { Feed, usePreview } from '../components/Feed';
-import { age } from '../components/common';
+import { age, CalibrationState, Feedback, PageTitle, Panel } from '../components/common';
+import { Card } from '@/components/ui/card';
 import type { Camera } from '../types';
 function Tile({ camera: c }: { camera: Camera }) {
 	const view = usePreview(c.identity),
 		captureFresh = c.connected && c.age_s != null && c.age_s < 0.5,
 		fresh = c.connected && c.metrics?.detect_age_s != null && c.metrics.detect_age_s < 0.5;
 	return (
-		<a className="panel tile" href={'#camera/' + encodeURIComponent(c.identity)} data-tile={c.identity}>
-			<header>
-				<strong>{c.name}</strong>
-				<span className={'calibrated ' + (c.calibrated ? 'good' : 'warning')}>
-					{c.health === 'Disabled'
-						? 'Disabled in code'
-						: !c.logical_name
-							? '⚠ Choose camera name'
-							: c.calibrated
-								? '✓ calibrated'
-								: '⚠ Calibration required'}
-				</span>
-			</header>
-			<Feed id={c.identity} />
-			<div className="metrics">
-				<span className="fps" title="Measured capture FPS; detection and preview rates are separate">
-					{captureFresh && c.metrics?.captured && Number.isFinite(c.metrics.fps_capture)
-						? `${Math.round(c.metrics.fps_capture!)} FPS`
-						: '— FPS'}
-				</span>
-				<span className="tags">
-					{view.data && !view.data.stale && fresh && view.data.processed ? `${view.data.tags.length} tags` : '— tags'}
-				</span>
-				<span className="age">{age(c.age_s)}</span>
-			</div>
+		<a
+			className="tile group/tile rounded-lg text-foreground no-underline hover:no-underline"
+			href={'#camera/' + encodeURIComponent(c.identity)}
+			data-tile={c.identity}
+		>
+			<Card className="gap-0 py-0 transition-shadow group-hover/tile:ring-foreground/30">
+				<header className="flex items-center justify-between px-4 py-3">
+					<strong className="font-heading text-base">{c.name}</strong>
+					<CalibrationState camera={c} />
+				</header>
+				<Feed id={c.identity} className="aspect-2/1 rounded-none" />
+				<div className="flex justify-between gap-2 px-4 py-3 text-lg font-semibold sm:text-xl">
+					<span title="Measured capture FPS; detection and preview rates are separate">
+						{captureFresh && c.metrics?.captured && Number.isFinite(c.metrics.fps_capture)
+							? `${Math.round(c.metrics.fps_capture!)} FPS`
+							: '— FPS'}
+					</span>
+					<span>
+						{view.data && !view.data.stale && fresh && view.data.processed ? `${view.data.tags.length} tags` : '— tags'}
+					</span>
+					<span>{age(c.age_s)}</span>
+				</div>
+			</Card>
 		</a>
 	);
 }
@@ -41,21 +40,18 @@ export default function Overview({ page }: { page: string }) {
 		serviceError = useServiceError();
 	return (
 		<>
-			<h1>{page === 'cameras' ? 'Cameras' : 'Overview'}</h1>
-			<div id="tiles" className="overview-grid">
+			<PageTitle>{page === 'cameras' ? 'Cameras' : 'Overview'}</PageTitle>
+			<div className="grid gap-6 md:grid-cols-2">
 				{status.cameras.length ? (
 					status.cameras.map((c) => <Tile key={c.identity} camera={c} />)
 				) : (
-					<div className="panel empty">
-						<h2>No cameras discovered</h2>
+					<Panel title="No cameras discovered" className="max-w-2xl">
 						<p>Connect a powered USB camera. Discovery continues automatically.</p>
 						<a href="/docs/operator/cameras/#connect">Connection guide</a>
-					</div>
+					</Panel>
 				)}
 			</div>
-			<p id="page-feedback" className="feedback">
-				{serviceError}
-			</p>
+			<Feedback id="page-feedback">{serviceError}</Feedback>
 		</>
 	);
 }

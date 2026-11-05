@@ -3,6 +3,14 @@ import { useDashboard } from '../../dashboard';
 import { Feed } from '../../components/Feed';
 import { readStatus, useStatus } from '../../queries';
 import type { CalibrationOperation } from '../Calibration';
+import { Feedback, Panel } from '../../components/common';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Progress } from '@/components/ui/progress';
 const boardLabels: Record<string, string> = {
 	dictionary: 'Dictionary',
 	squares_x: 'Squares X',
@@ -51,20 +59,22 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 		setCards([...selected]);
 	}
 	return (
-		<div className="calibration-layout">
-			<div>
-				<div className="inline-actions">
-					<select aria-label="Camera to add" value={choice} onChange={(e) => setChoice(e.target.value)}>
-						<option value="">Select camera</option>
+		<div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+			<div className="flex flex-col gap-4">
+				<div className="flex flex-wrap gap-2">
+					<NativeSelect aria-label="Camera to add" value={choice} onChange={(e) => setChoice(e.target.value)}>
+						<NativeSelectOption value="">Select camera</NativeSelectOption>
 						{usable.map((c) => (
-							<option value={c.identity} key={c.identity}>
+							<NativeSelectOption value={c.identity} key={c.identity}>
 								{c.name}
-							</option>
+							</NativeSelectOption>
 						))}
-					</select>
-					<button onClick={() => void add()}>Add camera</button>
+					</NativeSelect>
+					<Button variant="outline" onClick={() => void add()}>
+						Add camera
+					</Button>
 				</div>
-				<div className="calibration-grid spaced">
+				<div className="grid gap-4 sm:grid-cols-2">
 					{cards.length ? (
 						cards.map((id) => (
 							<CalibrationCard
@@ -80,38 +90,37 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 							/>
 						))
 					) : (
-						<p className="muted">Add a connected camera to begin.</p>
+						<p className="text-muted-foreground">Add a connected camera to begin.</p>
 					)}
 				</div>
 			</div>
-			<section className="panel board">
-				<h2>Board</h2>
-				<div className="board-fields">
+			<Panel title="Board" className="max-lg:order-first">
+				<div className="grid gap-3 max-lg:grid-cols-2">
 					{Object.entries(boardLabels).map(([key, label]) => (
-						<label key={key}>
+						<Label key={key} className="flex-col items-stretch">
 							{label}
-							<input
+							<Input
 								type="text"
 								inputMode={key === 'dictionary' ? 'text' : 'decimal'}
 								value={board[key] ?? ''}
 								onChange={(e) => setBoard({ ...board, [key]: e.target.value })}
 							/>
-						</label>
+						</Label>
 					))}
-					<label>
+					<Label className="flex-col items-stretch">
 						Lens model
-						<select value={model} onChange={(e) => setModel(e.target.value)}>
-							<option value="plumb_bob">Plumb bob</option>
-							<option value="rational">Rational</option>
-						</select>
-					</label>
-					<label>
+						<NativeSelect className="w-full" value={model} onChange={(e) => setModel(e.target.value)}>
+							<NativeSelectOption value="plumb_bob">Plumb bob</NativeSelectOption>
+							<NativeSelectOption value="rational">Rational</NativeSelectOption>
+						</NativeSelect>
+					</Label>
+					<Label className="flex-col items-stretch">
 						Minimum fit views
-						<input type="text" inputMode="numeric" value={minViews} onChange={(e) => setMinViews(e.target.value)} />
-					</label>
+						<Input type="text" inputMode="numeric" value={minViews} onChange={(e) => setMinViews(e.target.value)} />
+					</Label>
 				</div>
-				<button
-					className="spaced"
+				<Button
+					variant="outline"
 					disabled={Boolean(status.lock_reason)}
 					onClick={async () => {
 						const values = Object.fromEntries(
@@ -139,16 +148,15 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 					}}
 				>
 					Update board
-				</button>
-				<label className="spaced">
+				</Button>
+				<Label className="flex-col items-stretch">
 					Group capture set
-					<select value={phase} onChange={(e) => setPhase(e.target.value)}>
-						<option value="fit">Fitting captures</option>
-						<option value="holdout">Validation captures</option>
-					</select>
-				</label>
-				<button
-					className="primary spaced"
+					<NativeSelect className="w-full" value={phase} onChange={(e) => setPhase(e.target.value)}>
+						<NativeSelectOption value="fit">Fitting captures</NativeSelectOption>
+						<NativeSelectOption value="holdout">Validation captures</NativeSelectOption>
+					</NativeSelect>
+				</Label>
+				<Button
 					disabled={Boolean(
 						status.lock_reason || !selected.size || Object.values(status.calibration.cameras).some((s) => s.solving),
 					)}
@@ -160,11 +168,11 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 					}
 				>
 					Start automatic capture
-				</button>
+				</Button>
 				<p>
 					<a href="/docs/operator/cameras/#calibrate">Capture and validation guide</a>
 				</p>
-			</section>
+			</Panel>
 		</div>
 	);
 }
@@ -184,36 +192,34 @@ function CalibrationCard({
 		session = status.calibration.cameras[id],
 		[phase, setPhase] = useState('fit');
 	return (
-		<section className="panel calibration-card">
-			<header>
-				<input
-					type="checkbox"
+		<Card size="sm" className="calibration-card px-3">
+			<Label>
+				<Checkbox
 					checked={selected}
 					aria-label={'Select ' + camera?.name}
-					onChange={(e) => void onSelect(e.target.checked)}
+					onCheckedChange={(checked) => void onSelect(checked)}
 				/>
 				<strong>{camera?.name || id.slice(0, 8)}</strong>
-			</header>
-			<Feed id={id} calibration />
-			<progress
-				className="coverage-progress"
-				max="1"
-				value={Math.max(0, Math.min(1, session?.coverage?.coverage_progress || 0))}
+			</Label>
+			<Feed id={id} calibration className="aspect-[2.4]" />
+			<Progress
+				value={Math.max(0, Math.min(100, (session?.coverage?.coverage_progress || 0) * 100))}
 				aria-label="Calibration coverage"
 			/>
-			<div className="capture-stats">
+			<div>
 				{session
 					? `${session.fit_views} fit / ${session.holdout_views} validation views · ${Math.round((session.coverage?.coverage_progress || 0) * 100)}% coverage · ${session.board_detected ? 'Board detected' : 'Board not detected'}`
 					: 'Start a calibration session'}
 			</div>
-			<div className="actions">
-				<select aria-label="Capture set" value={phase} onChange={(e) => setPhase(e.target.value)}>
-					<option value="fit">Fitting captures</option>
-					<option value="holdout">Validation captures</option>
-				</select>
+			<div className="flex flex-wrap gap-1.5">
+				<NativeSelect aria-label="Capture set" value={phase} onChange={(e) => setPhase(e.target.value)}>
+					<NativeSelectOption value="fit">Fitting captures</NativeSelectOption>
+					<NativeSelectOption value="holdout">Validation captures</NativeSelectOption>
+				</NativeSelect>
 				{(['start', 'capture', 'compute', 'validate'] as const).map((action) => (
-					<button
+					<Button
 						key={action}
+						variant="outline"
 						disabled={Boolean(status.lock_reason || session?.solving)}
 						onClick={() =>
 							operation.mutate({
@@ -231,10 +237,10 @@ function CalibrationCard({
 								: action === 'capture'
 									? 'Capture'
 									: 'Validate'}
-					</button>
+					</Button>
 				))}
 			</div>
-			<p className="feedback">{session?.reason || ''}</p>
-		</section>
+			<Feedback>{session?.reason || ''}</Feedback>
+		</Card>
 	);
 }

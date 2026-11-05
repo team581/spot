@@ -3,6 +3,8 @@ import { useStatus } from '../queries';
 import { usePreview, previewData } from './Feed';
 import { theme } from '../theme';
 import type { Camera, Geometry } from '../types';
+import { cn } from 'cn';
+import { Button } from '@/components/ui/button';
 import { SpotViewer, type ViewerState } from '@spot/camera-viewer';
 export default function GeometryViewer({
 	camera: c,
@@ -42,8 +44,14 @@ export default function GeometryViewer({
 		viewer.current?.draw();
 	});
 	return (
-		<div className={'viewer ' + (inspection ? 'geometry-view' : '')}>
+		<div
+			className={cn(
+				'relative min-h-48 min-w-0 overflow-hidden rounded-lg border bg-card',
+				inspection && 'h-[420px] md:h-[600px]',
+			)}
+		>
 			<canvas
+				className="block size-full min-h-48 touch-none"
 				ref={canvas}
 				id="geometry-canvas"
 				width={inspection ? 1000 : 700}
@@ -55,13 +63,18 @@ export default function GeometryViewer({
 						: '3D camera and observed tags. Arrow keys orbit; plus/minus zoom'
 				}
 			/>
-			<button className="reset-view" onClick={() => viewer.current?.reset()}>
+			<Button variant="outline" className="absolute top-3 right-3" onClick={() => viewer.current?.reset()}>
 				Reset view
-			</button>
+			</Button>
 			{inspection ? (
-				<span className="frame-label">Inspection · production geometry from robot code</span>
+				<span className="absolute bottom-9 left-3 text-xs text-muted-foreground">
+					Inspection · production geometry from robot code
+				</span>
 			) : (
-				<a className="frame-label" href={'#camera/' + encodeURIComponent(c.identity) + '/geometry'}>
+				<a
+					className="absolute bottom-9 left-3 text-xs text-muted-foreground"
+					href={'#camera/' + encodeURIComponent(c.identity) + '/geometry'}
+				>
 					Geometry · WPILib NWU
 				</a>
 			)}

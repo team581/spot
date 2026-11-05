@@ -40,7 +40,7 @@ test('navigation, images, detections, pause and geometry inspection', async ({ p
 	await page.getByRole('button', { name: 'Resume image', exact: true }).click();
 	await page.getByRole('link', { name: 'Geometry', exact: true }).click();
 	await expect(page.getByRole('textbox', { name: 'X', exact: true })).toBeDisabled();
-	await page.getByLabel('Inspection preview').check();
+	await page.getByRole('checkbox', { name: 'Inspection preview' }).check();
 	const x = page.getByRole('textbox', { name: 'X', exact: true });
 	await x.fill('0.38');
 	await x.press('Enter');
@@ -76,7 +76,7 @@ test('naming requires preview confirmation and reserves existing roles', async (
 	const rename = page.getByRole('button', { name: 'Rename', exact: true });
 	await expect(rename).toBeDisabled();
 	await expect(page.locator('#camera-name option')).toHaveText(['turret']);
-	await page.getByLabel('This preview matches the physical camera').check();
+	await page.getByRole('checkbox', { name: 'This preview matches the physical camera' }).check();
 	await expect(rename).toBeEnabled();
 	// Keep the shared fixture unchanged; inspect the payload at the boundary.
 	const writes = await captureOperations(page);
@@ -209,7 +209,7 @@ test('geometry editing preserves intermediate text through polling and never wri
 		if (r.method() === 'POST') writes.push(r.postDataJSON());
 	});
 	await page.goto('/#camera/' + status.cameras[0].identity + '/geometry');
-	await page.getByLabel('Inspection preview').check();
+	await page.getByRole('checkbox', { name: 'Inspection preview' }).check();
 	const x = page.getByRole('textbox', { name: 'X', exact: true });
 	await x.fill('-');
 	await page.waitForTimeout(700);
@@ -250,10 +250,10 @@ test('failed calibration validation cannot be selected for apply; compatible his
 	const status = await (await page.request.get('/api/status')).json();
 	const writes = await captureOperations(page, () => ({ revision: status.revision, applied_generation: null }));
 	await page.goto('/#calibration/results');
-	const checkboxes = page.locator('table input[type=checkbox]');
+	const checkboxes = page.getByRole('table').getByRole('checkbox');
 	await checkboxes.nth(1).check();
 	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
-	await page.locator('.history-panel input[type=checkbox]').first().check();
+	await page.locator('.history-panel').getByRole('checkbox').first().check();
 	await page.getByRole('button', { name: 'Restore selected', exact: true }).click();
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0]).toEqual(
@@ -352,7 +352,7 @@ test('mode and replacement operations use the camera identity and require feed c
 	await page.getByRole('button', { name: 'Replace camera', exact: true }).click();
 	await expect(page.locator('#page-feedback')).toContainText('Identify the replacement feed');
 	expect(writes).toHaveLength(1);
-	await page.getByLabel('I confirmed the replacement feed').check();
+	await page.getByRole('checkbox', { name: 'I confirmed the replacement feed' }).check();
 	await page.getByRole('button', { name: 'Replace camera', exact: true }).click();
 	await expect.poll(() => writes.length).toBe(2);
 	expect(writes[1]).toEqual(

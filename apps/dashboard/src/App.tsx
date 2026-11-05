@@ -1,8 +1,36 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import {
+	BookOpen,
+	Camera,
+	Crosshair,
+	LayoutDashboard,
+	Network as NetworkIcon,
+	Server,
+	TriangleAlert,
+} from 'lucide-react';
 import { useDashboard, useServiceError } from './dashboard';
 import { useStatus } from './queries';
-import { date, Icon } from './components/common';
+import { date } from './components/common';
 import { ThemeMenu } from './components/ThemeMenu';
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarHeader,
+	SidebarInset,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarMenuSub,
+	SidebarMenuSubButton,
+	SidebarMenuSubItem,
+	SidebarProvider,
+	SidebarTrigger,
+	useSidebar,
+} from '@/components/ui/sidebar';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import Overview from './pages/Overview';
 const CameraName = lazy(() => import('./pages/CameraName'));
 const CameraDetail = lazy(() => import('./pages/CameraDetail'));
@@ -23,6 +51,21 @@ function route() {
 		});
 	return { page: parts[0] || 'overview', id: parts[1], tab: parts[2] };
 }
+/** Close the mobile navigation sheet after following one of its links. */
+function CloseMobileSidebar({ route }: { route: object }) {
+	const { setOpenMobile } = useSidebar();
+	useEffect(() => setOpenMobile(false), [route, setOpenMobile]);
+	return null;
+}
+const top = [
+	{ page: 'overview', label: 'Overview', icon: LayoutDashboard },
+	{ page: 'cameras', label: 'Cameras', icon: Camera },
+];
+const bottom = [
+	{ page: 'calibration', label: 'Calibration', icon: Crosshair },
+	{ page: 'network', label: 'Network', icon: NetworkIcon },
+	{ page: 'system', label: 'System', icon: Server },
+];
 export default function App() {
 	const { message } = useDashboard(),
 		status = useStatus(),
@@ -56,101 +99,130 @@ export default function App() {
 			<System />
 		) : (
 			<>
-				<h1>Camera unavailable</h1>
+				<h1 className="font-heading text-2xl font-semibold">Camera unavailable</h1>
 				<p>
 					The configured camera may be disconnected. <a href="#cameras">Open Cameras</a>
 				</p>
 			</>
 		);
+	const link = (item: (typeof top)[number]) => (
+		<SidebarMenuItem key={item.page}>
+			<SidebarMenuButton
+				isActive={current.page === item.page}
+				tooltip={item.label}
+				render={<a href={'#' + item.page} />}
+			>
+				<item.icon />
+				<span>{item.label}</span>
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
 	return (
-		<>
-			<a className="skip" href="#main">
-				Skip to content
-			</a>
-			<aside id="sidebar" aria-label="Main navigation">
-				<a className="brand" href="#overview">
-					<img src="/blazing-bulldogs.svg" alt="Blazing Bulldogs" />
-					<strong>Spot</strong>
+		<TooltipProvider>
+			<SidebarProvider defaultOpen={matchMedia('(min-width: 1150px)').matches}>
+				<CloseMobileSidebar route={current} />
+				<a
+					className="fixed -top-24 left-4 z-50 rounded-md bg-background p-2 shadow focus:top-2"
+					href="#main"
+					onClick={(e) => {
+						e.preventDefault();
+						document.getElementById('main')?.focus();
+					}}
+				>
+					Skip to content
 				</a>
-				<nav id="nav">
-					{['overview', 'cameras'].map((name) => (
-						<a
-							key={name}
-							href={'#' + name}
-							className={current.page === name ? 'active' : ''}
-							title={name === 'overview' ? 'Overview' : 'Cameras'}
-							aria-label={name === 'overview' ? 'Overview' : 'Cameras'}
-						>
-							<Icon name={name} />
-							<span className="nav-label">{name === 'overview' ? 'Overview' : 'Cameras'}</span>
-						</a>
-					))}
-					{status.cameras.map((c) => {
-						const warnings = [];
-						if (c.health !== 'Disabled' && !c.logical_name) warnings.push('Choose a code-defined name');
-						if (c.health !== 'Disabled' && c.logical_name && !c.calibrated) warnings.push('Calibration required');
-						if (c.health !== 'Disabled' && !c.connected)
-							warnings.push(c.present ? c.fault || 'Waiting for image' : 'Disconnected');
-						return (
-							<a
-								key={c.identity}
-								className={'camera-entry ' + (current.page === 'camera' && current.id === c.identity ? 'active' : '')}
-								href={'#camera/' + encodeURIComponent(c.identity)}
-								aria-label={c.name + (warnings.length ? ': ' + warnings.join('; ') : '')}
-							>
-								<span>{c.name}</span>
-								{warnings.map((w) => (
-									<span key={w} className="warning" role="img" aria-label={w} title={w}>
-										⚠
+				<Sidebar collapsible="icon" aria-label="Main navigation">
+					<SidebarHeader>
+						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton size="lg" render={<a href="#overview" />}>
+									<img src="/blazing-bulldogs.svg" alt="Blazing Bulldogs" className="size-8 object-contain" />
+									<span className="font-heading text-xl font-semibold">Spot</span>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						</SidebarMenu>
+					</SidebarHeader>
+					<SidebarContent>
+						<SidebarGroup>
+							<SidebarMenu>
+								{top.map(link)}
+								{status.cameras.length ? (
+									<SidebarMenuSub>
+										{status.cameras.map((c) => {
+											const warnings = [];
+											if (c.health !== 'Disabled' && !c.logical_name) warnings.push('Choose a code-defined name');
+											if (c.health !== 'Disabled' && c.logical_name && !c.calibrated)
+												warnings.push('Calibration required');
+											if (c.health !== 'Disabled' && !c.connected)
+												warnings.push(c.present ? c.fault || 'Waiting for image' : 'Disconnected');
+											return (
+												<SidebarMenuSubItem key={c.identity}>
+													<SidebarMenuSubButton
+														isActive={current.page === 'camera' && current.id === c.identity}
+														aria-label={c.name + (warnings.length ? ': ' + warnings.join('; ') : '')}
+														render={<a href={'#camera/' + encodeURIComponent(c.identity)} />}
+													>
+														<span>{c.name}</span>
+														{warnings.length ? <TriangleAlert className="ml-auto text-warning!" aria-hidden /> : null}
+													</SidebarMenuSubButton>
+												</SidebarMenuSubItem>
+											);
+										})}
+									</SidebarMenuSub>
+								) : null}
+							</SidebarMenu>
+						</SidebarGroup>
+						<SidebarGroup>
+							<SidebarMenu>
+								{bottom.map(link)}
+								<SidebarMenuItem>
+									<SidebarMenuButton tooltip="Docs" render={<a href="/docs/" />}>
+										<BookOpen />
+										<span>Docs</span>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							</SidebarMenu>
+						</SidebarGroup>
+					</SidebarContent>
+					<SidebarFooter>
+						<ThemeMenu />
+						<SidebarTrigger className="max-md:hidden" />
+						<div className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+							<div>
+								{status.software.process_started_at
+									? 'Started ' + date(status.software.process_started_at)
+									: 'Time unavailable'}
+							</div>
+							<small title={status.software.package_path}>
+								{status.software.version ? 'Spot ' + status.software.version : 'Development'}
+							</small>
+						</div>
+					</SidebarFooter>
+				</Sidebar>
+				<SidebarInset id="main" tabIndex={-1} className="min-w-0 outline-none">
+					<header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/90 px-4 py-2 backdrop-blur md:hidden">
+						<SidebarTrigger />
+						<span className="font-heading font-semibold">Spot</span>
+					</header>
+					<div className="flex flex-col gap-5 p-4 md:p-6 lg:p-8">
+						{status.has_overrides ? (
+							<Alert role="status">
+								<TriangleAlert />
+								<AlertDescription>
+									<span>
+										Saved dashboard overrides are active. <a href="#system">Manage overrides</a> or export the effective
+										configuration.
 									</span>
-								))}
-							</a>
-						);
-					})}
-					{['calibration', 'network', 'system'].map((name) => (
-						<a
-							key={name}
-							href={'#' + name}
-							className={(name === 'calibration' ? 'section-gap ' : '') + (current.page === name ? 'active' : '')}
-							title={name[0].toUpperCase() + name.slice(1)}
-							aria-label={name[0].toUpperCase() + name.slice(1)}
-						>
-							<Icon name={name} />
-							<span className="nav-label">{name[0].toUpperCase() + name.slice(1)}</span>
-						</a>
-					))}
-					<a href="/docs/" title="Docs" aria-label="Docs">
-						<Icon name="docs" />
-						<span className="nav-label">Docs</span>
-					</a>
-				</nav>
-				<footer>
-					<ThemeMenu />
-					<div id="updated">
-						{status.software.process_started_at
-							? 'Started ' + date(status.software.process_started_at)
-							: 'Time unavailable'}
+								</AlertDescription>
+							</Alert>
+						) : null}
+						<Suspense fallback={<p>Loading…</p>}>{page}</Suspense>
 					</div>
-					<small id="software-version" title={status.software.package_path}>
-						{status.software.version ? 'Spot ' + status.software.version : 'Development'}
-					</small>
-				</footer>
-			</aside>
-			<main id="main" tabIndex={-1}>
-				<div id="page">
-					{status.has_overrides ? (
-						<p className="warning" role="status">
-							Saved dashboard overrides are active. <a href="#system">Manage overrides</a> or export the effective
-							configuration.
-						</p>
-					) : null}
-
-					<Suspense fallback={<p>Loading…</p>}>{page}</Suspense>
+				</SidebarInset>
+				<div id="announcement" className="sr-only" role="status" aria-live="polite">
+					{serviceError || message}
 				</div>
-			</main>
-			<div id="announcement" className="sr-only" role="status" aria-live="polite">
-				{serviceError || message}
-			</div>
-		</>
+			</SidebarProvider>
+		</TooltipProvider>
 	);
 }

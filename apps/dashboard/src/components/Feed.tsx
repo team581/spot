@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, useCallback }
 import { useDashboard, useServiceError } from '../dashboard';
 import { useStatus } from '../queries';
 import { age } from './common';
+import { cn } from 'cn';
 import type { Preview } from '../previews';
 import type { Camera, Status } from '../types';
 export function usePreview(id: string) {
@@ -31,8 +32,10 @@ export function Feed({
 	id,
 	outlines = true,
 	calibration = false,
+	className,
 }: {
 	id: string;
+	className?: string;
 	outlines?: boolean;
 	calibration?: boolean;
 }) {
@@ -114,9 +117,24 @@ export function Feed({
 							? 'Live image · waiting for current robot profile'
 							: '';
 	return (
-		<div className="feed" data-feed={id} ref={element}>
-			<canvas ref={canvas} width="960" height="540" aria-label="Camera image" />
-			<span className="image-state">{text}</span>
+		<div
+			className={cn(
+				'relative flex aspect-[1.875] items-center justify-center overflow-hidden rounded-md bg-feed',
+				className,
+			)}
+			data-feed={id}
+			ref={element}
+		>
+			<canvas
+				ref={canvas}
+				width="960"
+				height="540"
+				aria-label="Camera image"
+				className="block size-full object-contain"
+			/>
+			<span className="image-state absolute bottom-3 left-3 max-w-max rounded bg-black/75 px-2 py-1 text-xs text-white empty:hidden">
+				{text}
+			</span>
 		</div>
 	);
 }

@@ -1,73 +1,40 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
+import { Monitor, Moon, Sun } from 'lucide-react';
 import { theme } from '../theme';
 import type { Preference } from '../state/theme';
-import { Icon } from './common';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { SidebarMenuButton } from '@/components/ui/sidebar';
+const icons = { Auto: Monitor, Light: Sun, Dark: Moon };
 export function ThemeMenu() {
 	const preference = useSyncExternalStore(theme.subscribe, theme.get),
-		[open, setOpen] = useState(false);
-	const area = useRef<HTMLDivElement>(null),
-		trigger = useRef<HTMLButtonElement>(null),
-		menu = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		const close = (e: PointerEvent) => {
-			if (!area.current?.contains(e.target as Node)) setOpen(false);
-		};
-		document.addEventListener('pointerdown', close);
-		return () => document.removeEventListener('pointerdown', close);
-	}, []);
-	useEffect(() => {
-		if (open) menu.current?.querySelector<HTMLButtonElement>('[aria-checked=true]')?.focus();
-	}, [open]);
+		Icon = icons[preference];
 	return (
-		<div className="theme-area" ref={area}>
-			<button
-				ref={trigger}
-				id="theme-trigger"
-				className="icon-button"
-				aria-label={'Theme: ' + preference}
-				title={'Theme: ' + preference}
-				aria-haspopup="menu"
-				aria-expanded={open}
-				onClick={() => setOpen(!open)}
+		<DropdownMenu>
+			<DropdownMenuTrigger
+				render={<SidebarMenuButton aria-label={'Theme: ' + preference} tooltip={'Theme: ' + preference} />}
 			>
-				<Icon name={preference} />
-			</button>
-			<div
-				id="theme-menu"
-				ref={menu}
-				role="menu"
-				hidden={!open}
-				onKeyDown={(e) => {
-					if (e.key === 'Escape') {
-						setOpen(false);
-						trigger.current?.focus();
-					}
-					if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) {
-						e.preventDefault();
-						const buttons = [...menu.current!.querySelectorAll('button')];
-						const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-						buttons[(i + (['ArrowRight', 'ArrowDown'].includes(e.key) ? 1 : 2)) % 3]?.focus();
-					}
-				}}
-			>
-				{(['Auto', 'Light', 'Dark'] as Preference[]).map((name) => (
-					<button
-						key={name}
-						className="icon-button"
-						role="menuitemradio"
-						aria-checked={name === preference}
-						aria-label={name}
-						title={name}
-						onClick={() => {
-							theme.set(name);
-							setOpen(false);
-							trigger.current?.focus();
-						}}
-					>
-						<Icon name={name} />
-					</button>
-				))}
-			</div>
-		</div>
+				<Icon />
+				<span>Theme: {preference}</span>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="top" align="start">
+				<DropdownMenuRadioGroup value={preference} onValueChange={(value) => theme.set(value as Preference)}>
+					{(['Auto', 'Light', 'Dark'] as const).map((name) => {
+						const ItemIcon = icons[name];
+						return (
+							<DropdownMenuRadioItem key={name} value={name}>
+								<ItemIcon />
+								{name}
+							</DropdownMenuRadioItem>
+						);
+					})}
+				</DropdownMenuRadioGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

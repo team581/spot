@@ -166,7 +166,7 @@ export class SpotViewer {
 			lineColor = styles.getPropertyValue('--line').trim(),
 			blue = styles.getPropertyValue('--blue').trim(),
 			accent = styles.getPropertyValue('--accent-text').trim(),
-			muted = styles.getPropertyValue('--muted').trim(),
+			muted = styles.getPropertyValue('--muted-foreground').trim(),
 			green = styles.getPropertyValue('--good').trim();
 		ctx.clearRect(0, 0, W, H);
 		ctx.lineCap = 'round';

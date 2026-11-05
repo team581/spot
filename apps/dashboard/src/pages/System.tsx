@@ -3,7 +3,12 @@ import { useState } from 'react';
 import RobotConfiguration from '../components/RobotConfiguration';
 import { useDashboard, errorMessage, useServiceError } from '../dashboard';
 import { api } from '../api';
-import { DataList, age, date, fmt, saveJson } from '../components/common';
+import { DataList, Feedback, PageTitle, Panel, age, date, fmt, saveJson } from '../components/common';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useOperation, useStatus } from '../queries';
 export default function System() {
 	const { announce } = useDashboard(),
@@ -30,61 +35,57 @@ export default function System() {
 	].filter(Boolean);
 	return (
 		<>
-			<h1>System</h1>
-			<div className="panel stats">
+			<PageTitle>System</PageTitle>
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
 				{Object.entries(stats).map(([name, value]) => (
-					<div className="stat" key={name}>
-						<strong>{value}</strong>
-						<small>{name}</small>
-					</div>
+					<Card key={name} size="sm" className="gap-1 px-3">
+						<strong className="font-heading text-2xl font-semibold">{value}</strong>
+						<small className="text-muted-foreground">{name}</small>
+					</Card>
 				))}
 			</div>
-			<div className="system-grid">
+			<div className="grid gap-6 lg:grid-cols-2">
 				<RobotConfiguration />
-				<section className="panel">
-					<h2>Camera pipelines</h2>
-					<div className="table-scroll">
-						<table>
-							<thead>
-								<tr>
-									<th>Camera</th>
-									<th>Capture / detect</th>
-									<th>Backend</th>
-									<th>Published / withheld</th>
-									<th>Drops</th>
-									<th>Frame age</th>
-								</tr>
-							</thead>
-							<tbody>
-								{s.cameras.map((c) => (
-									<tr key={c.identity}>
-										<td>{c.name}</td>
-										<td>
-											{c.connected
-												? `${fmt(c.metrics?.fps_capture, 0)} / ${(c.metrics?.detect_age_s ?? Infinity) <= 0.5 ? fmt(c.metrics?.fps_detect, 0) : '—'} FPS`
-												: '—'}
-										</td>
-										<td>
-											{c.processing?.backend || 'Unavailable'}
-											{c.processing?.overload_reduction ? ' · load' : ''}
-										</td>
-										<td>
-											{c.metrics?.published ?? '—'} / {c.metrics?.withheld ?? '—'}
-											<br />
-											<small>{age(c.metrics?.publish_age_s)}</small>
-										</td>
-										<td>
-											{c.metrics?.overwritten_before_processing ?? '—'} / {c.metrics?.driver_sequence_gaps ?? '—'}
-										</td>
-										<td>{age(c.age_s)}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</section>
-				<section className="panel">
-					<h2>Software</h2>
+				<Panel title="Camera pipelines">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Camera</TableHead>
+								<TableHead>Capture / detect</TableHead>
+								<TableHead>Backend</TableHead>
+								<TableHead>Published / withheld</TableHead>
+								<TableHead>Drops</TableHead>
+								<TableHead>Frame age</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{s.cameras.map((c) => (
+								<TableRow key={c.identity}>
+									<TableCell>{c.name}</TableCell>
+									<TableCell>
+										{c.connected
+											? `${fmt(c.metrics?.fps_capture, 0)} / ${(c.metrics?.detect_age_s ?? Infinity) <= 0.5 ? fmt(c.metrics?.fps_detect, 0) : '—'} FPS`
+											: '—'}
+									</TableCell>
+									<TableCell>
+										{c.processing?.backend || 'Unavailable'}
+										{c.processing?.overload_reduction ? ' · load' : ''}
+									</TableCell>
+									<TableCell>
+										{c.metrics?.published ?? '—'} / {c.metrics?.withheld ?? '—'}
+										<br />
+										<small className="text-muted-foreground">{age(c.metrics?.publish_age_s)}</small>
+									</TableCell>
+									<TableCell>
+										{c.metrics?.overwritten_before_processing ?? '—'} / {c.metrics?.driver_sequence_gaps ?? '—'}
+									</TableCell>
+									<TableCell>{age(c.age_s)}</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</Panel>
+				<Panel title="Software">
 					<DataList
 						id="software-data"
 						values={{
@@ -96,14 +97,13 @@ export default function System() {
 							Started: date(r.process_started_at),
 						}}
 					/>
-				</section>
-				<section className="panel">
-					<h2>USB devices</h2>
+				</Panel>
+				<Panel title="USB devices">
 					{s.cameras.map((c) => (
 						<p key={c.identity}>
 							<strong>{c.name}</strong>
 							<br />
-							<small>
+							<small className="text-muted-foreground">
 								{c.topology || 'Missing'} · {c.capture_node || 'No capture node'}
 								<br />
 								Saved port slot {c.display_id}
@@ -111,9 +111,8 @@ export default function System() {
 							</small>
 						</p>
 					))}
-				</section>
-				<section className="panel">
-					<h2>Clock and startup</h2>
+				</Panel>
+				<Panel title="Clock and startup">
 					<DataList
 						values={{
 							Clock: s.clock.state || 'Unavailable',
@@ -123,30 +122,40 @@ export default function System() {
 							),
 						}}
 					/>
-				</section>
-				<section className="panel wide">
-					<h2>Faults and support</h2>
+				</Panel>
+				<Panel title="Faults and support" className="lg:col-span-2">
 					{faults.length ? (
 						faults.map((f) => (
-							<p className="warning" key={f}>
+							<p className="text-warning" key={f}>
 								{f}
 							</p>
 						))
 					) : (
 						<p>No active faults reported</p>
 					)}
-					<div className="inline-actions spaced">
-						<button onClick={() => download.mutate({ path: '/api/support', name: 'spot-support.json' })}>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							variant="outline"
+							onClick={() => download.mutate({ path: '/api/support', name: 'spot-support.json' })}
+						>
 							Export support bundle
-						</button>
-						<button onClick={() => download.mutate({ path: '/api/calibrations', name: 'spot-calibrations.json' })}>
+						</Button>
+						<Button
+							variant="outline"
+							onClick={() => download.mutate({ path: '/api/calibrations', name: 'spot-calibrations.json' })}
+						>
 							Download calibration results
-						</button>
-						<button onClick={() => download.mutate({ path: '/api/configuration', name: 'spot-state.json' })}>
+						</Button>
+						<Button
+							variant="outline"
+							onClick={() => download.mutate({ path: '/api/configuration', name: 'spot-state.json' })}
+						>
 							Export saved setup
-						</button>
-						<label>
-							<input
+						</Button>
+						<Label className="gap-2">
+							Import saved setup
+							<Input
+								className="w-auto"
 								type="file"
 								accept="application/json,.json"
 								onChange={async (e) => {
@@ -169,10 +178,10 @@ export default function System() {
 										{ onSuccess: () => announce('Calibration data imported') },
 									);
 								}}
-							/>{' '}
-							Import saved setup
-						</label>
-						<button
+							/>
+						</Label>
+						<Button
+							variant="outline"
 							onClick={() =>
 								operation.mutate(
 									{ operation: 'debug/record', payload: { seconds: 10, revision: s.revision } },
@@ -181,12 +190,10 @@ export default function System() {
 							}
 						>
 							Record 10 s diagnostics
-						</button>
+						</Button>
 					</div>
-					<p id="page-feedback" className="feedback">
-						{notice || operation.error?.message || download.error?.message}
-					</p>
-				</section>
+					<Feedback id="page-feedback">{notice || operation.error?.message || download.error?.message}</Feedback>
+				</Panel>
 			</div>
 		</>
 	);

@@ -5,7 +5,11 @@ import { readStatus, useStatus, useTask } from '../queries';
 import { NumberEdit } from '../state/editing';
 import GeometryViewer from '../components/GeometryViewer';
 import { geometryValues, previewGeometry } from '../state/geometry';
-import { CameraSelector, CameraTabs, fmt, Icon } from '../components/common';
+import { CameraSelector, CameraTabs, Feedback, PageTitle, Panel, fmt } from '../components/common';
+import { ChevronDown, ChevronUp, Redo2, Undo2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import type { Camera } from '../types';
 const labels = ['X', 'Y', 'Z', 'Yaw', 'Pitch', 'Roll'];
 export default function GeometryPage({ camera: c }: { camera: Camera }) {
@@ -70,41 +74,38 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 		});
 	return (
 		<>
-			<h1>{c.name}</h1>
+			<PageTitle>{c.name}</PageTitle>
 			<CameraSelector cameras={status.cameras} id={c.identity} geometry />
 			<CameraTabs id={c.identity} geometry />
-			<div className="camera-layout">
-				<section className="panel geometry-panel">
-					<div className="panel-heading">
-						<h2>Geometry</h2>
-						<span className="history-buttons">
-							{['undo', 'redo'].map((direction) => (
-								<button
-									key={direction}
-									className="icon-button"
-									aria-label={direction === 'undo' ? 'Undo' : 'Redo'}
-									disabled
-								>
-									<Icon name={direction} />
-								</button>
-							))}
+			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
+				<Panel
+					title="Geometry"
+					action={
+						<span className="flex">
+							<Button variant="ghost" size="icon" aria-label="Undo" disabled>
+								<Undo2 />
+							</Button>
+							<Button variant="ghost" size="icon" aria-label="Redo" disabled>
+								<Redo2 />
+							</Button>
 						</span>
-					</div>
-					<p className="lock">
+					}
+				>
+					<p className="text-muted-foreground">
 						{c.logical_name
 							? 'Robot baseline with saved dashboard overrides'
 							: 'Not configured with the robot · local origin only'}
 					</p>
-					<label className="inspection">
-						<input type="checkbox" checked={inspection} onChange={(e) => setInspection(e.target.checked)} /> Inspection
-						preview
-					</label>
-					<div id="geometry-fields">
+					<Label className="text-warning">
+						<Checkbox checked={inspection} onCheckedChange={setInspection} /> Inspection preview
+					</Label>
+					<div id="geometry-fields" className="flex flex-col gap-3">
 						{edits.map((edit, i) => (
-							<div key={labels[i]} className="number-field">
-								<label htmlFor={'geometry-' + i}>{labels[i]}</label>
-								<div className="number-box">
+							<div key={labels[i]} className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-y-1">
+								<Label htmlFor={'geometry-' + i}>{labels[i]}</Label>
+								<div className="flex h-9 min-w-0 items-center rounded-md border border-input bg-input/20 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 has-disabled:opacity-50 dark:bg-input/30">
 									<input
+										className="w-full min-w-0 bg-transparent px-3 text-base outline-none"
 										id={'geometry-' + i}
 										type="text"
 										inputMode="decimal"
@@ -134,46 +135,49 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 											}
 										}}
 									/>
-									<span className="unit">{i < 3 ? 'm' : '°'}</span>
-									<span className="steppers">
+									<span className="mr-1 text-muted-foreground">{i < 3 ? 'm' : '°'}</span>
+									<span className="flex flex-col">
 										{[1, -1].map((direction) => (
-											<button
+											<Button
 												key={direction}
+												variant="ghost"
+												size="icon-xs"
+												className="h-4"
 												disabled={!inspection || !c.geometry}
 												aria-label={(direction === 1 ? 'Increase ' : 'Decrease ') + labels[i]}
 												onClick={(e) => {
 													if (edit.step(direction, e, i >= 3)) void edit.commit().then(() => redraw());
 												}}
 											>
-												{direction === 1 ? '▴' : '▾'}
-											</button>
+												{direction === 1 ? <ChevronUp /> : <ChevronDown />}
+											</Button>
 										))}
 									</span>
 								</div>
-								<span className="feedback">{edit.error}</span>
+								<Feedback className="col-start-2">{edit.error}</Feedback>
 							</div>
 						))}
 					</div>
-					<button className="reset" onClick={reset}>
+					<Button variant="outline" onClick={reset}>
 						Reset preview
-					</button>
-					<button
+					</Button>
+					<Button
 						disabled={busy || !inspection || !c.logical_name || Boolean(status.lock_reason)}
 						onClick={() => apply()}
 					>
 						Save mount override
-					</button>
-					<p className="feedback" role="status">
-						{busy ? 'Waiting for robot acknowledgement…' : task.error?.message}
-					</p>
-					<small>0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.</small>
+					</Button>
+					<Feedback>{busy ? 'Waiting for robot acknowledgement…' : task.error?.message}</Feedback>
+					<small className="text-muted-foreground">
+						0.01 m / 1°. Shift: coarse. Alt: fine. WPILib pitch: positive points down; negative points up.
+					</small>
 					<p>
 						<a href="/docs/operator/cameras/#geometry">Measuring camera geometry</a>
 					</p>
-				</section>
-				<div>
+				</Panel>
+				<div className="flex min-w-0 flex-col gap-4">
 					<GeometryViewer camera={c} inspection geometry={geometry} />
-					<div className="transform-readout" id="transform-readout">
+					<div id="transform-readout">
 						{edits.map((e, i) => `${labels[i]} ${fmt(e.previewValue, i < 3 ? 3 : 1)} ${i < 3 ? 'm' : '°'}`).join(' · ')}
 					</div>
 				</div>

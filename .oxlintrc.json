@@ -3,7 +3,12 @@
 		"correctness": "error",
 		"perf": "error"
 	},
-	"ignorePatterns": ["**/out/**", "apps/vscode-camera-preview/media/preview.bundle.js"],
+	"ignorePatterns": [
+		"**/out/**",
+		"apps/vscode-camera-preview/media/preview.bundle.js",
+		"apps/dashboard/src/components/ui/**",
+		"apps/dashboard/src/hooks/**"
+	],
 	"rules": {
 		"no-await-in-loop": "off",
 		"no-unused-expressions": [

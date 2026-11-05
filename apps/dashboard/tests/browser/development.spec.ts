@@ -13,7 +13,7 @@ test('development proxy keeps real same-origin writes and shared geometry workin
 	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
 	await expect(gain).toHaveValue(String(initial + 1));
 	await page.getByRole('link', { name: 'Geometry', exact: true }).click();
-	await page.getByLabel('Inspection preview').check();
+	await page.getByRole('checkbox', { name: 'Inspection preview' }).check();
 	await expect(page.getByRole('textbox', { name: 'X', exact: true })).toHaveValue('0.31');
 	expect(errors).toEqual([]);
 });

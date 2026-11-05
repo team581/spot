@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
-import { DataList } from '../components/common';
+import { DataList, Feedback, PageTitle, Panel } from '../components/common';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 const networkFeedback = {
 	'network/apply': 'Check the address below, then Keep settings before the countdown ends.',
 	'network/confirm': 'Network settings saved for future boots.',
@@ -59,10 +63,9 @@ export default function NetworkPage() {
 		pendingUrl = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/#network` : '';
 	return (
 		<>
-			<h1>Network</h1>
-			<div className="two-columns">
-				<section className="panel">
-					<h2>Connection</h2>
+			<PageTitle>Network</PageTitle>
+			<div className="grid gap-6 md:grid-cols-2">
+				<Panel title="Connection">
 					<DataList
 						id="connection-data"
 						values={{
@@ -72,6 +75,7 @@ export default function NetworkPage() {
 						}}
 					/>
 					<form
+						className="flex flex-col gap-3"
 						onSubmit={(e) => {
 							e.preventDefault();
 							saveEndpoint.mutate({
@@ -80,9 +84,10 @@ export default function NetworkPage() {
 							});
 						}}
 					>
-						<label htmlFor="nt-mode">Connect using</label>
-						<select
+						<Label htmlFor="nt-mode">Connect using</Label>
+						<NativeSelect
 							id="nt-mode"
+							className="w-full"
 							value={byAddress ? 'server' : 'team'}
 							onChange={(e) => {
 								setByAddress(e.target.value === 'server');
@@ -90,12 +95,12 @@ export default function NetworkPage() {
 							}}
 							disabled={endpointLocked}
 						>
-							<option value="team">Team number</option>
-							<option value="server">Server address</option>
-						</select>
-						<label htmlFor="nt-target">{byAddress ? 'Server address' : 'Team number'}</label>
+							<NativeSelectOption value="team">Team number</NativeSelectOption>
+							<NativeSelectOption value="server">Server address</NativeSelectOption>
+						</NativeSelect>
+						<Label htmlFor="nt-target">{byAddress ? 'Server address' : 'Team number'}</Label>
 						{byAddress ? (
-							<input
+							<Input
 								id="nt-target"
 								type="text"
 								placeholder="10.5.81.2"
@@ -106,7 +111,7 @@ export default function NetworkPage() {
 								disabled={endpointLocked}
 							/>
 						) : (
-							<input
+							<Input
 								id="nt-target"
 								type="number"
 								min="1"
@@ -122,17 +127,19 @@ export default function NetworkPage() {
 							Saving reconnects NetworkTables. Use a server address for an NT4 server on a laptop or simulator. Jetson
 							IP settings are configured below.
 						</p>
-						<p className="lock">{status.connected ? status.lock_reason : ''}</p>
-						<button type="submit" disabled={endpointLocked || !target}>
+						<Feedback>{status.connected ? status.lock_reason : ''}</Feedback>
+						<Button type="submit" className="self-start" disabled={endpointLocked || !target}>
 							Save robot endpoint
-						</button>
+						</Button>
 					</form>
-					<p id="endpoint-feedback" className="feedback" role="status">
+					<Feedback id="endpoint-feedback">
 						{saveEndpoint.isSuccess
 							? 'Robot endpoint saved for future boots. Reconnecting NetworkTables.'
 							: saveEndpoint.error?.message}
-					</p>
-					<button
+					</Feedback>
+					<Button
+						variant="outline"
+						className="self-start"
 						disabled={status.connected}
 						onClick={() =>
 							standalone.mutate(
@@ -142,13 +149,10 @@ export default function NetworkPage() {
 						}
 					>
 						{status.standalone ? 'Standalone setup active' : 'Begin standalone setup'}
-					</button>
-					<p id="page-feedback" className="feedback">
-						{standalone.error?.message}
-					</p>
-				</section>
-				<section className="panel">
-					<h2>Link</h2>
+					</Button>
+					<Feedback id="page-feedback">{standalone.error?.message}</Feedback>
+				</Panel>
+				<Panel title="Link">
 					<DataList
 						values={{
 							NetworkTables: status.connected ? 'Connected' : 'Disconnected',
@@ -161,10 +165,9 @@ export default function NetworkPage() {
 									: 'Unavailable',
 						}}
 					/>
-				</section>
+				</Panel>
 			</div>
-			<section className="panel spaced">
-				<h2>Jetson address</h2>
+			<Panel title="Jetson address">
 				<p>
 					{network.hostname ? (
 						<>
@@ -182,32 +185,36 @@ export default function NetworkPage() {
 						'Maintenance address': network.maintenance_address || 'Unavailable',
 					}}
 				/>
-				<p className="lock">
+				<Feedback>
 					{network.available
 						? (status.connected && status.lock_reason) || ''
 						: network.error || 'Install the Spot network helper to change Ethernet addresses.'}
-				</p>
+				</Feedback>
 				{pending ? (
-					<div>
+					<div className="flex flex-col items-start gap-2">
 						<p id="network-countdown" role="status">
 							Testing network settings. Automatic rollback in {pending.remaining_s} seconds.{' '}
 							{pendingUrl ? <a href={pendingUrl}>Open the new address</a> : 'Check the assigned DHCP address above.'}
 						</p>
-						<button
-							disabled={busy}
-							onClick={() => change({ operation: 'network/confirm', payload: { token: pending.token } })}
-						>
-							Keep settings
-						</button>{' '}
-						<button
-							disabled={busy}
-							onClick={() => change({ operation: 'network/revert', payload: { token: pending.token } })}
-						>
-							Revert now
-						</button>
+						<div className="flex gap-2">
+							<Button
+								disabled={busy}
+								onClick={() => change({ operation: 'network/confirm', payload: { token: pending.token } })}
+							>
+								Keep settings
+							</Button>
+							<Button
+								variant="outline"
+								disabled={busy}
+								onClick={() => change({ operation: 'network/revert', payload: { token: pending.token } })}
+							>
+								Revert now
+							</Button>
+						</div>
 					</div>
 				) : null}
 				<form
+					className="flex max-w-2xl flex-col gap-3"
 					onSubmit={(e) => {
 						e.preventDefault();
 						change({
@@ -216,18 +223,19 @@ export default function NetworkPage() {
 						});
 					}}
 				>
-					<label htmlFor="network-mode">Address mode</label>
-					<select
+					<Label htmlFor="network-mode">Address mode</Label>
+					<NativeSelect
 						id="network-mode"
+						className="w-full"
 						value={mode}
 						disabled={busy || Boolean(pending)}
 						onChange={(e) => setMode(e.target.value === 'static' ? 'static' : 'automatic')}
 					>
-						<option value="automatic">Automatic (DHCP)</option>
-						<option value="static">Static</option>
-					</select>
-					<label htmlFor="network-address">IPv4 address / prefix</label>
-					<input
+						<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
+						<NativeSelectOption value="static">Static</NativeSelectOption>
+					</NativeSelect>
+					<Label htmlFor="network-address">IPv4 address / prefix</Label>
+					<Input
 						id="network-address"
 						placeholder="10.5.81.11/24"
 						autoComplete="off"
@@ -239,8 +247,8 @@ export default function NetworkPage() {
 						Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. The maintenance address stays
 						available through either port.
 					</p>
-					<button
-						className="primary"
+					<Button
+						className="self-start"
 						type="submit"
 						disabled={
 							busy ||
@@ -251,16 +259,14 @@ export default function NetworkPage() {
 						}
 					>
 						Apply for 90 seconds
-					</button>
+					</Button>
 				</form>
 				<p>
 					Reconnect if the address changes, then choose Keep settings. Without confirmation, the previous connection
 					returns automatically. Wi-Fi and the internet default route stay unchanged.
 				</p>
-				<p id="network-feedback" className="feedback">
-					{feedback}
-				</p>
-			</section>
+				<Feedback id="network-feedback">{feedback}</Feedback>
+			</Panel>
 		</>
 	);
 }

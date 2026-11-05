@@ -1,3 +1,8 @@
+import type { ReactNode } from 'react';
+import { CircleCheck, TriangleAlert } from 'lucide-react';
+import { cn } from 'cn';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import type { Camera } from '../types';
 export const fmt = (value: number | undefined, digits = 1) => (Number.isFinite(value) ? value!.toFixed(digits) : '—');
 export const age = (value: number | undefined) =>
@@ -12,19 +17,6 @@ export const date = (value: string | undefined) =>
 				hour12: false,
 			})
 		: 'Time unavailable';
-const paths: Record<string, string> = {
-	overview: 'M3 10 10 4l7 6v10h-5v-6H8v6H3Z',
-	cameras: 'M3 7h4l2-3h5l2 3h3v13H3ZM15 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
-	calibration: 'M5 3v4H2v10h3v4M15 3v4h3v10h-3v4M5 12h10M10 7v10',
-	network: 'M6 2v5h8V2M10 7v6M3 13h14v6H3M10 19v3',
-	system: 'M3 4h15v5H3ZM3 14h15v5H3ZM6 6.5h1M6 16.5h1M13 6.5h2M13 16.5h2',
-	docs: 'M10 5C7 3 4 3 2 4v15c3-1 5-1 8 1 3-2 5-2 8-1V4c-3-1-5-1-8 1Zm0 0v15',
-	Auto: 'M2 3h17v12H2ZM10 15v5M6 20h8',
-	Light: 'M10 6a4 4 0 1 1 0 8 4 4 0 0 1 0-8M10 1v2M10 17v2M1 10h2M17 10h2M3 3l2 2M15 15l2 2M3 17l2-2M15 5l2-2',
-	Dark: 'M18 13A8 8 0 0 1 7 2 8 8 0 1 0 18 13',
-	undo: 'M7 4 3 8l4 4M3 8h8a6 6 0 0 1 6 6',
-	redo: 'm13 4 4 4-4 4M17 8H9a6 6 0 0 0-6 6',
-};
 /** Save a JSON document through the browser's download prompt. */
 export function saveJson(value: unknown, name: string) {
 	const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }));
@@ -34,34 +26,73 @@ export function saveJson(value: unknown, name: string) {
 	link.click();
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export function Icon({ name }: { name: string }) {
+export function PageTitle({ children, id }: { children: ReactNode; id?: string }) {
 	return (
-		<svg className="icon" viewBox="0 0 22 24" aria-hidden="true">
-			<path d={paths[name] || paths.cameras} />
-		</svg>
+		<h1 id={id} className="font-heading text-2xl font-semibold">
+			{children}
+		</h1>
+	);
+}
+export function Panel({
+	title,
+	action,
+	className,
+	children,
+}: {
+	title?: ReactNode;
+	action?: ReactNode;
+	className?: string;
+	children: ReactNode;
+}) {
+	return (
+		<Card className={cn('min-w-0', className)}>
+			{title ? (
+				<CardHeader>
+					<CardTitle role="heading" aria-level={2} className="text-base">
+						{title}
+					</CardTitle>
+					{action ? <CardAction>{action}</CardAction> : null}
+				</CardHeader>
+			) : null}
+			<CardContent className="flex flex-col gap-3">{children}</CardContent>
+		</Card>
+	);
+}
+/** Status text for locks and failures. Empty messages take no space. */
+export function Feedback({ children, id, className }: { children?: ReactNode; id?: string; className?: string }) {
+	return (
+		<p id={id} role="status" className={cn('text-xs whitespace-pre-wrap text-warning empty:hidden', className)}>
+			{children}
+		</p>
 	);
 }
 export function DataList({ values, id }: { values: Record<string, string | number>; id?: string }) {
 	return (
-		<dl className="data-list" id={id}>
+		<dl className="grid grid-cols-[40%_minmax(0,1fr)] gap-x-3 gap-y-3 max-sm:grid-cols-1 max-sm:gap-y-1" id={id}>
 			{Object.entries(values).map(([key, value]) => (
-				<div className="data-row" key={key}>
-					<dt>{key}</dt>
-					<dd>{value}</dd>
+				<div className="contents" key={key}>
+					<dt className="text-muted-foreground">{key}</dt>
+					<dd className="wrap-anywhere max-sm:mb-2">{value}</dd>
 				</div>
 			))}
 		</dl>
 	);
 }
-export function WarningLink({ camera: c }: { camera: Camera }) {
+export function CalibrationState({ camera: c }: { camera: Camera }) {
 	return c.health === 'Disabled' ? (
-		<span className="calibrated">Disabled in code</span>
+		<span className="text-xs text-muted-foreground">Disabled in code</span>
+	) : !c.logical_name ? (
+		<span className="inline-flex items-center gap-1 text-xs text-warning">
+			<TriangleAlert className="size-3.5" aria-hidden /> Choose camera name
+		</span>
 	) : c.calibrated ? (
-		<span className="calibrated good">✓ calibrated</span>
+		<span className="inline-flex items-center gap-1 text-xs text-success">
+			<CircleCheck className="size-3.5" aria-hidden /> Calibrated
+		</span>
 	) : (
-		<a className="calibrated warning" href="#calibration">
-			⚠ Calibration required
-		</a>
+		<span className="inline-flex items-center gap-1 text-xs text-warning">
+			<TriangleAlert className="size-3.5" aria-hidden /> Calibration required
+		</span>
 	);
 }
 export function CameraSelector({
@@ -74,8 +105,8 @@ export function CameraSelector({
 	geometry?: boolean;
 }) {
 	return (
-		<select
-			className="camera-selector"
+		<NativeSelect
+			className="w-full lg:hidden"
 			aria-label="Select camera"
 			value={id}
 			onChange={(e) => {
@@ -83,22 +114,47 @@ export function CameraSelector({
 			}}
 		>
 			{cameras.map((c) => (
-				<option key={c.identity} value={c.identity}>
+				<NativeSelectOption key={c.identity} value={c.identity}>
 					{c.name}
-				</option>
+				</NativeSelectOption>
 			))}
-		</select>
+		</NativeSelect>
+	);
+}
+/** Hash-routed tabs styled like shadcn's tab list. */
+export function LinkTabs({
+	tabs,
+	children,
+}: {
+	tabs: { href: string; label: string; active: boolean }[];
+	children?: ReactNode;
+}) {
+	return (
+		<div className="flex flex-wrap items-center gap-2">
+			<nav className="inline-flex rounded-lg bg-muted p-0.5">
+				{tabs.map((tab) => (
+					<a
+						key={tab.href}
+						href={tab.href}
+						aria-current={tab.active ? 'page' : undefined}
+						className="rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
+					>
+						{tab.label}
+					</a>
+				))}
+			</nav>
+			{children ? <div className="ml-auto flex gap-2">{children}</div> : null}
+		</div>
 	);
 }
 export function CameraTabs({ id, geometry = false }: { id: string; geometry?: boolean }) {
+	const href = '#camera/' + encodeURIComponent(id);
 	return (
-		<div className="tabs">
-			<a href={'#camera/' + encodeURIComponent(id)} className={!geometry ? 'active' : ''}>
-				Camera
-			</a>
-			<a href={'#camera/' + encodeURIComponent(id) + '/geometry'} className={geometry ? 'active' : ''}>
-				Geometry
-			</a>
-		</div>
+		<LinkTabs
+			tabs={[
+				{ href, label: 'Camera', active: !geometry },
+				{ href: href + '/geometry', label: 'Geometry', active: geometry },
+			]}
+		/>
 	);
 }

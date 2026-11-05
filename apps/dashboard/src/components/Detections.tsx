@@ -1,7 +1,9 @@
 import { useStatus } from '../queries';
 import { usePreview, previewData, currentFrame } from './Feed';
-import { fmt } from './common';
+import { fmt, Panel } from './common';
 import type { Camera } from '../types';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 export function Detections({ camera: c }: { camera: Camera }) {
 	const status = useStatus(),
 		view = usePreview(c.identity),
@@ -11,9 +13,8 @@ export function Detections({ camera: c }: { camera: Camera }) {
 		candidates = fresh ? (data?.candidates ?? []) : [],
 		decision = status.robot_decisions?.[c.logical_name ?? ''];
 	return (
-		<section className="panel">
-			<h2>Detections</h2>
-			<p id="pose-state" role="status">
+		<Panel title="Detections">
+			<p id="pose-state" role="status" className="text-muted-foreground">
 				{!c.calibrated
 					? 'Pose unavailable: calibrate this camera. Tags can be detected without a calibration, but distance and pose need valid intrinsics.'
 					: !fresh
@@ -22,43 +23,49 @@ export function Detections({ camera: c }: { camera: Camera }) {
 							? 'Local camera pose available. Robot acceptance is checked separately.'
 							: 'No pose solved for this frame. Check tag visibility, the field layout and solver diagnostics.'}
 			</p>
-			<div className="table-scroll">
-				<table>
-					<thead>
-						<tr>
-							<th>ID</th>
-							<th>Range</th>
-							<th>Error</th>
-							<th>Used</th>
-						</tr>
-					</thead>
-					<tbody id="detections">
-						{tags.length ? (
-							tags.map((tag) => (
-								<tr key={tag.id}>
-									<td>{tag.id}</td>
-									<td>{tag.distance_m != null ? fmt(tag.distance_m) + ' m' : '—'}</td>
-									<td>{tag.error_px != null ? fmt(tag.error_px, 2) + ' px' : '—'}</td>
-									<td title={tag.reason}>{tag.used ? '✓' : '—'}</td>
-								</tr>
-							))
-						) : (
-							<tr>
-								<td colSpan={4}>{fresh ? 'No tags in this frame' : 'Waiting for current detection frame'}</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
-			</div>
-			<div id="robot-decision">
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>ID</TableHead>
+						<TableHead>Range</TableHead>
+						<TableHead>Error</TableHead>
+						<TableHead>Used</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody id="detections">
+					{tags.length ? (
+						tags.map((tag) => (
+							<TableRow key={tag.id}>
+								<TableCell>{tag.id}</TableCell>
+								<TableCell>{tag.distance_m != null ? fmt(tag.distance_m) + ' m' : '—'}</TableCell>
+								<TableCell>{tag.error_px != null ? fmt(tag.error_px, 2) + ' px' : '—'}</TableCell>
+								<TableCell title={tag.reason}>{tag.used ? '✓' : '—'}</TableCell>
+							</TableRow>
+						))
+					) : (
+						<TableRow>
+							<TableCell colSpan={4} className="text-muted-foreground">
+								{fresh ? 'No tags in this frame' : 'Waiting for current detection frame'}
+							</TableCell>
+						</TableRow>
+					)}
+				</TableBody>
+			</Table>
+			<p id="robot-decision">
 				{decision && decision.capture_epoch === data?.capture_epoch && decision.sequence === data?.sequence
 					? `Robot: ${decision.state} · fusion ${decision.fusion_enabled ? 'enabled' : 'off'} · frame ${decision.fused ? 'fused' : 'not fused'}`
 					: 'Robot decision unavailable for this frame'}
-			</div>
-			<details className="spaced">
-				<summary>Solver candidates</summary>
-				<pre>{JSON.stringify(candidates, null, 2)}</pre>
-			</details>
-		</section>
+			</p>
+			<Collapsible>
+				<CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
+					Solver candidates
+				</CollapsibleTrigger>
+				<CollapsibleContent>
+					<pre className="mt-2 overflow-auto rounded-md bg-muted p-2 text-xs">
+						{JSON.stringify(candidates, null, 2)}
+					</pre>
+				</CollapsibleContent>
+			</Collapsible>
+		</Panel>
 	);
 }

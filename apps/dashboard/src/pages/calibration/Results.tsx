@@ -1,6 +1,10 @@
 import { useState, useReducer } from 'react';
 import { useDashboard } from '../../dashboard';
-import { fmt, date } from '../../components/common';
+import { Feedback, Panel, fmt, date } from '../../components/common';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { readStatus, useOperation, useStatus } from '../../queries';
 import type { Status } from '../../types';
 export default function Results() {
@@ -14,56 +18,53 @@ export default function Results() {
 		passing = (id: string) => sessions[id]?.fit?.accepted && sessions[id]?.holdout?.accepted;
 	return (
 		<>
-			<section className="panel">
-				<h2>Results</h2>
-				<div className="table-scroll">
-					<table>
-						<thead>
-							<tr>
-								<th>Camera</th>
-								<th>Fit RMS</th>
-								<th>Validation RMS</th>
-								<th>Fit / validation views</th>
-								<th>Result</th>
-							</tr>
-						</thead>
-						<tbody>
-							{Object.entries(sessions).length ? (
-								Object.entries(sessions).map(([id, s]) => (
-									<tr key={id}>
-										<td>
-											<label>
-												<input
-													type="checkbox"
-													checked={selected.has(id)}
-													onChange={(e) => {
-														e.target.checked ? selected.add(id) : selected.delete(id);
-														redraw();
-													}}
-												/>{' '}
-												{status.cameras.find((c) => c.identity === id)?.name || id.slice(0, 8)}
-											</label>
-										</td>
-										<td>{fmt(s.fit?.rms_reprojection_error_px, 2)} px</td>
-										<td>{fmt(s.holdout?.rms_px, 2)} px</td>
-										<td>
-											{s.fit_views} / {s.holdout_views}
-										</td>
-										<td className={passing(id) ? 'good' : 'warning'}>
-											{passing(id) ? '✓ Pass' : s.reason || s.fit?.reason || 'Capture required'}
-										</td>
-									</tr>
-								))
-							) : (
-								<tr>
-									<td colSpan={5}>Select cameras on Capture</td>
-								</tr>
-							)}
-						</tbody>
-					</table>
-				</div>
-				<div className="results-actions">
-					<button
+			<Panel title="Results">
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Camera</TableHead>
+							<TableHead>Fit RMS</TableHead>
+							<TableHead>Validation RMS</TableHead>
+							<TableHead>Fit / validation views</TableHead>
+							<TableHead>Result</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{Object.entries(sessions).length ? (
+							Object.entries(sessions).map(([id, s]) => (
+								<TableRow key={id}>
+									<TableCell>
+										<Label>
+											<Checkbox
+												checked={selected.has(id)}
+												onCheckedChange={(checked) => {
+													checked ? selected.add(id) : selected.delete(id);
+													redraw();
+												}}
+											/>
+											{status.cameras.find((c) => c.identity === id)?.name || id.slice(0, 8)}
+										</Label>
+									</TableCell>
+									<TableCell>{fmt(s.fit?.rms_reprojection_error_px, 2)} px</TableCell>
+									<TableCell>{fmt(s.holdout?.rms_px, 2)} px</TableCell>
+									<TableCell>
+										{s.fit_views} / {s.holdout_views}
+									</TableCell>
+									<TableCell className={passing(id) ? 'text-success' : 'text-warning'}>
+										{passing(id) ? '✓ Pass' : s.reason || s.fit?.reason || 'Capture required'}
+									</TableCell>
+								</TableRow>
+							))
+						) : (
+							<TableRow>
+								<TableCell colSpan={5}>Select cameras on Capture</TableCell>
+							</TableRow>
+						)}
+					</TableBody>
+				</Table>
+				<div className="flex flex-wrap items-center gap-3">
+					<Button
+						variant="outline"
 						onClick={() => {
 							selected.clear();
 							for (const id of Object.keys(sessions)) if (passing(id)) selected.add(id);
@@ -71,9 +72,8 @@ export default function Results() {
 						}}
 					>
 						Select passing
-					</button>
-					<button
-						className="primary"
+					</Button>
+					<Button
 						disabled={Boolean(
 							status.lock_reason ||
 							apply.isPending ||
@@ -88,8 +88,8 @@ export default function Results() {
 						}
 					>
 						Apply selected
-					</button>
-					<small id="apply-status">
+					</Button>
+					<small id="apply-status" className="text-muted-foreground">
 						{apply.isPending
 							? 'Applying calibration…'
 							: apply.isSuccess
@@ -97,9 +97,8 @@ export default function Results() {
 								: apply.error?.message}
 					</small>
 				</div>
-			</section>
-			<section className="panel history-panel">
-				<h2>History</h2>
+			</Panel>
+			<Panel title="History" className="history-panel">
 				{(status.history ?? []).filter((h) => h.cameras?.length || h.error).length ? (
 					(status.history ?? [])
 						.filter((h) => h.cameras?.length || h.error)
@@ -119,10 +118,10 @@ export default function Results() {
 							/>
 						))
 				) : (
-					<p className="muted">No activated calibration history</p>
+					<p className="text-muted-foreground">No activated calibration history</p>
 				)}
-				<p className="feedback">{restore.error?.message}</p>
-			</section>
+				<Feedback>{restore.error?.message}</Feedback>
+			</Panel>
 		</>
 	);
 }
@@ -138,40 +137,41 @@ function HistoryEntry({
 		[, redraw] = useReducer((n) => n + 1, 0);
 	const [selected] = useState(() => selections.history.get(h.generation) ?? new Set<string>());
 	return (
-		<div className="spaced">
-			<strong>{h.generation.slice(0, 12)}</strong> {h.active ? '· active' : ''}
-			<p>
+		<div className="flex flex-col items-start gap-2">
+			<span>
+				<strong>{h.generation.slice(0, 12)}</strong> {h.active ? '· active' : ''}
+			</span>
+			<div className="flex flex-col gap-2">
 				{h.cameras.map((record) => {
 					const current = status.cameras.find((c) => c.identity === record.identity),
 						compatible = current?.connected && current.mode_signature === record.mode_signature;
 					return (
-						<label className="spaced" key={record.id}>
-							<input
-								type="checkbox"
+						<Label key={record.id}>
+							<Checkbox
 								checked={selected.has(record.id)}
 								disabled={Boolean(!compatible || h.active || status.lock_reason)}
-								onChange={(e) => {
-									e.target.checked ? selected.add(record.id) : selected.delete(record.id);
+								onCheckedChange={(checked) => {
+									checked ? selected.add(record.id) : selected.delete(record.id);
 									selections.history.set(h.generation, selected);
 									redraw();
 								}}
-							/>{' '}
+							/>
 							{current?.name || record.identity.slice(0, 8)} · {date(record.saved_at)}{' '}
 							{compatible ? '' : '· current mode unavailable or incompatible'}
-							<br />
-						</label>
+						</Label>
 					);
 				})}
-			</p>
+			</div>
 			{h.error ? (
-				<span className="warning">{h.error}</span>
+				<span className="text-warning">{h.error}</span>
 			) : (
-				<button
+				<Button
+					variant="outline"
 					disabled={Boolean(h.active || status.lock_reason || !selected.size)}
 					onClick={() => onRestore([...selected])}
 				>
 					Restore selected
-				</button>
+				</Button>
 			)}
 		</div>
 	);
