@@ -103,7 +103,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							value={c.mode_id || ''}
 							disabled={Boolean(status.lock_reason || !c.connected || tuner.inFlight)}
 							onChange={(e) =>
-								void run(c.logical_name ? 'mode' : 'device/mode', {
+								void run(c.logical_name ? 'camera/mode' : 'device/mode', {
 									...target,
 									mode_id: e.target.value,
 									revision: status.revision,
@@ -184,7 +184,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 									setError('Identify the replacement feed before replacing this camera');
 									return;
 								}
-								void run('replace', {
+								void run('camera/replace', {
 									name: c.logical_name,
 									identity: replacementId,
 									revision: status.revision,

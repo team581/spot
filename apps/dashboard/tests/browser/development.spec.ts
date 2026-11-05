@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-test('development proxy keeps real session/CSRF writes and shared geometry working', async ({ page }) => {
+test('development proxy keeps real same-origin writes and shared geometry working', async ({ page }) => {
 	const errors: string[] = [];
 	page.on('pageerror', (error) => errors.push(error.message));
 	await page.goto('/');

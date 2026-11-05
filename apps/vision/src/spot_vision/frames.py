@@ -10,11 +10,11 @@ from collections import deque
 
 
 class FrameHub:
-    def __init__(self, *, max_clients: int = 8, width: int = 960, fps: float = 20) -> None:
+    def __init__(self, *, max_cameras: int = 8, width: int = 960, fps: float = 20) -> None:
         self._lock = threading.RLock()
         self.latest, self.results, self.encoded = {}, {}, {}
         self.interests = {}
-        self.max_clients, self.width, self.interval = max_clients, width, 1 / fps
+        self.max_cameras, self.width, self.interval = max_cameras, width, 1 / fps
         self.stop_event = threading.Event()
         self.worker = threading.Thread(target=self._encode, name="preview-encoder", daemon=True)
         self.last_progress = time.monotonic()
@@ -40,15 +40,15 @@ class FrameHub:
         with self._lock:
             return self.latest.get(identity)
 
-    def preview(self, identity: str, client: str) -> dict:
+    def preview(self, identity: str) -> dict:
         now = time.monotonic()
         with self._lock:
             self.interests = {
-                key: value for key, value in self.interests.items() if now - value[1] < 3
+                key: stamp for key, stamp in self.interests.items() if now - stamp < 3
             }
-            if client not in self.interests and len(self.interests) >= self.max_clients:
-                raise ValueError("Preview client limit reached")
-            self.interests[client] = (identity, now)
+            if identity not in self.interests and len(self.interests) >= self.max_cameras:
+                raise ValueError("Preview camera limit reached")
+            self.interests[identity] = now
             result = copy.deepcopy(self.encoded.get(identity, {"image": None, "tags": []}))
             captured = result.get("captured_monotonic_ns")
             result["age_s"] = None if captured is None else (time.monotonic_ns() - captured) / 1e9
@@ -69,7 +69,7 @@ class FrameHub:
             with self._lock:
                 interested = {
                     identity
-                    for identity, stamp in self.interests.values()
+                    for identity, stamp in self.interests.items()
                     if time.monotonic() - stamp < 3
                 }
             order = deque(key for key in order if key in interested)

@@ -24,7 +24,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 		results: new Set<string>(),
 		history: new Map<string, Set<string>>(),
 	}));
-	const session = useRef<{ csrf: string } | null>(null);
 	const [previews] = useState(() => new PreviewStore());
 	const snapshot = useRef(status);
 	const read = useCallback(() => snapshot.current, []);
@@ -36,10 +35,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 	}, []);
 	const mutate: Mutate = useCallback(
 		async (operation, payload) => {
-			if (!session.current) throw new Error('Browser session unavailable; reconnect');
-			const job = await submit(session.current.csrf, operation, payload);
+			const applied = await submit(operation, payload);
 			await refresh();
-			return job;
+			return applied;
 		},
 		[refresh],
 	);
@@ -78,16 +76,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 			}
 		};
 		document.addEventListener('visibilitychange', visible);
-		void api<{ csrf: string }>('/api/session')
-			.then((result) => {
-				if (!polling.stopped) {
-					session.current = result;
-					previews.start(() => snapshot.current);
-				}
-			})
-			.catch((error) => {
-				if (!polling.stopped) announce(String(error.message));
-			});
+		previews.start(() => snapshot.current);
 		void poll();
 		return () => {
 			polling.stopped = true;

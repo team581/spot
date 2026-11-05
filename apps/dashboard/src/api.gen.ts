@@ -4,23 +4,6 @@
  */
 
 export interface paths {
-	'/api/session': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Create Session */
-		get: operations['create_session'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
 	'/api/status': {
 		parameters: {
 			query?: never;
@@ -30,6 +13,23 @@ export interface paths {
 		};
 		/** Status */
 		get: operations['status'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Configuration */
+		get: operations['configuration'];
 		put?: never;
 		post?: never;
 		delete?: never;
@@ -55,15 +55,15 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/robot-config': {
+	'/api/robot/configuration': {
 		parameters: {
 			query?: never;
 			header?: never;
 			path?: never;
 			cookie?: never;
 		};
-		/** Robot Config */
-		get: operations['robot_config'];
+		/** Robot Configuration */
+		get: operations['robot_configuration'];
 		put?: never;
 		post?: never;
 		delete?: never;
@@ -72,7 +72,7 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/robot-defaults': {
+	'/api/robot/defaults': {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -81,23 +81,6 @@ export interface paths {
 		};
 		/** Robot Defaults */
 		get: operations['robot_defaults'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/export': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Export */
-		get: operations['export'];
 		put?: never;
 		post?: never;
 		delete?: never;
@@ -123,24 +106,7 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/jobs/{job_id}': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Job */
-		get: operations['job'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/frame/{identity}': {
+	'/api/frames/{identity}': {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -157,7 +123,7 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/operations': {
+	'/api/nt/team': {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -166,8 +132,484 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
-		/** Submit */
-		post: operations['submit'];
+		/** Nt Team */
+		post: operations['nt_team'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/network/apply': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Network Apply */
+		post: operations['network_apply'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/network/confirm': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Network Confirm */
+		post: operations['network_confirm'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/network/revert': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Network Revert */
+		post: operations['network_revert'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/standalone': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Standalone */
+		post: operations['standalone'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/device/setup': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Device Setup */
+		post: operations['device_setup'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/device/tune': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Device Tune */
+		post: operations['device_tune'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/device/mode': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Device Mode */
+		post: operations['device_mode'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/device/name': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Device Name */
+		post: operations['device_name'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/camera/tune': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Camera Tune */
+		post: operations['camera_tune'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/camera/mode': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Camera Mode */
+		post: operations['camera_mode'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/camera/replace': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Camera Replace */
+		post: operations['camera_replace'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration/apply': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Configuration Apply */
+		post: operations['configuration_apply'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration/import': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Configuration Import */
+		post: operations['configuration_import'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration/clear-overrides': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Configuration Clear Overrides */
+		post: operations['configuration_clear_overrides'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration/restore': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Configuration Restore */
+		post: operations['configuration_restore'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/configuration/qualify-timing': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Configuration Qualify Timing */
+		post: operations['configuration_qualify_timing'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/debug/record': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Debug Record */
+		post: operations['debug_record'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/board': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Board */
+		post: operations['calibration_board'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/select': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Select */
+		post: operations['calibration_select'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/apply': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Apply */
+		post: operations['calibration_apply'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/reset': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Reset */
+		post: operations['calibration_reset'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/pause-all': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Pause All */
+		post: operations['calibration_pause_all'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/start-all': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Start All */
+		post: operations['calibration_start_all'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/start': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Start */
+		post: operations['calibration_start'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/pause': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Pause */
+		post: operations['calibration_pause'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/capture': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Capture */
+		post: operations['calibration_capture'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/compute': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Compute */
+		post: operations['calibration_compute'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/api/calibration/validate': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Calibration Validate */
+		post: operations['calibration_validate'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -178,6 +620,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
 	schemas: {
+		/** Applied */
+		Applied: {
+			/** Revision */
+			revision: string;
+			/** Applied Generation */
+			applied_generation: string | null;
+			/** Result */
+			result?: {
+				[key: string]: unknown;
+			} | null;
+			/** Controls */
+			controls?: {
+				[key: string]: number;
+			} | null;
+		};
 		/** CalibrationAll */
 		CalibrationAll: {
 			/**
@@ -185,17 +642,6 @@ export interface components {
 			 * @default
 			 */
 			revision?: string;
-		};
-		/** CalibrationApplyOperation */
-		CalibrationApplyOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/apply';
-			payload: components['schemas']['CalibrationCameras'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** CalibrationBoard */
 		CalibrationBoard: {
@@ -209,17 +655,6 @@ export interface components {
 			options: {
 				[key: string]: unknown;
 			};
-		};
-		/** CalibrationBoardOperation */
-		CalibrationBoardOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/board';
-			payload: components['schemas']['CalibrationBoard'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** CalibrationCamera */
 		CalibrationCamera: {
@@ -245,72 +680,6 @@ export interface components {
 			/** Identities */
 			identities: string[];
 		};
-		/** CalibrationCaptureOperation */
-		CalibrationCaptureOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/capture';
-			payload: components['schemas']['CalibrationCamera'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationComputeOperation */
-		CalibrationComputeOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/compute';
-			payload: components['schemas']['CalibrationCamera'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationPauseAllOperation */
-		CalibrationPauseAllOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/pause-all';
-			payload: components['schemas']['CalibrationAll'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationPauseOperation */
-		CalibrationPauseOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/pause';
-			payload: components['schemas']['CalibrationCamera'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationResetOperation */
-		CalibrationResetOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/reset';
-			payload: components['schemas']['CalibrationAll'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationSelectOperation */
-		CalibrationSelectOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/select';
-			payload: components['schemas']['CalibrationCameras'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** CalibrationStartAll */
 		CalibrationStartAll: {
 			/**
@@ -324,39 +693,6 @@ export interface components {
 			 */
 			phase?: string;
 		};
-		/** CalibrationStartAllOperation */
-		CalibrationStartAllOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/start-all';
-			payload: components['schemas']['CalibrationStartAll'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationStartOperation */
-		CalibrationStartOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/start';
-			payload: components['schemas']['CalibrationCamera'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** CalibrationValidateOperation */
-		CalibrationValidateOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'calibration/validate';
-			payload: components['schemas']['CalibrationCamera'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** ClearOverrides */
 		ClearOverrides: {
 			/** Revision */
@@ -367,17 +703,6 @@ export interface components {
 			 */
 			path?: string;
 		};
-		/** ClearOverridesOperation */
-		ClearOverridesOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'clear-overrides';
-			payload: components['schemas']['ClearOverrides'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** Configure */
 		Configure: {
 			/** Revision */
@@ -387,34 +712,12 @@ export interface components {
 				[key: string]: unknown;
 			};
 		};
-		/** ConfigureOperation */
-		ConfigureOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'configure';
-			payload: components['schemas']['Configure'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** Debug */
 		Debug: {
 			/** Revision */
 			revision: string;
 			/** Seconds */
 			seconds: number;
-		};
-		/** DebugOperation */
-		DebugOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'debug';
-			payload: components['schemas']['Debug'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** Device */
 		Device: {
@@ -431,28 +734,6 @@ export interface components {
 			identity: string;
 			/** Mode Id */
 			mode_id: string;
-		};
-		/** DeviceModeOperation */
-		DeviceModeOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'device/mode';
-			payload: components['schemas']['DeviceMode'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** DeviceSetupOperation */
-		DeviceSetupOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'device/setup';
-			payload: components['schemas']['Device'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** DeviceTune */
 		DeviceTune: {
@@ -473,43 +754,10 @@ export interface components {
 			 */
 			reset?: boolean;
 		};
-		/** DeviceTuneOperation */
-		DeviceTuneOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'device/tune';
-			payload: components['schemas']['DeviceTune'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
 			/** Detail */
 			detail?: components['schemas']['ValidationError'][];
-		};
-		/** ImportOperation */
-		ImportOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'import';
-			payload: components['schemas']['Configure'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** JobAccepted */
-		JobAccepted: {
-			/** Job Id */
-			job_id: string;
-			/**
-			 * State
-			 * @default pending
-			 * @constant
-			 */
-			state?: 'pending';
 		};
 		/** Mode */
 		Mode: {
@@ -520,27 +768,12 @@ export interface components {
 			/** Mode Id */
 			mode_id: string;
 		};
-		/** ModeOperation */
-		ModeOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'mode';
-			payload: components['schemas']['Mode'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** NetworkApplyOperation */
-		NetworkApplyOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'network/apply';
-			payload: components['schemas']['NetworkChange'];
-			/** Request Id */
-			request_id: string;
+		/** NetworkApplied */
+		NetworkApplied: {
+			/** Result */
+			result: {
+				[key: string]: unknown;
+			};
 		};
 		/** NetworkChange */
 		NetworkChange: {
@@ -552,43 +785,10 @@ export interface components {
 			/** Address */
 			address: string;
 		};
-		/** NetworkConfirmOperation */
-		NetworkConfirmOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'network/confirm';
-			payload: components['schemas']['NetworkToken'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** NetworkRevertOperation */
-		NetworkRevertOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'network/revert';
-			payload: components['schemas']['NetworkToken'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** NetworkToken */
 		NetworkToken: {
 			/** Token */
 			token: string;
-		};
-		/** NtTeamOperation */
-		NtTeamOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'nt/team';
-			payload: components['schemas']['Team'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** Payload */
 		Payload: Record<string, never>;
@@ -601,17 +801,6 @@ export interface components {
 				[key: string]: unknown;
 			};
 		};
-		/** QualifyTimingOperation */
-		QualifyTimingOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'qualify-timing';
-			payload: components['schemas']['QualifyTiming'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** Rename */
 		Rename: {
 			/** Revision */
@@ -620,17 +809,6 @@ export interface components {
 			identity: string;
 			/** Name */
 			name: string;
-		};
-		/** RenameOperation */
-		RenameOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'rename';
-			payload: components['schemas']['Rename'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** Replace */
 		Replace: {
@@ -643,17 +821,6 @@ export interface components {
 			 * @default
 			 */
 			identity?: string;
-		};
-		/** ReplaceOperation */
-		ReplaceOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'replace';
-			payload: components['schemas']['Replace'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** Restore */
 		Restore: {
@@ -671,35 +838,6 @@ export interface components {
 			 * @default []
 			 */
 			calibration_ids?: string[];
-		};
-		/** RestoreOperation */
-		RestoreOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'restore';
-			payload: components['schemas']['Restore'];
-			/** Request Id */
-			request_id: string;
-		};
-		/** Session */
-		Session: {
-			/** Csrf */
-			csrf: string;
-			/** Client */
-			client: string;
-		};
-		/** StandaloneOperation */
-		StandaloneOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'standalone';
-			payload: components['schemas']['Payload'];
-			/** Request Id */
-			request_id: string;
 		};
 		/** Team */
 		Team: {
@@ -725,17 +863,6 @@ export interface components {
 			 */
 			reset?: boolean;
 		};
-		/** TuneOperation */
-		TuneOperation: {
-			/**
-			 * @description discriminator enum property added by openapi-typescript
-			 * @enum {string}
-			 */
-			operation: 'tune';
-			payload: components['schemas']['Tune'];
-			/** Request Id */
-			request_id: string;
-		};
 		/** ValidationError */
 		ValidationError: {
 			/** Location */
@@ -758,7 +885,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-	create_session: {
+	status: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -773,12 +900,14 @@ export interface operations {
 					[name: string]: unknown;
 				};
 				content: {
-					'application/json': components['schemas']['Session'];
+					'application/json': {
+						[key: string]: unknown;
+					};
 				};
 			};
 		};
 	};
-	status: {
+	configuration: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -822,7 +951,7 @@ export interface operations {
 			};
 		};
 	};
-	robot_config: {
+	robot_configuration: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -866,28 +995,6 @@ export interface operations {
 			};
 		};
 	};
-	export: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': {
-						[key: string]: unknown;
-					};
-				};
-			};
-		};
-	};
 	support: {
 		parameters: {
 			query?: never;
@@ -906,39 +1013,6 @@ export interface operations {
 					'application/json': {
 						[key: string]: unknown;
 					};
-				};
-			};
-		};
-	};
-	job: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				job_id: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': {
-						[key: string]: unknown;
-					};
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};
@@ -976,7 +1050,7 @@ export interface operations {
 			};
 		};
 	};
-	submit: {
+	nt_team: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -985,46 +1059,941 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json':
-					| components['schemas']['NtTeamOperation']
-					| components['schemas']['NetworkApplyOperation']
-					| components['schemas']['NetworkConfirmOperation']
-					| components['schemas']['NetworkRevertOperation']
-					| components['schemas']['DeviceSetupOperation']
-					| components['schemas']['DeviceTuneOperation']
-					| components['schemas']['DeviceModeOperation']
-					| components['schemas']['StandaloneOperation']
-					| components['schemas']['DebugOperation']
-					| components['schemas']['ClearOverridesOperation']
-					| components['schemas']['ConfigureOperation']
-					| components['schemas']['ImportOperation']
-					| components['schemas']['QualifyTimingOperation']
-					| components['schemas']['RenameOperation']
-					| components['schemas']['TuneOperation']
-					| components['schemas']['ModeOperation']
-					| components['schemas']['ReplaceOperation']
-					| components['schemas']['RestoreOperation']
-					| components['schemas']['CalibrationBoardOperation']
-					| components['schemas']['CalibrationSelectOperation']
-					| components['schemas']['CalibrationApplyOperation']
-					| components['schemas']['CalibrationResetOperation']
-					| components['schemas']['CalibrationPauseAllOperation']
-					| components['schemas']['CalibrationStartAllOperation']
-					| components['schemas']['CalibrationStartOperation']
-					| components['schemas']['CalibrationPauseOperation']
-					| components['schemas']['CalibrationCaptureOperation']
-					| components['schemas']['CalibrationComputeOperation']
-					| components['schemas']['CalibrationValidateOperation'];
+				'application/json': components['schemas']['Team'];
 			};
 		};
 		responses: {
 			/** @description Successful Response */
-			202: {
+			200: {
 				headers: {
 					[name: string]: unknown;
 				};
 				content: {
-					'application/json': components['schemas']['JobAccepted'];
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	network_apply: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NetworkChange'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['NetworkApplied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	network_confirm: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NetworkToken'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['NetworkApplied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	network_revert: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NetworkToken'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['NetworkApplied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	standalone: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Payload'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	device_setup: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Device'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	device_tune: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['DeviceTune'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	device_mode: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['DeviceMode'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	device_name: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Rename'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	camera_tune: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Tune'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	camera_mode: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Mode'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	camera_replace: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Replace'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	configuration_apply: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Configure'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	configuration_import: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Configure'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	configuration_clear_overrides: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ClearOverrides'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	configuration_restore: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Restore'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	configuration_qualify_timing: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['QualifyTiming'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	debug_record: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['Debug'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_board: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationBoard'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_select: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCameras'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_apply: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCameras'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_reset: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationAll'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_pause_all: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationAll'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_start_all: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationStartAll'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_start: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCamera'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_pause: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCamera'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_capture: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCamera'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_compute: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCamera'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	calibration_validate: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CalibrationCamera'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Applied'];
 				};
 			};
 			/** @description Validation Error */

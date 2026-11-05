@@ -10,7 +10,7 @@ from spot_vision.models import DetectedFrame, Detection, DetectionBatch, FramePa
 
 
 def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
-    hub = FrameHub(max_clients=1)
+    hub = FrameHub(max_cameras=1)
     packet = FramePacket(
         "one", 1, 1, time.monotonic_ns(), np.zeros((8, 8, 2), np.uint8), "epoch", "generation"
     )
@@ -23,21 +23,21 @@ def test_preview_uses_one_coherent_processed_frame_and_bounds_clients():
             used_tag_ids=frozenset([1]), tag_diagnostics={1: {"distance_m": 2.0, "error_px": 0.2}}
         ),
     )
-    hub.preview("one", "browser1")
+    hub.preview("one")
     hub.start()
     try:
         deadline = time.monotonic() + 2
         result = {}
         while not result.get("image") and time.monotonic() < deadline:
             time.sleep(0.01)
-            result = hub.preview("one", "browser1")
+            result = hub.preview("one")
         assert (
             result["processed"] and result["sequence"] == 1 and result["capture_epoch"] == "epoch"
         )
         assert result["tags"][0]["error_px"] == 0.2 and result["tags"][0]["distance_m"] == 2
         assert result["tags"][0]["used"] and result["tags"][0]["reason"] == ""
         with pytest.raises(ValueError, match="limit"):
-            hub.preview("one", "browser2")
+            hub.preview("two")
     finally:
         hub.close()
 
@@ -59,7 +59,7 @@ def test_disconnected_bound_image_retains_age_but_unbound_snapshots_are_pruned()
     }
     hub.retain({"bound"})
     assert set(hub.latest) == set(hub.encoded) == {"bound"}
-    result = hub.preview("bound", "browser")
+    result = hub.preview("bound")
     assert (
         result["image"] == "last"
         and result["stale"]

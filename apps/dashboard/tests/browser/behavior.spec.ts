@@ -1,12 +1,23 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
-let cookies: Awaited<ReturnType<BrowserContext['cookies']>> | undefined;
+import { test, expect, type Page } from '@playwright/test';
 
-test.beforeEach(async ({ page, context }) => {
-	if (cookies) await context.addCookies(cookies);
-	else {
-		await page.request.get('/api/session');
-		cookies = await context.cookies();
-	}
+type Write = { operation: string; payload: Record<string, any> };
+/** Capture operations at the HTTP boundary instead of changing the shared fixture. */
+async function captureOperations(
+	page: Page,
+	respond: (write: Write) => unknown = () => ({ revision: 'fixture', applied_generation: 'fixture' }),
+) {
+	const writes: Write[] = [];
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		if (request.method() !== 'POST') return route.fallback();
+		const write = { operation: new URL(request.url()).pathname.slice('/api/'.length), payload: request.postDataJSON() };
+		writes.push(write);
+		await route.fulfill({ json: respond(write) });
+	});
+	return writes;
+}
+
+test.beforeEach(async ({ page }) => {
 	page.on('pageerror', (error) => {
 		throw error;
 	});
@@ -41,7 +52,7 @@ test('navigation, images, detections, pause and geometry inspection', async ({ p
 	await expect(page.locator('#software-data')).toContainText('development-fixture');
 });
 
-test('acknowledged tuning, undo, redo and reset use real session and jobs', async ({ page }) => {
+test('acknowledged tuning, undo, redo and reset use the real service', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	await page.goto('/#camera/' + status.cameras[0].identity);
 	const gain = page.getByRole('slider', { name: 'Gain', exact: true });
@@ -68,11 +79,11 @@ test('naming requires preview confirmation and reserves existing roles', async (
 	await page.getByLabel('This preview matches the physical camera').check();
 	await expect(rename).toBeEnabled();
 	// Keep the shared fixture unchanged; inspect the payload at the boundary.
-	const request = page.waitForRequest((r) => r.url().endsWith('/api/operations'));
+	const writes = await captureOperations(page);
 	await rename.click();
-	const body = (await request).postDataJSON();
-	expect(body.operation).toBe('rename');
-	expect(body.payload.name).toBe('turret');
+	await expect
+		.poll(() => writes)
+		.toEqual([{ operation: 'device/name', payload: expect.objectContaining({ name: 'turret' }) }]);
 });
 
 test('calibration actions and passing results require acknowledgement', async ({ page }) => {
@@ -105,13 +116,10 @@ test('robot lock disables tuning and calibration', async ({ page }) => {
 	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
 });
 
-test('failed job leaves readback unchanged and no undo history', async ({ page }) => {
+test('rejected operation leaves readback unchanged and no undo history', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
-	await page.route('**/api/operations', (route) => route.fulfill({ json: { job_id: 'rejected' } }));
-	await page.route('**/api/jobs/rejected', (route) =>
-		route.fulfill({
-			json: { state: 'rejected', error: 'Revision conflict; reconcile current values' },
-		}),
+	await page.route('**/api/camera/tune', (route) =>
+		route.fulfill({ status: 400, json: { error: 'Revision conflict; reconcile current values' } }),
 	);
 	await page.goto('/#camera/' + status.cameras[0].identity);
 	const gain = page.getByRole('slider', { name: 'Gain', exact: true });
@@ -135,21 +143,13 @@ test('network apply payload and confirmation token', async ({ page }) => {
 		mode: 'static',
 		address: '10.5.81.11/24',
 	};
-	const writes: unknown[] = [];
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
-	await page.route('**/api/operations', async (route) => {
-		const body = route.request().postDataJSON();
-		writes.push(body);
-		if (body.operation === 'network/apply')
-			status.network.pending = {
-				token: 'a'.repeat(32),
-				address: body.payload.address,
-				remaining_s: 89,
-			};
+	const writes = await captureOperations(page, ({ operation, payload }) => {
+		if (operation === 'network/apply')
+			status.network.pending = { token: 'a'.repeat(32), address: payload.address, remaining_s: 89 };
 		else delete status.network.pending;
-		await route.fulfill({ json: { job_id: 'network' } });
+		return { result: {} };
 	});
-	await page.route('**/api/jobs/network', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#network');
 	await expect(page.getByLabel('Ethernet port')).toHaveCount(0);
 	await expect(page.getByText('Either Ethernet port works.', { exact: false })).toBeVisible();
@@ -192,7 +192,7 @@ test('stale frames hide detections and disconnect retains a labelled last image'
 	let stale = false,
 		offline = false;
 	await page.route('**/api/status', (route) => (offline ? route.abort() : route.fulfill({ json: status })));
-	await page.route('**/api/frame/**', async (route) => {
+	await page.route('**/api/frames/**', async (route) => {
 		const response = await route.fetch();
 		const frame = await response.json();
 		if (stale) frame.stale = true;
@@ -213,7 +213,7 @@ test('geometry editing preserves intermediate text through polling and never wri
 	const status = await (await page.request.get('/api/status')).json(),
 		writes: unknown[] = [];
 	page.on('request', (r) => {
-		if (r.url().endsWith('/api/operations')) writes.push(r.postDataJSON());
+		if (r.method() === 'POST') writes.push(r.postDataJSON());
 	});
 	await page.goto('/#camera/' + status.cameras[0].identity + '/geometry');
 	await page.getByLabel('Inspection preview').check();
@@ -231,14 +231,7 @@ test('geometry editing preserves intermediate text through polling and never wri
 });
 
 test('board drafts survive polls and calibration sends the selected capture phase', async ({ page }) => {
-	const writes: { operation: string; payload: Record<string, unknown> }[] = [];
-	await page.route('**/api/operations', async (route) => {
-		writes.push(route.request().postDataJSON());
-		await route.fulfill({ json: { job_id: 'capture' } });
-	});
-	await page.route('**/api/jobs/capture', (route) =>
-		route.fulfill({ json: { state: 'applied', revision: 'fixture' } }),
-	);
+	const writes = await captureOperations(page);
 	await page.goto('/#calibration');
 	const x = page.getByLabel('Squares X', { exact: true });
 	await x.fill('17');
@@ -261,15 +254,8 @@ test('board drafts survive polls and calibration sends the selected capture phas
 test('failed calibration validation cannot be selected for apply; compatible history restores selected records', async ({
 	page,
 }) => {
-	const status = await (await page.request.get('/api/status')).json(),
-		writes: unknown[] = [];
-	await page.route('**/api/operations', async (route) => {
-		writes.push(route.request().postDataJSON());
-		await route.fulfill({ json: { job_id: 'restore' } });
-	});
-	await page.route('**/api/jobs/restore', (route) =>
-		route.fulfill({ json: { state: 'applied', revision: status.revision } }),
-	);
+	const status = await (await page.request.get('/api/status')).json();
+	const writes = await captureOperations(page, () => ({ revision: status.revision, applied_generation: null }));
 	await page.goto('/#calibration/results');
 	const checkboxes = page.locator('table input[type=checkbox]');
 	await checkboxes.nth(1).check();
@@ -279,7 +265,7 @@ test('failed calibration validation cannot be selected for apply; compatible his
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0]).toEqual(
 		expect.objectContaining({
-			operation: 'restore',
+			operation: 'configuration/restore',
 			payload: expect.objectContaining({
 				generation: 'fixture-previous-calibration',
 				calibration_ids: ['fixture-record-0'],
@@ -297,21 +283,13 @@ test('automatic network rollback restores the form; explicit revert uses the con
 		mode: 'static',
 		address: '10.5.81.11/24',
 	};
-	const writes: { operation: string; payload: unknown }[] = [];
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
-	await page.route('**/api/operations', async (route) => {
-		const body = route.request().postDataJSON();
-		writes.push(body);
-		if (body.operation === 'network/apply')
-			status.network.pending = {
-				token: 'b'.repeat(32),
-				address: body.payload.address,
-				remaining_s: 30,
-			};
+	const writes = await captureOperations(page, ({ operation, payload }) => {
+		if (operation === 'network/apply')
+			status.network.pending = { token: 'b'.repeat(32), address: payload.address, remaining_s: 30 };
 		else delete status.network.pending;
-		await route.fulfill({ json: { job_id: 'rollback' } });
+		return { result: {} };
 	});
-	await page.route('**/api/jobs/rollback', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#network');
 	await page.getByLabel('IPv4 address / prefix').fill('10.5.81.99/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
@@ -327,13 +305,8 @@ test('automatic network rollback restores the form; explicit revert uses the con
 });
 
 test('system downloads, import bound and diagnostics preserve their API contracts', async ({ page }) => {
-	const writes: { operation: string; payload: Record<string, unknown> }[] = [];
-	await page.route('**/api/export', (route) => route.fulfill({ json: { schema_version: 2, cameras: {} } }));
-	await page.route('**/api/operations', async (route) => {
-		writes.push(route.request().postDataJSON());
-		await route.fulfill({ json: { job_id: 'system' } });
-	});
-	await page.route('**/api/jobs/system', (route) => route.fulfill({ json: { state: 'applied' } }));
+	await page.route('**/api/configuration', (route) => route.fulfill({ json: { schema_version: 2, cameras: {} } }));
+	const writes = await captureOperations(page);
 	await page.goto('/#system');
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export saved setup', exact: true }).click();
@@ -356,13 +329,12 @@ test('system downloads, import bound and diagnostics preserve their API contract
 	await page.getByRole('button', { name: 'Record 10 s diagnostics', exact: true }).click();
 	await expect.poll(() => writes.length).toBe(2);
 	expect(writes[1]).toEqual(
-		expect.objectContaining({ operation: 'debug', payload: expect.objectContaining({ seconds: 10 }) }),
+		expect.objectContaining({ operation: 'debug/record', payload: expect.objectContaining({ seconds: 10 }) }),
 	);
 });
 
 test('mode and replacement operations use the camera identity and require feed confirmation', async ({ page }) => {
-	const status = await (await page.request.get('/api/status')).json(),
-		writes: { operation: string; payload: unknown }[] = [];
+	const status = await (await page.request.get('/api/status')).json();
 	status.cameras[0].allowed_modes.push({
 		...status.cameras[0].allowed_modes[0],
 		id: '1280x720',
@@ -370,20 +342,14 @@ test('mode and replacement operations use the camera identity and require feed c
 		height: 720,
 	});
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
-	await page.route('**/api/operations', async (route) => {
-		writes.push(route.request().postDataJSON());
-		await route.fulfill({ json: { job_id: 'camera' } });
-	});
-	await page.route('**/api/jobs/camera', (route) =>
-		route.fulfill({ json: { state: 'applied', revision: status.revision } }),
-	);
+	const writes = await captureOperations(page, () => ({ revision: status.revision, applied_generation: null }));
 	await page.goto('/#camera/' + status.cameras[0].identity);
 	await page.getByText('Advanced', { exact: true }).click();
 	await page.getByLabel('Capture resolution / rate').selectOption('1280x720');
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0]).toEqual(
 		expect.objectContaining({
-			operation: 'mode',
+			operation: 'camera/mode',
 			payload: expect.objectContaining({ name: 'front-left', mode_id: '1280x720' }),
 		}),
 	);
@@ -398,28 +364,24 @@ test('mode and replacement operations use the camera identity and require feed c
 	await expect.poll(() => writes.length).toBe(2);
 	expect(writes[1]).toEqual(
 		expect.objectContaining({
-			operation: 'replace',
+			operation: 'camera/replace',
 			payload: expect.objectContaining({ identity: status.cameras[0].identity, name: 'front-left' }),
 		}),
 	);
 });
 
-test('team number saves through a job and can be corrected while disconnected', async ({ page }) => {
+test('team number saves through an operation and can be corrected while disconnected', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	status.connected = true;
 	status.lock_reason = '';
-	const writes: unknown[] = [];
 	await page.route('**/api/status', (route) => route.fulfill({ json: status }));
-	await page.route('**/api/operations', async (route) => {
-		const body = route.request().postDataJSON();
-		writes.push(body);
-		status.endpoint.team = body.payload.team;
+	const writes = await captureOperations(page, ({ payload }) => {
+		status.endpoint.team = payload.team;
 		status.endpoint.configured = null;
 		status.connected = false;
 		status.lock_reason = 'Connect robot code or begin standalone setup';
-		await route.fulfill({ json: { job_id: 'team' } });
+		return { revision: status.revision, applied_generation: null };
 	});
-	await page.route('**/api/jobs/team', (route) => route.fulfill({ json: { state: 'applied' } }));
 	await page.goto('/#network');
 	const team = page.getByLabel('Team number', { exact: true });
 	const save = page.getByRole('button', { name: 'Save team number', exact: true });

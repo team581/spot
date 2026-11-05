@@ -50,7 +50,7 @@ def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
         try:
             assert created.wait(15), "Application did not create its HTTP server"
             assets = servers[0].app.state.assets
-            paths = ["/", "/health", "/docs/", "/docs/pagefind/pagefind.js"]
+            paths = ["/", "/api/status", "/docs/", "/docs/pagefind/pagefind.js"]
             paths.extend(
                 "/" + p.relative_to(assets).as_posix()
                 for p in (assets / "assets").iterdir()
@@ -66,7 +66,7 @@ def smoke(environment: Path, work: Path, *, native_cuda: bool = False) -> None:
                     assert response.status == 200, (path, response.status)
                     data = response.read()
                     assert data, path
-                    if path == "/health":
+                    if path == "/api/status":
                         status = json.loads(data)
                         assert status["cameras"] == []
                         assert status["software"]["native_cuda"] is native_cuda

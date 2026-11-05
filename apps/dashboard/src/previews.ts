@@ -94,7 +94,7 @@ export class PreviewStore {
 						const before = this.get(id);
 						if (before.paused || !/^[a-f0-9]{64}$/.test(id)) return;
 						try {
-							const data = await api<Frame>('/api/frame/' + id);
+							const data = await api<Frame>('/api/frames/' + id);
 							let bitmap = before.bitmap;
 							if (
 								data.image &&

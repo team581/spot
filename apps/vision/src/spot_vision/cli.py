@@ -78,7 +78,7 @@ def _run_check_health(args) -> int:
     error = "Readiness timeout"
     while time.monotonic() < deadline:
         try:
-            with urlopen(args.url.rstrip("/") + "/health", timeout=2) as response:
+            with urlopen(args.url.rstrip("/") + "/api/status", timeout=2) as response:
                 status = json.load(response)
             _check_health_status(status, str(Path(sys.prefix).resolve()), robot=args.robot)
             print(json.dumps(status["software"], indent=2))

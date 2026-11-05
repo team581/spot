@@ -125,7 +125,7 @@ def test_health_cli_waits_for_the_selected_package(ready, monkeypatch):
             )
             == 0
         )
-        assert requests == ["/health", "/health"]
+        assert requests == ["/api/status", "/api/status"]
     finally:
         server.shutdown()
         server.server_close()

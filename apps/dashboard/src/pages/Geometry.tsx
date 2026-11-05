@@ -58,13 +58,13 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 			const document = await api<{
 				cameras: { name: string; robot_to_camera: Record<string, number> }[];
 				processing: unknown;
-			}>('/api/robot-config');
+			}>('/api/robot/configuration');
 			const camera = document.cameras.find((camera) => camera.name === c.logical_name);
 			if (!camera || !geometry) throw new Error('Choose a configured robot camera');
 			const [x_m, y_m, z_m] = geometry.translation;
 			const [qw, qx, qy, qz] = geometry.quaternion;
 			camera.robot_to_camera = { x_m, y_m, z_m, qw, qx, qy, qz };
-			await mutate('configure', { document, revision: expected });
+			await mutate('configuration/apply', { document, revision: expected });
 			setInspection(false);
 			announce('Camera mount override saved.');
 		} catch (e) {

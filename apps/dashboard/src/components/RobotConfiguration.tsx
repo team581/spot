@@ -15,7 +15,7 @@ export default function RobotConfiguration() {
 		try {
 			// Keep the revision observed before the request; a concurrent edit must conflict.
 			const expected = status.revision;
-			const settings = await api(defaults ? '/api/robot-defaults' : '/api/robot-config');
+			const settings = await api(defaults ? '/api/robot/defaults' : '/api/robot/configuration');
 			setText(JSON.stringify(settings, null, 2));
 			setRevision(expected);
 		} catch (e) {
@@ -29,7 +29,7 @@ export default function RobotConfiguration() {
 		setError('');
 		try {
 			const document = JSON.parse(text) as Record<string, unknown>;
-			const job = await mutate('configure', { document, revision });
+			const job = await mutate('configuration/apply', { document, revision });
 			setRevision(job.revision);
 			announce('Dashboard overrides saved.');
 		} catch (e) {
@@ -42,9 +42,9 @@ export default function RobotConfiguration() {
 		setBusy(true);
 		setError('');
 		try {
-			const job = await mutate('clear-overrides', { path, revision: status.revision });
+			const job = await mutate('configuration/clear-overrides', { path, revision: status.revision });
 			setRevision(job.revision);
-			if (text) setText(JSON.stringify(await api('/api/robot-config'), null, 2));
+			if (text) setText(JSON.stringify(await api('/api/robot/configuration'), null, 2));
 			announce(path ? 'Override cleared' : 'All overrides cleared');
 		} catch (error) {
 			setError(errorMessage(error));

@@ -16,7 +16,7 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 		setBusy(true);
 		try {
 			await mutate(operation, payload);
-			if (operation === 'rename') announce('Camera renamed');
+			if (operation === 'device/name') announce('Camera renamed');
 		} catch (e) {
 			setError(errorMessage(e));
 		} finally {
@@ -53,7 +53,7 @@ export default function CameraName({ camera: c }: { camera: Camera }) {
 						className="primary"
 						disabled={busy || Boolean(status.lock_reason) || !c.connected || !available.length || !confirmed}
 						onClick={() =>
-							void run('rename', {
+							void run('device/name', {
 								identity: c.identity,
 								name: available.includes(choice) ? choice : available[0],
 								revision: status.revision,

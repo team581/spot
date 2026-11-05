@@ -104,7 +104,7 @@ export default function Results({ action }: { action: Action }) {
 								entry={h}
 								onRestore={async (ids) => {
 									try {
-										await mutate('restore', {
+										await mutate('configuration/restore', {
 											generation: h.generation,
 											calibration_ids: ids,
 											revision: read().revision,

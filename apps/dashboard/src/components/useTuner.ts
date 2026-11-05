@@ -17,7 +17,7 @@ export function useTuner(camera: Camera) {
 				allowed(status, camera.identity),
 				status.revision,
 				async (values, revision) => {
-					const job = await mutate(camera.logical_name ? 'tune' : 'device/tune', {
+					const job = await mutate(camera.logical_name ? 'camera/tune' : 'device/tune', {
 						...(camera.logical_name ? { name: camera.logical_name } : { identity: camera.identity }),
 						values,
 						revision,
@@ -41,7 +41,7 @@ export function useTuner(camera: Camera) {
 	const history = (direction: 'undo' | 'redo') => tuner.applyHistory(direction);
 	const reset = () =>
 		tuner.reset(async () => {
-			const result = await mutate(camera.logical_name ? 'tune' : 'device/tune', {
+			const result = await mutate(camera.logical_name ? 'camera/tune' : 'device/tune', {
 				...(camera.logical_name ? { name: camera.logical_name } : { identity: camera.identity }),
 				reset: true,
 				revision: read().revision,

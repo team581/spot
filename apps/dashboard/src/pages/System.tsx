@@ -154,7 +154,7 @@ export default function System() {
 						<button onClick={() => void download('/api/calibrations', 'spot-calibrations.json')}>
 							Download calibration results
 						</button>
-						<button onClick={() => void download('/api/export', 'spot-state.json')}>Export saved setup</button>
+						<button onClick={() => void download('/api/configuration', 'spot-state.json')}>Export saved setup</button>
 						<label>
 							<input
 								type="file"
@@ -168,7 +168,7 @@ export default function System() {
 									}
 									try {
 										const document = JSON.parse(await file.text());
-										await run('import', { document, revision: s.revision }, 'Calibration data imported');
+										await run('configuration/import', { document, revision: s.revision }, 'Calibration data imported');
 									} catch (error) {
 										setError(errorMessage(error));
 									}
@@ -178,7 +178,7 @@ export default function System() {
 						</label>
 						<button
 							onClick={() =>
-								void run('debug', { seconds: 10, revision: s.revision }, 'Bounded diagnostics recording started')
+								void run('debug/record', { seconds: 10, revision: s.revision }, 'Bounded diagnostics recording started')
 							}
 						>
 							Record 10 s diagnostics

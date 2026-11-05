@@ -3,7 +3,6 @@ from __future__ import annotations
 import http.client
 import json
 import threading
-import time
 from concurrent.futures import Future
 from types import SimpleNamespace
 
@@ -12,6 +11,10 @@ from fastapi.testclient import TestClient
 
 from spot_vision.http_server import HttpServer, create_app
 
+HOST = "127.0.0.1:5800"
+HEADERS = {"Origin": "http://" + HOST, "Content-Type": "application/json"}
+TUNE = {"name": "front", "values": {"gain": 2}, "revision": "old"}
+
 
 @pytest.fixture
 def web(tmp_path):
@@ -19,33 +22,26 @@ def web(tmp_path):
     submissions = []
 
     def submit(operation, payload):
-        submissions.append((operation, payload, threading.current_thread().name))
+        submissions.append((operation, payload))
         future = Future()
-        future.set_result({"revision": "new", "applied_generation": "new"})
+        if operation.startswith("network/"):
+            future.set_result({"result": {}})
+        else:
+            future.set_result({"revision": "new", "applied_generation": "new"})
         return future
 
     runtime = SimpleNamespace(submit=submit, status=lambda: {"revision": "old", "cameras": []})
     app = create_app(runtime, assets=tmp_path)
-    host = "127.0.0.1:5800"
-    client = TestClient(app, base_url="http://" + host, follow_redirects=False)
+    client = TestClient(app, base_url="http://" + HOST, follow_redirects=False)
 
     def request(method, path, body=None, headers=None):
-        client.cookies.clear()  # Each request carries only the headers a test passes.
+        if body is not None and not isinstance(body, str):
+            body = json.dumps(body)
         response = client.request(method, path, content=body, headers=headers or {})
         return response.status_code, response.headers, response.content
 
-    status, headers, raw = request("GET", "/api/session")
-    assert status == 200
-    session = json.loads(raw)
-    session_headers = {
-        "Cookie": headers["Set-Cookie"].split(";")[0],
-        "X-Spot-CSRF": session["csrf"],
-        "Origin": "http://" + host,
-        "Content-Type": "application/json",
-    }
     yield (
         request,
-        session_headers,
         submissions,
         SimpleNamespace(
             runtime=runtime, assets=tmp_path, allowed_hosts=app.state.allowed_hosts, port=5800
@@ -53,31 +49,23 @@ def web(tmp_path):
     )
 
 
-def operation(**changes):
-    return json.dumps(
-        {
-            "operation": "tune",
-            "payload": {"name": "front", "values": {"gain": 2}, "revision": "old"},
-            "request_id": "request_123",
-            **changes,
-        }
-    )
-
-
-def test_session_csrf_same_origin_and_host_are_required(web):
-    request, headers, submissions, _ = web
+def test_mutations_require_same_origin_json_on_an_installed_host(web):
+    request, submissions, _ = web
     for bad in (
         {},
-        {**headers, "Origin": "http://evil.invalid"},
-        {**headers, "X-Spot-CSRF": "wrong"},
-        {**headers, "Host": "evil.invalid:80"},
+        {**HEADERS, "Origin": "http://evil.invalid"},
+        {**HEADERS, "Host": "evil.invalid:80"},
     ):
-        assert request("POST", "/api/operations", operation(), bad)[0] == 403
+        assert request("POST", "/api/camera/tune", TUNE, bad)[0] == 403
+    assert (
+        request("POST", "/api/camera/tune", TUNE, {**HEADERS, "Content-Type": "text/plain"})[0]
+        == 400
+    )
     assert submissions == []
 
 
 def test_direct_address_works_when_interface_was_absent_at_startup(web):
-    request, _, _, server = web
+    request, _, server = web
     # Model a wildcard listener started before its interface address existed.
     server.allowed_hosts.discard("127.0.0.1")
     port = server.port
@@ -86,86 +74,64 @@ def test_direct_address_works_when_interface_was_absent_at_startup(web):
         assert request("GET", "/api/status", headers={"Host": f"{hostname}:{port}"})[0] == 403
 
 
-def test_structured_bounded_requests_reject_unknown_fields_and_nan(web):
-    request, headers, submissions, _ = web
+def test_operations_are_strict_and_bounded(web):
+    request, submissions, _ = web
     invalid = [
-        operation(operation="shell"),
-        operation(payload={"name": "front", "revision": "old", "path": "/etc/passwd"}),
-        operation(payload={"name": "front", "revision": "old", "values": {"gain": float("nan")}}),
-        operation(request_id="x"),
-        "{}",
+        {**TUNE, "path": "/etc/passwd"},
+        {**TUNE, "values": {"gain": float("nan")}},
+        {},
         "[" * 10,
+        "x" * (256 * 1024 + 1),
     ]
     for body in invalid:
-        assert request("POST", "/api/operations", body, headers)[0] == 400
-    assert request("POST", "/api/operations", "x" * 65537, headers)[0] == 400
+        assert request("POST", "/api/camera/tune", body, HEADERS)[0] == 400
+    assert request("POST", "/api/shell", {}, HEADERS)[0] in {404, 405}
     assert submissions == []
+    # Only saved-setup imports may exceed the normal body limit.
+    large = {"document": {"blob": "x" * (512 * 1024)}, "revision": "old"}
+    assert request("POST", "/api/configuration/apply", large, HEADERS)[0] == 400
+    assert request("POST", "/api/configuration/import", large, HEADERS)[0] == 200
+    assert [operation for operation, _ in submissions] == ["configuration/import"]
 
 
-def test_handlers_enqueue_once_and_acknowledge_only_completed_job(web):
-    request, headers, submissions, _ = web
-    first = request("POST", "/api/operations", operation(), headers)
-    second = request("POST", "/api/operations", operation(), headers)
-    assert first[0] == second[0] == 202
-    job = json.loads(first[2])["job_id"]
-    assert job == json.loads(second[2])["job_id"]
-    assert len(submissions) == 1
-    assert submissions[0][:2] == (
-        "tune",
-        {"name": "front", "values": {"gain": 2}, "revision": "old"},
+def test_mutation_returns_the_runtime_acknowledgement(web):
+    request, submissions, _ = web
+    status, _, raw = request("POST", "/api/camera/tune", TUNE, HEADERS)
+    assert status == 200
+    assert json.loads(raw)["applied_generation"] == "new"
+    assert submissions == [("camera/tune", TUNE)]
+
+
+def test_rejected_and_unacknowledged_mutations(web, monkeypatch):
+    from spot_vision import http_server
+
+    request, _, server = web
+    rejected = Future()
+    rejected.set_exception(ValueError("Camera readback rejected the requested gain"))
+    server.runtime.submit = lambda operation, payload: rejected
+    status, _, raw = request("POST", "/api/camera/tune", TUNE, HEADERS)
+    assert (status, json.loads(raw)) == (
+        400,
+        {"error": "Camera readback rejected the requested gain"},
     )
-    response = json.loads(request("GET", "/api/jobs/" + job, headers=headers)[2])
-    assert response["state"] == "applied" and response["applied_generation"] == "new"
-    assert request("GET", "/api/jobs/" + job)[0] == 404
+    monkeypatch.setattr(http_server, "ACKNOWLEDGEMENT_TIMEOUT_S", 0.01)
+    server.runtime.submit = lambda operation, payload: Future()
+    assert request("POST", "/api/camera/tune", TUNE, HEADERS)[0] == 504
 
 
-def test_live_control_rate_and_asset_paths_are_bounded(web):
-    request, headers, submissions, _ = web
-    for i in range(2):
-        assert (
-            request("POST", "/api/operations", operation(request_id=f"request_{i:03}"), headers)[0]
-            == 202
-        )
-    assert (
-        request("POST", "/api/operations", operation(request_id="request_more"), headers)[0] == 400
-    )
-    assert len(submissions) == 2
+def test_asset_paths_are_bounded_and_frames_require_a_camera_identity(web):
+    request, _, server = web
     assert request("GET", "/../http_server.py")[0] == 404
     assert request("GET", "/%2e%2e/%2e%2e/etc/passwd")[0] == 404
     response = request("GET", "/")
     assert response[0] == 200 and "default-src" in response[1]["Content-Security-Policy"]
-
-
-def test_preview_allows_twenty_fps_but_rejects_request_bursts(web, monkeypatch):
-    from spot_vision import http_server
-
-    request, headers, _, server = web
-    now = [time.monotonic()]
-    monkeypatch.setattr(http_server, "time", SimpleNamespace(monotonic=lambda: now[0]))
-    server.runtime.frames = SimpleNamespace(preview=lambda *args: {"sequence": 1})
-    path = "/api/frame/" + "a" * 64
-    assert request("GET", path, headers=headers)[0] == 200
-    now[0] += 0.05
-    assert request("GET", path, headers=headers)[0] == 200
-    now[0] += 0.001
-    assert request("GET", path, headers=headers)[0] == 429
-
-
-def test_pending_rejected_job(web):
-    request, headers, _, server = web
-    pending = Future()
-    server.runtime.submit = lambda operation, payload: pending
-    status, _, raw = request("POST", "/api/operations", operation(), headers)
-    assert status == 202
-    path = "/api/jobs/" + json.loads(raw)["job_id"]
-    assert json.loads(request("GET", path, headers=headers)[2]) == {"state": "pending"}
-    pending.set_exception(ValueError("Camera readback rejected the requested gain"))
-    result = json.loads(request("GET", path, headers=headers)[2])
-    assert result == {"state": "rejected", "error": "Camera readback rejected the requested gain"}
+    server.runtime.frames = SimpleNamespace(preview=lambda identity: {"identity": identity})
+    assert request("GET", "/api/frames/" + "a" * 64)[0] == 200
+    assert request("GET", "/api/frames/front")[0] == 400
 
 
 def test_docs_directory_pages_assets_and_missing_paths(web):
-    request, _, submissions, server = web
+    request, submissions, server = web
     docs = server.assets / "docs"
     article = docs / "operator/calibrate"
     article.mkdir(parents=True)
@@ -191,7 +157,7 @@ def test_docs_directory_pages_assets_and_missing_paths(web):
 
 
 def test_docs_cannot_follow_symlinks_outside_web_assets(web, tmp_path):
-    request, _, _, server = web
+    request, _, server = web
     outside = tmp_path.parent / (tmp_path.name + "-private")
     outside.mkdir()
     (outside / "index.html").write_text("private")
@@ -199,24 +165,18 @@ def test_docs_cannot_follow_symlinks_outside_web_assets(web, tmp_path):
     assert request("GET", "/docs/")[0] == 404
 
 
-def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp_path):
+def test_concurrent_editors_cannot_overwrite_an_acknowledged_revision(web, tmp_path):
     from concurrent.futures import ThreadPoolExecutor
 
     from robot_fixtures import manifest
     from spot_vision.configuration import ConfigurationService
     from spot_vision.persistence import StateStore
 
-    request, first_headers, _, server = web
+    request, _, server = web
     config = ConfigurationService(StateStore(tmp_path / "state"), lambda *_: None)
     config.connection_changed(True)
     config.accept_manifest(manifest())
     original = config.state.generation
-    _, headers, raw = request("GET", "/api/session")
-    second_headers = {
-        **first_headers,
-        "Cookie": headers["Set-Cookie"].split(";")[0],
-        "X-Spot-CSRF": json.loads(raw)["csrf"],
-    }
 
     def apply(operation, payload):
         result = config.tune(payload["name"], payload["values"], payload["revision"])
@@ -224,47 +184,32 @@ def test_two_browser_sessions_cannot_overwrite_an_acknowledged_revision(web, tmp
 
     with ThreadPoolExecutor(max_workers=1) as queue:
         server.runtime.submit = lambda operation, payload: queue.submit(apply, operation, payload)
-        jobs = []
-        for i, client in enumerate((first_headers, second_headers)):
-            body = operation(
-                request_id=f"concurrent_{i}",
-                payload={"name": "front", "values": {"gain": 3 + i}, "revision": original},
+        results = [
+            request(
+                "POST",
+                "/api/camera/tune",
+                {"name": "front", "values": {"gain": 3 + i}, "revision": original},
+                HEADERS,
             )
-            status, _, raw = request("POST", "/api/operations", body, client)
-            assert status == 202
-            jobs.append((json.loads(raw)["job_id"], client))
-    results = [
-        json.loads(request("GET", "/api/jobs/" + job, headers=client)[2]) for job, client in jobs
-    ]
-    assert results[0]["state"] == "applied"
-    assert results[1]["state"] == "rejected" and "revision conflict" in results[1]["error"]
+            for i in range(2)
+        ]
+    assert results[0][0] == 200
+    assert results[1][0] == 400 and b"revision conflict" in results[1][2]
     assert config.effective_controls("front")["gain"] == 3
-    assert request("GET", "/api/jobs/" + jobs[0][0], headers=second_headers)[0] == 404
 
 
-def test_network_changes_use_existing_session_guards_and_strict_payloads(web):
-    request, headers, submissions, server = web
-    body = operation(
-        operation="network/apply",
-        payload={"mode": "static", "address": "10.5.81.11/24"},
-    )
-    assert request("POST", "/api/operations", body, {})[0] == 403
-    assert request("POST", "/api/operations", body, headers)[0] == 202
-    assert submissions[-1][0] == "network/apply"
+def test_network_changes_use_strict_payloads_and_hostname_checks(web):
+    request, submissions, server = web
+    change = {"mode": "static", "address": "10.5.81.11/24"}
+    assert request("POST", "/api/network/apply", change, {})[0] == 403
+    assert request("POST", "/api/network/apply", change, HEADERS)[0] == 200
+    assert submissions[-1] == ("network/apply", change)
     for payload in (
         {"mode": "static", "address": "10.5.81.255/24"},
         {"mode": "automatic", "address": "10.5.81.11/24"},
         {"interface": "spot0", "mode": "static", "address": "10.5.81.11/24"},
     ):
-        assert (
-            request(
-                "POST",
-                "/api/operations",
-                operation(operation="network/apply", payload=payload),
-                headers,
-            )[0]
-            == 400
-        )
+        assert request("POST", "/api/network/apply", payload, HEADERS)[0] == 400
     server.runtime.network = SimpleNamespace(snapshot={"hostname": "spot-2.local"})
     assert request("GET", "/api/status", headers={"Host": f"spot-2.local:{server.port}"})[0] == 200
     assert (
@@ -305,25 +250,12 @@ def test_installed_dashboard_and_docs_are_served_from_any_working_directory(tmp_
         thread.join(5)
 
 
-@pytest.mark.parametrize("team", [0, -1, 25600, True, 9991.0, "9991", None])
-def test_team_number_request_rejects_invalid_numbers(web, team):
-    request, headers, submissions, _ = web
-    body = operation(operation="nt/team", payload={"team": team})
-    assert request("POST", "/api/operations", body, headers)[0] == 400
+@pytest.mark.parametrize(
+    "payload",
+    [{"team": t} for t in (0, -1, 25600, True, 9991.0, "9991", None)]
+    + [{}, {"team": 9991, "server": "other"}],
+)
+def test_team_number_request_rejects_invalid_payloads(web, payload):
+    request, submissions, _ = web
+    assert request("POST", "/api/nt/team", payload, HEADERS)[0] == 400
     assert submissions == []
-
-
-def test_team_number_request_uses_the_session_and_job_boundary(web):
-    request, headers, submissions, _ = web
-    for payload in ({}, {"team": 9991, "server": "other"}):
-        assert (
-            request(
-                "POST", "/api/operations", operation(operation="nt/team", payload=payload), headers
-            )[0]
-            == 400
-        )
-    response = request(
-        "POST", "/api/operations", operation(operation="nt/team", payload={"team": 9991}), headers
-    )
-    assert response[0] == 202
-    assert submissions[0][:2] == ("nt/team", {"team": 9991})

@@ -1,41 +1,29 @@
-"""Installed HTTP boundary. Handlers enqueue configuration and read snapshots only."""
+"""Installed HTTP boundary. Mutations wait for the runtime's configuration worker."""
 
 import json
-import secrets
 import socket
-import threading
-import time
-from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import asdict
 from importlib.resources import files
 from pathlib import Path
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
 import uvicorn
-from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StrictBool,
-    StringConstraints,
-    create_model,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .config import ConfigError
 from .protocol_models import RobotConfiguration
 
 MAX_BODY = 256 * 1024
 MAX_IMPORT_BODY = 2 * 1024 * 1024
-COOKIE = "spot_session"
+ACKNOWLEDGEMENT_TIMEOUT_S = 30
 CSP = (
     "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; "
     "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
@@ -158,25 +146,26 @@ class CalibrationCamera(Device):
     automatic: StrictBool = False
 
 
-PAYLOADS: dict[str, type[Payload]] = {
+# Each operation is served at POST /api/<operation> and runs on the runtime's worker.
+OPERATIONS: dict[str, type[Payload]] = {
     "nt/team": Team,
     "network/apply": NetworkChange,
     "network/confirm": NetworkToken,
     "network/revert": NetworkToken,
+    "standalone": Payload,
     "device/setup": Device,
     "device/tune": DeviceTune,
     "device/mode": DeviceMode,
-    "standalone": Payload,
-    "debug": Debug,
-    "clear-overrides": ClearOverrides,
-    "configure": Configure,
-    "import": Configure,
-    "qualify-timing": QualifyTiming,
-    "rename": Rename,
-    "tune": Tune,
-    "mode": Mode,
-    "replace": Replace,
-    "restore": Restore,
+    "device/name": Rename,
+    "camera/tune": Tune,
+    "camera/mode": Mode,
+    "camera/replace": Replace,
+    "configuration/apply": Configure,
+    "configuration/import": Configure,
+    "configuration/clear-overrides": ClearOverrides,
+    "configuration/restore": Restore,
+    "configuration/qualify-timing": QualifyTiming,
+    "debug/record": Debug,
     "calibration/board": CalibrationBoard,
     "calibration/select": CalibrationCameras,
     "calibration/apply": CalibrationCameras,
@@ -188,96 +177,28 @@ PAYLOADS: dict[str, type[Payload]] = {
         for action in ("start", "pause", "capture", "compute", "validate")
     },
 }
-Operation = Union[  # noqa: UP007 - Union[] accepts the generated tuple
-    tuple(
-        create_model(
-            "".join(part.title() for part in name.replace("/", "-").split("-")) + "Operation",
-            __config__=ConfigDict(extra="forbid"),
-            operation=(Literal[name], ...),  # ty: ignore[invalid-type-form]
-            payload=(payload, ...),
-            request_id=(Annotated[str, Field(pattern=r"^[a-zA-Z0-9_-]{8,64}$")], ...),
-        )
-        for name, payload in PAYLOADS.items()
-    )
-]
 
 
-class Session(BaseModel):
-    csrf: str
-    client: str
+class NetworkApplied(BaseModel):
+    result: dict[str, Any]
 
 
-class JobAccepted(BaseModel):
-    job_id: str
-    state: Literal["pending"] = "pending"
-
-
-class BrowserSession:
-    def __init__(self) -> None:
-        self.id, self.csrf = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
-        self.touched = time.monotonic()
-        self.tokens, self.updated = 2.0, time.monotonic()
-        self.previews = {}
-        self.requests = {}
-
-
-class Sessions:
-    def __init__(self, runtime) -> None:
-        self.runtime = runtime
-        self.sessions: dict[str, BrowserSession] = {}
-        self.jobs: dict[str, tuple[str, Future, float]] = {}
-        self.lock = threading.RLock()
-
-    def get(self, identity: str, *, create=False) -> BrowserSession | None:
-        now = time.monotonic()
-        with self.lock:
-            self.sessions = {
-                key: s for key, s in self.sessions.items() if now - s.touched < 8 * 3600
-            }
-            session = self.sessions.get(identity)
-            if session:
-                session.touched = now
-            elif create and len(self.sessions) < 8:
-                session = BrowserSession()
-                self.sessions[session.id] = session
-            return session
-
-    def enqueue(
-        self, session: BrowserSession, operation: str, payload: dict, request_id: str
-    ) -> str:
-        with self.lock:
-            if request_id in session.requests:
-                return session.requests[request_id]
-            now = time.monotonic()
-            session.tokens = min(2.0, session.tokens + (now - session.updated) * 5)
-            session.updated = now
-            if session.tokens < 1:
-                raise ConfigError("Request rate exceeded; wait for the pending value")
-            session.tokens -= 1
-            self.jobs = {
-                key: job
-                for key, job in self.jobs.items()
-                if now - job[2] < 120 or not job[1].done()
-            }
-            if len(self.jobs) >= 64:
-                raise ConfigError("Pending job limit reached")
-            future = self.runtime.submit(operation, payload)
-            job_id = secrets.token_urlsafe(16)
-            self.jobs[job_id] = (session.id, future, now)
-            session.requests[request_id] = job_id
-            while len(session.requests) > 64:
-                session.requests.pop(next(iter(session.requests)))
-            return job_id
+class Applied(BaseModel):
+    revision: str
+    applied_generation: str | None
+    result: dict[str, Any] | None = None
+    controls: dict[str, float] | None = None
 
 
 class BoundedJsonRequest(Request):
     async def body(self) -> bytes:
         if not hasattr(self, "_body"):
+            limit = MAX_IMPORT_BODY if self.url.path == "/api/configuration/import" else MAX_BODY
             length = self.headers.get("content-length", "")
             if (
                 self.headers.get("transfer-encoding")
                 or not length.isdigit()
-                or not 0 < int(length) <= MAX_IMPORT_BODY
+                or not 0 < int(length) <= limit
             ):
                 raise HTTPException(400, "Bounded request body required")
         return await super().body()
@@ -288,13 +209,7 @@ class BoundedJsonRequest(Request):
             def reject_constant(value):
                 raise HTTPException(400, f"Invalid JSON numeric constant {value}")
 
-            body = await self.body()
-            document = json.loads(body, parse_constant=reject_constant)
-            if len(body) > MAX_BODY and (
-                not isinstance(document, dict) or document.get("operation") != "import"
-            ):
-                raise HTTPException(400, "Request body size exceeded")
-            self._json = document
+            self._json = json.loads(await self.body(), parse_constant=reject_constant)
         return self._json
 
 
@@ -306,6 +221,14 @@ class BoundedJsonRoute(APIRoute):
             return await handler(BoundedJsonRequest(request.scope, request.receive))
 
         return bounded
+
+
+def same_origin_json(request: Request) -> None:
+    """Cross-site browsers cannot send a matching Origin or a JSON body without CORS."""
+    if request.headers.get("origin") != "http://" + request.headers.get("host", ""):
+        raise PermissionError("Same-origin request required")
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+        raise HTTPException(400, "JSON body required")
 
 
 def _error(status: int, message: str, headers=None) -> JSONResponse:
@@ -329,10 +252,8 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
         openapi_url="/api/openapi.json",
         generate_unique_id_function=lambda route: route.name,
     )
-    app.router.route_class = BoundedJsonRoute
     app.state.assets = (assets or Path(str(files("spot_vision.web")))).resolve()
     app.state.allowed_hosts = {"localhost", "127.0.0.1", "::1", *allowed_hosts}
-    sessions = app.state.sessions = Sessions(runtime)
 
     app.add_exception_handler(ValueError, lambda _, exc: _error(400, str(exc)))
     app.add_exception_handler(PermissionError, lambda _, exc: _error(403, str(exc)))
@@ -345,6 +266,7 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
     )
 
     def trusted_host(request: Request) -> bool:
+        """Reject DNS-rebinding hostnames; the service has no other authentication."""
         parsed = urlsplit("http://" + request.headers.get("host", ""))
         try:
             port = parsed.port or 80
@@ -374,75 +296,32 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
         response.headers["Content-Security-Policy"] = DOCS_CSP if docs else CSP
         return response
 
-    def optional_session(request: Request) -> BrowserSession | None:
-        return sessions.get(request.cookies.get(COOKIE, ""))
-
-    def browser_session(
-        session: Annotated[BrowserSession | None, Depends(optional_session)],
-    ) -> BrowserSession:
-        if session is None:
-            raise PermissionError("Browser session required")
-        return session
-
-    def mutation_session(request: Request) -> BrowserSession:
-        if request.headers.get("origin") != "http://" + request.headers.get("host", ""):
-            raise PermissionError("Same-origin request required")
-        session = optional_session(request)
-        if session is None or not secrets.compare_digest(
-            request.headers.get("x-spot-csrf", ""), session.csrf
-        ):
-            raise PermissionError("Session/CSRF check failed")
-        if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
-            raise ConfigError("JSON body required")
-        return session
-
-    BrowserSessionDep = Annotated[BrowserSession, Depends(browser_session)]
-
-    @app.get("/api/session")
-    def create_session(request: Request, response: Response) -> Session:
-        if request.headers.get("sec-fetch-site") == "cross-site":
-            raise PermissionError("Same-origin browser session required")
-        session = sessions.get(request.cookies.get(COOKIE, ""), create=True)
-        if session is None:
-            raise HTTPException(503, "Browser session limit reached")
-        response.set_cookie(
-            COOKIE, session.id, max_age=28800, path="/", httponly=True, samesite="strict"
-        )
-        return Session(csrf=session.csrf, client=session.id)
-
-    @app.get("/health", include_in_schema=False)
     @app.get("/api/status")
     def status() -> dict:
         return runtime.status()
 
+    @app.get("/api/configuration")
+    def configuration() -> dict:
+        return json.loads(runtime.store.export())
+
     @app.get("/api/calibrations")
-    def calibrations(_: BrowserSessionDep) -> dict:
+    def calibrations() -> dict:
         records = runtime.configuration.state.data.get("calibrations", {})
         return {"calibrations": list(records.values())}
 
-    def robot_configuration(defaults: bool) -> dict:
-        config = runtime.configuration
-        if config.manifest is None:
-            raise ConfigError("Connect robot code before exporting its configuration")
-        if defaults and config.robot_manifest is not None:
-            profile = config.robot_manifest.profile
-            return asdict(RobotConfiguration(profile.cameras, profile.processing))
-        return asdict(config.export_configuration())
+    @app.get("/api/robot/configuration")
+    def robot_configuration() -> dict:
+        return asdict(runtime.configuration.export_configuration())
 
-    @app.get("/api/robot-config")
-    def robot_config(_: BrowserSessionDep) -> dict:
-        return robot_configuration(defaults=False)
-
-    @app.get("/api/robot-defaults")
-    def robot_defaults(_: BrowserSessionDep) -> dict:
-        return robot_configuration(defaults=True)
-
-    @app.get("/api/export")
-    def export(_: BrowserSessionDep) -> dict:
-        return json.loads(runtime.store.export())
+    @app.get("/api/robot/defaults")
+    def robot_defaults() -> dict:
+        manifest = runtime.configuration.robot_manifest
+        if manifest is None:
+            raise ValueError("Connect robot code before exporting its configuration")
+        return asdict(RobotConfiguration(manifest.profile.cameras, manifest.profile.processing))
 
     @app.get("/api/support")
-    def support(_: BrowserSessionDep) -> dict:
+    def support() -> dict:
         return {
             "schema_version": 2,
             "status": runtime.status(),
@@ -450,43 +329,33 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
             "debug": runtime.debug,
         }
 
-    @app.get("/api/jobs/{job_id}")
-    def job(
-        job_id: str, session: Annotated[BrowserSession | None, Depends(optional_session)]
-    ) -> dict:
-        with sessions.lock:
-            job = sessions.jobs.get(job_id)
-        if not session or not job or job[0] != session.id:
-            raise HTTPException(404, "Job unavailable")
-        future = job[1]
-        if not future.done():
-            return {"state": "pending"}
-        try:
-            return {"state": "applied", **future.result()}
-        except Exception as exc:  # noqa: BLE001 - structured configuration rejection
-            return {"state": "rejected", "error": str(exc)}
+    @app.get("/api/frames/{identity}")
+    def frame(identity: Annotated[str, PathParam(pattern=r"^[a-f0-9]{64}$")]) -> dict:
+        return runtime.frames.preview(identity)
 
-    @app.get("/api/frame/{identity}")
-    def frame(
-        identity: Annotated[str, PathParam(pattern=r"^[a-f0-9]{64}$")],
-        session: BrowserSessionDep,
-    ) -> dict:
-        now = time.monotonic()
-        with sessions.lock:
-            if now - session.previews.get(identity, 0) < 1 / 25:
-                raise HTTPException(429, "Preview rate exceeded")
-            session.previews[identity] = now
-        return runtime.frames.preview(identity, session.id + ":" + identity)
+    operations = APIRouter(
+        prefix="/api", route_class=BoundedJsonRoute, dependencies=[Depends(same_origin_json)]
+    )
 
-    @app.post("/api/operations", status_code=202)
-    def submit(
-        operation: Annotated[Operation, Body(discriminator="operation")],  # ty: ignore[invalid-type-form]
-        session: Annotated[BrowserSession, Depends(mutation_session)],
-    ) -> JobAccepted:
-        payload = operation.payload.model_dump(exclude_unset=True)
-        job_id = sessions.enqueue(session, operation.operation, payload, operation.request_id)
-        return JobAccepted(job_id=job_id)
+    def operation_endpoint(operation: str, model: type[Payload]):
+        response = NetworkApplied if operation.startswith("network/") else Applied
 
+        def endpoint(payload: model) -> response:  # ty: ignore[invalid-type-form]
+            future = runtime.submit(operation, payload.model_dump(exclude_unset=True))
+            try:
+                return response(**future.result(ACKNOWLEDGEMENT_TIMEOUT_S))
+            except FutureTimeoutError:
+                raise HTTPException(
+                    504, "Acknowledgement pending; read current values before retrying"
+                ) from None
+
+        return endpoint
+
+    for operation, model in OPERATIONS.items():
+        operations.post(f"/{operation}", name=operation.replace("/", "_").replace("-", "_"))(
+            operation_endpoint(operation, model)
+        )
+    app.include_router(operations)
     app.mount("/", StaticFiles(directory=app.state.assets, html=True), name="web")
     return app
 

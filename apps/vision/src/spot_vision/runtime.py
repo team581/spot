@@ -201,26 +201,26 @@ class Runtime:
                     elif operation == "rediscover":
                         self.apply(self.configuration.state, self.configuration.manifest)
                         result = self.configuration.state
-                    elif operation == "clear-overrides":
+                    elif operation == "configuration/clear-overrides":
                         result = self.configuration.clear_overrides(
                             payload["revision"], payload.get("path", "")
                         )
-                    elif operation == "configure":
+                    elif operation == "configuration/apply":
                         result = self.configuration.configure_document(
                             payload["document"], payload["revision"]
                         )
-                    elif operation == "import":
+                    elif operation == "configuration/import":
                         result = self.configuration.import_data(
                             payload["document"],
                             payload["revision"],
                             validate_record,
                             validate_timing_evidence,
                         )
-                    elif operation == "qualify-timing":
+                    elif operation == "configuration/qualify-timing":
                         result = self.configuration.qualify_timing(
                             payload["record"], payload["revision"], self.validate_timing_record
                         )
-                    elif operation == "debug":
+                    elif operation == "debug/record":
                         self.configuration.require_eligible()
                         if payload["revision"] != self.configuration.state.generation:
                             raise ConfigError("revision conflict; fetch current configuration")
@@ -282,11 +282,11 @@ class Runtime:
                             mode,
                             payload["revision"],
                         )
-                    elif operation == "rename":
+                    elif operation == "device/name":
                         result = self.configuration.rename(
                             payload["identity"], payload["name"], payload["revision"]
                         )
-                    elif operation == "tune":
+                    elif operation == "camera/tune":
                         identity = next(
                             (key for key, name in self.roles.items() if name == payload["name"]),
                             None,
@@ -298,7 +298,7 @@ class Runtime:
                             payload["revision"],
                             reset=payload.get("reset", False),
                         )
-                    elif operation == "mode":
+                    elif operation == "camera/mode":
                         camera = self.configuration.camera(payload["name"])
                         mode = next(
                             (m for m in camera.allowed_modes if m.id == payload["mode_id"]), None
@@ -312,7 +312,7 @@ class Runtime:
                         result = self.configuration.set_mode(
                             camera.name, mode.id, payload["revision"]
                         )
-                    elif operation == "replace":
+                    elif operation == "camera/replace":
                         identity = payload.get("identity")
                         worker = self.workers.get(identity) if identity else None
                         if identity and (not worker or not worker.verified):
@@ -320,7 +320,7 @@ class Runtime:
                         result = self.configuration.replace_camera(
                             payload["name"], payload["revision"], identity=payload.get("identity")
                         )
-                    elif operation == "restore":
+                    elif operation == "configuration/restore":
                         result = self.configuration.restore(
                             payload["generation"],
                             payload["revision"],

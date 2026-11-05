@@ -152,7 +152,7 @@ class FixtureRuntime:
             "flags": [],
         }
 
-    def preview(self, identity, client):
+    def preview(self, identity):
         camera = next(c for c in self.cameras if c["identity"] == identity)
         return {
             "image": self.jpeg,
@@ -278,7 +278,10 @@ class FixtureRuntime:
         if payload.get("revision", self.revision) != self.revision:
             future.set_exception(ValueError("Revision conflict; reconcile current values"))
             return future
-        if operation == "tune":
+        if operation.startswith("network/"):
+            future.set_result({"result": {}})
+            return future
+        if operation == "camera/tune":
             camera = next(c for c in self.cameras if c["logical_name"] == payload["name"])
             for control in camera["controls"]:
                 if payload.get("reset"):
@@ -302,7 +305,7 @@ class FixtureRuntime:
             session = self.calibration_sessions.get(payload.get("identity"))
             if session and operation in {"calibration/start", "calibration/pause"}:
                 session["running"] = operation == "calibration/start"
-        elif operation == "rename":
+        elif operation == "device/name":
             camera = next(c for c in self.cameras if c["identity"] == payload["identity"])
             camera["logical_name"] = camera["name"] = payload["name"]
         self.revision = "fixture-" + uuid.uuid4().hex

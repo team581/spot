@@ -1,14 +1,13 @@
-import type { OperationName, OperationPayload } from '../api';
+import type { Applied, OperationName, OperationPayload } from '../api';
 import { useState } from 'react';
 import { useDashboard, errorMessage } from '../dashboard';
-import type { Job } from '../types';
 import Capture from './calibration/Capture';
 import Results from './calibration/Results';
 type CalibrationAction = OperationName extends infer N ? (N extends `calibration/${infer A}` ? A : never) : never;
 export type Action = <A extends CalibrationAction>(
 	operation: A,
 	payload?: Omit<OperationPayload<`calibration/${A}`>, 'revision'>,
-) => Promise<Job | null>;
+) => Promise<Applied | null>;
 export default function Calibration({ results }: { results: boolean }) {
 	const { status, read, mutate } = useDashboard(),
 		[error, setError] = useState('');
