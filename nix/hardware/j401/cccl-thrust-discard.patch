@@ -1,0 +1,24 @@
+--- a/include/cub/util_type.cuh
++++ b/include/cub/util_type.cuh
+@@ -44,6 +44,8 @@
+ #endif // no system header
+ 
+ #include <cub/detail/uninitialized_copy.cuh>
++
++#include <thrust/iterator/discard_iterator.h>
+ 
+ #include <cuda/std/cstdint>
+ #include <cuda/std/limits>
+@@ -113,7 +115,11 @@
+ struct non_void_value_impl<It, FallbackT, false>
+ {
+   using type =
+-    typename ::cuda::std::conditional<::cuda::std::is_same<value_t<It>, void>::value, FallbackT, value_t<It>>::type;
++    typename ::cuda::std::conditional<
++      ::cuda::std::is_same<value_t<It>, void>::value
++        || ::cuda::std::is_same<value_t<It>, THRUST_NS_QUALIFIER::discard_iterator<>::value_type>::value,
++      FallbackT,
++      value_t<It>>::type;
+ };
+ 
+ /**

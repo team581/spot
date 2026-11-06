@@ -10,7 +10,12 @@
     nixpkgs.config.allowUnfree = true;
     nixpkgs.overlays = [
       (final: prev: {
-        cudaPackages = final.cudaPackages_12_6;
+        cudaPackages = final.cudaPackages_12_6.overrideScope (_: cudaPrev: {
+          # Backport NVIDIA/cccl e5269a0: infer discarded ReduceByKey outputs from the input.
+          cuda_cccl = cudaPrev.cuda_cccl.overrideAttrs (old: {
+            patches = (old.patches or [ ]) ++ [ ./cccl-thrust-discard.patch ];
+          });
+        });
         nvidia-jetpack = prev.nvidia-jetpack.overrideScope (
           _: previous: {
             # Firmware is provisioned by Seeed, not built from this NixOS generation.
