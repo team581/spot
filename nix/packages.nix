@@ -194,6 +194,8 @@ let
                   + lib.optionalString cuda (
                     " -DSPOT_JETSON_MULTIMEDIA_API=${jetsonMultimediaApi}"
                     + " -DSPOT_NVJPG_LIBRARY_DIRS=${pkgs.nvidia-jetpack.l4t-multimedia}/lib;${pkgs.nvidia-jetpack.l4t-cuda}/lib"
+                    + " -DSPOT_NVJPG_nvmm_jpeg=${pkgs.nvidia-jetpack.l4t-multimedia}/lib/libnvjpeg.so"
+                    + " -DCMAKE_CXX_FLAGS=-I${jetsonMultimediaApi}/include/libjpeg-8b"
                   );
               };
             });
