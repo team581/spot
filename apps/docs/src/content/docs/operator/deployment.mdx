@@ -100,6 +100,10 @@ on-device builds. `test` changes the running system but leaves the boot default
 unchanged. There is no automatic deployment rollback. `check-health --robot`
 checks robot and camera readiness; it does not certify hardware accuracy.
 
+If `switch` reports that no systemd-boot is installed (a unit not set up from the
+installer), run the built generation once with
+`sudo NIXOS_INSTALL_BOOTLOADER=1 /root/spot-next/bin/switch-to-configuration switch`.
+
 ## Recover
 
 Restore the saved boot configuration after a failed test:
