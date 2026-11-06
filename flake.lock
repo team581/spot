@@ -33,18 +33,14 @@
         ]
       },
       "locked": {
-        "lastModified": 1793150277,
-        "narHash": "sha256-BiGHn6cYXtDT2jFlAxYmfpEu5yIMtCFWpRiCI7wqyDo=",
-        "owner": "anduril",
-        "repo": "jetpack-nixos",
-        "rev": "7fde791978b0b476abda2a6fc9b96d813d39c640",
-        "type": "github"
+        "path": "./jetpack",
+        "type": "path"
       },
       "original": {
-        "owner": "anduril",
-        "repo": "jetpack-nixos",
-        "type": "github"
-      }
+        "path": "./jetpack",
+        "type": "path"
+      },
+      "parent": []
     },
     "nixpkgs": {
       "locked": {

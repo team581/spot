@@ -140,7 +140,6 @@
                 "sudo date -u -s @$(date +%s) && sudo touch /run/spot-clock-set"
               if [ "$#" -eq 0 ]; then set -- test; fi
               nixos-rebuild "$@" --flake "$PWD#''${SPOT_CONFIG:-spot}" \
-                --build-host "$host" \
                 --target-host "$host" --sudo
             '';
           };
