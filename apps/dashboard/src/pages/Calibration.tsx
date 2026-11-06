@@ -15,7 +15,7 @@ export default function Calibration({ results }: { results: boolean }) {
 						<TabLink to="/calibration" activeOptions={{ exact: true }}>
 							Capture
 						</TabLink>
-						<TabLink to="/calibration/results">Results / history</TabLink>
+						<TabLink to="/calibration/results">History</TabLink>
 					</>
 				}
 			>

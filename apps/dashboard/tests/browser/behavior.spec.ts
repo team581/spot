@@ -110,10 +110,7 @@ test('calibration actions and passing results require acknowledgement', async ({
 	await expect(page.locator('#capture-status')).toContainText('Validation failed');
 	await page.unroute('**/api/status');
 	await page.reload();
-	await page.getByRole('link', { name: 'Review and apply', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
-	await page.getByRole('button', { name: 'Select passing', exact: true }).click();
-	await page.getByRole('button', { name: 'Apply selected', exact: true }).click();
+	await page.getByRole('button', { name: 'Apply calibration', exact: true }).click();
 	await expect(page.locator('#apply-status')).toContainText('Applied');
 });
 
@@ -242,15 +239,10 @@ test('board drafts survive polls and choosing a camera selects only that camera'
 		.toEqual([status.cameras[1].identity]);
 });
 
-test('failed calibration validation cannot be selected for apply; compatible history restores selected records', async ({
-	page,
-}) => {
+test('compatible history restores selected records', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	const writes = await captureOperations(page, () => ({ revision: status.revision, applied_generation: null }));
 	await page.goto('/calibration/results');
-	const checkboxes = page.getByRole('table').getByRole('checkbox');
-	await checkboxes.nth(1).check();
-	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
 	await page.locator('.history-panel').getByRole('checkbox').first().check();
 	await page.getByRole('button', { name: 'Restore selected', exact: true }).click();
 	await expect.poll(() => writes.length).toBe(1);

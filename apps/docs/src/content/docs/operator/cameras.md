@@ -66,9 +66,8 @@ removed automatically.
    sharp and cover the image edges.
 3. Click **Calibrate**. Then click **Start capture** again to collect separate
    validation views and click **Validate**. Follow the reported retry reasons.
-4. Click **Review and apply**, select the passing camera, and click **Apply selected**.
-   Wait for **Applied**, then calibrate the next camera. Choosing another camera
-   discards an unapplied session.
+4. Click **Apply calibration** and wait for **Applied**, then calibrate the next
+   camera. Choosing another camera discards an unapplied session.
 5. Applied calibrations appear in **Changes**; adopt them in robot code like other
    edits.
 

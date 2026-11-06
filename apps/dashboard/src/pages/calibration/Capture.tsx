@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { Feed } from '../../components/Feed';
 import { Steps, type Step } from '../../components/Steps';
-import { readStatus, useStatus } from '../../queries';
+import { readStatus, useOperation, useStatus } from '../../queries';
 import type { CalibrationOperation } from '../Calibration';
 import { Panel, fmt } from '../../components/common';
 import { Button } from '@/components/ui/button';
@@ -123,6 +123,7 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 }
 function CameraCalibration({ id, operation }: { id: string; operation: CalibrationOperation }) {
 	const status = useStatus(),
+		apply = useOperation<'calibration/apply'>(),
 		session = status.calibration.cameras[id]!,
 		minFitViews = Number(status.calibration.options?.min_frames) || 15,
 		fitted = Boolean(session.fit?.accepted),
@@ -163,7 +164,7 @@ function CameraCalibration({ id, operation }: { id: string; operation: Calibrati
 			? 'Validating…'
 			: 'Calibrating…'
 		: validated
-			? 'Calibration passed. Review and apply it on Results.'
+			? 'Calibration passed. Apply it to save it for this camera.'
 			: capturing
 				? session.reason || 'Show the board'
 				: session.holdout && !session.holdout.accepted
@@ -197,7 +198,17 @@ function CameraCalibration({ id, operation }: { id: string; operation: Calibrati
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{validated ? (
-					<Button render={<Link to="/calibration/results" />}>Review and apply</Button>
+					<Button
+						disabled={apply.isPending || session.solving}
+						onClick={() =>
+							apply.mutate({
+								operation: 'calibration/apply',
+								payload: { identities: [id], revision: readStatus().revision },
+							})
+						}
+					>
+						Apply calibration
+					</Button>
 				) : (
 					<>
 						<Button
@@ -216,6 +227,13 @@ function CameraCalibration({ id, operation }: { id: string; operation: Calibrati
 						</Button>
 					</>
 				)}
+				<small id="apply-status" className="self-center text-muted-foreground">
+					{apply.isPending
+						? 'Applying calibration…'
+						: apply.isSuccess
+							? 'Applied · ' + apply.data.applied_generation
+							: apply.error?.message}
+				</small>
 			</div>
 			<Feed id={id} calibration className="aspect-[1.6]" />
 		</>
