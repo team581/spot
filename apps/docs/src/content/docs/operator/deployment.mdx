@@ -78,13 +78,18 @@ does not require internet access or a repository checkout on the Jetson.
 
 ## Deploy to an existing NixOS installation
 
-Run from the development checkout; no checkout on the Jetson is needed:
+Run from the development checkout. The Jetson builds the system and downloads
+through the laptop over SSH, so it needs no Internet access. The first build on a
+Jetson downloads its build tools; later code-only changes build from its store:
 
 ```sh
-nix run .#deploy -- test
+mise run jetson:remote-deploy
 bash tools/jetson-ssh.sh spot-vision check-health --robot
-nix run .#deploy -- switch
+mise run jetson:remote-deploy switch
 ```
+
+Set `SPOT_CONFIG=spot-test` for the test unit on newer firmware. To build on the
+laptop instead, use `nix run .#deploy -- test` with an `aarch64-linux` builder.
 
 Add new files to Git before deploying and keep the checkout unchanged between
 `test` and `switch`. `test` changes the running system but leaves the boot default
