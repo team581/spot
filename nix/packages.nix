@@ -28,6 +28,7 @@ let
         "dist"
         ".astro"
         "__pycache__"
+        "test-results"
         ".pytest_cache"
         ".ruff_cache"
       ]);
