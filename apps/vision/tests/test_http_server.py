@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import struct
 import threading
 from concurrent.futures import Future
@@ -68,6 +69,23 @@ def test_mutations_require_same_origin_json_on_an_installed_host(web):
         == 400
     )
     assert submissions == []
+
+
+def test_reload_after_deploy_gets_new_shell_with_same_size_and_mtime(web):
+    request, _, server = web
+    index = server.assets / "index.html"
+    # Nix store paths all carry the same mtime, and hashed asset names keep the size fixed.
+    index.write_text('<script src="/assets/index-aaaa.js"></script>')
+    os.utime(index, (0, 0))
+    _, headers, _ = request("GET", "/")
+    index.write_text('<script src="/assets/index-bbbb.js"></script>')
+    os.utime(index, (0, 0))
+    validators = {
+        "If-None-Match": headers["etag"],
+        "If-Modified-Since": headers["last-modified"],
+    }
+    status, _, body = request("GET", "/", headers=validators)
+    assert (status, body) == (200, b'<script src="/assets/index-bbbb.js"></script>')
 
 
 def test_direct_address_works_when_interface_was_absent_at_startup(web):

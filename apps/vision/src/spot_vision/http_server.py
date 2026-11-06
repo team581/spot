@@ -265,6 +265,13 @@ class DashboardFiles(StaticFiles):
                 raise
             return await super().get_response("index.html", scope)
 
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        # Nix store files share one mtime, so Starlette's mtime+size validators match across
+        # deploys whenever a page keeps its size, which revives a shell for deleted assets.
+        if response_headers.get("content-type", "").startswith("text/html"):
+            return False
+        return super().is_not_modified(response_headers, request_headers)
+
 
 def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> FastAPI:
     # FastAPI's interactive docs load from a CDN and would collide with the operator docs at /docs.
