@@ -225,6 +225,16 @@ class CalibrationManager:
                     camera.running = False
                 elif action == "capture":
                     self._accept(camera)
+                elif action == "clear":
+                    if camera.solving:
+                        raise ConfigError("Camera solve is pending")
+                    # Clearing fitting views also discards the fit and its validation.
+                    if payload.get("phase") != "holdout":
+                        camera.fit = CameraSession(camera.identity)
+                        camera.intrinsics, camera.report = None, None
+                        camera.phase, camera.running = "fit", False
+                    camera.holdout = CameraSession(camera.identity)
+                    camera.validation, camera.coverage, camera.error = None, {}, ""
                 elif action in {"compute", "validate"}:
                     if camera.solving:
                         raise ConfigError("Camera solve is pending")

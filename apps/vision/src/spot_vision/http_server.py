@@ -180,7 +180,7 @@ OPERATIONS: dict[str, type[Payload]] = {
     "calibration/start-all": CalibrationStartAll,
     **{
         f"calibration/{action}": CalibrationCamera
-        for action in ("start", "pause", "capture", "compute", "validate")
+        for action in ("start", "pause", "capture", "clear", "compute", "validate")
     },
 }
 

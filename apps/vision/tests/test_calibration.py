@@ -128,6 +128,21 @@ def test_start_all_validates_whole_capture_group_before_starting(tmp_path):
     assert not any(camera.running for camera in calibration.cameras.values())
 
 
+def test_clearing_validation_views_keeps_fit_but_clearing_fit_discards_both(tmp_path):
+    calibration, _ = calibration_runtime(tmp_path)
+    a = calibration.cameras["a"]
+    a.fit.samples.append(object())
+    a.holdout.samples.append(object())
+    status = calibration.command("clear", {"revision": "old", "identity": "a", "phase": "holdout"})
+    assert status["cameras"]["a"]["holdout_views"] == 0
+    assert status["cameras"]["a"]["holdout"] is None
+    assert status["cameras"]["a"]["fit_views"] == 1 and a.intrinsics is not None
+    a.holdout.samples.append(object())
+    status = calibration.command("clear", {"revision": "old", "identity": "a", "phase": "fit"})
+    assert status["cameras"]["a"]["fit_views"] == status["cameras"]["a"]["holdout_views"] == 0
+    assert a.intrinsics is None and status["cameras"]["a"]["fit"] is None
+
+
 def test_activation_rejects_missing_intrinsics_before_committing_group(tmp_path):
     import pytest
 

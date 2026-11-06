@@ -227,6 +227,9 @@ function CameraCalibration({ id, operation }: { id: string; operation: Calibrati
 						</Button>
 					</>
 				)}
+				<Button variant="outline" disabled={session.solving || views === 0} onClick={() => run('clear')}>
+					Clear {fitted ? 'validation' : 'fitting'} views
+				</Button>
 				<small id="apply-status" className="self-center text-muted-foreground">
 					{apply.isPending
 						? 'Applying calibration…'

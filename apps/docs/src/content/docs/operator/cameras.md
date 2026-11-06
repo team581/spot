@@ -65,7 +65,8 @@ removed automatically.
    positions, distances, and tilts until **Calibrate** is enabled. Keep the board
    sharp and cover the image edges.
 3. Click **Calibrate**. Then click **Start capture** again to collect separate
-   validation views and click **Validate**. Follow the reported retry reasons.
+   validation views and click **Validate**. Follow the reported retry reasons;
+   **Clear views** discards only the current step's captures.
 4. Click **Apply calibration** and wait for **Applied**, then calibrate the next
    camera. Choosing another camera discards an unapplied session.
 5. Applied calibrations appear in **Changes**; adopt them in robot code like other
