@@ -120,63 +120,13 @@ export class NumberEdit {
 		return true;
 	}
 }
-export class History {
-	undoStack: { before: Values; after: Values }[];
-	redoStack: { before: Values; after: Values }[];
-	revision: string;
-	pending: boolean;
-	conflict: boolean;
-
-	constructor() {
-		this.undoStack = [];
-		this.redoStack = [];
-		this.revision = '';
-		this.pending = false;
-		this.conflict = false;
-	}
-	record(before: Values, after: Values, revision: string) {
-		this.revision = revision;
-		if (JSON.stringify(before) !== JSON.stringify(after)) {
-			this.undoStack.push({ before: { ...before }, after: { ...after } });
-			if (this.undoStack.length > 64) this.undoStack.shift();
-			this.redoStack = [];
-		}
-	}
-	observe(revision: string) {
-		if (this.revision && this.revision !== revision && !this.pending) {
-			this.clear(revision);
-			this.conflict = true;
-		} else if (!this.revision) this.revision = revision;
-	}
-	clear(revision: string) {
-		this.undoStack = [];
-		this.redoStack = [];
-		this.revision = revision;
-	}
-	async apply(direction: 'undo' | 'redo', send: (values: Values, revision: string) => Promise<{ revision: string }>) {
-		const source = direction === 'undo' ? this.undoStack : this.redoStack,
-			target = direction === 'undo' ? this.redoStack : this.undoStack;
-		if (!source.length || this.pending || this.conflict) return false;
-		const entry = source.at(-1)!;
-		this.pending = true;
-		try {
-			const result = await send(direction === 'undo' ? entry.before : entry.after, this.revision);
-			source.pop();
-			target.push(entry);
-			this.revision = result.revision;
-			return true;
-		} finally {
-			this.pending = false;
-		}
-	}
-}
 export class LiveTuner {
 	values: Values;
 	requested: Values;
 	revision: string;
 	send: Send;
 	onChange: () => void;
-	history: History;
+	conflict: boolean;
 	pending: Values | null;
 	inFlight: boolean;
 	gesture: Values | null;
@@ -191,8 +141,7 @@ export class LiveTuner {
 		this.revision = revision;
 		this.send = send;
 		this.onChange = onChange;
-		this.history = new History();
-		this.history.revision = revision;
+		this.conflict = false;
 		this.pending = null;
 		this.inFlight = false;
 		this.gesture = null;
@@ -230,26 +179,20 @@ export class LiveTuner {
 		const values = this.pending;
 		this.pending = null;
 		this.inFlight = true;
-		this.history.pending = true;
 		this.lastSend = Date.now();
 		this.onChange();
 		try {
 			const result = await this.send(values, this.revision);
 			this.values = { ...this.values, ...result.values };
 			this.revision = result.revision;
-			this.history.revision = result.revision;
 			this.error = '';
 		} catch (error) {
 			this.error = errorMessage(error);
 			this.pending = null;
 			this.finished = true;
-			if (/conflict/i.test(this.error)) {
-				this.history.clear(this.revision);
-				this.history.conflict = true;
-			}
+			if (/conflict/i.test(this.error)) this.conflict = true;
 		} finally {
 			this.inFlight = false;
-			this.history.pending = false;
 			this._finish();
 			this._schedule();
 			this.onChange();
@@ -257,7 +200,6 @@ export class LiveTuner {
 	}
 	_finish() {
 		if (this.finished && !this.inFlight && !this.pending && this.gesture) {
-			if (!this.history.conflict) this.history.record(this.gesture, this.values, this.revision);
 			this.gesture = null;
 			this.finished = false;
 		}
@@ -265,13 +207,12 @@ export class LiveTuner {
 	observe(values: Values, revision: string) {
 		if (this.inFlight) return;
 		if (revision !== this.revision) {
-			this.history.observe(revision);
 			this.revision = revision;
 			this.values = { ...values };
 			if (this.gesture) {
 				this.pending = null;
 				this.finished = true;
-				this.error = 'Configuration changed; reconcile before another edit';
+				this.error = 'Configuration changed on Spot; edit discarded';
 			} else this.requested = { ...values };
 		} else this.values = { ...values };
 	}
@@ -282,42 +223,22 @@ export class LiveTuner {
 		this.values = { ...values };
 		this.requested = { ...values };
 		this.revision = revision;
-		this.history.clear(revision);
-		this.history.conflict = false;
+		this.conflict = false;
 		this.error = '';
 		this.onChange();
 	}
-	async applyHistory(direction: 'undo' | 'redo') {
-		try {
-			await this.history.apply(direction, async (values, revision) => {
-				const result = await this.send(values, revision);
-				this.revision = result.revision;
-				this.values = { ...result.values };
-				this.requested = { ...result.values };
-				return result;
-			});
-		} catch (error) {
-			this.error = errorMessage(error);
-			if (/conflict/i.test(this.error)) this.history.conflict = true;
-		}
-		this.onChange();
-	}
 	async reset(send: () => Promise<{ values: Values; revision: string }>) {
-		const before = { ...this.values };
 		this.inFlight = true;
-		this.history.pending = true;
 		this.onChange();
 		try {
 			const result = await send();
 			this.revision = result.revision;
 			this.values = { ...result.values };
 			this.requested = { ...result.values };
-			this.history.record(before, result.values, result.revision);
 		} catch (error) {
 			this.error = errorMessage(error);
 		} finally {
 			this.inFlight = false;
-			this.history.pending = false;
 			this.onChange();
 		}
 	}

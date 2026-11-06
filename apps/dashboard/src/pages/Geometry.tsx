@@ -7,7 +7,7 @@ import { NumberEdit } from '../state/editing';
 import GeometryViewer from '../components/GeometryViewer';
 import { geometryValues, previewGeometry } from '../state/geometry';
 import { CameraSelector, CameraTabs, Feedback, PageTitle, Panel, fmt } from '../components/common';
-import { ChevronDown, ChevronUp, Redo2, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -78,19 +78,7 @@ export default function GeometryPage({ camera: c }: { camera: Camera }) {
 			<CameraSelector cameras={status.cameras} id={c.identity} geometry />
 			<CameraTabs id={c.identity} />
 			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
-				<Panel
-					title="Mount"
-					action={
-						<span className="flex">
-							<Button variant="ghost" size="icon" aria-label="Undo" disabled>
-								<Undo2 />
-							</Button>
-							<Button variant="ghost" size="icon" aria-label="Redo" disabled>
-								<Redo2 />
-							</Button>
-						</span>
-					}
-				>
+				<Panel title="Mount">
 					<p className="text-muted-foreground">Robot code value, including any change saved on Spot</p>
 					<Label className="text-warning">
 						<Checkbox checked={inspection} onCheckedChange={setInspection} /> Inspection preview

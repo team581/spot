@@ -52,7 +52,7 @@ test('navigation, images, detections, pause and geometry inspection', async ({ p
 	await expect(page.locator('#software-data')).toContainText('development-fixture');
 });
 
-test('acknowledged tuning, undo, redo and reset use the real service', async ({ page }) => {
+test('acknowledged tuning and reset use the real service', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	await page.goto('/cameras/' + status.cameras[0].identity);
 	const gain = page.getByRole('slider', { name: 'Gain', exact: true });
@@ -61,11 +61,6 @@ test('acknowledged tuning, undo, redo and reset use the real service', async ({ 
 	await gain.focus();
 	await gain.press('ArrowRight');
 	await expect(page.locator('[data-control="gain"] .readback')).toHaveText('Readback ' + (Number(initial) + 1) + ' ');
-	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
-	await page.getByRole('button', { name: 'Undo', exact: true }).click();
-	await expect(gain).toHaveValue(initial);
-	await page.getByRole('button', { name: 'Redo', exact: true }).click();
-	await expect(gain).toHaveValue(String(Number(initial) + 1));
 	await page.getByRole('button', { name: 'Reset to code defaults', exact: true }).click();
 	await expect(gain).toHaveValue('30');
 });
@@ -120,7 +115,7 @@ test('calibration actions and passing results require acknowledgement', async ({
 	await expect(page.locator('#apply-status')).toContainText('Applied');
 });
 
-test('rejected operation leaves readback unchanged and no undo history', async ({ page }) => {
+test('rejected operation leaves readback unchanged', async ({ page }) => {
 	const status = await (await page.request.get('/api/status')).json();
 	await page.route('**/api/camera/tune', (route) =>
 		route.fulfill({ status: 400, json: { error: 'Revision conflict; reconcile current values' } }),
@@ -130,7 +125,6 @@ test('rejected operation leaves readback unchanged and no undo history', async (
 	await gain.focus();
 	await gain.press('ArrowRight');
 	await expect(page.locator('#control-feedback')).toContainText('Revision conflict');
-	await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Reconcile current values' })).toBeVisible();
 	await page.getByRole('button', { name: 'Reconcile current values' }).click();
 	await expect(gain).toBeEnabled();

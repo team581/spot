@@ -41,7 +41,8 @@ The [VS Code extension](../vscode-camera-preview/) previews deployed mounts.
 ## Tune
 
 Use the camera page's live preview and detection outlines while adjusting exposure
-and gain. Undo, redo, and reset controls let you compare settings.
+and gain. **Reset to code defaults** returns every control to its robot-code value;
+an edited control's **Revert** button resets just that control.
 
 ## Saved settings
 

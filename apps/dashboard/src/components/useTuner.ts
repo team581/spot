@@ -37,7 +37,6 @@ export function useTuner(camera: Camera) {
 		redraw();
 	}, [tuner, status, camera.identity]);
 	useEffect(() => () => tuner.dispose(), [tuner]);
-	const history = (direction: 'undo' | 'redo') => tuner.applyHistory(direction);
 	const reset = () =>
 		tuner.reset(async () => {
 			const applied = await tune({ reset: true, revision: readStatus().revision });
@@ -51,5 +50,5 @@ export function useTuner(camera: Camera) {
 			tuner.reject(error);
 		}
 	};
-	return { tuner, history, reset, reconcile };
+	return { tuner, reset, reconcile };
 }

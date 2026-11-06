@@ -14,7 +14,7 @@ export function TuningControl({ control: c, tuner, camera }: { control: Control;
 		revert = useOperation<'configuration/clear-overrides'>(),
 		path = controlPath(camera.logical_name ?? '', c.name),
 		edited = camera.logical_name ? isOverride(status.overrides, path) : undefined;
-	const disabled = Boolean(!c.allowed || !camera.connected || tuner.history.conflict);
+	const disabled = Boolean(!c.allowed || !camera.connected || tuner.conflict);
 	const value = tuner.gesture ? (tuner.requested[c.name] ?? c.value) : c.value;
 	const id = 'control-' + c.name;
 	const gesture = {

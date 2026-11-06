@@ -1,6 +1,6 @@
 import { test } from 'vite-plus/test';
 import assert from 'node:assert/strict';
-import { NumberEdit, History, LiveTuner, finiteText, availableCameraNames } from '../src/state/editing';
+import { NumberEdit, LiveTuner, finiteText, availableCameraNames } from '../src/state/editing';
 import { createTheme } from '../src/state/theme';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -86,26 +86,7 @@ test('translation and angle steppers obey exact modifier increments', () => {
 	edit.step(-1, { shiftKey: true }, true);
 	assert.equal(edit.text, '0.1');
 });
-test('history changes stacks only after successful acknowledged transaction', async () => {
-	const history = new History();
-	history.record({ gain: 1 }, { gain: 3 }, 'a');
-	await assert.rejects(
-		history.apply('undo', async () => {
-			throw new Error('readback failed');
-		}),
-	);
-	assert.equal(history.undoStack.length, 1);
-	assert.equal(history.redoStack.length, 0);
-	await history.apply('undo', async (values) => {
-		assert.deepEqual(values, { gain: 1 });
-		return { revision: 'b' };
-	});
-	assert.equal(history.redoStack.length, 1);
-	history.observe('external');
-	assert.equal(history.conflict, true);
-	assert.equal(history.undoStack.length + history.redoStack.length, 0);
-});
-test('one slider drag serializes, coalesces final value and creates one history entry', async () => {
+test('one slider drag serializes and coalesces final value', async () => {
 	let active = 0,
 		maxActive = 0;
 	const writes = [];
@@ -126,21 +107,15 @@ test('one slider drag serializes, coalesces final value and creates one history 
 	assert.equal(maxActive, 1);
 	assert.equal(writes.at(-1), 4);
 	assert.equal(tuner.values.gain, 4);
-	assert.equal(tuner.history.undoStack.length, 1);
-	assert.deepEqual(tuner.history.undoStack[0], {
-		before: { gain: 1 },
-		after: { gain: 4 },
-	});
 	tuner.dispose();
 });
-test('conflicted live write leaves no misleading undo transaction', async () => {
+test('conflicted live write locks tuning and keeps acknowledged values', async () => {
 	const tuner = new LiveTuner({ gain: 1 }, 'a', async () => {
 		throw new Error('Revision conflict');
 	});
 	tuner.request('gain', 2, true);
 	await wait(30);
-	assert.equal(tuner.history.conflict, true);
-	assert.equal(tuner.history.undoStack.length, 0);
+	assert.equal(tuner.conflict, true);
 	assert.equal(tuner.values.gain, 1);
 	tuner.dispose();
 });

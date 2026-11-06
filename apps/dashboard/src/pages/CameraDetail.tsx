@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router';
 import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
 import { CalibrationState, CameraSelector, CameraTabs, Feedback, Panel, PageTitle, age } from '../components/common';
-import { Redo2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -23,7 +22,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 	const { announce, previews } = useDashboard(),
 		status = useStatus(),
 		operation = useOperation(),
-		{ tuner, history, reset, reconcile } = useTuner(c);
+		{ tuner, reset, reconcile } = useTuner(c);
 	const [notice, setNotice] = useState(''),
 		[outlines, setOutlines] = useState(true),
 		[replacement, setReplacement] = useState(''),
@@ -52,30 +51,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 			<CameraSelector cameras={status.cameras} id={c.identity} />
 			<CameraTabs id={c.identity} />
 			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
-				<Panel
-					title="Config"
-					action={
-						<span className="flex">
-							{(['undo', 'redo'] as const).map((direction) => {
-								const stack = direction === 'undo' ? tuner.history.undoStack : tuner.history.redoStack;
-								return (
-									<Button
-										key={direction}
-										variant="ghost"
-										size="icon"
-										aria-label={direction === 'undo' ? 'Undo' : 'Redo'}
-										disabled={Boolean(
-											!stack.length || tuner.inFlight || tuner.pending || tuner.gesture || tuner.history.conflict,
-										)}
-										onClick={() => void history(direction)}
-									>
-										{direction === 'undo' ? <Undo2 /> : <Redo2 />}
-									</Button>
-								);
-							})}
-						</span>
-					}
-				>
+				<Panel title="Config">
 					{primary.map((ctrl) => (
 						<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
 					))}
@@ -111,9 +87,7 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 					</Feedback>
 					<Button
 						variant="outline"
-						disabled={Boolean(
-							!(c.controls ?? []).some((ctrl) => ctrl.allowed) || tuner.inFlight || tuner.history.conflict,
-						)}
+						disabled={Boolean(!(c.controls ?? []).some((ctrl) => ctrl.allowed) || tuner.inFlight || tuner.conflict)}
 						onClick={() => void reset()}
 					>
 						Reset to code defaults
@@ -163,14 +137,14 @@ function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onMode
 							</Button>
 						</CollapsibleContent>
 					</Collapsible>
-					{tuner.history.conflict ? (
+					{tuner.conflict ? (
 						<Button variant="outline" onClick={() => void reconcile()}>
 							Reconcile current values
 						</Button>
 					) : null}
 					<Feedback id="page-feedback">{notice || operation.error?.message}</Feedback>
 					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="tune">
-						Tuning and history
+						Tuning
 					</Link>
 				</Panel>
 				<div className="flex min-w-0 flex-col gap-4">
