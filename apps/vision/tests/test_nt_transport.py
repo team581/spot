@@ -15,7 +15,7 @@ from spot_vision.configuration import ConfigurationService
 from spot_vision.models import DetectedFrame, DetectionBatch, FramePacket, PoseSolution
 from spot_vision.nt_transport import NtTransport, make_observation
 from spot_vision.persistence import StateStore
-from spot_vision.structs import FrameResult, RobotDecision, session
+from spot_vision.structs import FrameResult, session
 
 
 def wait(link, predicate):
@@ -165,20 +165,3 @@ def test_policy_change_rejects_inflight_solve_without_reapplying_configuration(l
     assert len(link.applied) == 1
     current, captured = observation(link)
     assert link.transport.publish(current, captured)
-
-
-def test_binary_robot_decision_is_exposed_only_while_capture_is_fresh(link):
-    ready(link)
-    publisher = link.server.getStructTopic("/Spot/front/decision", RobotDecision).publish()
-    try:
-        offset = link.transport.clock.snapshot().offset_us
-        now = (nt_now_us() + offset) / 1e6
-        publisher.set(RobotDecision(*session("2" * 32), 1, now, 0, True, True))
-        wait(link, lambda: "front" in link.transport.robot_decisions)
-        decision = link.transport.robot_decisions["front"]
-        assert decision["capture_epoch"] == "2" * 32
-        assert decision["state"] == "ACCEPTED" and decision["fused"]
-        publisher.set(RobotDecision(*session("2" * 32), 1, now - 1, 0, True, True))
-        wait(link, lambda: not link.transport.robot_decisions)
-    finally:
-        publisher.close()

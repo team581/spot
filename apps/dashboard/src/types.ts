@@ -158,16 +158,6 @@ export interface Status {
 	};
 	startup?: Record<string, number>;
 	faults?: string[];
-	robot_decisions?: Record<
-		string,
-		{
-			capture_epoch: string;
-			sequence: number;
-			state: string;
-			fusion_enabled: boolean;
-			fused: boolean;
-		}
-	>;
 	field?: {
 		origin?: string;
 		length: number;

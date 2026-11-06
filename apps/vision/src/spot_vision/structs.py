@@ -78,39 +78,6 @@ class CameraSettings:
     required: bool = False
 
 
-DECISIONS = (
-    "ACCEPTED",
-    "NO_TAGS",
-    "CONFIGURATION",
-    "CALIBRATION",
-    "TIMESTAMP",
-    "STALE",
-    "FUTURE",
-    "DUPLICATE",
-    "RESET",
-    "MALFORMED",
-    "HISTORY",
-    "FIELD_BOUNDS",
-    "ROBOT_TILT",
-    "AMBIGUOUS",
-    "RESIDUAL",
-    "INNOVATION",
-    "TAG_POLICY",
-)
-
-
-@make_wpistruct(name="SpotRobotDecision")
-@dataclass
-class RobotDecision:
-    captureHigh: int64 = 0
-    captureLow: int64 = 0
-    sequence: int64 = 0
-    captureFpgaS: double = 0.0
-    reason: int32 = 0
-    fused: bool = False
-    fusionEnabled: bool = False
-
-
 @make_wpistruct(name="SpotFieldTag")
 @dataclass
 class FieldTag:

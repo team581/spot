@@ -28,7 +28,6 @@ class StatusSnapshot(TypedDict):
     faults: list[str]
     uptime_s: float
     system: dict
-    robot_decisions: dict
     startup: dict
     software: dict
     calibration: dict
@@ -284,7 +283,6 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
         + ([runtime.store.fault] if runtime.store.fault else []),
         "uptime_s": time.monotonic() - runtime.started,
         "system": runtime.system_metrics.snapshot.copy(),
-        "robot_decisions": getattr(runtime.transport, "robot_decisions", {}),
         "startup": runtime.startup.copy(),
         "software": runtime.software,
         "calibration": runtime.calibration.status() if runtime.calibration else {},

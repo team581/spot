@@ -230,7 +230,6 @@ class FixtureRuntime:
                     ],
                 }
             ],
-            "robot_decisions": {},
             "endpoint": {
                 "hostname": "spot-fixture",
                 "local_addresses": ["127.0.0.1"],

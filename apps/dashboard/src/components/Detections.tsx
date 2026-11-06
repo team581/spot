@@ -10,8 +10,7 @@ export function Detections({ camera: c }: { camera: Camera }) {
 		data = previewData(view),
 		fresh = currentFrame(view, c, status);
 	const tags = fresh ? (data?.tags ?? []) : [],
-		candidates = fresh ? (data?.candidates ?? []) : [],
-		decision = status.robot_decisions?.[c.logical_name ?? ''];
+		candidates = fresh ? (data?.candidates ?? []) : [];
 	return (
 		<Panel title="Detections">
 			<p id="pose-state" role="status" className="text-muted-foreground">
@@ -20,7 +19,7 @@ export function Detections({ camera: c }: { camera: Camera }) {
 					: !fresh
 						? 'Waiting for a current detection frame before showing a pose.'
 						: candidates.length
-							? 'Local camera pose available. Robot acceptance is checked separately.'
+							? 'Local camera pose available.'
 							: 'No pose solved for this frame. Check tag visibility, the field layout and solver diagnostics.'}
 			</p>
 			<Table>
@@ -51,11 +50,6 @@ export function Detections({ camera: c }: { camera: Camera }) {
 					)}
 				</TableBody>
 			</Table>
-			<p id="robot-decision">
-				{decision && decision.capture_epoch === data?.capture_epoch && decision.sequence === data?.sequence
-					? `Robot: ${decision.state} · fusion ${decision.fusion_enabled ? 'enabled' : 'off'} · frame ${decision.fused ? 'fused' : 'not fused'}`
-					: 'Robot decision unavailable for this frame'}
-			</p>
 			<Collapsible>
 				<CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
 					Solver candidates

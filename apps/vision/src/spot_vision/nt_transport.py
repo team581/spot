@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import struct
 import threading
 import time
 from collections.abc import Callable
@@ -19,11 +18,9 @@ from .contract import MAX_TAGS, validate_observation
 from .models import DetectedFrame, PoseSolution
 from .protocol import ConfigurationIncomplete, ProfileSubscriber
 from .structs import (
-    DECISIONS,
     CameraSettings,
     FrameResult,
     Heartbeat,
-    RobotDecision,
     RobotStatus,
     result_value,
     session,
@@ -143,7 +140,6 @@ class NtTransport:
         self.withheld = 0
         self._observations = {}
         self._settings = {}
-        self._decisions = {}
         self._profile = ProfileSubscriber(self.instance)
         options = ntcore.PubSubOptions(keepDuplicates=True, sendAll=True, periodic=0.02)
         self._robot_state = self.instance.getStructTopic(
@@ -219,9 +215,6 @@ class NtTransport:
                     self._settings[camera.name] = self.instance.getStructTopic(
                         f"{ROOT}/{camera.name}/settings", CameraSettings
                     ).publish()
-                    self._decisions[camera.name] = self.instance.getStructTopic(
-                        f"{ROOT}/{camera.name}/decision", RobotDecision
-                    ).subscribe(RobotDecision())
                 self._settings[camera.name].set(CameraSettings(camera.enabled, camera.required))
             self._camera_names.set([camera.name for camera in config.manifest.profile.cameras])
 
@@ -287,25 +280,6 @@ class NtTransport:
             )
             return True
 
-    @property
-    def robot_decisions(self) -> dict:
-        sync = self.clock.snapshot()
-        if sync.offset_us is None:
-            return {}
-        now = (nt_now_us() + sync.offset_us) / 1e6
-        result = {}
-        for name, subscriber in self._decisions.items():
-            value = subscriber.get()
-            if 0 <= now - value.captureFpgaS <= 0.5 and 0 <= value.reason < len(DECISIONS):
-                result[name] = {
-                    "capture_epoch": struct.pack("<qq", value.captureHigh, value.captureLow).hex(),
-                    "sequence": value.sequence,
-                    "state": DECISIONS[value.reason],
-                    "fused": value.fused,
-                    "fusion_enabled": value.fusionEnabled,
-                }
-        return result
-
     def heartbeat(self) -> None:
         with self._lock:
             ready = bool(
@@ -329,7 +303,6 @@ class NtTransport:
             self._camera_names,
             *self._observations.values(),
             *self._settings.values(),
-            *self._decisions.values(),
         ):
             resource.close()
         if self._owns_instance:
