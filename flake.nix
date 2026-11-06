@@ -89,6 +89,15 @@
           { system.configurationRevision = self.rev or self.dirtyRev or null; }
         ];
       };
+      # Test unit on Seeed's newer 39.2 firmware, whose camera coprocessor crashes the JetPack 6 driver.
+      nixosConfigurations.spot-test = host.extendModules {
+        modules = [
+          {
+            boot.kernelParams = [ "module_blacklist=tegra_camera_rtcpu" ];
+            hardware.nvidia-jetpack.firmware.maxAllowedDowngrade = "major";
+          }
+        ];
+      };
       packages = forSystems (
         system:
         let
@@ -130,7 +139,7 @@
               ssh -i "$key" -o IdentitiesOnly=yes "$host" \
                 "sudo date -u -s @$(date +%s) && sudo touch /run/spot-clock-set"
               if [ "$#" -eq 0 ]; then set -- test; fi
-              nixos-rebuild "$@" --flake "$PWD#spot" \
+              nixos-rebuild "$@" --flake "$PWD#''${SPOT_CONFIG:-spot}" \
                 --build-host "$host" \
                 --target-host "$host" --sudo
             '';
