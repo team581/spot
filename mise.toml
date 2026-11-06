@@ -40,6 +40,10 @@ run = "bash tools/jetson-ssh.sh"
 description = "Build and test a NixOS generation on Spot without changing its boot default"
 run = "nix run .#deploy -- test"
 
+[tasks."jetson:remote-deploy"]
+description = "Build Spot's NixOS system on the Jetson, then activate it (test by default, or switch)"
+run = "bash tools/jetson-remote-deploy.sh"
+
 [tasks."jetson:installer"]
 description = "Build the ARM64 installer in Docker and export the ISO to dist/installer"
 run = """
