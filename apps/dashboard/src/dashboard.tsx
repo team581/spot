@@ -3,7 +3,7 @@ import { PreviewStore } from './previews';
 import { readStatus, useStatusQuery } from './queries';
 
 interface Dashboard {
-	selections: { capture: Set<string>; results: Set<string>; history: Map<string, Set<string>> };
+	selections: { results: Set<string>; history: Map<string, Set<string>> };
 	previews: PreviewStore;
 	message: string;
 	announce: (message: string) => void;
@@ -12,7 +12,6 @@ const Context = createContext<Dashboard | null>(null);
 export function DashboardProvider({ children }: { children: ReactNode }) {
 	const [message, announce] = useState('');
 	const [selections] = useState(() => ({
-		capture: new Set<string>(),
 		results: new Set<string>(),
 		history: new Map<string, Set<string>>(),
 	}));

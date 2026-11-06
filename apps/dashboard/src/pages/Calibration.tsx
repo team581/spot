@@ -22,14 +22,6 @@ export default function Calibration({ results }: { results: boolean }) {
 				<Button
 					variant="outline"
 					onClick={() =>
-						operation.mutate({ operation: 'calibration/pause-all', payload: { revision: readStatus().revision } })
-					}
-				>
-					Pause all
-				</Button>
-				<Button
-					variant="outline"
-					onClick={() =>
 						operation.mutate({ operation: 'calibration/reset', payload: { revision: readStatus().revision } })
 					}
 				>

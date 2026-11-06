@@ -98,17 +98,19 @@ test('naming requires preview confirmation and reserves existing roles', async (
 });
 
 test('calibration actions and passing results require acknowledgement', async ({ page }) => {
+	// Show only the camera whose validation failed, as if it were the one selected.
+	await page.route('**/api/status', async (route) => {
+		const status = await (await route.fetch()).json();
+		delete status.calibration.cameras[status.cameras[0].identity];
+		await route.fulfill({ json: status });
+	});
 	await page.goto('/calibration');
-	await expect(page.locator('.calibration-card')).toHaveCount(2);
-	await page.getByRole('button', { name: 'Start automatic capture', exact: true }).click();
-	await expect(
-		page.locator('.calibration-card').first().getByRole('button', { name: 'Pause', exact: true }),
-	).toBeVisible();
-	await page.getByRole('button', { name: 'Pause all', exact: true }).click();
-	await expect(
-		page.locator('.calibration-card').first().getByRole('button', { name: 'Start', exact: true }),
-	).toBeVisible();
-	await page.getByRole('link', { name: 'Results / history', exact: true }).click();
+	await page.getByRole('button', { name: 'Start capture', exact: true }).click();
+	await page.getByRole('button', { name: 'Pause capture', exact: true }).click();
+	await expect(page.locator('#capture-status')).toContainText('Validation failed');
+	await page.unroute('**/api/status');
+	await page.reload();
+	await page.getByRole('link', { name: 'Review and apply', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Apply selected', exact: true })).toBeDisabled();
 	await page.getByRole('button', { name: 'Select passing', exact: true }).click();
 	await page.getByRole('button', { name: 'Apply selected', exact: true }).click();
@@ -221,7 +223,7 @@ test('geometry editing preserves intermediate text through polling and never wri
 	expect(writes).toEqual([]);
 });
 
-test('board drafts survive polls and calibration sends the selected capture phase', async ({ page }) => {
+test('board drafts survive polls and choosing a camera selects only that camera', async ({ page }) => {
 	const writes = await captureOperations(page);
 	await page.goto('/calibration');
 	const x = page.getByLabel('Squares X', { exact: true });
@@ -233,13 +235,11 @@ test('board drafts survive polls and calibration sends the selected capture phas
 	expect(writes.find((w) => w.operation === 'calibration/board')?.payload.board).toEqual(
 		expect.objectContaining({ squares_x: 17 }),
 	);
-	const card = page.locator('.calibration-card').first();
-	await card.getByLabel('Capture set').selectOption('holdout');
-	await card.getByRole('button', { name: 'Capture', exact: true }).click();
-	await expect.poll(() => writes.filter((w) => w.operation === 'calibration/capture').length).toBe(1);
-	expect(writes.find((w) => w.operation === 'calibration/capture')?.payload).toEqual(
-		expect.objectContaining({ phase: 'holdout', automatic: true }),
-	);
+	const status = await (await page.request.get('/api/status')).json();
+	await page.getByLabel('Camera', { exact: true }).selectOption(status.cameras[1].identity);
+	await expect
+		.poll(() => writes.find((w) => w.operation === 'calibration/select')?.payload.identities)
+		.toEqual([status.cameras[1].identity]);
 });
 
 test('failed calibration validation cannot be selected for apply; compatible history restores selected records', async ({

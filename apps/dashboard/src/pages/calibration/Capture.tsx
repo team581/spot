@@ -1,13 +1,11 @@
 import { Link } from '@tanstack/react-router';
-import { useState, useReducer } from 'react';
-import { useDashboard } from '../../dashboard';
+import { useState } from 'react';
 import { Feed } from '../../components/Feed';
+import { Steps, type Step } from '../../components/Steps';
 import { readStatus, useStatus } from '../../queries';
 import type { CalibrationOperation } from '../Calibration';
-import { Feedback, Panel } from '../../components/common';
+import { Panel, fmt } from '../../components/common';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
@@ -19,76 +17,46 @@ const boardLabels: Record<string, string> = {
 	square_length_m: 'Square length (m)',
 	marker_length_m: 'Marker length (m)',
 };
+// Matches the backend's independent validation minimum.
+const minValidationViews = 5;
 export default function Capture({ operation }: { operation: CalibrationOperation }) {
-	const { selections } = useDashboard(),
-		status = useStatus(),
-		selected = selections.capture;
-	const select = () =>
+	const status = useStatus(),
+		[board, setBoard] = useState(status.calibration.board ?? {}),
+		id = Object.keys(status.calibration.cameras)[0] ?? '';
+	const select = (identity: string) =>
 		operation.mutateAsync({
 			operation: 'calibration/select',
-			payload: { identities: [...selected], revision: readStatus().revision },
+			payload: { identities: identity ? [identity] : [], revision: readStatus().revision },
 		});
-	const [cards, setCards] = useState(() => {
-		for (const id of Object.keys(status.calibration.cameras)) selected.add(id);
-		return [...selected].filter((id) =>
-			status.cameras.some((c) => c.identity === id && (c.logical_name || c.connected)),
-		);
-	});
-	const [, redraw] = useReducer((n) => n + 1, 0),
-		[choice, setChoice] = useState(''),
-		[phase, setPhase] = useState('fit');
-	const [board, setBoard] = useState(status.calibration.board ?? {}),
-		[model, setModel] = useState(String(status.calibration.options?.model || 'plumb_bob')),
-		[minViews, setMinViews] = useState(String(status.calibration.options?.min_frames || 15));
-	const usable = status.cameras.filter((c) => c.logical_name);
-	async function add() {
-		if (!choice) return;
-		try {
-			selected.add(choice);
-			await select();
-		} catch {
-			// The page shows the operation error.
-			selected.delete(choice);
-		}
-		setCards([...selected]);
-	}
 	return (
 		<div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
 			<div className="flex flex-col gap-4">
-				<div className="flex flex-wrap gap-2">
-					<NativeSelect aria-label="Camera to add" value={choice} onChange={(e) => setChoice(e.target.value)}>
-						<NativeSelectOption value="">Select camera</NativeSelectOption>
-						{usable.map((c) => (
-							<NativeSelectOption value={c.identity} key={c.identity}>
-								{c.name}
-							</NativeSelectOption>
-						))}
+				<Label className="flex-col items-stretch sm:max-w-xs">
+					Camera
+					<NativeSelect
+						aria-label="Camera"
+						className="w-full"
+						value={id}
+						onChange={(e) => void select(e.target.value).catch(() => {})}
+					>
+						<NativeSelectOption value="">Choose a camera</NativeSelectOption>
+						{status.cameras
+							.filter((c) => c.logical_name)
+							.map((c) => (
+								<NativeSelectOption value={c.identity} key={c.identity}>
+									{c.name}
+								</NativeSelectOption>
+							))}
 					</NativeSelect>
-					<Button variant="outline" onClick={() => void add()}>
-						Add camera
-					</Button>
-				</div>
-				<div className="grid gap-4 sm:grid-cols-2">
-					{cards.length ? (
-						cards.map((id) => (
-							<CalibrationCard
-								key={id}
-								id={id}
-								selected={selected.has(id)}
-								onSelect={async (checked) => {
-									checked ? selected.add(id) : selected.delete(id);
-									redraw();
-									await select().catch(() => {});
-								}}
-								operation={operation}
-							/>
-						))
-					) : (
-						<p className="text-muted-foreground">Add a connected camera to begin.</p>
-					)}
-				</div>
+				</Label>
+				{id ? (
+					<CameraCalibration key={id} id={id} operation={operation} />
+				) : (
+					<p className="text-muted-foreground">Choose a named camera to calibrate.</p>
+				)}
 			</div>
 			<Panel title="Board" className="max-lg:order-first">
+				<p className="text-xs text-muted-foreground">Match the board you are showing the camera.</p>
 				<div className="grid gap-3 max-lg:grid-cols-2">
 					{Object.entries(boardLabels).map(([key, label]) => (
 						<Label key={key} className="flex-col items-stretch">
@@ -101,17 +69,6 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 							/>
 						</Label>
 					))}
-					<Label className="flex-col items-stretch">
-						Lens model
-						<NativeSelect className="w-full" value={model} onChange={(e) => setModel(e.target.value)}>
-							<NativeSelectOption value="plumb_bob">Plumb bob</NativeSelectOption>
-							<NativeSelectOption value="rational">Rational</NativeSelectOption>
-						</NativeSelect>
-					</Label>
-					<Label className="flex-col items-stretch">
-						Minimum fit views
-						<Input type="text" inputMode="numeric" value={minViews} onChange={(e) => setMinViews(e.target.value)} />
-					</Label>
 				</div>
 				<Button
 					variant="outline"
@@ -125,16 +82,10 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 						try {
 							await operation.mutateAsync({
 								operation: 'calibration/board',
-								payload: {
-									board: values,
-									options: { ...status.calibration.options, model, min_frames: Number(minViews) },
-									revision: readStatus().revision,
-								},
+								payload: { board: values, options: { ...status.calibration.options }, revision: readStatus().revision },
 							});
-							if (selected.size) {
-								await select();
-								setCards([...selected]);
-							}
+							// Changing the board clears the session, so reselect the camera.
+							if (id) await select(id);
 						} catch {
 							// The page shows the operation error.
 						}
@@ -142,98 +93,112 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 				>
 					Update board
 				</Button>
-				<Label className="flex-col items-stretch">
-					Group capture set
-					<NativeSelect className="w-full" value={phase} onChange={(e) => setPhase(e.target.value)}>
-						<NativeSelectOption value="fit">Fitting captures</NativeSelectOption>
-						<NativeSelectOption value="holdout">Validation captures</NativeSelectOption>
-					</NativeSelect>
-				</Label>
-				<Button
-					disabled={Boolean(!selected.size || Object.values(status.calibration.cameras).some((s) => s.solving))}
-					onClick={() =>
-						operation.mutate({
-							operation: 'calibration/start-all',
-							payload: { phase, revision: readStatus().revision },
-						})
-					}
-				>
-					Start automatic capture
-				</Button>
 				<p>
 					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="calibrate">
-						Capture and validation guide
+						Calibration guide
 					</Link>
 				</p>
 			</Panel>
 		</div>
 	);
 }
-function CalibrationCard({
-	id,
-	selected,
-	onSelect,
-	operation,
-}: {
-	id: string;
-	selected: boolean;
-	onSelect: (checked: boolean) => Promise<void>;
-	operation: CalibrationOperation;
-}) {
+function CameraCalibration({ id, operation }: { id: string; operation: CalibrationOperation }) {
 	const status = useStatus(),
-		camera = status.cameras.find((c) => c.identity === id),
-		session = status.calibration.cameras[id],
-		[phase, setPhase] = useState('fit');
+		session = status.calibration.cameras[id]!,
+		minFitViews = Number(status.calibration.options?.min_frames) || 15,
+		fitted = Boolean(session.fit?.accepted),
+		validated = Boolean(session.holdout?.accepted),
+		phase = fitted ? 'holdout' : 'fit',
+		capturing = session.running && session.phase === phase,
+		views = fitted ? session.holdout_views : session.fit_views,
+		needed = fitted ? minValidationViews : minFitViews;
+	const run = (action: string) =>
+		operation.mutate({
+			operation: `calibration/${action}` as 'calibration/start',
+			payload: { identity: id, phase, automatic: true, revision: readStatus().revision },
+		});
+	const steps: Step[] = [
+		{
+			label: 'Capture fitting views',
+			detail: `${session.fit_views} / ${minFitViews} views`,
+			state: fitted || session.fit_views >= minFitViews ? 'complete' : 'current',
+		},
+		{
+			label: 'Calibrate',
+			detail: session.fit ? `${fmt(session.fit.rms_reprojection_error_px, 2)} px RMS` : undefined,
+			state: fitted ? 'complete' : session.fit ? 'warning' : session.fit_views >= minFitViews ? 'current' : 'upcoming',
+		},
+		{
+			label: 'Capture validation views',
+			detail: fitted ? `${session.holdout_views} / ${minValidationViews} views` : undefined,
+			state: !fitted ? 'upcoming' : validated || session.holdout_views >= minValidationViews ? 'complete' : 'current',
+		},
+		{
+			label: 'Validate',
+			detail: session.holdout ? `${fmt(session.holdout.rms_px, 2)} px RMS` : undefined,
+			state: validated ? 'complete' : session.holdout ? 'warning' : fitted ? 'current' : 'upcoming',
+		},
+	];
+	const message = session.solving
+		? fitted
+			? 'Validating…'
+			: 'Calibrating…'
+		: validated
+			? 'Calibration passed. Review and apply it on Results.'
+			: capturing
+				? session.reason || 'Show the board'
+				: session.holdout && !session.holdout.accepted
+					? `Validation failed: ${session.holdout.reason || 'retry'}. Capture more validation views and validate again.`
+					: session.fit && !session.fit.accepted
+						? `Calibration failed: ${session.fit.reason || 'retry'}. Capture more fitting views and calibrate again.`
+						: `Capture is paused. Click Start capture, then move the board around the whole image.`;
 	return (
-		<Card size="sm" className="calibration-card px-3">
-			<Label>
-				<Checkbox
-					checked={selected}
-					aria-label={'Select ' + camera?.name}
-					onCheckedChange={(checked) => void onSelect(checked)}
-				/>
-				<strong>{camera?.name || id.slice(0, 8)}</strong>
-			</Label>
-			<Feed id={id} calibration className="aspect-[2.4]" />
-			<Progress
-				value={Math.max(0, Math.min(100, (session?.coverage?.coverage_progress || 0) * 100))}
-				aria-label="Calibration coverage"
-			/>
-			<div>
-				{session
-					? `${session.fit_views} fit / ${session.holdout_views} validation views · ${Math.round((session.coverage?.coverage_progress || 0) * 100)}% coverage · ${session.board_detected ? 'Board detected' : 'Board not detected'}`
-					: 'Start a calibration session'}
+		<>
+			<Steps steps={steps} />
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center gap-2 text-sm">
+					<span
+						className={capturing ? 'size-2.5 animate-pulse rounded-full bg-success' : 'size-2.5 rounded-full bg-border'}
+					/>
+					<strong>{capturing ? `Capturing ${fitted ? 'validation' : 'fitting'} views` : 'Paused'}</strong>
+					<span className="text-muted-foreground">
+						{views} / {needed} views
+						{fitted ? '' : ` · ${Math.round((session.coverage?.coverage_progress || 0) * 100)}% coverage`}
+					</span>
+				</div>
+				{fitted ? null : (
+					<Progress
+						value={Math.max(0, Math.min(100, (session.coverage?.coverage_progress || 0) * 100))}
+						aria-label="Calibration coverage"
+					/>
+				)}
+				<p id="capture-status" role="status" className="text-sm">
+					{message}
+				</p>
 			</div>
-			<div className="flex flex-wrap gap-1.5">
-				<NativeSelect aria-label="Capture set" value={phase} onChange={(e) => setPhase(e.target.value)}>
-					<NativeSelectOption value="fit">Fitting captures</NativeSelectOption>
-					<NativeSelectOption value="holdout">Validation captures</NativeSelectOption>
-				</NativeSelect>
-				{(['start', 'capture', 'compute', 'validate'] as const).map((action) => (
-					<Button
-						key={action}
-						variant="outline"
-						disabled={Boolean(session?.solving)}
-						onClick={() =>
-							operation.mutate({
-								operation: `calibration/${action === 'start' && session?.running ? 'pause' : action}`,
-								payload: { identity: id, phase, automatic: true, revision: readStatus().revision },
-							})
-						}
-					>
-						{action === 'start'
-							? session?.running
-								? 'Pause'
-								: 'Start'
-							: action === 'compute'
-								? 'Calibrate'
-								: action === 'capture'
-									? 'Capture'
-									: 'Validate'}
-					</Button>
-				))}
+			<div className="flex flex-wrap gap-2">
+				{validated ? (
+					<Button render={<Link to="/calibration/results" />}>Review and apply</Button>
+				) : (
+					<>
+						<Button
+							variant={capturing ? 'outline' : 'default'}
+							disabled={session.solving}
+							onClick={() => run(capturing ? 'pause' : 'start')}
+						>
+							{capturing ? 'Pause capture' : 'Start capture'}
+						</Button>
+						<Button
+							variant={views >= needed && !capturing ? 'default' : 'outline'}
+							disabled={session.solving || views < needed}
+							onClick={() => run(fitted ? 'validate' : 'compute')}
+						>
+							{fitted ? 'Validate' : 'Calibrate'}
+						</Button>
+					</>
+				)}
 			</div>
-			<Feedback>{session?.reason || ''}</Feedback>
-		</Card>
+			<Feed id={id} calibration className="aspect-[1.6]" />
+		</>
 	);
 }

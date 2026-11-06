@@ -113,6 +113,7 @@ class FixtureRuntime:
         self.debug = {}
         self.calibration_sessions = {
             camera["identity"]: {
+                "phase": "fit",
                 "fit_views": 24,
                 "holdout_views": 8,
                 "fit": {"accepted": True, "rms_reprojection_error_px": 0.31},
@@ -326,6 +327,7 @@ class FixtureRuntime:
             session = self.calibration_sessions.get(payload.get("identity"))
             if session and operation in {"calibration/start", "calibration/pause"}:
                 session["running"] = operation == "calibration/start"
+                session["phase"] = payload.get("phase", session["phase"])
         elif operation == "device/name":
             camera = next(c for c in self.cameras if c["identity"] == payload["identity"])
             camera["logical_name"] = camera["name"] = payload["name"]

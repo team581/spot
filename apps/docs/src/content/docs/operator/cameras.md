@@ -60,13 +60,15 @@ removed automatically.
 ## Calibrate
 
 1. In **Calibration → Board**, enter the measured dimensions and dictionary of
-   the actual ChArUco print. Click **Update board**.
-2. Add cameras and collect **Fitting captures** with varied board positions,
-   distances, and tilts. Keep the board sharp and cover the image edges.
-3. Click **Calibrate**, then collect separate **Validation captures** and click
-   **Validate**. Follow the reported retry reasons.
-4. Review **Results / history**, select passing cameras, and click **Apply selected**.
-   Wait for **Applied** before using the result.
+   the actual ChArUco board. Click **Update board**.
+2. Choose one camera. Click **Start capture** and move the board through varied
+   positions, distances, and tilts until **Calibrate** is enabled. Keep the board
+   sharp and cover the image edges.
+3. Click **Calibrate**. Then click **Start capture** again to collect separate
+   validation views and click **Validate**. Follow the reported retry reasons.
+4. Click **Review and apply**, select the passing camera, and click **Apply selected**.
+   Wait for **Applied**, then calibrate the next camera. Choosing another camera
+   discards an unapplied session.
 5. Applied calibrations appear in **Changes**; adopt them in robot code like other
    edits.
 

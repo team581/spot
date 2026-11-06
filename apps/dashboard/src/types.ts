@@ -95,10 +95,11 @@ interface CalibrationSession {
 	holdout_views: number;
 	running: boolean;
 	solving: boolean;
+	phase: 'fit' | 'holdout';
 	reason?: string;
 	board_detected: boolean;
 	fit?: { accepted: boolean; rms_reprojection_error_px?: number; reason?: string };
-	holdout?: { accepted: boolean; rms_px?: number };
+	holdout?: { accepted: boolean; rms_px?: number; reason?: string };
 	coverage?: {
 		coverage_progress: number;
 		coverage_particles?: { x: number; y: number; progress: number }[];
