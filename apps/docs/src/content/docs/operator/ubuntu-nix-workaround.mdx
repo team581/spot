@@ -1,0 +1,42 @@
+---
+title: Temporary Ubuntu deployment
+---
+
+This is the temporary `orin-1` setup on Ubuntu 22.04 / JetPack 6.2, using
+`temporary/jetpack6-orin-1`. Ubuntu supplies the kernel and NVIDIA drivers;
+Nix supplies Spot and its application libraries. Firmware and NixOS deployment
+remain separate work.
+
+From the regular checkout:
+
+```sh
+bash tools/jetson-ubuntu-deploy.sh
+```
+
+The Mac only runs SSH and tar. The script copies tracked files with their current
+working-tree contents, then builds on the Jetson with one job and two cores.
+Stage new files before deploying. It opens a temporary SSH SOCKS tunnel so Nix
+can download through the laptop without changing Ethernet settings. Nix reuses
+the Jetson's existing build cache.
+
+To reuse this session's existing tunnel instead:
+
+```sh
+SPOT_SSH_CONTROL_SOCKET=/tmp/spot-incremental-ssh bash tools/jetson-ubuntu-deploy.sh
+```
+
+Pause calibration before deploying: the script restarts `spot-vision`. It runs
+the installed-package smoke test before switching
+`/opt/spot-vision/nix-profile`, then checks the running package. On activation
+failure it restores the previous profile generation and service override.
+Each deployment prints its previous generation and a private unit/state backup
+under `/var/backups/`. Mutable camera state is backed up but is not automatically
+restored during rollback. A package health check does not certify calibration or
+robot readiness.
+
+This script updates an **already configured** Jetson; it is not a bootstrapper.
+It expects Nix, passwordless sudo, the existing service override
+`/etc/systemd/system/spot-vision.service.d/90-nix-package.conf`, installation config
+`/etc/spot-vision/installation-nix.json`, and state at
+`/var/lib/spot-vision-nix`. SSH uses the shared maintenance key when authorized,
+or the normal interactive login. No credentials are stored by this workaround.
