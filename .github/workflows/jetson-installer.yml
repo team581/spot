@@ -1,17 +1,24 @@
 name: Jetson offline installer
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: jetson-installer
-  cancel-in-progress: false
+  # Bot pushes must not cancel a human-authored build on the same branch.
+  group: jetson-installer-${{ github.ref }}-${{ endsWith(github.event.head_commit.author.username, '[bot]') || endsWith(github.event.head_commit.author.name, '[bot]') }}
+  cancel-in-progress: true
 
 jobs:
   installer:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (!endsWith(github.event.head_commit.author.username, '[bot]') &&
+           !endsWith(github.event.head_commit.author.name, '[bot]')) }}
     runs-on: blacksmith-8vcpu-ubuntu-2604-arm
     timeout-minutes: 180
     concurrency:
