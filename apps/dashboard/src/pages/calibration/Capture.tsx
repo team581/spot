@@ -1,5 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { api } from '../../api';
 import { Feed } from '../../components/Feed';
 import { Steps, type Step } from '../../components/Steps';
 import { readStatus, useStatus } from '../../queries';
@@ -10,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Progress } from '@/components/ui/progress';
+// OpenCV's predefined ArUco dictionaries used for ChArUco boards.
+const dictionaries = [4, 5, 6, 7].flatMap((bits) => [50, 100, 250, 1000].map((n) => `DICT_${bits}X${bits}_${n}`));
 const boardLabels: Record<string, string> = {
 	dictionary: 'Dictionary',
 	squares_x: 'Squares X',
@@ -61,15 +65,30 @@ export default function Capture({ operation }: { operation: CalibrationOperation
 					{Object.entries(boardLabels).map(([key, label]) => (
 						<Label key={key} className="flex-col items-stretch">
 							{label}
-							<Input
-								type="text"
-								inputMode={key === 'dictionary' ? 'text' : 'decimal'}
-								value={board[key] ?? ''}
-								onChange={(e) => setBoard({ ...board, [key]: e.target.value })}
-							/>
+							{key === 'dictionary' ? (
+								<NativeSelect
+									className="w-full"
+									value={board[key] ?? ''}
+									onChange={(e) => setBoard({ ...board, [key]: e.target.value })}
+								>
+									{[...new Set([...dictionaries, String(board[key] ?? '')])].filter(Boolean).map((name) => (
+										<NativeSelectOption value={name} key={name}>
+											{name}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							) : (
+								<Input
+									type="number"
+									{...(key.startsWith('squares') ? { min: 2, max: 40, step: 1 } : { min: 0, step: 0.0005 })}
+									value={board[key] ?? ''}
+									onChange={(e) => setBoard({ ...board, [key]: e.target.value })}
+								/>
+							)}
 						</Label>
 					))}
 				</div>
+				<BoardPreview board={board} />
 				<Button
 					variant="outline"
 					onClick={async () => {
@@ -200,5 +219,41 @@ function CameraCalibration({ id, operation }: { id: string; operation: Calibrati
 			</div>
 			<Feed id={id} calibration className="aspect-[1.6]" />
 		</>
+	);
+}
+/** Draws the board from the entered values so operators can compare it with their print. */
+function BoardPreview({ board }: { board: Record<string, string | number> }) {
+	const params = new URLSearchParams(
+		Object.keys(boardLabels).map((key) => [key, String(board[key] ?? '').trim()]),
+	).toString();
+	const preview = useQuery({
+		queryKey: ['board-preview', params],
+		queryFn: async () => {
+			const blob = await api<Blob>(`/api/calibration/board.png?${params}`, {
+				parseResponse: (response) => response.blob(),
+			});
+			return new Promise<string>((resolve) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.readAsDataURL(blob);
+			});
+		},
+		placeholderData: keepPreviousData,
+		retry: false,
+		staleTime: Infinity,
+	});
+	const width = Number(board.squares_x) * Number(board.square_length_m) * 1000,
+		height = Number(board.squares_y) * Number(board.square_length_m) * 1000;
+	return (
+		<figure className="flex flex-col gap-1.5">
+			{preview.data && !preview.isError ? (
+				<img src={preview.data} alt="Board preview" className="w-full border" />
+			) : null}
+			<figcaption className="text-xs text-muted-foreground">
+				{preview.isError
+					? `Can't draw this board: ${preview.error.message}`
+					: `Expected board: ${fmt(width, 0)} × ${fmt(height, 0)} mm. Check that its pattern matches yours, including which corner the first marker is in.`}
+			</figcaption>
+		</figure>
 	);
 }

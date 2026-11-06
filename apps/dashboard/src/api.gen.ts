@@ -72,6 +72,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/api/calibration/board.png': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Calibration Board Preview */
+		get: operations['calibration_board_preview'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/api/support': {
 		parameters: {
 			query?: never;
@@ -809,6 +826,41 @@ export interface operations {
 					'application/json': {
 						[key: string]: unknown;
 					};
+				};
+			};
+		};
+	};
+	calibration_board_preview: {
+		parameters: {
+			query: {
+				squares_x: number;
+				squares_y: number;
+				square_length_m: number;
+				marker_length_m: number;
+				dictionary: string;
+			};
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'image/png': unknown;
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};

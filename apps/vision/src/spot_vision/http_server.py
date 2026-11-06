@@ -32,6 +32,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
 from . import protocol_models as wire
+from .charuco import CharucoBoardConfig, board_preview_png
 from .protocol import SCHEMA_URL
 
 MAX_BODY = 256 * 1024
@@ -336,6 +337,24 @@ def create_app(runtime, *, assets: Path | None = None, allowed_hosts=()) -> Fast
         if manifest is None:
             raise ValueError("Connect robot code before exporting its configuration")
         return asdict(wire.robot_configuration(manifest.profile))
+
+    @app.get(
+        "/api/calibration/board.png",
+        response_class=Response,
+        responses={200: {"content": {"image/png": {}}}},
+    )
+    def calibration_board_preview(
+        squares_x: int,
+        squares_y: int,
+        square_length_m: float,
+        marker_length_m: float,
+        dictionary: str,
+    ) -> Response:
+        board = CharucoBoardConfig(
+            squares_x, squares_y, square_length_m, marker_length_m, dictionary
+        )
+        board.validate()
+        return Response(board_preview_png(board), media_type="image/png")
 
     @app.get("/api/support")
     def support() -> dict:

@@ -110,6 +110,17 @@ def make_board(config: CharucoBoardConfig):
         )
 
 
+def board_preview_png(config: CharucoBoardConfig) -> bytes:
+    """Draw the board as configured so operators can compare it with their print."""
+    if config.squares_x > 40 or config.squares_y > 40:
+        raise ValueError("board can have at most 40 squares per side")
+    cv2 = _aruco()
+    square_px = max(8, 640 // max(config.squares_x, config.squares_y))
+    size = (config.squares_x * square_px, config.squares_y * square_px)
+    image = make_board(config).generateImage(size, marginSize=0)
+    return cv2.imencode(".png", image)[1].tobytes()
+
+
 def detect_frame(
     image: np.ndarray, board_config: CharucoBoardConfig, options: CalibrationOptions
 ) -> CharucoFrame | None:

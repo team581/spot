@@ -316,3 +316,25 @@ def test_nt_endpoint_request_rejects_invalid_payloads(web, payload):
     request, submissions, _ = web
     assert request("POST", "/api/nt/endpoint", payload, HEADERS)[0] == 400
     assert submissions == []
+
+
+def test_board_preview_draws_a_detectable_board_and_explains_bad_values(web):
+    cv2 = pytest.importorskip("cv2")
+    import numpy as np
+
+    from spot_vision.charuco import CalibrationOptions, CharucoBoardConfig, detect_frame
+
+    request, _, _ = web
+    query = "squares_x=11&squares_y=7&square_length_m=0.03&marker_length_m=0.022"
+    status, headers, body = request(
+        "GET", f"/api/calibration/board.png?{query}&dictionary=DICT_4X4_250"
+    )
+    assert status == 200 and headers["content-type"] == "image/png"
+    image = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_GRAYSCALE)
+    image = cv2.copyMakeBorder(image, 40, 40, 40, 40, cv2.BORDER_CONSTANT, value=255)
+    board = CharucoBoardConfig(11, 7, 0.03, 0.022, "DICT_4X4_250")
+    frame = detect_frame(cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), board, CalibrationOptions())
+    assert frame is not None and len(frame.ids) == 10 * 6
+
+    status, _, body = request("GET", f"/api/calibration/board.png?{query}&dictionary=DICT_4X4_10")
+    assert status == 400 and b"unknown ArUco dictionary" in body
