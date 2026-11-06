@@ -232,11 +232,12 @@ test('board drafts survive polls and choosing a camera selects only that camera'
 	expect(writes.find((w) => w.operation === 'calibration/board')?.payload.board).toEqual(
 		expect.objectContaining({ squares_x: 17 }),
 	);
+	const selects = () => writes.filter((w) => w.operation === 'calibration/select').map((w) => w.payload.identities);
+	// Updating the board clears the session, so the page reselects the current camera first.
+	await expect.poll(() => selects().length).toBe(1);
 	const status = await (await page.request.get('/api/status')).json();
 	await page.getByLabel('Camera', { exact: true }).selectOption(status.cameras[1].identity);
-	await expect
-		.poll(() => writes.find((w) => w.operation === 'calibration/select')?.payload.identities)
-		.toEqual([status.cameras[1].identity]);
+	await expect.poll(() => selects().at(-1)).toEqual([status.cameras[1].identity]);
 });
 
 test('compatible history restores selected records', async ({ page }) => {
