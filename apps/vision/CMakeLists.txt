@@ -137,10 +137,10 @@ if(SPOT_BUILD_NVJPG)
   )
   target_include_directories(_spot_nvjpg PRIVATE
     "${SPOT_JETSON_MULTIMEDIA_API}/include"
-    "${SPOT_JETSON_MULTIMEDIA_API}/include/libjpeg-9f"
+    "${SPOT_JETSON_MULTIMEDIA_API}/include/libjpeg-8b"
     ${CUDAToolkit_INCLUDE_DIRS}
   )
-  foreach(library nvmm_jpeg nvbufsurface nvbufsurftransform cuda)
+  foreach(library nvjpeg nvbufsurface nvbufsurftransform cuda)
     find_library(SPOT_NVJPG_${library} ${library} HINTS ${SPOT_NVJPG_LIBRARY_DIRS} REQUIRED)
     target_link_libraries(_spot_nvjpg PRIVATE ${SPOT_NVJPG_${library}})
   endforeach()
