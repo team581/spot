@@ -79,8 +79,9 @@ does not require internet access or a repository checkout on the Jetson.
 ## Deploy to an existing NixOS installation
 
 Run from the development checkout. The Jetson builds the system and downloads
-through the laptop over SSH, so it needs no Internet access. The first build on a
-Jetson downloads its build tools; later code-only changes build from its store:
+through the laptop over SSH, so it needs no Internet access. Commits that CI has
+built download prebuilt from `https://cache.spot.frc581.com`; anything else builds
+on the Jetson, and keeping the SSH connection open is required until it finishes:
 
 ```sh
 mise run jetson:remote-deploy
@@ -92,7 +93,10 @@ Set `SPOT_CONFIG=spot-test` for the test unit on newer firmware. To build on the
 laptop instead, use `nix run .#deploy -- test` with an `aarch64-linux` builder.
 
 Add new files to Git before deploying and keep the checkout unchanged between
-`test` and `switch`. `test` changes the running system but leaves the boot default
+`test` and `switch`. The **Jetson offline installer** workflow pushes both
+configurations to the `spot-nix-cache` R2 bucket, signed by the
+`NIX_CACHE_SIGNING_KEY` secret; push and wait for it before deploying to skip
+on-device builds. `test` changes the running system but leaves the boot default
 unchanged. There is no automatic deployment rollback. `check-health --robot`
 checks robot and camera readiness; it does not certify hardware accuracy.
 

@@ -38,8 +38,11 @@ git -C "$source_dir" ls-files -z |
   COPYFILE_DISABLE=1 tar --no-xattrs -C "$source_dir" -czf - --null -T - |
   ssh_jetson "sudo date -u -s @$(date +%s) >/dev/null && rm -rf ~/spot-src && mkdir ~/spot-src && tar -xzf - -C ~/spot-src"
 
+# CI pushes every built commit to this cache; anything else builds on the Jetson.
 ssh_jetson "cd ~/spot-src && sudo env NIX_REMOTE=local ALL_PROXY=socks5h://127.0.0.1:11080 \
-  nix build path:.#nixosConfigurations.$config.config.system.build.toplevel --out-link /root/spot-next"
+  nix build path:.#nixosConfigurations.$config.config.system.build.toplevel --out-link /root/spot-next \
+  --option extra-substituters https://cache.spot.frc581.com \
+  --option extra-trusted-public-keys spot-cache-1:SKwXJV/UMJAFqfZhYbAjUUqpR1IEJrd8qmLBDTEw4Mw="
 
 if [ "$action" = test ]; then
   ssh_jetson 'sudo /root/spot-next/bin/switch-to-configuration test'

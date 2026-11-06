@@ -51,6 +51,18 @@ jobs:
           sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
           nix build path:.#packages.aarch64-linux.installer -L --cores 8 --max-jobs 2 --out-link "$root"
           ln -sfn "$root" result
+      - name: Push systems to Nix cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          NIX_CACHE_SIGNING_KEY: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+        run: |
+          key=$RUNNER_TEMP/nix-cache-signing-key
+          printf '%s' "$NIX_CACHE_SIGNING_KEY" > "$key"
+          systems=$(nix build --no-link --print-out-paths --cores 8 --max-jobs 2 \
+            path:.#nixosConfigurations.{spot,spot-test}.config.system.build.toplevel)
+          # shellcheck disable=SC2086 # One argument per system.
+          nix copy --to "s3://spot-nix-cache?endpoint=$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com&region=auto&compression=zstd&secret-key=$key" $systems
       - name: Upload latest installer
         if: ${{ github.ref_name == github.event.repository.default_branch }}
         env:
