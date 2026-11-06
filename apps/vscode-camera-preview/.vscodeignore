@@ -4,7 +4,6 @@ node_modules/**
 tsconfig.json
 test/**
 *.vsix
-package.mts
 *.vsix.sha256
 media/preview.ts
 project.ts
@@ -12,3 +11,4 @@ profile.ts
 webview.ts
 vite.config.ts
 tsconfig.webview.json
+test-results/**
