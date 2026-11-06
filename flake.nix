@@ -139,7 +139,7 @@
               ssh -i "$key" -o IdentitiesOnly=yes "$host" \
                 "sudo date -u -s @$(date +%s) && sudo touch /run/spot-clock-set"
               if [ "$#" -eq 0 ]; then set -- test; fi
-              nixos-rebuild "$@" --flake "$PWD#''${SPOT_CONFIG:-spot}" \
+              nixos-rebuild "$@" --flake "path:$PWD#''${SPOT_CONFIG:-spot}" \
                 --target-host "$host" --sudo
             '';
           };

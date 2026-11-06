@@ -90,7 +90,10 @@ mise run jetson:remote-deploy switch
 ```
 
 Set `SPOT_CONFIG=spot-test` for the test unit on newer firmware. To build on the
-laptop instead, use `nix run .#deploy -- test` with an `aarch64-linux` builder.
+laptop instead, use `nix run .#deploy -- test` with an `aarch64-linux` builder. To
+substitute from the cache there, add its `extra-substituters` and
+`extra-trusted-public-keys` from `tools/jetson-remote-deploy.sh` to
+`/etc/nix/nix.custom.conf` and restart the Nix daemon.
 
 Add new files to Git before deploying and keep the checkout unchanged between
 `test` and `switch`. The **Jetson offline installer** workflow pushes both
