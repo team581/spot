@@ -1,0 +1,353 @@
+{ lib
+, stdenv
+, buildPackages
+, fetchFromGitHub
+, fetchurl
+, fetchpatch
+, runCommand
+, edk2
+, acpica-tools
+, dtc
+, python3
+, bc
+, imagemagick
+, unixtools
+, libuuid
+, applyPatches
+, nukeReferences
+, l4tMajorMinorPatchVersion
+, patchfv
+, uniqueHash ? ""
+, # Optional path to a boot logo that will be converted and cropped into the format required
+  bootLogo ? null
+, # Patches to apply to edk2-nvidia source tree
+  edk2NvidiaPatches ? [ ]
+, # Patches to apply to edk2 source tree
+  edk2UefiPatches ? [ ]
+, debugMode ? false
+, errorLevelInfo ? debugMode
+, printErrorLevel ? if errorLevelInfo then "0x8000004F" else null
+, socFamily ? null # used in r38+, not needed here.
+, # Enables a bunch more info messages
+
+  # The root certificate (in PEM format) for authenticating capsule updates. By
+  # default, EDK2 authenticates using a test keypair commited upstream.
+  trustedPublicCertPemFile ? null
+}:
+
+let
+  # NVIDIA did not publish r35.6.5 tags for the EDK2 repos used by JP5.1.7.
+  # Keep the firmware sources pinned to the latest available r35 tag.
+  edk2ReleaseTag = "r35.6.4";
+
+  # TODO: Move this generation out of uefi-firmware.nix, because this .nix
+  # file is callPackage'd using an aarch64 version of nixpkgs, and we don't
+  # want to have to recompilie imagemagick
+  bootLogoVariants = runCommand "uefi-bootlogo" { nativeBuildInputs = [ buildPackages.buildPackages.imagemagick ]; } ''
+    mkdir -p $out
+    convert ${bootLogo} -resize 1920x1080 -gravity Center -extent 1920x1080 -format bmp -define bmp:format=bmp3 $out/logo1080.bmp
+    convert ${bootLogo} -resize 1280x720  -gravity Center -extent 1280x720  -format bmp -define bmp:format=bmp3 $out/logo720.bmp
+    convert ${bootLogo} -resize 640x480   -gravity Center -extent 640x480   -format bmp -define bmp:format=bmp3 $out/logo480.bmp
+  '';
+
+  ###
+
+  # See: https://github.com/NVIDIA/edk2-edkrepo-manifest/blob/main/edk2-nvidia/Jetson/NVIDIAJetsonManifest.xml
+  edk2-src = applyPatches {
+    src = fetchFromGitHub {
+      owner = "NVIDIA";
+      repo = "edk2";
+      rev = edk2ReleaseTag;
+      fetchSubmodules = true;
+      sha256 = "sha256-4SGqdNOHPqZXxG8XYj8Md6CsxiO9bwecty57u/2xfwU=";
+    };
+    patches = [
+      # Fix GCC 14 compile issue.
+      # PR: https://github.com/tianocore/edk2/pull/5781
+      (fetchpatch {
+        url = "https://github.com/NVIDIA/edk2/commit/57a890fd03356350a1b7a2a0064c8118f44e9958.patch";
+        hash = "sha256-on+yJOlH9B2cD1CS9b8Pmg99pzrlrZT6/n4qPHAbDcA=";
+      })
+
+      # BaseTools/Pccts: set C standard
+      # Originaly from e063f8b8a53861043b9872cc35b08a3dc03b0942 upstream, but
+      # vendored here to fix merge conflict
+      ./0001-BaseTools-Pccts-set-C-standard.patch
+    ];
+  };
+
+  edk2-platforms = fetchFromGitHub {
+    owner = "NVIDIA";
+    repo = "edk2-platforms";
+    rev = edk2ReleaseTag;
+    sha256 = "sha256-PjAJEbbswOLYupMg/xEqkAOJuAC8SxNsQlb9YBswRfo=";
+  };
+
+  edk2-non-osi = fetchFromGitHub {
+    owner = "NVIDIA";
+    repo = "edk2-non-osi";
+    rev = edk2ReleaseTag;
+    sha256 = "sha256-EPtI63jYhEIo4uVTH3lUt9NC/lK5vPVacUAc5qgmz9M=";
+  };
+
+  edk2-nvidia = applyPatches {
+    src = fetchFromGitHub {
+      owner = "NVIDIA";
+      repo = "edk2-nvidia";
+      rev = edk2ReleaseTag;
+      sha256 = "sha256-X4l0yf0Z181reSG8Y9sF9Kqmil56qBZc3fdWynXbZ50=";
+    };
+    patches = [
+      # Fix Eqos driver to use correct TX clock name
+      # PR: https://github.com/NVIDIA/edk2-nvidia/pull/76
+      (fetchpatch {
+        url = "https://github.com/NVIDIA/edk2-nvidia/commit/26f50dc3f0f041d20352d1656851c77f43c7238e.patch";
+        hash = "sha256-cc+eGLFHZ6JQQix1VWe/UOkGunAzPb8jM9SXa9ScIn8=";
+      })
+
+      ./capsule-authentication.patch
+
+      # Include patches to fix "Assertion 3" mentioned here:
+      # https://forums.developer.nvidia.com/t/assertion-issue-in-uefi-during-boot/315628
+      # From this PR: https://github.com/NVIDIA/edk2-nvidia/pull/110
+      # As of (2025-05-23), this is still not fixed in any release branch of 35.x.x
+      ./0001-fix-varint-read-records-per-erase-block-and-fix-leak.patch
+      ./0002-fix-bug-in-block-erase-logic.patch
+
+      # fix: split ftw writes if they span blocks
+      # https://forums.developer.nvidia.com/t/possible-uefi-memory-leak-and-partition-full/308540/50
+      # https://github.com/NVIDIA/edk2-nvidia/issues/114
+      (fetchpatch {
+        url = "https://github.com/NVIDIA/edk2-nvidia/commit/c101ba515b2737fb78d8929c2852f5c8f9607330.patch";
+        sha256 = "sha256-M+9y5lmUoUrc985MDuZzHIa2EySqoPWzRu2QSTc0Q1A=";
+      })
+
+      # feat: Add Aquantia AQR113 PHY ID
+      (fetchpatch {
+        url = "https://github.com/NVIDIA/edk2-nvidia/commit/772fecc942cd9e75260875d8cffa74367b7349ef.patch";
+        sha256 = "sha256-LxwLx6SW9XUJOm/DpdyfenWG/4Oec6/Dgu/ZLviFNvk=";
+      })
+
+      ./add-extra-oui-for-mgbe-phy.diff
+    ] ++ edk2NvidiaPatches;
+    postPatch = lib.optionalString (printErrorLevel != null) ''
+      sed -i 's#PcdDebugPrintErrorLevel|.*#PcdDebugPrintErrorLevel|${printErrorLevel}#' Platform/NVIDIA/*.common.dsc.inc
+    '' + lib.optionalString (bootLogo != null) ''
+      cp ${bootLogoVariants}/logo1080.bmp Silicon/NVIDIA/Assets/nvidiagray1080.bmp
+      cp ${bootLogoVariants}/logo720.bmp Silicon/NVIDIA/Assets/nvidiagray720.bmp
+      cp ${bootLogoVariants}/logo480.bmp Silicon/NVIDIA/Assets/nvidiagray480.bmp
+    '';
+  };
+
+  edk2-nvidia-non-osi = fetchFromGitHub {
+    owner = "NVIDIA";
+    repo = "edk2-nvidia-non-osi";
+    rev = edk2ReleaseTag;
+    sha256 = "sha256-LUpYaldctQz1/dAsybQjxjSRQN/EkgxxhbsJsRMkhwI=";
+  };
+
+  edk2-jetson = edk2.overrideAttrs (prev: {
+    # Upstream nixpkgs patch to use nixpkgs OpenSSL
+    # See https://github.com/NixOS/nixpkgs/blob/44733514b72e732bd49f5511bd0203dea9b9a434/pkgs/development/compilers/edk2/default.nix#L57
+    src = runCommand "edk2-unvendored-src" { } ''
+      cp --no-preserve=mode -r ${edk2-src} $out
+      rm -rf $out/CryptoPkg/Library/OpensslLib/openssl
+      mkdir -p $out/CryptoPkg/Library/OpensslLib/openssl
+      tar --strip-components=1 -xf ${buildPackages.openssl.src} -C $out/CryptoPkg/Library/OpensslLib/openssl
+      chmod -R +w $out/
+      # Fix missing INT64_MAX include that edk2 explicitly does not provide
+      # via it's own <stdint.h>. Let's pull in openssl's definition instead:
+      sed -i $out/CryptoPkg/Library/OpensslLib/openssl/crypto/property/property_parse.c \
+          -e '1i #include "internal/numbers.h"'
+    '';
+
+    depsBuildBuild = prev.depsBuildBuild ++ [ libuuid ];
+    env = (prev.env or { }) // {
+      NIX_CFLAGS_COMPILE = (prev.env.NIX_CFLAGS_COMPILE or "") + lib.optionalString (lib.versionAtLeast stdenv.cc.version "16") " -Wno-error=unused-but-set-variable -Wno-error=discarded-qualifiers";
+    };
+  });
+
+  pythonEnv = buildPackages.python312.withPackages (ps: [ ps.tkinter ]);
+  targetArch =
+    if stdenv.isi686 then
+      "IA32"
+    else if stdenv.isx86_64 then
+      "X64"
+    else if stdenv.isAarch64 then
+      "AARCH64"
+    else
+      throw "Unsupported architecture";
+
+  buildType =
+    if stdenv.isDarwin then
+      "CLANGPDB"
+    else
+      "GCC5";
+
+  buildTarget = if debugMode then "DEBUG" else "RELEASE";
+
+  mkJetsonUefi =
+    lib.extendMkDerivation {
+      constructDrv = stdenv.mkDerivation;
+      excludeDrvArgNames = [ "platformBuild" "outputs" ];
+      extendDrvArgs = finalAttrs: { platformBuild, outputs, nativeBuildInputs ? [ ], depsBuildBuild ? [ ], patches ? [ ], meta ? { }, NIX_CFLAGS_COMPILE ? [ ], ... }:
+        let
+          _outputs = builtins.map (s: "Build/*/*/" + s) outputs;
+        in
+        {
+          pname = "${platformBuild}-edk2-uefi";
+          version = l4tMajorMinorPatchVersion;
+
+          # Initialize the build dir with the build tools from edk2
+          src = edk2-src;
+
+          depsBuildBuild = depsBuildBuild ++ [ buildPackages.stdenv.cc ];
+          nativeBuildInputs = nativeBuildInputs ++ [ bc pythonEnv acpica-tools dtc unixtools.whereis nukeReferences ];
+          strictDeps = true;
+
+          NIX_CFLAGS_COMPILE = NIX_CFLAGS_COMPILE ++ [
+            "-Wno-error=format-security" # TODO: Fix underlying issue
+
+            # Workaround for ../Silicon/NVIDIA/Drivers/EqosDeviceDxe/nvethernetrm/osi/core/osi_hal.c:1428: undefined reference to `__aarch64_ldadd4_sync'
+            "-mno-outline-atomics"
+          ] ++ lib.optionals (lib.versionAtLeast stdenv.cc.version "16") [
+            "-Wno-error=unused-but-set-variable"
+            "-Wno-error=discarded-qualifiers"
+          ];
+
+          ${"GCC5_${targetArch}_PREFIX"} = stdenv.cc.targetPrefix;
+
+          # From edk2-nvidia/Silicon/NVIDIA/edk2nv/stuart/settings.py
+          PACKAGES_PATH = lib.concatStringsSep ":" [
+            "${edk2-src}/BaseTools" # TODO: Is this needed?
+            finalAttrs.src
+            edk2-platforms
+            edk2-non-osi
+            edk2-nvidia
+            edk2-nvidia-non-osi
+            "${edk2-platforms}/Features/Intel/OutOfBandManagement"
+          ];
+
+          enableParallelBuilding = true;
+
+          prePatch = ''
+            rm -rf BaseTools
+            cp -r ${edk2-jetson}/BaseTools BaseTools
+            chmod -R u+w BaseTools
+          '';
+
+          patches = edk2UefiPatches ++ patches;
+          # Add --binary flag to handle CRLF better
+          patchFlags = [ "-p1" "--binary" ];
+
+          passthru.srcs = {
+            edk2 = finalAttrs.src;
+            inherit edk2-platforms edk2-non-osi edk2-nvidia edk2-nvidia-non-osi;
+          };
+
+          configurePhase = ''
+            runHook preConfigure
+            export WORKSPACE="$PWD"
+            source ./edksetup.sh BaseTools
+
+            ${lib.optionalString (trustedPublicCertPemFile != null) ''
+            echo Using ${trustedPublicCertPemFile} as public certificate for capsule verification
+            ${lib.getExe buildPackages.openssl} x509 -outform DER -in ${trustedPublicCertPemFile} -out PublicCapsuleKey.cer
+            python3 BaseTools/Scripts/BinToPcd.py -p gEfiSecurityPkgTokenSpaceGuid.PcdPkcs7CertBuffer -i PublicCapsuleKey.cer -o PublicCapsuleKey.cer.gEfiSecurityPkgTokenSpaceGuid.PcdPkcs7CertBuffer.inc
+            python3 BaseTools/Scripts/BinToPcd.py -x -p gFmpDevicePkgTokenSpaceGuid.PcdFmpDevicePkcs7CertBufferXdr -i PublicCapsuleKey.cer -o PublicCapsuleKey.cer.gFmpDevicePkgTokenSpaceGuid.PcdFmpDevicePkcs7CertBufferXdr.inc
+            ''}
+
+            runHook postConfigure
+          '';
+
+          buildPhase = ''
+            runHook preBuild
+
+            # The BUILDID_STRING and BUILD_DATE_TIME are used
+            # just by nvidia, not generic edk2
+            build -a ${targetArch} -b ${buildTarget} -t ${buildType} -p Platform/NVIDIA/${platformBuild}/${platformBuild}.dsc -n $NIX_BUILD_CORES \
+              -D BUILDID_STRING="${fakeVersion}" \
+              -D BUILD_DATE_TIME="$(date --utc --iso-8601=seconds --date=@$SOURCE_DATE_EPOCH)" \
+              ${lib.optionalString (trustedPublicCertPemFile != null) "-D CUSTOM_CAPSULE_CERT"} \
+              $buildFlags
+
+            runHook postBuild
+          '';
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out
+            # all-build-outputs and build log are helpful to have on hand when debugging issues
+            find ./Build ./Conf > $out/all-build-outputs
+
+            for file in Build/BUILDLOG_*.txt ${builtins.concatStringsSep " " _outputs} ; do
+              mv -v $file $out/
+            done
+
+            # Everything is statically linked
+            nuke-refs $out/*
+
+            runHook postInstall
+          '';
+
+          meta = meta // { platforms = [ "aarch64-linux" ]; };
+        };
+    };
+
+  unstamped-firmware = mkJetsonUefi {
+    platformBuild = "Jetson";
+    outputs = [
+      "FV/UEFI_NS.Fv"
+      "AARCH64/L4TLauncher.efi"
+      "AARCH64/Silicon/NVIDIA/Tegra/DeviceTree/DeviceTree/OUTPUT/*.dtb"
+    ];
+
+    postInstall = ''
+      python3 ${edk2-nvidia}/Silicon/NVIDIA/Tools/FormatUefiBinary.py \
+        $out/UEFI_NS.Fv \
+        $out/uefi_jetson.bin
+
+      mkdir -p $out/dtbs
+      for filename in $out/*.dtb; do
+        mv $filename $out/dtbs/$(basename "$filename" ".dtb").dtbo
+      done
+    '';
+  };
+
+  fakeHash = "123456789012";
+  fakeVersion = "${l4tMajorMinorPatchVersion}-${fakeHash}";
+  biosVersion = "${l4tMajorMinorPatchVersion}-" + lib.substring 0 12 (builtins.hashString "sha256" "${uniqueHash}-${unstamped-firmware}");
+
+  uefi-firmware = runCommand "${unstamped-firmware.pname}-${unstamped-firmware.version}-stamped"
+    {
+      nativeBuildInputs = [ python3 buildPackages.nvidia-jetpack.patchfv ];
+      passthru = {
+        inherit biosVersion;
+        inherit (unstamped-firmware.passthru) srcs;
+      };
+    } ''
+    mkdir -p $out
+    cp -r ${unstamped-firmware}/* $out
+
+    rm $out/UEFI_NS.Fv $out/uefi_jetson.bin
+    patchfv ${unstamped-firmware}/UEFI_NS.Fv $out/UEFI_NS.Fv ${fakeVersion} ${biosVersion}
+
+    python3 ${edk2-nvidia}/Silicon/NVIDIA/Tools/FormatUefiBinary.py \
+        $out/UEFI_NS.Fv \
+        $out/uefi_jetson.bin
+  '';
+
+  jetsonStandaloneMMOptee = mkJetsonUefi (finalAttrs: {
+    platformBuild = "StandaloneMmOptee";
+    outputs = [ "FV/UEFI_MM.Fv" ];
+
+    postInstall = ''
+      python3 ${edk2-nvidia}/Silicon/NVIDIA/Tools/FormatUefiBinary.py \
+        $out/UEFI_MM.Fv \
+        $out/standalonemm_optee.bin
+    '';
+  });
+in
+{
+  inherit uefi-firmware jetsonStandaloneMMOptee;
+}

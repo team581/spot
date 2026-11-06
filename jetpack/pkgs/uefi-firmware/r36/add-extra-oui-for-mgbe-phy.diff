@@ -1,0 +1,37 @@
+From d4e8c971bdd8aebedfad4d0a06de65dd414448a8 Mon Sep 17 00:00:00 2001
+From: Daniel Fullmer <danielrf12@gmail.com>
+Date: Mon, 9 Feb 2026 23:00:08 -0800
+Subject: [PATCH] Add another Aquantia AQR113 PHY OUI
+
+---
+ Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyDxeUtil.c | 1 +
+ Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyMgbe.h    | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyDxeUtil.c b/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyDxeUtil.c
+index 8a47af6a..97141c66 100644
+--- a/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyDxeUtil.c
++++ b/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyDxeUtil.c
+@@ -245,6 +245,7 @@ PhyConfig (
+     case PHY_AQR113C_OUI:
+     case PHY_AQR113C_OUI2:
+     case PHY_AQR113_OUI:
++    case PHY_AQR113_OUI2:
+       PhyDriver->Config       = PhyMGBEConfig;
+       PhyDriver->StartAutoNeg = PhyMGBEStartAutoNeg;
+       PhyDriver->CheckAutoNeg = PhyMGBECheckAutoNeg;
+diff --git a/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyMgbe.h b/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyMgbe.h
+index abb1fe9c..33c650b8 100644
+--- a/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyMgbe.h
++++ b/Silicon/NVIDIA/Drivers/EqosDeviceDxe/PhyMgbe.h
+@@ -12,6 +12,7 @@
+ #define PHY_AQR113C_OUI   0x31C31C12
+ #define PHY_AQR113C_OUI2  0x31C31C13
+ #define PHY_AQR113_OUI    0x31C31C42
++#define PHY_AQR113_OUI2   0x31C31C43
+ 
+ /*
+  * @brief Configure MGBE PHY
+-- 
+2.52.0
+

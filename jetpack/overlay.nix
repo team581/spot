@@ -1,0 +1,185 @@
+final: prev:
+let
+  inherit (final.stdenv.hostPlatform) system;
+in
+{
+  nvidia-jetpack5 = import ./mk-overlay.nix
+    {
+      # Below 3 are from release notes
+      jetpackMajorMinorPatchVersion = "5.1.7";
+      l4tMajorMinorPatchVersion = "35.6.5";
+      cudaMajorMinorPatchVersion = "11.4.298";
+
+      # used to version libnvidia-ptxjitcompiler.so. L4T r35 uses l4tMajorMinorPatchVersion, so set to null
+      # and we'll use l4tMajorMinorPatchVersion instead
+      cudaDriverMajorMinorVersion = null;
+
+      bspHash = "sha256-A0HUPHLUtx9dVqG9kM92MfbWoAc2E35AqgZiWK/S/lk=";
+      bspPostPatch =
+        let
+          overlay_mb1bct = final.fetchzip {
+            url = "https://developer.nvidia.com/downloads/embedded/L4T/overlay_mb1bct_35.x.tbz2";
+            sha256 = "sha256-Ar1RfCzxwhK8rRmy0Bh/c38d60BZ9YlNbuzfwlDQ2Hg=";
+          };
+        in
+        ''
+          cp -r ${overlay_mb1bct}/* .
+        '';
+    }
+    final
+    prev;
+
+  nvidia-jetpack6 = import ./mk-overlay.nix {
+    jetpackMajorMinorPatchVersion = "6.2";
+    l4tMajorMinorPatchVersion = "36.4.3";
+    cudaMajorMinorPatchVersion = "12.6.68";
+    cudaDriverMajorMinorVersion = "540.4.0";
+    bspHash = "sha256-lJpEBJxM5qjv31cuoIIMh09u5dQco+STW58OONEYc9I=";
+  } final prev;
+
+  nvidia-jetpack7 =
+    let
+      l4tMajorMinorPatchVersion = "39.2.1";
+      hostOverlayFskpTools = final.fetchzip {
+        url = final.lib.concatStrings [
+          "https://developer.nvidia.com/downloads/embedded/l4t/"
+          "r${final.lib.versions.major l4tMajorMinorPatchVersion}"
+          "_release_v${final.lib.versions.minor l4tMajorMinorPatchVersion}."
+          "${final.lib.versions.patch l4tMajorMinorPatchVersion}/release/"
+          "host_overlay_fskp_tools_R${l4tMajorMinorPatchVersion}_aarch64.tbz2"
+        ];
+        sha256 = "sha256-u3SIzBr1dxH82dqI7X9+ajdxe/vq54BgSAfkq1jdXTs=";
+        stripRoot = false;
+      };
+    in
+    import ./mk-overlay.nix
+      {
+        jetpackMajorMinorPatchVersion = "7.2.1";
+        inherit l4tMajorMinorPatchVersion;
+        cudaMajorMinorPatchVersion = "13.2.1";
+
+        cudaDriverMajorMinorVersion = "595.78";
+
+        bspHash = "sha256-LlYZCIuojoXaslJH8DPXBlm29nb/g1F2oHdm3LD9vms=";
+        bspPrePatch = ''
+          overlayRoot=${hostOverlayFskpTools}/Linux_for_Tegra/l4t
+          cp --no-preserve=all -r "$overlayRoot"/. ./
+          find "$overlayRoot"/. -type f -perm -u+x -printf '%P\0' \
+            | xargs -0 -I{} chmod +x "./{}"
+
+          # Remove NVIDIA's bundled pyusb so we use nix's version. See `fskp_helper_t264.py`.
+          find tools/flashtools -type d -name pyusb -path '*/external/pyusb' -exec rm -rf {} +
+        '';
+        bspPatches = [
+          ./pkgs/r38-bsp.patch
+          ./pkgs/r39-bsp-pkc-list-fixes.patch
+          ./pkgs/r39-bsp-firmware-variants.patch
+          ./pkgs/r39-bsp-flash-script-no-flash.patch
+        ];
+      }
+      final
+      prev;
+
+  # Due to the interplay between JetPack releases and supported CUDA versions, the choice of CUDA version drives the
+  # version of nvidia-jetpack made the default to avoid the need to maintain tedious overlays and ensures the two stay
+  # in sync by default.
+  #
+  # Thanks to the functionality added in https://github.com/NixOS/nixpkgs/pull/406568, we can build packages
+  # using variants of Nixpkgs through the Flake CLI. See https://nixos.org/manual/nixpkgs/stable/#cuda-using-cudapackages-pkgs
+  # for an example.
+  #
+  # Consider a user trying to build a hypothetical package foo which works with all versions of nvidia-jetpack. If
+  # they build .#blarg (assuming proper configuration of Nixpkgs and use of our overlay), blarg receives
+  # nvidia-jetpack5 as nvidia-jetpack and nvidia-jetpack5.cudaPackages (CUDA 11.4) as cudaPackages.
+  # If they build .#cudaPackages_12.pkgs.blarg, blarg receives nvidia-jetpack6 as nvidia-jetpack and
+  # nvidia-jetpack6.cudaPackages (CUDA 12.6) as cudaPackages. If the version of nvidia-jetpack did not depend on
+  # the version of the CUDA package set, blarg would have received nvidia-jetpack5 as nvidia-jetpack (since it would
+  # stay unchanged) and nvidia-jetpack6.cudaPackages (CUDA 12.6) as cudaPackages -- this is likely unintentional!
+  nvidia-jetpack =
+    final.lib.recurseIntoAttrs (
+      # Support for pre-11.4 belongs with JetPack 4, which is no longer maintained.
+      # CUDA 11.4 - 12.2 is supported either natively (11.4) or through cuda_compat (everything else).
+      if final.cudaPackages.cudaOlder "12.3" then
+        final.nvidia-jetpack5
+
+      # CUDA 12.4 - 12.9 is supported either natively (12.4) or through cuda_compat (everything else).
+      # NOTE: CUDA 12.3 isn't supported by JetPack 5 or 6, but we lump it in with JetPack 6 to avoid throwing.
+      else if final.cudaPackages.cudaOlder "13.0" then
+        final.nvidia-jetpack6
+
+      # CUDA 13.0+ is supported by JetPack 7, which we don't yet package.
+      else
+        final.nvidia-jetpack7
+    );
+
+  # Set cudaPackage package sets to our JetPack-constructed package sets if we are on aarch64-linux. This is strictly
+  # worse than conditioning on Jetson capabilities, but allows us to avoid infinite recursion when depending on the
+  # version of the default CUDA package set. Since non-Jetson ARM platforms aren't supported by the CUDA 11.4 release,
+  # there's no risk of mixing up Jetson and ARM binaries.
+  # NOTE: We must use 11.4 because of runtime version-checks in some CUDA libraries (like cuDNN or TensorRT) which fail if
+  # we use newer versions of libraries like cuBLAS, even with cuda_compat.
+  cudaPackages_11_4 =
+    prev.cudaPackages_11_4.override (prevArgs:
+      if system == "aarch64-linux" then
+        {
+          # Replace manifests with a single entry containing just the release of CUDA.
+          # NOTE: This value must match the value used in construction of nvidia-jetpack5.
+          manifests.cuda.release_label = "11.4.298";
+        }
+      else
+        {
+          manifests = prevArgs.manifests // {
+            # Use cuDNN 8.6 to more closely align with the versions JetPack 5 provides.
+            # NOTE: TensorRT is provided for x86_64-linux by our cuda-packages-11-4-extension.nix overlay.
+            cudnn = final._cuda.manifests.cudnn."8.6.0";
+          };
+        });
+
+  # Use 11.4 as the default CUDA release (sorry ARM SBSA NVIDIA users).
+  cudaPackages_11 = final.cudaPackages_11_4;
+
+  # Override upstream's manifest selection so the version of TensorRT used is consistent
+  # NOTE: This needs to stay up to date with:
+  # https://github.com/NixOS/nixpkgs/blob/921f06852867d06373bb0fa7ec570d14275b436d/pkgs/top-level/cuda-packages.nix
+  # https://github.com/nixos-cuda/cuda-legacy/blob/3323fa062d19f7a0b15fd720a94bc05ad8c664cb/overlays/cudaPackagesVersions.nix
+  cudaPackages_12_6 = prev.cudaPackages_12_6.override (prevArgs: {
+    manifests = prevArgs.manifests // {
+      tensorrt = final._cuda.manifests.tensorrt."10.7.0";
+    };
+  });
+  cudaPackages_12_8 = prev.cudaPackages_12_8.override (prevArgs: {
+    manifests = prevArgs.manifests // {
+      tensorrt = final._cuda.manifests.tensorrt."10.7.0";
+    };
+  });
+  cudaPackages_12_9 = prev.cudaPackages_12_9.override (prevArgs: {
+    manifests = prevArgs.manifests // {
+      tensorrt = final._cuda.manifests.tensorrt."10.7.0";
+    };
+  });
+  cudaPackages_13_2 = prev.cudaPackages_13_2.override (prevArgs: {
+    manifests = prevArgs.manifests // {
+      tensorrt = final._cuda.manifests.tensorrt."10.16.1";
+    };
+  });
+
+  cudaPackages = final.cudaPackages_11;
+
+  _cuda = prev._cuda.extend (_: prevCuda: {
+    extensions = prevCuda.extensions ++ [
+      # General extensions
+      (import ./pkgs/cuda-extensions { inherit (final) lib; })
+
+      # Version-specific extensions.
+      # As a quirk of the way the CUDA package sets are instantiated, using `overrideScope` is only effective on the
+      # top-level attributes of the CUDA package set.
+      # As an example, if we add the `debs` attribute, `cudaPackages.debs` will exist as expected. However,
+      # `cudaPackages.pkgs.cudaPackages.debs` will not -- the extension provided to `overrideScope` is not threaded
+      # through!
+      # For now, we just conditionally apply extensions.
+      # Replace CUDA packages from manifests with our own, which are built from debian installers, if we're using
+      # CUDA 11.4.
+      (import ./cuda-packages-11-4-extension.nix { inherit (final) lib; inherit system; })
+    ];
+  });
+}

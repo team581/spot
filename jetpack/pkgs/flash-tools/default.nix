@@ -1,0 +1,180 @@
+{ stdenv
+, lib
+, makeWrapper
+, fetchurl
+, python3
+, perl
+, xxd
+, libxml2
+, coreutils
+, gnugrep
+, gnused
+, gnutar
+, gawk
+, which
+, gzip
+, cpio
+, bintools-unwrapped
+, findutils
+, util-linux
+, dosfstools
+, lz4
+, gcc
+, dtc
+, qemu-user
+, runtimeShell
+, fetchzip
+, bc
+, openssl
+, sbsigntool
+, bspSrc
+, l4tMajorMinorPatchVersion
+, symlinkJoin
+, xmlstarlet
+}:
+
+let
+  python3WithDeps = (python3.withPackages (p: with p; [
+    pyyaml
+    pip
+    python-pkcs11
+    cryptography
+    # Needed in JetPack 7 to replace NVIDIA's circa 2016 bundled pyusb/libusb1
+    libusb1
+    pyusb
+  ]));
+
+  flash-tools = stdenv.mkDerivation {
+    pname = "flash-tools";
+    version = l4tMajorMinorPatchVersion;
+
+    src = bspSrc;
+
+    nativeBuildInputs = [ makeWrapper ];
+    buildInputs = [
+      python3WithDeps
+      perl
+    ];
+
+    patches = [
+      ./flash-tools-r${lib.versions.major l4tMajorMinorPatchVersion}.patch
+      ./fmp-lowest-supported-version.patch
+    ];
+
+    postPatch = ''
+      # Needed in Jetpack 5
+      substituteInPlace flash.sh \
+        --replace /usr/bin/xmllint ${libxml2}/bin/xmllint
+
+      # Remove stuff not needed for flashing
+      find . -iname '*.deb' -delete
+      find . -iname '*.tbz2' -delete
+
+      # We should never be flashing upstream's kernel, so just remove it so we get errors if it is used
+      #rm -f kernel/Image*
+
+      # Replace pre-built binaries for utilities that we already have available
+      # with nix. There are places in flash.sh that expect for these paths to
+      # exist, so it is not enough to just remove them and have the utilities
+      # available in PATH.
+      ln -sf ${lib.getExe' dtc "dtc"} kernel/dtc
+      ln -sf ${lib.getExe' dtc "fdtoverlay"} kernel/fdtoverlay
+
+      # Remove the big nv_tegra dir, since its not neede by flash scripts.
+      # However, save the needed bsp_version file
+      mv nv_tegra/bsp_version .
+      rm -rf nv_tegra
+      mkdir nv_tegra
+      mv bsp_version nv_tegra
+    '' + (lib.optionalString (!stdenv.hostPlatform.isx86) ''
+      # Wrap x86 binaries in qemu
+      pushd bootloader/ >/dev/null
+      # Wrap i386 binaries in qemu
+      for filename in chkbdinfo mkbctpart mkbootimg mksparse tegrabct_v2 tegradevflash_v2 tegrahost_v2 tegrakeyhash tegraopenssl tegraparser_v2 tegrarcm_v2 tegrasign_v2; do
+        if [[ -e $filename ]]; then
+          mv "$filename" ."$filename"-wrapped
+          # DO NOT CHANGE THE WHITESPACE BELOW!
+          cat >"$filename" <<EOF
+      #!${runtimeShell}
+      exec -a "\$0" ${qemu-user}/bin/qemu-i386 "$out/bootloader/.$filename-wrapped" "\$@"
+      EOF
+          chmod +x "$filename"
+        fi
+      done
+      # Wrap x86_64 binaries in qemu
+      for filename in fiptool; do
+        if [[ -e $filename ]]; then
+          mv "$filename" ."$filename"-wrapped
+          # DO NOT CHANGE THE WHITESPACE BELOW!
+          cat >"$filename" <<EOF
+      #!${runtimeShell}
+      exec -a "\$0" ${qemu-user}/bin/qemu-x86_64 "$out/bootloader/.$filename-wrapped" "\$@"
+      EOF
+          chmod +x "$filename"
+        fi
+      done
+      popd >/dev/null
+    '');
+
+    # Create update payloads with:
+    # ./l4t_generate_soc_bup.sh t19x
+
+    dontConfigure = true;
+    dontBuild = true;
+    noDumpEnvVars = true;
+
+    installPhase = ''
+      runHook preInstall
+
+      mkdir -p $out
+      cp -r . $out/
+
+      runHook postInstall
+    '';
+
+    # TODO I think these should be pulled in via `runtimeInputs = flashtools.passthru.flashDeps`
+    # rather than putting them into the text of the flash-script style scripts.
+    #
+    # Stuff to put into PATH for flash.sh
+    # wrapProgram doesn't work here because it refers to the wrapped program by
+    # absolute path, and flash-script copies the entire flash-tools dir before
+    # running
+    passthru.flashDeps = [
+      coreutils
+      gnugrep
+      gnused
+      gnutar
+      gawk
+      xxd
+      which
+      gzip
+      cpio
+      bintools-unwrapped
+      findutils
+      python3WithDeps
+      util-linux
+      dosfstools
+      bc
+      openssl
+      sbsigntool # In l4t_uefi_sign_image.sh, which is needed by RCM flashing
+      xmlstarlet # Needed in JetPack 7
+      libxml2 # Needed in JetPack 7 for xmllint
+
+      # Needed by bootloader/tegraflash_impl_t234.py
+      gcc
+      dtc
+
+      # flash.sh wants lz4c, which used to be a symlink to lz4, but does not
+      # exist in more recent nixpkgs.
+      (symlinkJoin {
+        inherit (lz4) name;
+        paths = [ (lib.getBin lz4) ];
+        postBuild = ''
+          ln -sf $out/bin/lz4{,c}
+        '';
+      })
+    ];
+  };
+
+in
+flash-tools

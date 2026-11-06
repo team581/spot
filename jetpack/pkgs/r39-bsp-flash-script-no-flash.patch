@@ -1,0 +1,297 @@
+From b706d9aa4b711c426acaf43088085924aa6fbfe7 Mon Sep 17 00:00:00 2001
+From: Steven Sloboda <ssloboda@anduril.com>
+Date: Wed, 19 Aug 2026 11:29:07 -0700
+Subject: [PATCH] Fix thor sign/encrypt now, flash later.
+
+Jetpack 7 flash.sh omits support for using prebuilt firmware artifacts
+in the flash script for thor. Restore this functionality. Eventually, we
+will support the unified flash tool rather than using legacy flash.sh.
+
+The implementation uses orin's sign/encrypt now, flash later
+functionality as a reference, as well as thor's flash-time sign/encrypt
+that was present in the flash scripts prior to this patch. It is
+important to note that the legacy flash script is not supported by this
+patch!
+
+Thor (JP7, t264) and Orin (JP6, t234) both do sign/encrypt now flash
+later similarly at a high level. At build time,
+`flash.sh --no-flash --rcm-boot` produces `flashcmd.txt` which
+references pre-signed firmware binaries. At flash time, `flashcmd.txt`
+runs `tegraflash --securedev --cmd rcmboot` to package and upload the
+binaries to the device in recovery mode. flashInitrd is RCM-booted from
+RAM, then flashInitrd writes both A/B images to QSPI. There are
+differences in filenames and partition layouts.
+
+Filename suffixes for signed BCTs and bins:
+- Orin: mb1_bct_MB1_sigheader.bct.encrypt.signed,
+  mem_rcm_sigheader.bct.encrypt.signed,
+  `mb2_t234_with_mb2_bct_MB2_sigheader.bin.encrypt.signed`.
+  Order of the suffixes is `_sigheader.<ext>.encrypt.signed`.
+- Thor: `mb1_bct_MB1_sigheader_encrypt.bct.signed`,
+  `membct_<ramcode/2>_sigheader_encrypt.bct.signed`,
+  `mb2_t264_with_mb2_bct_MB2_sigheader_encrypt.bin.signed`.
+  Order of the suffixes is `_sigheader_encrypt.<ext>.signed`.
+
+Memory BCT naming:
+- Orin has one mem_rcm file: the single mem-bct for the rcm boot.
+- Thor has per-ramcode membct_0 through membct_7, and then a
+  membct_<ramcode/2>.
+
+Rcmboot vs coldboot XML layout:
+- Orin's rcmboot and coldboot XMLs use the same conventions.
+- Thor's flash_l4t_t264_rcmboot.xml uses bare partition names
+  (cpu-bootloader) and marks fewer partitions with compress="true"
+  than flash_l4t_t264_qspi.xml (coldboot) does. Signing/encrypting a
+  compress=true partition results in a different filename, e.g.,
+  `_aligned_blob_w_bin_sigheader.bin.encrypt` vs `_sigheader.bin.encrypt`.
+---
+ bootloader/odmsign.func            | 49 +++++++++++++++---
+ bootloader/tegraflash_impl_t264.py | 80 ++++++++++++++++++++++--------
+ flash.sh                           | 11 ----
+ 3 files changed, 101 insertions(+), 39 deletions(-)
+
+diff --git a/bootloader/odmsign.func b/bootloader/odmsign.func
+index 889a002..646ffef 100644
+--- a/bootloader/odmsign.func
++++ b/bootloader/odmsign.func
+@@ -344,6 +344,9 @@ odmsign_ext_flash ()
+ 		if [ "${CHIPID}" = "0x23" ]; then
+ 			tmp="$(odmsign_get_folder)/${localcfgfile}.tmp";
+ 		fi;
++		if [ "${CHIPID}" = "0x26" ] || [ "${CHIPID}" = "0x26 8" ]; then
++			tmp="$(odmsign_get_folder)/${localcfgfile}.tmp";
++		fi;
+ 	fi;
+ 	cp -f "${tmp}" "./${localcfgfile}.tmp"
+ 
+@@ -475,6 +478,45 @@ odmsign_ext_flash ()
+ 		fi;
+ 		SOSARGS="--applet rcm_2_${tmp2}.rcm --applet_softfuse rcm_1_${tmp2}.rcm ";
+ 	fi;
++
++	if [ "${CHIPID}" = "0x26" ] || [ "${CHIPID}" = "0x26 8" ]; then
++		if [ "${rcm_tbcfile}" = "" ]; then
++			get_value_from_PT_table "cpu-bootloader" "filename" ${securecfgfile} flashername
++		elif [ "${sbk_keyfile}" != "" ]; then
++			flashername="${flashername//.bin.encrypt/_encrypt.bin}"
++		fi
++
++		if [ "${sbk_keyfile}" != "" ]; then
++			extsig tmp_mb1bin ${mb1filename} '_aligned_sigheader_encrypt' 'signed'
++			extsig tmp_pscbl1bin ${pscbl1filename} '_aligned_sigheader_encrypt' 'signed'
++
++			local membct_name="membct_$((RAMCODE / 2))_sigheader_encrypt.bct.signed"
++			BCTARGS="--mb1_bct mb1_bct_MB1_sigheader_encrypt.bct.signed ";
++			BCTARGS+="--mem_bct ${membct_name} ";
++			BCTARGS+="--mb1_cold_boot_bct mb1_bct_MB1_sigheader_encrypt.bct.signed ";
++			BCTARGS+="--mb1_bin ${tmp_mb1bin} ";
++			BCTARGS+="--psc_bl1_bin ${tmp_pscbl1bin} ";
++			BCTARGS+="--mem_bct_cold_boot ${membct_name} ";
++			sigbins BINSARGS "_sigheader_encrypt" "signed" SIGNEDBINSARGS;
++			SIGNEDBINSARGS=`echo "${SIGNEDBINSARGS}" | \
++				sed "s|mb2_t264_sigheader_encrypt.bin.signed|mb2_t264_with_mb2_bct_MB2_sigheader_encrypt.bin.signed|"`
++		else
++			extsig tmp_mb1bin ${mb1filename} '_aligned_sigheader' '${tmp2}'
++			extsig tmp_pscbl1bin ${pscbl1filename} '_aligned_sigheader' '${tmp2}'
++
++			local membct_name_pkc="membct_$((RAMCODE / 2))_sigheader.bct.${tmp2}"
++			BCTARGS="--mb1_bct mb1_bct_MB1_sigheader.bct.${tmp2} ";
++			BCTARGS+="--mem_bct ${membct_name_pkc} ";
++			BCTARGS+="--mb1_cold_boot_bct mb1_bct_MB1_sigheader.bct.${tmp2} ";
++			BCTARGS+="--mb1_bin ${tmp_mb1bin} ";
++			BCTARGS+="--psc_bl1_bin ${tmp_pscbl1bin} ";
++			BCTARGS+="--mem_bct_cold_boot ${membct_name_pkc} ";
++
++			SIGNEDBINSARGS=`echo "${SIGNEDBINSARGS}" | \
++				sed "s|mb2_t264_sigheader.bin.${tmp2}|mb2_t264_with_mb2_bct_MB2_sigheader.bin.${tmp2}|"`
++		fi;
++		SOSARGS="--applet rcm_2_${tmp2}.rcm --applet_softfuse rcm_1_${tmp2}.rcm ";
++	fi;
+ 	if [ -n "${SIGNEDBINSARGS}" ]; then
+ 		BINSARGS="--bins \"${SIGNEDBINSARGS}\" ";
+ 	fi
+@@ -590,7 +632,7 @@ odmsign_sanity_check_keyfile()
+ 
+ odmsign_ext ()
+ {
+-	if [ "${CHIPID}" = "0x23" ]; then
++	if [ "${CHIPID}" = "0x23" ] || [ "${CHIPID}" = "0x26" ] || [ "${CHIPID}" = "0x26 8" ]; then
+ 		if [ "${rcm_tbcfile}" != "" ]; then
+ 			flashername="${RCM_UEFIBL}"
+ 		else
+@@ -598,11 +640,6 @@ odmsign_ext ()
+ 		fi
+ 	fi;
+ 
+-	if [ "${rcm_boot}" -eq 1 ] && { [ "${CHIPID}" = "0x26" ] || [ "${CHIPID}" = "0x26 8" ]; }; then
+-		# rcmboot --securedev is currently disabled. In the future, we will use the unified flash tool for --securedev flash purpose
+-		return 0
+-	fi
+-
+ 	if  [ "${rcm_boot}" -eq 1 ]; then
+ 		if [ -n "${keyfile}" ]; then
+ 			odmsign_sanity_check_keyfile "${keyfile}";
+diff --git a/bootloader/tegraflash_impl_t264.py b/bootloader/tegraflash_impl_t264.py
+index e6507b0..25d9168 100644
+--- a/bootloader/tegraflash_impl_t264.py
++++ b/bootloader/tegraflash_impl_t264.py
+@@ -1122,7 +1122,7 @@ class TFlashT264_Base(object):
+         return None
+ 
+     def tegraflash_generate_blob(self, sign_images, blob_filename):
+-        info_print('Generating blob for T264')
++        info_print(f"Generating blob for T264 (sign_images={sign_images})")
+         root = ElementTree.Element('file_list')
+         root.set('mode', 'blob')
+         comment = ElementTree.Comment('Auto generated by tegraflash.py')
+@@ -1193,7 +1193,9 @@ class TFlashT264_Base(object):
+                 # the fskp comb is named as e.g. fskp_updated.bin
+                 filename = os.path.splitext(filename)[0] + '_updated.bin'
+             else:
+-                filename = self.tegraflash_concat_partition(img_type, filename, values['--rcmboot_bct_cfg'])
++                # Don't concat if using pre-built/signed images.
++                if sign_images:
++                    filename = self.tegraflash_concat_partition(img_type, filename, values['--rcmboot_bct_cfg'])
+ 
+             if not os.path.exists(filename):
+                 tegraflash_symlink(tegraflash_abs_path(filepath), filename)
+@@ -1204,11 +1206,13 @@ class TFlashT264_Base(object):
+             filename = 'blob_' + filename;
+ 
+             if partition.get('oem_sign') == 'true':
+-                magic_id = self.tegraflash_get_magicid(img_type)
+-                if values['--encrypt_key'] is not None:
+-                    filename = self.tegraflash_oem_enc_and_sign_file(filename, magic_id)
+-                else:
+-                    filename = self.tegraflash_oem_sign_file(filename, magic_id)
++                # Don't resign if we are using pre-built/signed images.
++                if sign_images:
++                    magic_id = self.tegraflash_get_magicid(img_type)
++                    if values['--encrypt_key'] is not None:
++                        filename = self.tegraflash_oem_enc_and_sign_file(filename, magic_id)
++                    else:
++                        filename = self.tegraflash_oem_sign_file(filename, magic_id)
+ 
+             child.set('name', filename)
+ 
+@@ -1973,18 +1977,34 @@ class TFlashT264_Base(object):
+             print('Error: chip is not specified')
+             return 1
+ 
+-        if values['--rcmboot_pt_layout'] is None:
+-            print('Error: RCM boot partition layout is not specified')
+-            return 1
++        if not values['--securedev']:
++            if values['--rcmboot_pt_layout'] is None:
++                print('Error: RCM boot partition layout is not specified')
++                return 1
+ 
+-        if values['--rcmboot_bct_cfg'] is None:
+-            print('Error: RCM boot bct cfg is not specified')
+-            return 1
++            if values['--rcmboot_bct_cfg'] is None:
++                print('Error: RCM boot bct cfg is not specified')
++                return 1
+ 
+         if values['--securedev']:
+             if values['--bct'] is None:
+                 print('Error: BCT is not specified')
+                 return 1
++
++            mb1_bin = values['--mb1_bin']
++            if mb1_bin is None:
++                mb1_bin = self.get_file_name_from_images_list('mb1_bootloader')
++                info_print(mb1_bin + " filename is from images_list")
++            else:
++                info_print(mb1_bin + " filename is from --mb1_bin")
++
++            psc_bl1_bin = values['--psc_bl1_bin']
++            if psc_bl1_bin is None:
++                psc_bl1_bin = self.get_file_name_from_images_list('psc_bl1')
++                info_print(psc_bl1_bin + " filename is from images_list")
++            else:
++                info_print(psc_bl1_bin + " filename is from --psc_bl1_bin")
++
+             info_print('rcm boot with presigned binaries')
+             # send these binary to BR
+             command = self.exec_file('tegrarcm')
+@@ -1992,20 +2012,36 @@ class TFlashT264_Base(object):
+             command.extend(['--chip', values['--chip'], values['--chip_major']])
+             command.extend(['--uid'])
+             command.extend(['--download', 'bct_br', values['--bct']])
+-            command.extend(['--download', 'mb1', values['--mb1']])
+-            command.extend(['--download', 'psc_bl1', values['--psc_bl1']])
++            command.extend(['--download', 'mb1', mb1_bin])
++            command.extend(['--download', 'psc_bl1', psc_bl1_bin])
+             command.extend(['--download', 'bct_mb1', values['--mb1_bct']])
+-            run_command(command, True)
+ 
+-            time.sleep(10)
++            if values['--no_flash'] == True:
++                rcmcmd_1 = ' '.join(command)
++                rcmcmd_1 = "./" + rcmcmd_1
++            else:
++                run_command(command, True)
++                time.sleep(10)
++
++            self.tegraflash_parse_partitionlayout()
++            self.tegraflash_generate_blob(False, 'blob.bin')
++
+             # send these binary to BL
+             command = self.exec_file('tegrarcm')
+             command.extend(['--chip', values['--chip'], values['--chip_major']])
+             command.extend(['--pollbl'])
+-            command.extend(['--download', 'bct_mem', values['--membct_rcm']])
+-            command.extend(['--download', 'blob', values['--blob']])
++            command.extend(['--download', 'bct_mem', values['--mem_bct']])
++            command.extend(['--download', 'blob', 'blob.bin'])
+ 
+-            run_command(command)
++            if values['--no_flash'] == True:
++                rcmcmd_2 = ' '.join(command)
++                rcmcmd_2 = "./" + rcmcmd_2
++                self.tegraflash_generate_rcmboot_blob(
++                    [rcmcmd_1, rcmcmd_2],
++                    [values['--bct'], mb1_bin, psc_bl1_bin, values['--mb1_bct'],
++                     'blob.bin', values['--mem_bct']])
++            else:
++                run_command(command)
+ 
+         else:
+             self.is_rcmboot = True
+@@ -2042,8 +2078,8 @@ class TFlashT264_Base(object):
+                          blob_file_name, *mem_bcts])
+                 return
+ 
+-
+-        info_print('RCM-boot started\n')
++        if values['--no_flash'] == False:
++            info_print('RCM-boot started\n')
+ 
+     def tegraflash_update_boardinfo(self, bct_file):
+         if values['--nct'] is not None:
+diff --git a/flash.sh b/flash.sh
+index 77ccddf..4808067 100644
+--- a/flash.sh
++++ b/flash.sh
+@@ -6048,17 +6048,6 @@ if [ ${clean_up} -eq 0 ]; then
+ 	fi
+ fi
+ 
+-# Add for t264
+-# Because the key handling inside odmsign_ext will not be called
+-if [ "${CHIPID}" = "0x26" ]; then
+-	if [ "${keyfile}" != "" ]; then
+-		FLASHARGS+="--key \"${keyfile}\" ";
+-	fi;
+-	if [ "${sbk_keyfile}" != "" ]; then
+-		FLASHARGS+="--encrypt_key \"${sbk_keyfile}\" ";
+-	fi;
+-fi
+-
+ if [ "${debug_mode}" -eq 1 ]; then
+ 	FLASHARGS+="--keep ";
+ fi
+-- 
+2.34.1
+

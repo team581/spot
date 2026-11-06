@@ -2,7 +2,7 @@ name: Jetson offline installer
 
 on:
   push:
-    branches: [main]
+    branches: [temporary/jetpack6-orin-1]
   workflow_dispatch:
 
 permissions:

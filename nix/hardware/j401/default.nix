@@ -10,12 +10,12 @@
     nixpkgs.config.allowUnfree = true;
     nixpkgs.overlays = [
       (final: prev: {
-        cudaPackages = final.cudaPackages_13_2;
+        cudaPackages = final.cudaPackages_12_6;
         nvidia-jetpack = prev.nvidia-jetpack.overrideScope (
           _: previous: {
             # Firmware is provisioned by Seeed, not built from this NixOS generation.
             otaUtils = previous.otaUtils.override {
-              expectedBiosVersion = "39.2.0-gcid-45755727";
+              expectedBiosVersion = "36.4.3-gcid-38968081";
             };
           }
         );
@@ -26,7 +26,7 @@
       enable = true;
       som = "orin-nano";
       carrierBoard = "seeed-robotics-j401";
-      majorVersion = "7";
+      majorVersion = "6";
       super = true;
       # Spot requests CUDA explicitly; keep other packages on the binary cache.
       configureCuda = false;
@@ -43,7 +43,14 @@
 
     hardware.graphics.enable = true;
     # Preserve the firmware's J401 DTB, including its runtime memory/board fixups.
-    hardware.deviceTree.name = lib.mkForce null;
+    hardware.deviceTree.name = lib.mkForce "spot-j401.dtb";
+    hardware.deviceTree.dtbSource = lib.mkForce (pkgs.runCommand "spot-j401-factory-device-tree" {
+      nativeBuildInputs = [ pkgs.dtc ];
+    } ''
+      mkdir -p $out
+      fdtoverlay -i ${./device-tree/base.dtb} -o $out/spot-j401.dtb \
+        ${./device-tree/header.dtbo} ${./device-tree/gmsl.dtbo}
+    '');
 
     # These are the policies selected by Seeed's factory image on the 8GB module.
     services.nvfancontrol.enable = true;

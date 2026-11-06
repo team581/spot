@@ -1,0 +1,25 @@
+From 0b39d194b8c6de9ae28fe89a27498ee69745752e Mon Sep 17 00:00:00 2001
+From: Steven Sloboda <ssloboda@anduril.com>
+Date: Tue, 18 Aug 2026 11:20:28 -0700
+Subject: [PATCH] Allow override of LDK_DIR in convert.sh
+
+---
+ tools/flashtools/fuseburn/convert.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/flashtools/fuseburn/convert.sh b/tools/flashtools/fuseburn/convert.sh
+index ae9a127..e597bfe 100644
+--- a/tools/flashtools/fuseburn/convert.sh
++++ b/tools/flashtools/fuseburn/convert.sh
+@@ -8,7 +8,7 @@
+ # and any modifications thereto.  Any use, reproduction, disclosure or
+ # distribution of this software and related documentation without an express
+ # license agreement from NVIDIA CORPORATION is strictly prohibited.
+-LDK_DIR="$(dirname "$(realpath "$1")")"
++LDK_DIR="${LDK_DIR:-"$(dirname "$(realpath "$1")")"}"
+ BL_DIR="${LDK_DIR}/bootloader"
+ board_conf="${1}"
+ board_spec_setting="${2}"
+-- 
+2.34.1
+

@@ -1,0 +1,394 @@
+#
+# This file contains modified helper functions from meta-tegra recipes-bsp/tegra-binaries/tegra-helper-scripts/initrd-flash.sh
+# Copyright (c) 2023 The OE4Tegra Project
+# Licensed under MIT.
+
+set -euo pipefail
+
+source @ota_helpers_func@
+
+signed_images=$1
+
+# The whole initrd rootfs is an in-memory tmpfs, so this is just claiming a
+# scratch directory in it (no separate mount needed).
+mkdir -p /tmp
+
+matching_boardspec=
+current_step=1
+steps=
+
+diff_granularity=1
+erase_size=
+total_size=
+work=
+fast_flash_threshold_percentage=40
+
+report_step() {
+  echo "Step $current_step/$steps... $*"
+  current_step=$(expr "$current_step" + 1)
+}
+
+find_matching_spec() {
+  local boardspec=$(tegra-boardspec)
+
+  # Generate the "compat" boardspec for this one to match against
+  boardspec=$(generate_compat_spec "$boardspec")
+
+  local my_boardid=$(echo "$boardspec" | cut -d- -f1)
+  local my_fab=$(echo "$boardspec" | cut -d- -f2)
+  local my_boardsku=$(echo "$boardspec" | cut -d- -f3)
+  local my_boardrev=$(echo "$boardspec" | cut -d- -f4)
+  local my_fuselevel=$(echo "$boardspec" | cut -d- -f5)
+  local my_chiprev=$(echo "$boardspec" | cut -d- -f6)
+
+  for dirpath in "$signed_images"/*; do
+    curspec=$(basename "$dirpath")
+    cur_boardid=$(echo "$curspec" | cut -d- -f1)
+    cur_fab=$(echo "$curspec" | cut -d- -f2)
+    cur_boardsku=$(echo "$curspec" | cut -d- -f3)
+    cur_boardrev=$(echo "$curspec" | cut -d- -f4)
+    cur_fuselevel=$(echo "$curspec" | cut -d- -f5)
+    cur_chiprev=$(echo "$curspec" | cut -d- -f6)
+
+    if [[ "$my_boardid" != "" ]] && [[ "$cur_boardid" != "" ]] && [[ "$cur_boardid" != "$my_boardid" ]]; then continue; fi
+    if [[ "$my_fab" != "" ]] && [[ "$cur_fab" != "" ]] && [[ "$cur_fab" != "$my_fab" ]]; then continue; fi
+    if [[ "$my_boardsku" != "" ]] && [[ "$cur_boardsku" != "" ]] && [[ "$cur_boardsku" != "$my_boardsku" ]]; then continue; fi
+    if [[ "$my_boardrev" != "" ]] && [[ "$cur_boardrev" != "" ]] && [[ "$cur_boardrev" != "$my_boardrev" ]]; then continue; fi
+    if [[ "$my_fuselevel" != "" ]] && [[ "$cur_fuselevel" != "" ]] && [[ "$cur_fuselevel" != "$my_fuselevel" ]]; then continue; fi
+    if [[ "$my_chiprev" != "" ]] && [[ "$cur_chiprev" != "" ]] && [[ "$cur_chiprev" != "$my_chiprev" ]]; then continue; fi
+
+    matching_boardspec=$curspec
+    break
+  done
+
+  if [[ -z "$matching_boardspec" ]]; then
+    echo "Could not find a matching boardspec in signed firmware directory for: $boardspec"
+    echo "Are you sure you created the right signed firmware for this type of device?"
+    exit 1
+  fi
+}
+
+program_spi_partition() {
+  local partname="$1"
+  local part_offset="$2"
+  local part_size="$3"
+  local part_file="$4"
+  local file_size=0
+
+  if [[ -n "$part_file" ]]; then
+    file_size=$(stat -c "%s" "$part_file")
+    if [[ -z "$file_size" ]]; then
+      echo "ERR: could not retrieve file size of $part_file" >&2
+      return 1
+    fi
+  fi
+
+  report_step "Staging $part_file (size=$file_size) into golden image for $partname (offset=$part_offset)"
+
+  if [[ "$file_size" != 0 ]]; then
+    if ! write_golden "$part_offset" "$part_file"; then
+      return 1
+    fi
+  fi
+  # Multiple copies of the BCT get installed at 16KiB boundaries
+  # within the defined BCT partition
+  if [ "$partname" = "BCT" ]; then
+    local slotsize
+    slotsize=16384
+    if [ -z "$slotsize" ]; then
+      return 1
+    fi
+    local rounded_slot_size=$((((slotsize + 511) / 512) * 512))
+    local curr_offset=$((part_offset + rounded_slot_size))
+    local copycount=$((part_size / rounded_slot_size))
+    local i=1
+    while [[ "$i" -lt "$copycount" ]]; do
+      echo "Writing $part_file to BCT+$i (offset=$curr_offset)"
+      if ! write_golden "$curr_offset" "$part_file"; then
+        return 1
+      fi
+      i=$((i + 1))
+      curr_offset=$((curr_offset + rounded_slot_size))
+    done
+  fi
+  return 0
+}
+
+program_mmcboot_partition() {
+  local partname="$1"
+  local part_offset="$2"
+  local part_size="$3"
+  local part_file="$4"
+  local file_size=0
+  local bootpart="/dev/mmcblk0boot0"
+
+  if [[ -z "$BOOTPART_SIZE" ]]; then
+    echo "ERR: boot partition size not set" >&2
+    return 1
+  fi
+  if [[ "$part_offset" -ge "$BOOTPART_SIZE" ]]; then
+    part_offset=$((part_offset - BOOTPART_SIZE))
+    bootpart="/dev/mmcblk0boot1"
+  fi
+  if [[ -n "$part_file" ]]; then
+    file_size=$(stat -c "%s" "$part_file")
+    if [ -z "$file_size" ]; then
+      echo "ERR: could not retrieve file size of $part_file" >&2
+      return 1
+    fi
+  fi
+  report_step "Writing $part_file (size=$file_size) to $partname on $bootpart (offset=$part_offset)"
+  if [[ "$file_size" -ne 0 ]]; then
+    if ! dd if="$part_file" of="$bootpart" bs=4096 seek="$part_offset" oflag=seek_bytes conv=fsync >/dev/null; then
+      return 1
+    fi
+    # Multiple copies of the BCT get installed at 16KiB boundaries
+    # within the defined BCT partition
+    if [[ $partname == "BCT" ]]; then
+      local slotsize=16384
+      local curr_offset=$((part_offset + slotsize))
+      local copycount=$((part_size / slotsize))
+      local i=1
+      while [[ "$i" -lt "$copycount" ]]; do
+        echo "Writing $part_file (size=$file_size) to BCT+$i (offset=$curr_offset)"
+        if ! dd if="$part_file" of="$bootpart" bs=4096 seek="$curr_offset" oflag=seek_bytes conv=fsync >/dev/null; then
+          return 1
+        fi
+        i=$((i + 1))
+        curr_offset=$((curr_offset + slotsize))
+      done
+    fi
+  fi
+  return 0
+}
+
+write_golden() {
+  local part_offset="$1"
+  local part_file="$2"
+
+  dd if="$part_file" of="$work/golden" bs=4096 seek="$part_offset" oflag=seek_bytes conv=notrunc >/dev/null
+}
+
+disk_size() {
+  devnum="$1"
+  instnum="$2"
+
+  if [[ "$devnum" -eq 3 && "$instnum" -eq 0 ]]; then
+    cat /sys/class/mtd/mtd0/size
+  elif [[ "$devnum" -eq 0 && "$instnum" -eq 3 ]]; then
+    # sdmmc_boot is combination of mmcblk0boot0 and mmcblk0boot1
+    BOOT1PART_SIZE=$(($(cat /sys/block/mmcblk0boot1/size) * $(cat /sys/block/mmcblk0boot1/queue/hw_sector_size)))
+    echo "$((BOOTPART_SIZE + BOOT1PART_SIZE))"
+  elif [[ "$devnum" -eq 1 && "$instnum" -eq 3 ]] || [[ "$devnum" -eq 6 && "$instnum" -eq 0 ]]; then
+    echo "$(($(cat /sys/block/mmcblk0/size) * $(cat /sys/block/mmcblk0/queue/hw_sector_size)))"
+  else
+    echo ""
+  fi
+}
+
+# Compare the golden image against the device's actual contents at
+# erase-block granularity, and program only the ranges that differ.
+diff_and_program_spi() {
+  local block_size write_block bytes ranges_file range_start count total_write_blocks written_blocks
+
+  block_size=$((erase_size * diff_granularity))
+  ranges_file=$(mktemp)
+
+  # Skip the first block, as we handle it ourselves for fault tolerance.
+  diffblocks "a=$work/start" "b=$work/golden" "bs=$block_size" a-skip=1 b-skip=1 >"$ranges_file"
+
+  total_write_blocks=0
+  while read -r _ count; do
+    total_write_blocks="$((total_write_blocks + count))"
+  done <"$ranges_file"
+
+  # Special case, flash_erase /dev/mtd 0 0 is faster than individual block erases.
+  # Threshold might need some tuning, but I think 50% is about right.
+  if [ "$((total_write_blocks * block_size))" -ge "$((fast_flash_threshold_percentage * total_size / 100))" ]; then
+    echo "Performing full erase + write as total write size exceeded fast flashing threshold."
+    echo "This will erase the whole mtd device without any output."
+    flash_erase /dev/mtd0 0 0
+    echo "Erase finished. Writing entire image to the device."
+    mtd_debug write /dev/mtd0 0 "$total_size" "$work/golden"
+  else
+    written_blocks=0
+    # Erase first block, keeping an invalid BCT until the end.
+    flash_erase /dev/mtd0 0 "$diff_granularity"
+    while read -r range_start count; do
+      # diffblocks counts blocks from the a-skip/b-skip point, so add
+      # back the skipped block to get an absolute block index.
+      range_start="$((range_start + 1))"
+      write_block="$((range_start * block_size))"
+      bytes="$((count * block_size))"
+      dd "skip=$range_start" "bs=$block_size" "count=$count" "if=$work/golden" "of=$work/blk_write" 2>/dev/null
+      flash_erase /dev/mtd0 "$write_block" "$((count * diff_granularity))"
+      mtd_debug write /dev/mtd0 "$write_block" "$bytes" "$work/blk_write"
+      written_blocks="$((written_blocks + count))"
+      echo "Wrote $bytes bytes at offset $write_block ($((written_blocks * 100 / total_write_blocks))% of fast flash complete)"
+    done <"$ranges_file"
+    # Manually write the first block in the final step.
+    dd "bs=$block_size" "count=1" "if=$work/golden" "of=$work/blk_write" 2>/dev/null
+    mtd_debug write /dev/mtd0 0 "$block_size" "$work/blk_write"
+  fi
+
+  rm -f "$ranges_file"
+}
+
+validate_spi_partition() {
+  local final golden
+
+  if ! mtd_debug read /dev/mtd0 0 "$total_size" "$work/final"; then
+    echo "Failed to read /dev/mtd0" >&2
+    return 1
+  fi
+
+  final=$(sha256sum -b "$work/final" | awk '{ print $1 }')
+  golden=$(sha256sum -b "$work/golden" | awk '{ print $1 }')
+
+  if [[ "$final" == "$golden" ]]; then
+    echo "Validated /dev/mtd0 is correct. SHA256: $final"
+  else
+    echo "Error occured during flashing /dev/mtd0."
+    echo "Expected SHA256: $golden"
+    echo "Measured SHA256: $final"
+    return 1
+  fi
+}
+
+fast_flash_init() {
+  if [ ! -e /dev/mtd0 ]; then
+    echo "ERR: SPI boot device, but mtd0 device does not exist" >&2
+    return 1
+  fi
+
+  total_size=$(cat /sys/class/mtd/mtd0/size)
+  erase_size=$(cat /sys/class/mtd/mtd0/erasesize)
+  work=$(mktemp -d)
+
+  head -c "$total_size" /dev/zero | tr '\000' '\377' >"$work/golden"
+
+  if ! mtd_debug read /dev/mtd0 0 "$total_size" "$work/start"; then
+    echo "Failed to read /dev/mtd0" >&2
+    return 1
+  fi
+}
+
+erase_bootdev() {
+  BOOTDEV_TYPE=
+
+  # Detect type to erase
+  while IFS=", " read -r partnumber partloc start_location partsize partfile filesize partattrs partsha; do
+    devnum=$(echo "$partloc" | cut -d':' -f 1)
+    instnum=$(echo "$partloc" | cut -d':' -f 2)
+    partname=$(echo "$partloc" | cut -d':' -f 3)
+    # SPI is 3:0
+    # eMMC boot blocks (boot0/boot1) are 0:3
+    if [[ "$devnum" -eq 3 && "$instnum" -eq 0 ]]; then
+      BOOTDEV_TYPE=spi
+    elif [[ "$devnum" -eq 0 && "$instnum" -eq 3 ]]; then
+      BOOTDEV_TYPE=mmcboot
+    fi
+  done <flash.idx
+
+  if [ "$BOOTDEV_TYPE" = "mmcboot" ]; then
+    if [[ ! -b /dev/mmcblk0boot0 ]] || [[ ! -b /dev/mmcblk0boot1 ]]; then
+      echo "ERR: eMMC boot device, but mmcblk0bootX devices do not exist" >&2
+      return 1
+    fi
+    BOOTPART_SIZE=$(($(cat /sys/block/mmcblk0boot0/size) * $(cat /sys/block/mmcblk0boot0/queue/hw_sector_size)))
+    echo "0" >/sys/block/mmcblk0boot0/force_ro
+    echo "0" >/sys/block/mmcblk0boot1/force_ro
+    echo "Erasing /dev/mmcblk0boot0"
+    blkdiscard -f /dev/mmcblk0boot0
+    echo "Erasing /dev/mmcblk0boot1"
+    blkdiscard -f /dev/mmcblk0boot1
+  elif [ "$BOOTDEV_TYPE" = "spi" ]; then
+    if ! fast_flash_init; then
+      echo "Failed to init fast flash."
+      return 1
+    fi
+  else
+    echo "ERR: unknown boot device type: $BOOTDEV_TYPE" >&2
+    return 1
+  fi
+}
+
+write_partitions() {
+  # shellcheck disable=SC2034
+  while IFS=", " read -r partnumber partloc start_location partsize partfile filesize partattrs partsha; do
+    # Need to trim off leading blanks
+    devnum=$(echo "$partloc" | cut -d':' -f 1)
+    instnum=$(echo "$partloc" | cut -d':' -f 2)
+    partname=$(echo "$partloc" | cut -d':' -f 3)
+
+    # Hack for AGX Xavier, which places uefi_variables on sdmmc_user device. sdmmc_user is not zero'd when flashing,
+    # but is zero'd on all other Jetsons because it lives on QSPI, which is zero'd. Let's keep consistent behavior
+    if [[ "$partname" == "uefi_variables" ]] && [[ "$partfile" == "" ]] && [[ "$devnum" -eq 1 && "$instnum" -eq 3 ]]; then
+      report_step "Erasing entry:$partname (devnum=$devnum, instnum=$instnum) (offset=$start_location)"
+      dd if=/dev/zero of=/dev/mmcblk0 bs=4096 seek="$start_location" count="$partsize" oflag=seek_bytes iflag=count_bytes conv=fsync
+      continue
+    fi
+
+    if [[ "$partfile" == "" ]]; then
+      report_step "Skipping flash.idx entry:$partname (devnum=$devnum, instnum=$instnum) (offset=$start_location)"
+      continue
+    fi
+
+    # secondary_gpt must be placed at end of disk and flash.idx wasn't generated
+    # with enough info to place it at the end
+    if [[ "$partname" == "secondary_gpt" ]]; then
+      disk_size=$(disk_size "$devnum" "$instnum")
+      file_size=$(stat -c "%s" "$partfile")
+      if [[ -n "$disk_size" ]]; then
+        _start_location=$((disk_size - file_size))
+        if [[ "$start_location" != "$_start_location" ]]; then
+          start_location="$_start_location"
+          # From edk2-nvidia/Silicon/NVIDIA/Include/Library/GptLib.h
+          # #define NVIDIA_GPT_BLOCK_SIZE   512
+          patchgpt "$partfile" "$start_location" 512 >"patched"
+          partfile="patched"
+          echo "Moving secondary_gpt to end: $disk_size - $file_size = $start_location"
+        fi
+      else
+        echo "WARNING: could not ensure secondary GPT is at end of disk"
+      fi
+    fi
+
+    # SPI is 3:0
+    # eMMC boot blocks (boot0/boot1) are 0:3
+    # eMMC user is 1:3
+    # SDCard on SoM is 6:0 (Like on Xavier NX dev module)
+    # NVMe (any external device) is 9:0
+    if [[ "$devnum" -eq 3 && "$instnum" -eq 0 ]]; then
+      program_spi_partition "$partname" "$start_location" "$partsize" "$partfile"
+    elif [[ "$devnum" -eq 0 && "$instnum" -eq 3 ]]; then
+      program_mmcboot_partition "$partname" "$start_location" "$partsize" "$partfile"
+    elif [[ "$devnum" -eq 1 && "$instnum" -eq 3 ]] || [[ "$devnum" -eq 6 && "$instnum" -eq 0 ]]; then
+      report_step "Writing $partfile (size=$partsize) to $partname on /dev/mmcblk0 (offset=$start_location)"
+      file_size=$(stat -c "%s" "$partfile")
+      if ! dd if="$partfile" of="/dev/mmcblk0" bs=4096 seek="$start_location" oflag=seek_bytes conv=fsync >/dev/null; then
+        return 1
+      fi
+    fi
+  done <flash.idx
+
+  if [ -n "$work" ]; then
+    report_step "Performing fast flash."
+    diff_and_program_spi
+    validate_spi_partition
+  fi
+}
+
+find_matching_spec
+
+echo "boardspec: $matching_boardspec"
+
+# Enter directory containing firmware
+cd "$signed_images"/"$matching_boardspec"
+
+steps=$(expr "$(wc -l <flash.idx)" + "1")
+
+erase_bootdev
+write_partitions
+
+echo Finished flashing device

@@ -1,0 +1,195 @@
+# TODO(jared): Get rid of usage of `callPackages` where possible so we can take
+# advantage of scope's `self.callPackage` (callPackages does not exist under
+# `self`).
+
+{ jetpackMajorMinorPatchVersion
+, l4tMajorMinorPatchVersion
+, cudaMajorMinorPatchVersion
+, cudaDriverMajorMinorVersion
+, bspHash
+, bspPatches ? [ ]
+, bspPrePatch ? ""
+, bspPostPatch ? ""
+}:
+final: _:
+let
+  inherit (final.lib)
+    attrValues
+    callPackagesWith
+    concatMapAttrsStringSep
+    filter
+    makeScope
+    mapAttrsToList
+    packagesFromDirectoryRecursive
+    versionAtLeast
+    versionOlder
+    versions
+    warnOnInstantiate
+    ;
+
+  cudaMajorMinorVersion = versions.majorMinor cudaMajorMinorPatchVersion;
+
+  l4tMajorVersion = versions.major l4tMajorMinorPatchVersion;
+
+  l4tAtLeast = versionAtLeast l4tMajorMinorPatchVersion;
+  l4tOlder = versionOlder l4tMajorMinorPatchVersion;
+
+  sourceInfo = import ./sourceinfo {
+    inherit l4tMajorMinorPatchVersion;
+    inherit (final) lib fetchurl fetchgit;
+  };
+
+  releaseDirectory = if l4tMajorMinorPatchVersion == "36.5.2" then "releases" else "release";
+  bspUrl =
+    "https://developer.download.nvidia.com/embedded/L4T/r${versions.major l4tMajorMinorPatchVersion}_Release_v${versions.minor l4tMajorMinorPatchVersion}.${versions.patch l4tMajorMinorPatchVersion}/${releaseDirectory}/Jetson_Linux_R${l4tMajorMinorPatchVersion}_aarch64.tbz2";
+in
+makeScope final.newScope (self: {
+  inherit (sourceInfo) debs gitRepos;
+  inherit jetpackMajorMinorPatchVersion l4tMajorMinorPatchVersion cudaMajorMinorVersion cudaDriverMajorMinorVersion;
+  inherit l4tAtLeast l4tOlder;
+  gpuDriver = "nvgpu"; # GPU driver for JP5, JP6, and Orin JP7. Overridden in overlay-with-config.nix
+
+  callPackages = callPackagesWith (final // self);
+
+  # Present as a compatibility shim for packages which rely on `cudaPackages` to ensure they are able to draw from
+  # a package set of the correct version.
+  # Currently, these are:
+  # - pkgs/samples
+  # - pkgs/jetson-benchmarks
+  # - pkgs/buildFromDebs.nix
+  # This list should not grow.
+  cudaPackages = final.lib.recurseIntoAttrs final.${final._cuda.lib.mkVersionedName "cudaPackages" cudaMajorMinorVersion};
+
+  bspSrc = final.applyPatches {
+    src = final.runCommand "l4t-unpacked"
+      {
+        # https://developer.nvidia.com/embedded/jetson-linux-archive
+        # https://repo.download.nvidia.com/jetson/
+        src = final.fetchurl {
+          url = bspUrl;
+          hash = bspHash;
+        };
+        nativeBuildInputs = [ final.buildPackages.bzip2 ];
+      } ''
+      bzip2 -d -c $src | tar xf -
+      mv Linux_for_Tegra $out
+    '';
+    patches = bspPatches;
+    prePatch = bspPrePatch;
+    postPatch = bspPostPatch;
+  };
+
+  # Here for convenience, to see what is in upstream Jetpack
+  unpackedDebs = final.runCommand "unpackedDebs-${l4tMajorMinorPatchVersion}" { nativeBuildInputs = [ final.buildPackages.dpkg ]; } ''
+    mkdir -p $out
+    ${concatMapAttrsStringSep "\n" (repo: debs: (concatMapAttrsStringSep "\n" (n: p: "echo Unpacking ${n}; mkdir -p $out/${n}; dpkg --fsys-tarfile ${p.src} | tar -xf - -C $out/${n}") debs)) self.debs}
+  '';
+
+  # Also just for convenience,
+  unpackedDebsFilenames = final.runCommand "unpackedDebsFilenames-${l4tMajorMinorPatchVersion}" { nativeBuildInputs = [ final.buildPackages.dpkg ]; } ''
+    mkdir -p $out
+    ${concatMapAttrsStringSep "\n" (repo: debs: (concatMapAttrsStringSep "\n" (n: p: "echo Extracting file list from ${n}; dpkg --fsys-tarfile ${p.src} | tar --list > $out/${n}") debs)) self.debs}
+  '';
+
+  unpackedGitRepos = final.runCommand "unpackedGitRepos-${l4tMajorMinorPatchVersion}" { } (
+    mapAttrsToList
+      (relpath: repo: ''
+        mkdir -p $out/${relpath}
+        cp --no-preserve=all -r ${repo}/. $out/${relpath}
+      '')
+      self.gitRepos
+  );
+
+  # Nicely, for JetPack 5 and 6, the t194 and t234 packages are currently
+  # identical, so we just use t194. No guarantee that will stay the same in
+  # the future, so we should consider choosing the right package set based
+  # on the SoC.
+  defaultSomDebRepo = if l4tAtLeast "38" then "som" else "t234";
+
+  buildFromDebs = self.callPackage ./pkgs/buildFromDebs.nix { };
+
+  debsForSourcePackage = srcPackageName: filter (pkg: (pkg.source or "") == srcPackageName) (attrValues self.debs.common);
+
+  dlopenOverride = final.callPackage ./pkgs/dlopen-override { };
+
+  inherit (final.callPackages ./pkgs/uefi-firmware/r${l4tMajorVersion} { inherit (self) l4tMajorMinorPatchVersion patchfv; })
+    uefi-firmware jetsonStandaloneMMOptee;
+
+  genEkb = self.callPackage ./pkgs/optee/gen-ekb.nix { };
+
+  flash-tools = self.callPackage ./pkgs/flash-tools { };
+
+  # Allows automation of Orin AGX devkit
+  board-automation = self.callPackage ./pkgs/board-automation { };
+
+  # Allows automation of Xavier AGX devkit
+  python-jetson = final.python3Packages.callPackage ./pkgs/python-jetson { };
+
+  tegra-eeprom-tool = final.callPackage ./pkgs/tegra-eeprom-tool { };
+  tegra-eeprom-tool-static = final.pkgsStatic.callPackage ./pkgs/tegra-eeprom-tool { };
+
+  patchgpt = self.callPackage ./pkgs/patchgpt { };
+  patchfv = self.callPackage ./pkgs/patchfv { };
+  diffblocks = self.callPackage ./pkgs/diffblocks { };
+
+  samples = makeScope self.newScope (finalSamples: {
+    callPackages = callPackagesWith (self // finalSamples);
+    recurseForDerivations = true;
+  } // packagesFromDirectoryRecursive {
+    directory = ./pkgs/samples;
+    inherit (finalSamples) callPackage;
+  });
+
+  tests = final.lib.recurseIntoAttrs (self.callPackages ./pkgs/tests { });
+
+  kernelPackagesOverlay = final: _:
+    if self.l4tAtLeast "36" then {
+      devicetree = final.callPackage ./pkgs/kernels/r${l4tMajorVersion}/devicetree.nix { inherit (self) bspSrc gitRepos l4tMajorMinorPatchVersion; };
+      nvidia-oot-modules = final.callPackage ./pkgs/kernels/r${l4tMajorVersion}/oot-modules.nix { inherit (self) bspSrc gitRepos l4tMajorMinorPatchVersion; };
+    } else {
+      nvidia-display-driver = final.callPackage ./pkgs/kernels/r${l4tMajorVersion}/display-driver.nix { inherit (self) gitRepos l4tMajorMinorPatchVersion; };
+    };
+
+  kernel = self.callPackage ./pkgs/kernels/r${l4tMajorVersion} { kernelPatches = [ ]; };
+  kernelPackages = final.linuxPackagesFor self.kernel;
+
+  rtkernel = self.callPackage ./pkgs/kernels/r${l4tMajorVersion} { kernelPatches = [ ]; realtime = true; };
+  rtkernelPackages = final.linuxPackagesFor self.rtkernel;
+
+  nxJetsonBenchmarks = self.callPackage ./pkgs/jetson-benchmarks {
+    targetSom = "nx";
+  };
+  xavierAgxJetsonBenchmarks = self.callPackage ./pkgs/jetson-benchmarks {
+    targetSom = "xavier-agx";
+  };
+  orinAgxJetsonBenchmarks = self.callPackage ./pkgs/jetson-benchmarks {
+    targetSom = "orin-agx";
+  };
+
+  flashFromDevice = self.callPackage ./pkgs/flash-from-device { };
+
+  otaUtils = self.callPackage ./pkgs/ota-utils { };
+
+  l4tCsv = self.callPackage ./pkgs/containers/l4t-csv.nix { };
+  genL4tJson = self.callPackage ./pkgs/containers/genL4tJson.nix { };
+  containerDeps = self.callPackage ./pkgs/containers/deps.nix { };
+  nvidia-ctk = warnOnInstantiate "nvidia-jetpack.nvidia-ctk has been removed, use pkgs.nvidia-container-toolkit" final.nvidia-container-toolkit;
+
+  # TODO(jared): deprecate this
+  devicePkgsFromNixosConfig = config: config.system.build.jetsonDevicePkgs;
+
+  # Make visible for Hydra
+  recurseForDerivations = true;
+}
+# Add the L4T packages
+# NOTE: Since this is adding packages to the top-level, and callPackage's auto args functionality draws from that
+# attribute set, we cannot use self.callPackages because we would end up with infinite recursion.
+# Instead, we must either use final.callPackages or packagesFromDirectoryRecursive.
+// final.callPackages ./pkgs/l4t {
+  inherit self l4tAtLeast l4tOlder;
+}
+  // final.lib.packagesFromDirectoryRecursive {
+  inherit (self) callPackage;
+  directory = ./pkgs/optee;
+}
+)

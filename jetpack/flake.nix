@@ -1,0 +1,241 @@
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
+
+    cuda-legacy = {
+      url = "github:nixos-cuda/cuda-legacy";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, cuda-legacy, ... }:
+    let
+      inherit (nixpkgs) lib;
+
+      allSystems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = f: nixpkgs.lib.genAttrs allSystems (system: f {
+        pkgs = nixpkgs.legacyPackages.${system};
+        inherit system;
+      });
+
+      installer_minimal_config = {
+        imports = [
+          "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+          self.nixosModules.default
+        ];
+        # Avoids a bunch of extra modules we don't have in the tegra_defconfig, like "ata_piix",
+        hardware.enableAllHardware = lib.mkForce false;
+        # Suppress nix eval warning in 26.05
+        boot.zfs.forceImportRoot = false;
+
+        hardware.nvidia-jetpack.enable = true;
+      };
+      aarch64_config = {
+        nixpkgs = {
+          buildPlatform.system = "aarch64-linux";
+          hostPlatform.system = "aarch64-linux";
+        };
+      };
+      aarch64_cross_config = {
+        nixpkgs = {
+          buildPlatform.system = "x86_64-linux";
+          hostPlatform.system = "aarch64-linux";
+        };
+      };
+      jetpack5_config = {
+        hardware.nvidia-jetpack.majorVersion = "5";
+      };
+      jetpack7_config = {
+        hardware.nvidia-jetpack.majorVersion = "7";
+      };
+
+      supportedConfigurations = lib.filterAttrs
+        # Orin JP7 only supports >=26.05
+        (_: { som, majorVersion ? "", ... }: (lib.hasPrefix "orin" som && majorVersion == "7") -> lib.versionAtLeast lib.trivial.release "26.05")
+        (lib.listToAttrs (map
+          (c: {
+            name = c.som + lib.optionalString (c.super or false) "-super" + "-${c.carrierBoard}" + lib.optionalString (c ? majorVersion) "-jp${c.majorVersion}";
+            value = c;
+          }) [
+          { som = "orin-agx"; carrierBoard = "devkit"; }
+          { som = "orin-agx"; carrierBoard = "devkit"; majorVersion = "5"; }
+          { som = "orin-agx"; carrierBoard = "devkit"; majorVersion = "7"; }
+          { som = "orin-agx"; carrierBoard = "devkit"; super = true; majorVersion = "7"; }
+          { som = "orin-agx-industrial"; carrierBoard = "devkit"; majorVersion = "5"; }
+          { som = "orin-agx-industrial"; carrierBoard = "devkit"; }
+          { som = "orin-agx-industrial"; carrierBoard = "devkit"; majorVersion = "7"; }
+          { som = "orin-nx"; carrierBoard = "devkit"; }
+          { som = "orin-nx"; carrierBoard = "devkit"; majorVersion = "5"; }
+          { som = "orin-nx"; carrierBoard = "devkit"; majorVersion = "7"; }
+          { som = "orin-nx"; carrierBoard = "devkit"; super = true; }
+          { som = "orin-nx"; carrierBoard = "devkit"; super = true; majorVersion = "5"; }
+          { som = "orin-nx"; carrierBoard = "devkit"; super = true; majorVersion = "7"; }
+          { som = "orin-nx"; carrierBoard = "xavierNxDevkit"; }
+          { som = "orin-nx"; carrierBoard = "xavierNxDevkit"; majorVersion = "5"; }
+          { som = "orin-nano"; carrierBoard = "devkit"; }
+          { som = "orin-nano"; carrierBoard = "devkit"; majorVersion = "5"; }
+          { som = "orin-nano"; carrierBoard = "devkit"; majorVersion = "7"; }
+          { som = "orin-nano"; carrierBoard = "devkit"; super = true; }
+          { som = "orin-nano"; carrierBoard = "devkit"; super = true; majorVersion = "5"; }
+          { som = "orin-nano"; carrierBoard = "devkit"; super = true; majorVersion = "7"; }
+          { som = "thor-agx"; carrierBoard = "devkit"; }
+          { som = "thor-agx-t4000"; carrierBoard = "devkit"; }
+          { som = "xavier-agx"; carrierBoard = "devkit"; }
+          { som = "xavier-agx-industrial"; carrierBoard = "devkit"; } # TODO: Entirely untested
+          { som = "xavier-nx"; carrierBoard = "devkit"; }
+          { som = "xavier-nx-emmc"; carrierBoard = "devkit"; }
+        ]));
+
+      commonModules = [
+        self.nixosModules.default
+        ({ lib, ... }: {
+          nixpkgs.config.allowUnfree = true;
+          hardware.graphics.enable = true;
+          # Prevents a warning from being emitted, providing a nicer UX for
+          # users, plus we don't care to actually have this fixed here.
+          system.stateVersion = lib.trivial.release;
+          # Just set these options to make the toplevel system evaluate without assertion errors
+          fileSystems."/".fsType = "tmpfs";
+          boot.loader.grub.enable = false;
+          boot.loader.systemd-boot.enable = false;
+          boot.zfs.forceImportRoot = false;
+        })
+      ];
+
+      supportedNixOSConfigurations = lib.mapAttrs
+        (name: cfg: (nixpkgs.lib.nixosSystem {
+          modules = commonModules ++ [
+            aarch64_config
+            {
+              hardware.nvidia-jetpack = { enable = true; } // cfg;
+            }
+          ];
+        }))
+        supportedConfigurations;
+
+      supportedNixOSCrossConfigurations = lib.mapAttrs
+        (name: cfg: (nixpkgs.lib.nixosSystem {
+          modules = commonModules ++ [
+            aarch64_cross_config
+            {
+              hardware.nvidia-jetpack = {
+                enable = true;
+                # Cross-compilation isn't currently supported for cuda packages upstream, and causes an huge evaluation slowdown.
+                configureCuda = false;
+              } // cfg;
+            }
+          ];
+        }))
+        supportedConfigurations;
+    in
+    {
+      nixosConfigurations = {
+        installer_minimal = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_config installer_minimal_config ];
+        };
+        installer_minimal_cross = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_cross_config installer_minimal_config ];
+        };
+        installer_minimal_jp5 = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_config installer_minimal_config jetpack5_config ];
+        };
+        installer_minimal_cross_jp5 = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_cross_config installer_minimal_config jetpack5_config ];
+        };
+        installer_minimal_jp7 = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_config installer_minimal_config jetpack7_config ];
+        };
+        installer_minimal_cross_jp7 = nixpkgs.lib.nixosSystem {
+          modules = [ aarch64_cross_config installer_minimal_config jetpack7_config ];
+        };
+      }
+      // supportedNixOSConfigurations;
+
+      nixosModules.default = import ./modules/default.nix self.overlays.default;
+
+      overlays.default = final: prev:
+        # We've already applied our overlay and should not apply it again.
+        # TODO(@connorbaker): Create a general "named overlay" mechanism which provides visibility into which overlays
+        # were applied and the order in which they were applied.
+        if prev."jetpack-nixos-overlay-applied-${self.narHash}" or false then
+          { }
+        else
+          nixpkgs.lib.composeManyExtensions [
+            # We apply cuda-legacy here ourselves instead of making users do this becauase
+            # it is unlikely that users directly care about cuda-legacy as it's something
+            # jetpack-nixos has traditionally supplied.
+            # We apply cuda-legacy first because Connor says so.
+            cuda-legacy.overlays.default
+            (import ./overlay.nix)
+            (_: _: { "jetpack-nixos-overlay-applied-${self.narHash}" = true; })
+          ]
+            final
+            prev;
+
+      packages = {
+        x86_64-linux =
+          let
+            flashScripts = lib.mapAttrs' (n: c: lib.nameValuePair "flash-${n}" c.config.system.build.flashScript) supportedNixOSCrossConfigurations;
+          in
+          {
+            iso_minimal = self.nixosConfigurations.installer_minimal_cross.config.system.build.isoImage;
+            iso_minimal_jp5 = self.nixosConfigurations.installer_minimal_cross_jp5.config.system.build.isoImage;
+            iso_minimal_jp7 = self.nixosConfigurations.installer_minimal_cross_jp7.config.system.build.isoImage;
+
+            inherit (self.legacyPackages.x86_64-linux)
+              board-automation python-jetson;
+            inherit (self.legacyPackages.x86_64-linux.cudaPackages)
+              nsight_systems_host nsight_compute_host;
+          }
+          # Flashing and board automation scripts _only_ work on x86_64-linux
+          // flashScripts;
+
+        aarch64-linux = {
+          iso_minimal = self.nixosConfigurations.installer_minimal.config.system.build.isoImage;
+          iso_minimal_jp5 = self.nixosConfigurations.installer_minimal_jp5.config.system.build.isoImage;
+          iso_minimal_jp7 = self.nixosConfigurations.installer_minimal_jp7.config.system.build.isoImage;
+        };
+      };
+
+      checks = forAllSystems ({ pkgs, system, ... }: {
+        formatting = pkgs.stdenv.mkDerivation {
+          name = "repo-formatting";
+          src = self;
+          buildPhase = ''
+            ${lib.getExe self.formatter.${system}} --fail-on-change --no-cache && touch $out
+          '';
+        };
+        dlopenOverride = pkgs.runCommand "dlopen-override-test" { } ''
+          ${lib.getExe self.legacyPackages.${system}.tests.dlopen-override} && touch $out
+        '';
+      });
+
+      formatter = forAllSystems ({ pkgs, ... }: import ./treefmt.nix pkgs);
+
+      legacyPackages = forAllSystems ({ system, ... }:
+        let
+          pkgs =
+            (import nixpkgs {
+              inherit system;
+              config = {
+                allowUnfree = true;
+                cudaCapabilities = if system == "aarch64-linux" then [ "7.2" "8.7" ] else [ ];
+                cudaSupport = true;
+              };
+              overlays = [ self.overlays.default ];
+            });
+        in
+        pkgs.nvidia-jetpack // {
+          # For JetPack 5, both Xavier and Orin are supported.
+          inherit (pkgs) nvidia-jetpack5;
+          # For JetPack 6, only Orin is supported.
+          inherit (pkgs.pkgsForCudaArch.sm_87) nvidia-jetpack6;
+          # For JetPack 7[^1], only Thor is supported.[^2]
+          # [^1] As of this writing
+          # [^2] Thor being sm_110, not sm_101, as it is referred to in CUDA 12.7[^3]-12.9.
+          # [^3] CUDA 12.7 was never released but is regularly referred to in NVIDIA's documentation.
+          inherit (pkgs.pkgsForCudaArch.sm_110) nvidia-jetpack7;
+        }
+      );
+    };
+}

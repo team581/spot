@@ -8,7 +8,7 @@
       flake = false;
     };
     jetpack = {
-      url = "github:anduril/jetpack-nixos";
+      url = "path:./jetpack";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     pyproject-nix = {

@@ -1,0 +1,600 @@
+{ config, pkgs, lib, ... }:
+
+# Convenience package that allows you to set options for the flash script using the NixOS module system.
+# You could do the overrides yourself if you'd prefer.
+let
+  inherit (lib)
+    mkEnableOption
+    mkOption
+    types;
+
+  cfg = config.hardware.nvidia-jetpack;
+in
+{
+  imports = with lib; [
+    (mkRenamedOptionModule [ "hardware" "nvidia-jetpack" "bootloader" "logo" ] [ "hardware" "nvidia-jetpack" "firmware" "uefi" "logo" ])
+    (mkRenamedOptionModule [ "hardware" "nvidia-jetpack" "bootloader" "debugMode" ] [ "hardware" "nvidia-jetpack" "firmware" "uefi" "debugMode" ])
+    (mkRenamedOptionModule [ "hardware" "nvidia-jetpack" "bootloader" "errorLevelInfo" ] [ "hardware" "nvidia-jetpack" "firmware" "uefi" "errorLevelInfo" ])
+    (mkRenamedOptionModule [ "hardware" "nvidia-jetpack" "bootloader" "edk2NvidiaPatches" ] [ "hardware" "nvidia-jetpack" "firmware" "uefi" "edk2NvidiaPatches" ])
+    (mkRenamedOptionModule [ "hardware" "nvidia-jetpack" "firmware" "bootOrder" ] [ "hardware" "nvidia-jetpack" "firmware" "initialBootOrder" ])
+  ];
+
+  options = {
+    hardware.nvidia-jetpack = {
+      firmware = {
+        initialBootOrder = mkOption {
+          # https://github.com/NVIDIA/edk2-nvidia/blob/71fc2f6de48f3e9f01214b4e9464dd03620b876b/Silicon/NVIDIA/Library/PlatformBootOrderLib/PlatformBootOrderLib.c#L26
+          type = types.nullOr (types.listOf (types.enum [ "scsi" "usb" "sata" "pxev4" "httpv4" "pxev6" "httpv6" "nvme" "ufs" "sd" "emmc" "cdrom" "boot.img" "virtual" "shell" ]));
+          default = null;
+          description = "The default/initial boot order used after a fresh flash of firmware";
+        };
+
+        uefi = {
+          logo = mkOption {
+            type = types.nullOr types.path;
+            # This NixOS default logo is made available under a CC-BY license. See the repo for details.
+            default = pkgs.fetchurl {
+              url = "https://raw.githubusercontent.com/NixOS/nixos-artwork/e7d4050f2bb39a8c73a31a89e3d55f55536541c3/logo/nixos.svg";
+              sha256 = "sha256-E+qpO9SSN44xG5qMEZxBAvO/COPygmn8r50HhgCRDSw=";
+            };
+            description = "Optional path to a boot logo that will be converted and cropped into the format required";
+          };
+
+          debugMode = mkOption {
+            type = types.bool;
+            default = false;
+          };
+
+          errorLevelInfo = mkOption {
+            type = types.bool;
+            default = cfg.firmware.uefi.debugMode;
+          };
+
+          printErrorLevel = mkOption {
+            type = types.nullOr (types.strMatching "^(0[xX])?[0-9a-fA-F]+$");
+            default = if cfg.firmware.uefi.errorLevelInfo then "0x8000004F" else null;
+            defaultText = "if config.hardware.nvidia-jetpack.firmware.uefi.errorLevelInfo then \"0x8000004F\" else null";
+            description = ''
+              Bitmask for PcdDebugPrintErrorLevel. See https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Library/DebugLib.h#L36 for bitfield members.
+            '';
+          };
+
+          edk2NvidiaPatches = mkOption {
+            type = types.listOf types.path;
+            description = ''
+              Patches that will be applied to the edk2-nvidia repo
+            '';
+            default = [ ];
+          };
+
+          edk2UefiPatches = mkOption {
+            type = types.listOf types.path;
+            description = ''
+              Patches that will be applied to the nvidia edk2 repo which is nvidia's fork of the upstream edk2 repo
+            '';
+            default = [ ];
+          };
+
+          edk2ExtraPackages = mkOption {
+            type = types.listOf types.package;
+            description = ''
+              Extra edk2 package trees for the UEFI build. Each derivation is
+              unpacked under its name and prepended to PACKAGES_PATH. Requires L4T r36 or newer.
+            '';
+            default = [ ];
+          };
+
+          standaloneMMExtraPackages = mkOption {
+            type = types.listOf types.package;
+            description = ''
+              Extra edk2 package trees for the UEFI build but for StandaloneMM. Each derivation is
+              unpacked under its name and prepended to PACKAGES_PATH. Requires L4T r36 or newer.
+            '';
+            default = [ ];
+          };
+
+          secureBoot = {
+            enrollDefaultKeys = lib.mkEnableOption "enroll default UEFI keys";
+            defaultPkEslFile = mkOption {
+              type = lib.types.path;
+              description = ''
+                The path to the UEFI PK EFI Signature List (ESL).
+              '';
+            };
+            defaultKekEslFile = mkOption {
+              type = lib.types.path;
+              description = ''
+                The path to the UEFI KEK Signature List (ESL).
+              '';
+            };
+            defaultDbEslFile = mkOption {
+              type = lib.types.path;
+              description = ''
+                The path to the UEFI DB Signature List (ESL).
+              '';
+            };
+
+            signer.cert = mkOption {
+              type = lib.types.path;
+              description = ''
+                x509 certificate used for signing.
+                https://uefi.org/specs/UEFI/2.10/08_Services_Runtime_Services.html#using-the-efi-variable-authentication-descriptor
+              '';
+            };
+            signer.key = mkOption {
+              type = types.oneOf [ types.path types.str ];
+              description = ''
+                RSA Private key in PEM format used for signing.
+                This is currently only used for RCM payload verification used in initrd flash script.
+                Besides this specific option, UEFI secure boot behaves as it normally would for any other NixOS system.
+                Do _not_ include a signing key in the Nix store. How to do this
+                is left as an exercise to the reader.
+                https://uefi.org/specs/UEFI/2.10/08_Services_Runtime_Services.html#using-the-efi-variable-authentication-descriptor
+              '';
+            };
+          };
+
+          lowestSupportedVersion = mkOption {
+            type = types.nullOr (types.strMatching "^[0-9]+\\.[0-9]+\\.[0-9]+$");
+            default = null;
+            example = "35.5.0";
+            description = ''
+              L4T version used as the UEFI FMP lowest supported version, both
+              when flashing and in capsule updates built from this
+              configuration. The firmware refuses capsule updates below it.
+              `null` keeps the BSP default, the flashed L4T version.
+
+              A capsule update built without this option sets the floor to its
+              own version. The floor only ratchets upwards after that.
+
+              Note, a downgrade may not boot. A capsule downgrade persists the
+              UEFI variable store and QSPI state. Older firmware may fail
+              integrity checks on it. In these cases, a hard reflash is
+              required to downgrade safely.
+            '';
+          };
+
+          capsuleAuthentication = {
+            enable = mkEnableOption "capsule update authentication";
+
+            trustedPublicCertPemFile = mkOption {
+              type = lib.types.path;
+              description = ''
+                The path to the public certificate (in DER format) that will be
+                used for validating capsule updates. Capsule files must be signed
+                with a private key in the same certificate chain. This file will
+                be included in the EDK2 build.
+              '';
+            };
+
+            otherPublicCertPemFile = mkOption {
+              type = lib.types.path;
+              description = ''
+                The path to another public certificate (in PEM format) that will
+                be used when signing capsule payloads. This can be the same as
+                `trustedPublicCertPem`, but it can also be an intermediate
+                certificate further down in the chain of your PKI.
+              '';
+            };
+
+            signerPrivateCertPemFile = mkOption {
+              type = types.oneOf [ types.path types.str ];
+              description = ''
+                The path to the private certificate (in PEM format) that will be
+                used for signing capsule payloads.
+              '';
+            };
+
+            requiredSystemFeatures = lib.mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = ''
+                Additional `requiredSystemFeatures` to add to derivations which
+                make use of capsule authentication private keys.
+              '';
+            };
+
+            preSignCommands = lib.mkOption {
+              type = types.oneOf [ (types.functionTo types.lines) types.lines ];
+              apply = val: if lib.isFunction val then val else _: val;
+              default = "";
+              description = ''
+                Additional commands to run before performing operation that
+                involve signing. Can be used to set up environment to interact
+                with an external HSM.
+
+                Since preSignCommands is used in different contexts where the
+                package-set in use may differ (mostly in order to satisfy
+                building NVIDIA's flash scripts for x86_64-linux), you should
+                define this option to be a function that accepts the `pkgs`
+                package-set if you need to access something from it.
+              '';
+            };
+          };
+        };
+
+        eksFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+        };
+
+        # See: https://docs.nvidia.com/jetson/archives/r35.4.1/DeveloperGuide/text/SD/Security/SecureBoot.html#prepare-an-sbk-key
+        secureBoot = {
+          pkcFile = mkOption {
+            type = types.nullOr (types.oneOf [ types.path types.str ]);
+            default = null;
+            description = "Path to Public Key Cryptography (PKC) .pem file used to validate authenticity and integrity of firmware partitions. Do not include this file in your /nix/store. Instead, use a sandbox exception to provide access to the key";
+            example = "/run/keys/jetson/xavier_pkc.pem";
+          };
+
+          sbkFile = mkOption {
+            type = types.nullOr (types.oneOf [ types.path types.str ]);
+            default = null;
+            description = "Path to Secure Boot Key (SBK) file used to encrypt firmware partitions. Do not include this file in your /nix/store.  Instead, use a sandbox exception to provide access to the key";
+            example = "/run/keys/jetson/xavier_skb.key";
+          };
+
+          requiredSystemFeatures = lib.mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+            description = "Additional requiredSystemFeatures to add to derivations which make use of secure boot keys";
+          };
+
+          preSignCommands = lib.mkOption {
+            type = types.oneOf [ (types.functionTo types.lines) types.lines ];
+            apply = val: if lib.isFunction val then val else _: val;
+            default = "";
+            description = ''
+              Additional commands to run before performing operation that
+              involve signing. Can be used to set up environment to interact
+              with an external HSM.
+
+              Since preSignCommands is used in different contexts where the
+              package-set in use may differ (mostly in order to satisfy
+              building NVIDIA's flash scripts for x86_64-linux), you should
+              define this option to be a function that accepts the `pkgs`
+              package-set if you need to access something from it.
+            '';
+          };
+        };
+
+        fskp = {
+          enable = lib.mkEnableOption "Enable Factory Secure Key Provisioning Support";
+
+          fuseBlob = mkOption {
+            type = types.attrTag {
+              insecureClearText = mkEnableOption ''
+                DO NOT USE in an untrusted factory. Fuse blob is not encrypted. Useful for dev/test.
+              '';
+              encrypted = mkOption {
+                type = types.submodule {
+                  options = {
+                    fskpKey = mkOption {
+                      type = types.nullOr types.path;
+                      description = ''
+                        Sandbox exception path to the decrypted per-OEM fuse-blob-wrapping key from
+                        NVIDIA.
+                      '';
+                    };
+                    selector = mkOption {
+                      type = types.str;
+                      description = "Context selector string from NVIDIA's fskp_select.txt.";
+                    };
+                  };
+                };
+              };
+            };
+          };
+
+          fuseArgs = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+            description = ''
+              Extra arguments appended to the `fskp_fuseburn.py` invocation in fskpFuseScript.
+            '';
+          };
+
+          boardSpecFile = mkOption {
+            type = types.oneOf [ lib.types.path types.str ];
+            default = (
+              if cfg.som == "orin-nano" then
+                "orinnano-board-spec.txt"
+              else if cfg.som == "orin-nx" then
+                "orinnx-board-spec.txt"
+              else
+                "${cfg.som}-board-spec.txt"
+            );
+            description = ''
+              Path to the board-spec.txt file passed to `fskp_fuseburn.py` via `--board-spec`.
+              Defaults can be found in the bsp repo at `tools/flashtools/fuseburn/*-board-spec.txt`.
+            '';
+          };
+
+          boardConfigFilename = mkOption {
+            internal = true;
+            type = types.str;
+            default = "${cfg.flashScriptOverrides.configFileName}.conf";
+            description = ''
+              Basename of the top-level board .conf file at the flash-tools (bsp) root, passed to
+              `fskp_fuseburn.py` via `-B` (e.g. "jetson-agx-thor-devkit.conf"). These conf files are
+              internally coupled to the bsp repo struture so it cannot be a `types.path`.
+            '';
+          };
+        };
+
+        # Firmware variants. For most normal usage, you shouldn't need to set this option
+        variants = lib.mkOption {
+          internal = true;
+          type = types.listOf (types.submodule ({ config, name, ... }: {
+            options = {
+              boardid = lib.mkOption {
+                type = types.str;
+              };
+              boardsku = lib.mkOption {
+                type = types.str;
+              };
+              chipsku = lib.mkOption {
+                type = types.nullOr types.str;
+                default = null;
+              };
+              fab = lib.mkOption {
+                type = types.str;
+              };
+              boardrev = lib.mkOption {
+                type = types.str;
+                default = "";
+              };
+              fuselevel = lib.mkOption {
+                type = types.str; # TODO: Enum?
+                default = "fuselevel_production";
+              };
+              chiprev = lib.mkOption {
+                type = types.str;
+                default = "";
+              };
+              ramcode = lib.mkOption {
+                type = types.nullOr types.str;
+                default = null;
+              };
+            };
+          }));
+        };
+      };
+
+      flashScriptOverrides = {
+        targetBoard = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "Target board to use when flashing (should match .conf in BSP package)";
+        };
+
+        configFileName = mkOption {
+          type = types.str;
+          default = cfg.flashScriptOverrides.targetBoard;
+          description = "Name of configuration file to use when flashing (excluding .conf suffix).  Defaults to targetBoard";
+        };
+
+        flashArgs = mkOption {
+          type = types.listOf types.str;
+          description = "Arguments to apply to flashing script";
+        };
+
+        fuseArgs = mkOption {
+          type = types.listOf types.str;
+          description = "Arguments to apply to fusing script. DO NOT INCLUDE private files in fuseArgs (such as the odmfuse.xml file). Instead provide them at runtime on the command line";
+        };
+
+        partitionTemplate = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ".xml file describing partition template to use when flashing";
+        };
+
+        patches = mkOption {
+          type = types.listOf types.path;
+          default = [ ];
+          description = "Patches to apply to the flash-tools";
+        };
+
+        postPatch = mkOption {
+          type = types.lines;
+          default = "";
+          description = "Additional commands to run when building flash-tools";
+        };
+
+        additionalDtbOverlays = mkOption {
+          type = types.listOf types.path;
+          default = [ ];
+          description = "A list of paths to compiled .dtbo files to include with the UEFI image while flashing. These overlays are applied by UEFI at runtime";
+        };
+
+        preFlashCommands = mkOption {
+          type = types.lines;
+          default = "";
+          description = "Additional commands to be added to the flash script while it is being constructed.";
+        };
+
+        postFlashCommands = mkOption {
+          type = types.lines;
+          default = "";
+          description = "Additional commands to be added to the flash script while it is being constructed.";
+        };
+
+        additionalInitrdFlashModules = mkOption {
+          type = types.listOf types.str;
+          default = config.boot.initrd.availableKernelModules;
+          defaultText = lib.literalExpression "config.boot.initrd.availableKernelModules";
+          description = "Additional kernel modules to be loaded during the initrd flashing method.";
+        };
+
+        additionalInitrdFlashNixosModules = mkOption {
+          type = types.deferredModule;
+          default = { };
+          description = ''
+            Additional NixOS configuration imported into the initrd flashing environment.
+            Definitions from multiple modules are combined and can customize initrd services and other NixOS settings.
+          '';
+        };
+
+        initrdFlashSerialEnumerateTimeoutSeconds = mkOption {
+          type = types.ints.positive;
+          default = 240;
+          description = ''
+            Host-side timeout, in seconds, for the USB serial device of the
+            booted initrd to appear at `/dev/serial/by-id/...`. The default
+            of 240 seconds (4 minutes) matches historical behavior. Raise
+            this when device-side firmware-flash legitimately takes longer
+            than 4 minutes (for example, slow QSPI parts that prevent the
+            gadget serial from re-enumerating quickly).
+          '';
+        };
+
+        initrdFlashCompletionTimeoutSeconds = mkOption {
+          type = types.ints.positive;
+          default = 900;
+          description = ''
+            Host-side timeout, in seconds, used by the `expect` watcher to
+            wait for `Flashing platform firmware successful` (or the
+            unsuccessful counterpart) on the device's serial console. The
+            default of 900 seconds (15 minutes) matches historical behavior.
+          '';
+        };
+      };
+
+      flashScript = mkOption {
+        type = types.package;
+        readOnly = true;
+        internal = true;
+        description = "Script to flash the xavier device";
+      };
+
+      devicePkgs = mkOption {
+        type = types.attrsOf types.anything;
+        readOnly = true;
+        internal = true;
+        description = "Flashing packages associated with this NixOS configuration";
+      };
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    hardware.nvidia-jetpack.flashScript = lib.warn "hardware.nvidia-jetpack.flashScript is deprecated, use config.system.build.flashScript" config.system.build.flashScript;
+    hardware.nvidia-jetpack.devicePkgs = (lib.mapAttrs (_: lib.warn "hardware.nvidia-jetpack.devicePkgs is deprecated, use pkgs.nvidia-jetpack") pkgs.nvidia-jetpack);
+
+    system.build = lib.mkMerge [
+      {
+        jetsonDevicePkgs = (lib.mapAttrs (_: lib.warn "system.build.jetsonDevicePkgs is deprecated, use pkgs.nvidia-jetpack") pkgs.nvidia-jetpack);
+
+        # Left here for compatibility
+        inherit (pkgs.nvidia-jetpack) uefiCapsuleUpdate flashScript initrdFlashScript legacyFlashScript fuseScript signedFirmware;
+
+      }
+      (lib.optionalAttrs cfg.firmware.fskp.enable { inherit (pkgs.nvidia-jetpack) fskpFuseScript; })
+    ];
+
+    hardware.nvidia-jetpack.flashScriptOverrides.flashArgs = lib.mkAfter (
+      lib.optional (cfg.firmware.secureBoot.pkcFile != null) "-u ${lib.escapeShellArg "${cfg.firmware.secureBoot.pkcFile}"}" ++
+      lib.optional (cfg.firmware.secureBoot.sbkFile != null) "-v ${lib.escapeShellArg "${cfg.firmware.secureBoot.sbkFile}"}" ++
+      [ cfg.flashScriptOverrides.configFileName "mmcblk0p1" ]
+    );
+
+    hardware.nvidia-jetpack.flashScriptOverrides.additionalDtbOverlays =
+      let
+        bootOrder = pkgs.runCommand "DefaultBootOrder.dtbo" { nativeBuildInputs = with pkgs.buildPackages; [ dtc ]; } ''
+          export bootOrder=${lib.concatStringsSep "," cfg.firmware.initialBootOrder}
+          substituteAll ${./uefi-boot-order.dts} keys.dts
+          dtc -I dts -O dtb keys.dts -o $out
+        '';
+        uefiDefaultKeysDtbo = pkgs.runCommand "UefiDefaultSecurityKeys.dtbo" { nativeBuildInputs = with pkgs.buildPackages; [ dtc ]; } ''
+          export pkDefault=$(od -t x1 -An "${cfg.firmware.uefi.secureBoot.defaultPkEslFile}")
+          export kekDefault=$(od -t x1 -An "${cfg.firmware.uefi.secureBoot.defaultKekEslFile}")
+          export dbDefault=$(od -t x1 -An "${cfg.firmware.uefi.secureBoot.defaultDbEslFile}")
+          substituteAll ${./uefi-default-keys.dts} keys.dts
+          dtc -I dts -O dtb keys.dts -o $out
+        '';
+      in
+      (lib.optional (cfg.firmware.initialBootOrder != null) bootOrder) ++
+      (lib.optional cfg.firmware.uefi.secureBoot.enrollDefaultKeys uefiDefaultKeysDtbo);
+
+    hardware.nvidia-jetpack.flashScriptOverrides.fuseArgs = lib.mkAfter [ cfg.flashScriptOverrides.configFileName ];
+
+    assertions = [
+      {
+        assertion = !cfg.firmware.fskp.enable || (lib.versionAtLeast cfg.majorVersion "7");
+        message = "FSKP support currently limited to Jetpack 7+ boards";
+      }
+      {
+        assertion = cfg.firmware.uefi.lowestSupportedVersion != null -> !(lib.versionOlder pkgs.nvidia-jetpack.l4tMajorMinorPatchVersion cfg.firmware.uefi.lowestSupportedVersion);
+        message = "hardware.nvidia-jetpack.firmware.uefi.lowestSupportedVersion (${toString cfg.firmware.uefi.lowestSupportedVersion}) must not exceed the flashed L4T version (${pkgs.nvidia-jetpack.l4tMajorMinorPatchVersion}).";
+      }
+      {
+        assertion = cfg.firmware.uefi.edk2ExtraPackages != [ ] -> pkgs.nvidia-jetpack.l4tAtLeast "36";
+        message = "hardware.nvidia-jetpack.firmware.uefi.edk2ExtraPackages requires L4T r36 or newer; the r35 UEFI firmware builder does not accept extra package trees.";
+      }
+    ];
+
+    # On jetpack 7, fskpFuseScript is the supported method for fusing so enable it by default.
+    hardware.nvidia-jetpack.firmware.fskp.enable = lib.mkDefault (lib.versionAtLeast cfg.majorVersion "7");
+
+    # These are from l4t_generate_soc_bup.sh, plus some additional ones found in the wild.
+    hardware.nvidia-jetpack.firmware.variants =
+      if (cfg.som != "generic") then
+        (lib.mkOptionDefault (
+          {
+            xavier-agx = [
+              { boardid = "2888"; boardsku = "0001"; fab = "400"; boardrev = "D.0"; fuselevel = "fuselevel_production"; chiprev = "2"; }
+              { boardid = "2888"; boardsku = "0001"; fab = "400"; boardrev = "E.0"; fuselevel = "fuselevel_production"; chiprev = "2"; } # 16GB
+              { boardid = "2888"; boardsku = "0004"; fab = "400"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; } # 32GB
+              { boardid = "2888"; boardsku = "0005"; fab = "402"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; } # 64GB
+            ];
+            xavier-agx-industrial = [
+              { boardid = "2888"; boardsku = "0008"; fab = "600"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; ramcode = "1"; }
+            ];
+            xavier-nx = [
+              # Dev variant
+              { boardid = "3668"; boardsku = "0000"; fab = "100"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; }
+              { boardid = "3668"; boardsku = "0000"; fab = "301"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; }
+            ];
+            xavier-nx-emmc = [
+              # Prod variant
+              { boardid = "3668"; boardsku = "0001"; fab = "100"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; }
+              { boardid = "3668"; boardsku = "0003"; fab = "301"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = "2"; }
+            ];
+
+            thor-agx = [
+              { boardid = "3834"; boardsku = "0008"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:A0"; } # Thor AGX Devkit
+              { boardid = "3834"; boardsku = "0008"; fab = "401"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:A0"; }
+            ];
+
+            thor-agx-t4000 = [
+              { boardid = "3834"; boardsku = "0000"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:E2"; }
+            ];
+
+            orin-agx = [
+              { boardid = "3701"; boardsku = "0000"; fab = "300"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D0"; }
+              { boardid = "3701"; boardsku = "0004"; fab = "300"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D2"; } # 32GB
+              { boardid = "3701"; boardsku = "0005"; fab = "300"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D0"; } # 64GB
+            ];
+
+            orin-agx-industrial = [
+              # jetson_board_spec.cfg says this is FAB 300, but the devices
+              # encountered in the wild, and NVIDIA has said FAB 500 should be
+              # right
+              # See: https://forums.developer.nvidia.com/t/jetson-agx-orin-board-id-sku-fab/278977/13
+              { boardid = "3701"; boardsku = "0008"; fab = "500"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:90"; ramcode = "4"; }
+            ];
+
+            orin-nx = [
+              { boardid = "3767"; boardsku = "0000"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D3"; } # Orin NX 16GB
+              { boardid = "3767"; boardsku = "0001"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D4"; } # Orin NX 8GB
+            ];
+
+            orin-nano = [
+              { boardid = "3767"; boardsku = "0003"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D5"; } # Orin Nano 8GB
+              { boardid = "3767"; boardsku = "0004"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D6"; } # Orin Nano 4GB
+              { boardid = "3767"; boardsku = "0005"; fab = "000"; boardrev = ""; fuselevel = "fuselevel_production"; chiprev = ""; chipsku = "00:00:00:D5"; } # legacy Orin Nano devkit module
+            ];
+          }.${cfg.som}
+        )) else lib.mkOptionDefault [ ];
+  };
+}

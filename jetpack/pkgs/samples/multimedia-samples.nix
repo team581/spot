@@ -1,0 +1,112 @@
+{ autoAddDriverRunpath
+, autoPatchelfHook
+, cairo
+, cudaPackages
+, debs
+, dpkg
+, fetchurl
+, l4t-camera
+, l4t-cuda
+, l4t-multimedia
+, l4tMajorMinorPatchVersion
+, lib
+, libdrm
+, libglvnd
+, opencv
+, pango
+, python3
+, vulkan-headers
+, vulkan-loader
+, xorg
+}:
+# https://docs.nvidia.com/jetson/l4t-multimedia/group__l4t__mm__test__group.html
+let
+  inherit (cudaPackages)
+    backendStdenv
+    cuda_nvcc
+    cudatoolkit
+    tensorrt
+    ;
+  inherit (xorg) libX11;
+in
+backendStdenv.mkDerivation {
+  __structuredAttrs = true;
+  strictDeps = true;
+
+  pname = "multimedia-samples";
+  inherit (debs.common.nvidia-l4t-jetson-multimedia-api) src version;
+
+  unpackCmd = "dpkg -x $src source";
+  sourceRoot = "source/usr/src/jetson_multimedia_api";
+
+  nativeBuildInputs = [ autoAddDriverRunpath autoPatchelfHook cuda_nvcc dpkg python3 ];
+  buildInputs = [
+    cairo
+    cudatoolkit
+    l4t-camera
+    l4t-cuda
+    l4t-multimedia
+    libdrm
+    libglvnd
+    libX11
+    opencv
+    pango
+    tensorrt
+    vulkan-headers
+    vulkan-loader
+  ];
+
+  # Usually provided by pkg-config, but the samples don't use it.
+  env.NIX_CFLAGS_COMPILE = builtins.toString [
+    "-I${lib.getDev libdrm}/include/libdrm"
+    "-I${lib.getDev opencv}/include/opencv4"
+  ];
+
+  # TODO: Unify this with headers in l4t-jetson-multimedia-api
+  patches =
+    (lib.getAttr (lib.versions.major l4tMajorMinorPatchVersion) {
+      "35" = [
+        (fetchurl {
+          url = "https://raw.githubusercontent.com/OE4T/meta-tegra/af0a93313c13e9eac4e80082d8a8e8ac5f7ad6e8/recipes-multimedia/argus/files/0005-Remove-DO-NOT-USE-declarations-from-v4l2_nv_extensio.patch";
+          sha256 = "sha256-IJ1teGEUxYDEPYSvYZbqdmUYg9tOORN7WGYpDaUUnHY=";
+        })
+      ];
+      "36" = [
+        (fetchurl {
+          url = "https://raw.githubusercontent.com/OE4T/meta-tegra/2b51abd5b3e2436f8eeb98e8f985806521379174/recipes-multimedia/argus/files/0001-Remove-DO-NOT-USE-declarations-from-v4l2_nv_extensio.patch";
+          sha256 = "sha256-J9Hhm7oOptUR39KMbxZB1+esAlKWTyyKk1Ep3ZlJ488=";
+        })
+      ];
+      "39" = [
+        (fetchurl {
+          url = "https://raw.githubusercontent.com/OE4T/meta-tegra/ea58f517a12268d2aada40f5e936d9ab8955bbbc/recipes-multimedia/argus/files/0001-Remove-DO-NOT-USE-declarations-from-v4l2_nv_extensio.patch";
+          sha256 = "sha256-NBlgkl35jvXhjAm6Pexz+/tt4hc+1N5VyLCDIGP80rk=";
+        })
+      ];
+    })
+    ++ [
+      (fetchurl {
+        url = "https://raw.githubusercontent.com/OE4T/meta-tegra/4f825ddeb2e9a1b5fbff623955123c20b82c8274/recipes-multimedia/argus/tegra-mmapi-samples/0004-samples-classes-fix-a-data-race-in-shutting-down-deq.patch";
+        sha256 = "sha256-mkS2eKuDvXDhHkIglUGcYbEWGxCP5gRSdmEvuVw/chI=";
+      })
+    ];
+
+  postPatch = ''
+    substituteInPlace samples/Rules.mk \
+      --replace-fail /usr/local/cuda "${cudatoolkit}"
+
+    substituteInPlace samples/08_video_dec_drm/Makefile \
+      --replace-fail /usr/bin/python "${python3}/bin/python"
+  '';
+
+  installPhase = ''
+    runHook preInstall
+
+    install -Dm 755 -t $out/bin $(find samples -type f -perm 755)
+    rm -f $out/bin/*.h
+
+    cp -r data $out/
+
+    runHook postInstall
+  '';
+}
