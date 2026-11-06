@@ -401,13 +401,8 @@ class Runtime:
                     )
                     continue
                 controls[identity] = {
-                    c["name"]: c["default"] * c["factor"]
-                    for c in physical.controls
-                    if c["writable"] and c["default"] is not None
+                    c.name: c.default_value for c in definition.controls if c.name in available
                 }
-                controls[identity].update(
-                    {c.name: c.default_value for c in definition.controls if c.name in available}
-                )
             else:
                 # Probe only bounded advertised modes. Never infer a logical
                 # camera name, optical signature or production calibration.
@@ -539,11 +534,15 @@ class Runtime:
                 worker = self.workers.get(identity)
                 if worker:
                     if worker.verified:
-                        worker.update(state.generation, controls[identity])
+                        worker.update(
+                            state.generation, controls[identity], reset_defaults=identity in roles
+                        )
                     else:
                         # Recovery uses the existing authorized profile; it does
                         # not unlock GUI edits or acknowledge a failed tuning.
-                        if controls[identity] != worker.requested:
+                        if controls[identity] != worker.requested or worker.reset_defaults != (
+                            identity in roles
+                        ):
                             raise ConfigError(
                                 "Cannot acknowledge settings for an unavailable camera"
                             )
@@ -558,6 +557,7 @@ class Runtime:
                         state.generation,
                         controls[identity],
                         self.frames.capture,
+                        reset_defaults=identity in roles,
                     )
                     self.workers[identity] = worker
                     worker.start()
@@ -567,7 +567,7 @@ class Runtime:
                 worker.ready.wait(max(0, deadline - time.monotonic()))
                 if not worker.verified:
                     faults[identity] = worker.counters.error or "Camera initialization pending"
-                    if controls[identity]:
+                    if identity in roles:
                         raise ConfigError(
                             f"Camera settings verification failed: {faults[identity]}"
                         )

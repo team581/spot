@@ -28,8 +28,10 @@ class VerifiedControls(dict):
         self.capabilities = list(capabilities.values())
 
 
-def write_controls(device: str, requested: dict[str, float]) -> dict[str, float]:
-    """Validate advertised units/menus, write and verify actual device readback."""
+def write_controls(
+    device: str, requested: dict[str, float], *, reset_defaults: bool = False
+) -> dict[str, float]:
+    """Apply automatic policies before choosing writable dependent defaults."""
     deadline = time.monotonic() + 2.5
 
     def command(arguments):
@@ -38,12 +40,15 @@ def write_controls(device: str, requested: dict[str, float]) -> dict[str, float]
             raise ConfigError("Control transaction verification time exceeded")
         return _run(arguments, timeout=min(0.5, remaining))
 
-    capabilities = {
-        c["name"]: c
-        for c in parse_capability_controls(
-            command(["v4l2-ctl", "--device", device, "--list-ctrls-menus"])
-        )
-    }
+    def read_controls():
+        return {
+            c["name"]: c
+            for c in parse_capability_controls(
+                command(["v4l2-ctl", "--device", device, "--list-ctrls-menus"])
+            )
+        }
+
+    capabilities = read_controls()
     native = {}
     for name, value in requested.items():
         control = capabilities.get(name)
@@ -65,29 +70,40 @@ def write_controls(device: str, requested: dict[str, float]) -> dict[str, float]
         ):
             raise ConfigError(f"{name}: device reports {control['flags']}")
         native[name] = int(scaled)
-    # Mode controls precede dependent manual exposure controls. Re-enumerate
-    # after each write because UVC auto settings change inactive flags.
-    for name in sorted(native, key=lambda n: (0 if "auto" in n else 1, n)):
-        if capabilities[name]["value"] != native[name]:
-            fresh = {
-                c["name"]: c
-                for c in parse_capability_controls(
-                    command(["v4l2-ctl", "--device", device, "--list-ctrls-menus"])
-                )
-            }
-            if name not in fresh or not fresh[name]["writable"]:
-                raise ConfigError(f"{name}: unavailable after applying automatic-control policy")
-            command(["v4l2-ctl", "--device", device, f"--set-ctrl={name}={native[name]}"])
-    actual = {
-        c["name"]: c
-        for c in parse_capability_controls(
-            command(["v4l2-ctl", "--device", device, "--list-ctrls-menus"])
+
+    expected = {}
+    for automatic in (True, False):
+        # Discovery flags describe the previous policy. Select dependent defaults
+        # only after automatic settings have made those controls active/inactive.
+        capabilities = read_controls()
+        values = {
+            name: control["default"]
+            for name, control in capabilities.items()
+            if reset_defaults
+            and ("auto" in name) == automatic
+            and control["writable"]
+            and control["default"] is not None
+        }
+        values.update(
+            {name: value for name, value in native.items() if ("auto" in name) == automatic}
         )
-    }
+        for name, value in sorted(values.items()):
+            fresh = read_controls()
+            if name not in fresh:
+                raise ConfigError(f"{name}: control unavailable")
+            if fresh[name]["value"] != value:
+                if not fresh[name]["writable"]:
+                    raise ConfigError(
+                        f"{name}: unavailable after applying automatic-control policy"
+                    )
+                command(["v4l2-ctl", "--device", device, f"--set-ctrl={name}={value}"])
+            expected[name] = value * fresh[name]["factor"]
+
+    actual = read_controls()
     readback = {
-        name: actual[name]["value"] * actual[name]["factor"] for name in native if name in actual
+        name: actual[name]["value"] * actual[name]["factor"] for name in expected if name in actual
     }
-    if readback != requested:
+    if readback != expected:
         raise ConfigError(f"device clipped or rejected controls; readback {readback}")
     return VerifiedControls(readback, actual)
 
@@ -96,6 +112,7 @@ def write_controls(device: str, requested: dict[str, float]) -> dict[str, float]
 class ControlRequest:
     values: dict[str, float]
     done: threading.Event
+    reset_defaults: bool = False
     error: Exception | None = None
     result: dict[str, float] | None = None
 
@@ -111,10 +128,12 @@ class CameraCapture(threading.Thread):
         *,
         capture_factory=V4l2Capture,
         control_writer=write_controls,
+        reset_defaults: bool = False,
     ) -> None:
         super().__init__(name=f"uvc-{camera.id[:12]}", daemon=True)
         self.camera, self.device, self.generation = camera, device, generation
         self.requested = controls.copy()
+        self.reset_defaults = reset_defaults
         self.readback: dict[str, float] = {}
         self.capabilities = None
         self.observer = observer
@@ -129,10 +148,10 @@ class CameraCapture(threading.Thread):
         self.frame = None
         self._lock = threading.RLock()
 
-    def update(self, generation: str, values: dict) -> None:
+    def update(self, generation: str, values: dict, *, reset_defaults: bool = False) -> None:
         if not self.verified:
             raise ConfigError("camera unavailable; wait for verified recovery")
-        request = ControlRequest(values.copy(), threading.Event())
+        request = ControlRequest(values.copy(), threading.Event(), reset_defaults)
         try:
             self.commands.put_nowait(request)
         except queue.Full as exc:
@@ -147,6 +166,7 @@ class CameraCapture(threading.Thread):
                 cast(dict[str, float], request.result),
                 generation,
             )
+            self.reset_defaults = reset_defaults
             self.capabilities = getattr(request.result, "capabilities", self.capabilities)
             self.slot.take()  # discard every pre-generation pending frame
 
@@ -172,7 +192,9 @@ class CameraCapture(threading.Thread):
                     raise ConfigError("Driver did not report a verified capture cadence")
                 if abs(capture.negotiated_fps - self.camera.fps) > 0.1:
                     raise ConfigError(f"driver negotiated {capture.negotiated_fps:g} FPS")
-                self.readback = self.control_writer(self.device, self.requested)
+                self.readback = self.control_writer(
+                    self.device, self.requested, reset_defaults=self.reset_defaults
+                )
                 self.capabilities = getattr(self.readback, "capabilities", None)
                 capture_epoch = uuid.uuid4().hex
                 sequence, previous_driver = 0, None
@@ -185,7 +207,9 @@ class CameraCapture(threading.Thread):
                         command = None
                     if command:
                         try:
-                            command.result = self.control_writer(self.device, command.values)
+                            command.result = self.control_writer(
+                                self.device, command.values, reset_defaults=command.reset_defaults
+                            )
                             capture_epoch = uuid.uuid4().hex
                         except Exception as exc:  # noqa: BLE001 - isolate backend/job failures at the worker boundary
                             command.error = exc

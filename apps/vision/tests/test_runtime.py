@@ -56,9 +56,10 @@ class Transport:
 
 
 class Capture:
-    def __init__(self, camera, device, generation, controls, observer):
+    def __init__(self, camera, device, generation, controls, observer, *, reset_defaults=False):
         self.camera, self.device, self.generation = camera, device, generation
         self.requested, self.readback = controls.copy(), controls.copy()
+        self.reset_defaults = reset_defaults
         self._lock = threading.RLock()
         self.slot, self.counters = LatestFrameSlot(), CameraCounters()
         self.verified, self.frame = False, None
@@ -70,10 +71,11 @@ class Capture:
         self.verified = True
         self.ready.set()
 
-    def update(self, generation, controls):
+    def update(self, generation, controls, *, reset_defaults=False):
         if controls.get("gain") == 99:
             raise ConfigError("device rejected gain")
         self.generation = generation
+        self.reset_defaults = reset_defaults
         self.readback, self.requested = controls.copy(), controls.copy()
         self.updates.append(controls.copy())
         self.slot.take()

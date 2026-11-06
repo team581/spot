@@ -63,6 +63,51 @@ def test_unknown_control_never_writes_device(monkeypatch):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    ("initial_auto", "requested", "expected"),
+    [
+        (1, {}, {"exposure_auto": 3, "gain": 1}),
+        (3, {"exposure_auto": 1}, {"exposure_auto": 1, "exposure_time_absolute": 2500, "gain": 1}),
+    ],
+)
+def test_defaults_follow_effective_automatic_policy(monkeypatch, initial_auto, requested, expected):
+    actual = {"exposure_auto": initial_auto, "exposure_time_absolute": 60, "gain": 8}
+    writes = []
+
+    def run(args, timeout):
+        if args[-1].startswith("--set-ctrl="):
+            name, value = args[-1].split("=", 1)[1].split("=")
+            if name == "exposure_time_absolute":
+                assert actual["exposure_auto"] == 1
+            actual[name] = int(value)
+            writes.append(name)
+            return ""
+        return capabilities(
+            actual["exposure_auto"], actual["exposure_time_absolute"], actual["gain"]
+        )
+
+    monkeypatch.setattr(camera_capture, "_run", run)
+    result = write_controls("/dev/test", requested, reset_defaults=True)
+    assert result == expected
+    assert writes[0] == "exposure_auto"
+    assert ("exposure_time_absolute" in writes) == (actual["exposure_auto"] == 1)
+
+
+def test_explicit_manual_control_cannot_be_ignored_in_automatic_mode(monkeypatch):
+    monkeypatch.setattr(camera_capture, "_run", lambda args, timeout: capabilities())
+    with pytest.raises(ConfigError, match="unavailable after applying automatic-control policy"):
+        write_controls("/dev/test", {"exposure_time_absolute": 3000}, reset_defaults=True)
+
+
+def test_preview_does_not_reset_hardware_controls(monkeypatch):
+    def run(args, timeout):
+        assert not args[-1].startswith("--set-ctrl=")
+        return capabilities(auto=1, exposure=60, gain=8)
+
+    monkeypatch.setattr(camera_capture, "_run", run)
+    assert write_controls("/dev/test", {}) == {}
+
+
 def test_owner_controls_and_frames_are_serialized_with_owned_readonly_storage():
     original = np.zeros((8, 8, 2), np.uint8)
     owners = []
@@ -82,7 +127,7 @@ def test_owner_controls_and_frames_are_serialized_with_owned_readonly_storage():
         def release(self):
             pass
 
-    def controls(device, values):
+    def controls(device, values, *, reset_defaults=False):
         owners.append(threading.current_thread().name)
         return values.copy()
 
@@ -174,7 +219,7 @@ def test_capture_reconnect_releases_buffers_and_resets_epoch_and_sequence(pixel_
         {},
         observe,
         capture_factory=Capture,
-        control_writer=lambda _, values: values,
+        control_writer=lambda _, values, **kwargs: values,
     )
     worker.start()
     try:
