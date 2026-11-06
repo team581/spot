@@ -46,15 +46,8 @@
     boot.kernelParams = [ "panic=10" "boot.panic_on_fail" ];
 
     hardware.graphics.enable = true;
-    # Preserve the firmware's J401 DTB, including its runtime memory/board fixups.
-    hardware.deviceTree.name = lib.mkForce "spot-j401.dtb";
-    hardware.deviceTree.dtbSource = lib.mkForce (pkgs.runCommand "spot-j401-factory-device-tree" {
-      nativeBuildInputs = [ pkgs.dtc ];
-    } ''
-      mkdir -p $out
-      fdtoverlay -i ${./device-tree/base.dtb} -o $out/spot-j401.dtb \
-        ${./device-tree/header.dtbo} ${./device-tree/gmsl.dtbo}
-    '');
+    # Keep Seeed UEFI's device tree and runtime board/memory fixups.
+    hardware.deviceTree.enable = lib.mkForce false;
 
     # These are the policies selected by Seeed's factory image on the 8GB module.
     services.nvfancontrol.enable = true;
