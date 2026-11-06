@@ -1,0 +1,20 @@
+--- a/drivers/media/usb/uvc/uvc_video.c
++++ b/drivers/media/usb/uvc/uvc_video.c
+@@ -231,6 +231,17 @@
+ 
+ 		ctrl->dwMaxPayloadTransferSize = bandwidth;
+ 	}
++
++	/*
++	 * Some high-speed MJPEG cameras request the largest isochronous
++	 * altsetting regardless of mode, so only two fit on one USB 2.0 bus.
++	 * Cap compressed streams at 1536 bytes per microframe (12.3 MB/s).
++	 */
++	if ((format->flags & UVC_FMT_FLAG_COMPRESSED) &&
++	    stream->dev->udev->speed == USB_SPEED_HIGH &&
++	    stream->intf->num_altsetting > 1)
++		ctrl->dwMaxPayloadTransferSize =
++			min_t(u32, ctrl->dwMaxPayloadTransferSize, 1536);
+ }
+ 
+ static size_t uvc_video_ctrl_size(struct uvc_streaming *stream)

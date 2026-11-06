@@ -44,6 +44,13 @@
     };
 
     boot.kernelParams = [ "panic=10" "boot.panic_on_fail" ];
+    # Fit three MJPEG cameras on the carrier hub's shared USB 2.0 link, as Seeed's kernel does.
+    boot.kernelPatches = [
+      {
+        name = "uvcvideo-mjpeg-bandwidth-cap";
+        patch = ./uvc-mjpeg-bandwidth-cap.patch;
+      }
+    ];
 
     hardware.graphics.enable = true;
     # Keep Seeed UEFI's device tree and runtime board/memory fixups.
