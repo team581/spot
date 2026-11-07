@@ -2,15 +2,25 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 def wall_time_available() -> bool:
-    """Only trust wall time after synchronization, not a plausible RTC date."""
+    """Only trust wall time after NTP or a deploy set it, not a plausible RTC date."""
     try:
-        return Path("/run/systemd/timesync/synchronized").exists() and time.time() > 1704067200
+        synchronized = Path("/run/systemd/timesync/synchronized").exists()
+        return (synchronized or Path("/run/spot-clock-set").exists()) and time.time() > 1704067200
     except OSError:
         return False
+
+
+def wall_time_at(monotonic_s: float) -> str | None:
+    """Convert a monotonic timestamp to ISO wall time once wall time is trusted."""
+    if not wall_time_available():
+        return None
+    wall = time.time() - (time.monotonic() - monotonic_s)
+    return datetime.fromtimestamp(wall, timezone.utc).isoformat()
 
 
 class FrameRateCounter:

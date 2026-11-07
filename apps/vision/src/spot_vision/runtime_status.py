@@ -8,6 +8,7 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING, TypedDict
 
 from .camera_controls import frame_limited_exposure, scaled
+from .clock import wall_time_at
 from .configuration import mode_signature
 from .optical_modes import advertised_modes, mode_supported, preview_mode, preview_modes
 
@@ -284,7 +285,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
         "uptime_s": time.monotonic() - runtime.started,
         "system": runtime.system_metrics.snapshot.copy(),
         "startup": runtime.startup.copy(),
-        "software": runtime.software,
+        "software": {**runtime.software, "process_started_at": wall_time_at(runtime.started)},
         "calibration": runtime.calibration.status() if runtime.calibration else {},
         "history": runtime.store.history(),
         "network": copy.deepcopy(runtime.network.snapshot)

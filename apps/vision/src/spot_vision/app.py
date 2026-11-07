@@ -8,13 +8,11 @@ import signal
 import socket
 import sys
 import threading
-from datetime import datetime, timezone
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
 from .calibration import CalibrationManager
-from .clock import wall_time_available
 from .config import ConfigError, NtConfig
 from .devices import _run
 from .http_server import HttpServer
@@ -52,9 +50,6 @@ def software_info() -> dict:
         "configuration_revision": os.environ.get("SPOT_CONFIGURATION_REVISION") or None,
         "version": version("spot-vision"),
         "native_cuda": native_cuda,
-        "process_started_at": datetime.now(timezone.utc).isoformat()
-        if wall_time_available()
-        else None,
     }
 
 
