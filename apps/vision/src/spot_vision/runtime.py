@@ -498,6 +498,11 @@ class Runtime:
                     if identity in calibration_records
                     else None
                 )
+                definition = definitions.get(roles.get(identity))
+                m = definition.robot_to_camera if definition else wire.Mount()
+                mount = robot_from_camera_transform(
+                    (m.x_m, m.y_m, m.z_m), (m.roll_deg, m.pitch_deg, m.yaw_deg)
+                )
                 try:
                     old = self.calibrations.get(identity)
                     unchanged = (
@@ -514,15 +519,14 @@ class Runtime:
                     )
                     solvers[identity] = (
                         self.solvers[identity]
-                        if unchanged and previous_field == field
+                        if unchanged
+                        and previous_field == field
+                        and np.array_equal(self.solvers[identity].robot_from_camera, mount)
                         else PoseSolver(
                             calibration,
                             layout,
                             0.1651,
-                            robot_from_camera_transform(
-                                camera.robot_from_camera_translation,
-                                camera.robot_from_camera_rpy_deg,
-                            ),
+                            mount,
                             tag_sizes={t.id: t.size_m for t in manifest.profile.field.tags}
                             if manifest
                             else {},

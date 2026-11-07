@@ -667,3 +667,77 @@ def test_server_address_replaces_team_and_reloads(runtime, tmp_path):
         assert restarted.transport.nt.team is None
     finally:
         restarted.close()
+
+
+def test_pose_solver_uses_robot_supplied_camera_mount(runtime):
+    """A raised, pitched camera must solve to its true pose, not a level camera at the floor."""
+    from wpimath.geometry import Pose3d, Rotation3d, Transform3d, Translation3d
+
+    from spot_vision.models import Detection
+
+    app, identity, _, _ = runtime
+    config = app.configuration
+    record = {
+        "identity": identity,
+        "mode_signature": mode_signature(app.modes[identity]),
+        "fit": {
+            "accepted": True,
+            "frames_used": 15,
+            "rms_reprojection_error_px": 0.1,
+            "coverage": 0.5,
+            "diversity": 0.75,
+        },
+        "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
+        "algorithm": "charuco-fit-holdout-v2",
+        "model": "plumb_bob",
+        "board": {
+            "squares_x": 15,
+            "squares_y": 15,
+            "square_length_m": 0.03,
+            "marker_length_m": 0.022,
+            "dictionary": "DICT_4X4_250",
+        },
+        "image_rotation_deg": 0,
+        "intrinsics": {
+            "width": 640,
+            "height": 480,
+            "camera_matrix": [[500, 0, 320], [0, 500, 240], [0, 0, 1]],
+            "distortion_coefficients": [0] * 5,
+            "reprojection_error_px": 0.1,
+        },
+    }
+    config.calibration_group([record], config.state.generation, app.validate_calibration)
+    # A mount-only change must reach the solver without a new calibration or capture owner.
+    worker = app.workers[identity]
+    robot_manifest = manifest()
+    robot_manifest.profile.cameras[0].robot_to_camera = wire.Mount(
+        x_m=0.2, y_m=-0.1, z_m=0.35, pitch_deg=-15, yaw_deg=10
+    )
+    config.accept_manifest(robot_manifest)
+    assert app.workers[identity] is worker
+
+    # Project with WPILib geometry, independent of Spot's pose helpers. The robot sits
+    # on the floor facing the tags, which face field +X.
+    field_to_robot = Pose3d(7, 0.5, 0, Rotation3d(0, 0, np.pi))
+    camera = field_to_robot.transformBy(
+        Transform3d(Translation3d(0.2, -0.1, 0.35), Rotation3d(0, np.radians(-15), np.radians(10)))
+    )
+    half = 0.1651 / 2
+    detections = []
+    for tag in robot_manifest.profile.field.tags:
+        center = Pose3d(
+            tag.field_to_tag.x_m, tag.field_to_tag.y_m, tag.field_to_tag.z_m, Rotation3d()
+        )
+        pixels = []
+        # FIRST decoded order: bottom left/right, top right/left as seen facing the tag.
+        for dy, dz in ((-half, -half), (half, -half), (half, half), (-half, half)):
+            corner = center.transformBy(Transform3d(0, dy, dz, Rotation3d())).relativeTo(camera)
+            pixels.append(
+                [320 - 500 * corner.Y() / corner.X(), 240 - 500 * corner.Z() / corner.X()]
+            )
+        detections.append(Detection(tag.id, np.array(pixels)))
+
+    solution = app.solvers[identity].solve(tuple(detections))
+    best = min(solution.candidates, key=lambda c: c.reprojection_error_px)
+    assert best.reprojection_error_px < 1e-3
+    assert np.allclose(best.translation, [camera.X(), camera.Y(), camera.Z()], atol=1e-4)
