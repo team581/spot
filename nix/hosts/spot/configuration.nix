@@ -28,7 +28,7 @@
   services.spot-vision = {
     enable = true;
     package = (packageFor pkgs).spot;
-    settings.nt.team = 581;
+    settings.nt.team = 9991;
   };
   system.stateVersion = "26.05";
 }
