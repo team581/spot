@@ -1,5 +1,4 @@
 import { useEffect, useRef, useLayoutEffect } from 'react';
-import { Link } from '@tanstack/react-router';
 import { useStatus } from '../queries';
 import { usePreview, previewData } from './Feed';
 import { theme } from '../theme';
@@ -67,19 +66,6 @@ export default function GeometryViewer({
 			<Button variant="outline" className="absolute top-3 right-3" onClick={() => viewer.current?.reset()}>
 				Reset view
 			</Button>
-			{inspection ? (
-				<span className="absolute bottom-9 left-3 text-xs text-muted-foreground">
-					Inspection · production geometry from robot code
-				</span>
-			) : (
-				<Link
-					className="absolute bottom-9 left-3 text-xs text-muted-foreground"
-					to="/cameras/$id/mount"
-					params={{ id: c.identity }}
-				>
-					Mount · WPILib NWU
-				</Link>
-			)}
 		</div>
 	);
 }
