@@ -63,6 +63,7 @@ config = {
             "fps": 60,
             "calibration": "calibration.json",
             "detector": {"backend": "cpu"},
+            "robot_from_camera": {"translation_m": [0.0, 0.0, 0.6]},
         }
     ],
 }
@@ -118,7 +119,7 @@ for name, ids in [("center", [1]), ("periphery", [2]), ("multi", [1, 2]), ("blan
             "name": name,
             "image": name + ".png",
             "tags": expected,
-            "robot_translation_m": CAMERA.tolist() if ids else None,
+            "robot_translation_m": [2.0, 0.0, 0.0] if ids else None,
             "robot_quaternion_wxyz": [0.0, 0.0, 0.0, 1.0] if ids else None,
             "max_rotation_error_deg": 10.0,
             "max_corner_error_px": 2.0,

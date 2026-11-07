@@ -61,7 +61,10 @@ def run_image_regression(
         calibration.validate_for(camera)
         calibration = calibration.for_image_rotation(camera)
         detector = create_detector(camera, calibration)
-        solver = PoseSolver(calibration, layout, config.tag_size_m)
+        mount = robot_from_camera_transform(
+            camera.robot_from_camera_translation, camera.robot_from_camera_rpy_deg
+        )
+        solver = PoseSolver(calibration, layout, config.tag_size_m, mount)
         image = load_image_frame(base / case["image"], camera)
         detector.detect(image)  # Warm-up excluded from comparable timing samples.
         timings = []
@@ -69,12 +72,7 @@ def run_image_regression(
             started = time.perf_counter_ns()
             batch = detector.detect(image)
             solution = solver.solve(batch.detections)
-            pose = select_robot_pose(
-                solution,
-                robot_from_camera_transform(
-                    camera.robot_from_camera_translation, camera.robot_from_camera_rpy_deg
-                ),
-            )
+            pose = select_robot_pose(solution, mount)
             frame = FramePacket(camera.id, 1, 1000, time.monotonic_ns(), image)
             # Synthetic captures have exact timestamps; this is not hardware timing evidence.
             message = make_observation(
@@ -83,7 +81,11 @@ def run_image_regression(
                 ObservationContext(
                     "0" * 32,
                     wire.CameraDefinition(
-                        name=camera.id, robot_to_camera=wire.Mount(), allowed_modes=[]
+                        name=camera.id,
+                        robot_to_camera=wire.Mount(
+                            *camera.robot_from_camera_translation, *camera.robot_from_camera_rpy_deg
+                        ),
+                        allowed_modes=[],
                     ),
                     True,
                 ),

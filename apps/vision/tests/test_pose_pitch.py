@@ -57,11 +57,23 @@ def scene(pitch_deg, ids=(4,)):
     return FieldLayout(tags, 1), tuple(observations), rotation
 
 
+def solver(layout, rotation):
+    """Mount the camera on a flat robot facing field -X whose origin is below the camera."""
+    field_from_robot = np.diag([-1.0, -1.0, 1.0, 1.0])
+    field_from_robot[:2, 3] = CAMERA[:2]
+    field_from_camera = np.eye(4)
+    field_from_camera[:3, :3] = rotation
+    field_from_camera[:3, 3] = CAMERA
+    return PoseSolver(
+        CALIBRATION, layout, SIZE, np.linalg.inv(field_from_robot) @ field_from_camera
+    )
+
+
 @pytest.mark.parametrize("ids", [(4,), (4, 5)])
 @pytest.mark.parametrize("pitch_deg", [-25.0, -15.0, 0.0, 10.0])
 def test_camera_pitch_and_height_from_independent_physical_scene(ids, pitch_deg):
     layout, observations, expected_rotation = scene(pitch_deg, ids)
-    solution = PoseSolver(CALIBRATION, layout, SIZE).solve(observations)
+    solution = solver(layout, expected_rotation).solve(observations)
     selected = min(solution.candidates, key=lambda p: p.reprojection_error_px)
     assert selected.reprojection_error_px < 1e-6
     assert np.allclose(selected.translation, CAMERA, atol=1e-6)
@@ -87,7 +99,7 @@ def test_native_first_tag_artwork_recovers_upright_camera_and_pitch(pitch_deg):
     assert len(batch.detections) == 1 and batch.detections[0].id == 4
     detected = Detection(4, np.asarray(batch.detections[0].corners))
     assert np.max(np.linalg.norm(detected.corners - observations[0].corners, axis=1)) < 1.0
-    solution = PoseSolver(CALIBRATION, layout, SIZE).solve((detected,))
+    solution = solver(layout, expected_rotation).solve((detected,))
     selected = min(solution.candidates, key=lambda p: p.reprojection_error_px)
     assert np.allclose(selected.translation, CAMERA, atol=0.04)
     assert np.allclose(quaternion_to_matrix(selected.quaternion_wxyz), expected_rotation, atol=0.02)
@@ -96,12 +108,13 @@ def test_native_first_tag_artwork_recovers_upright_camera_and_pitch(pitch_deg):
 def test_tilting_camera_down_moves_tag_up_without_changing_camera_height():
     previous_center_y = float("inf")
     for pitch in [-25.0, -15.0, 0.0, 10.0]:
-        layout, observations, _ = scene(pitch)
+        layout, observations, rotation = scene(pitch)
         center_y = observations[0].corners[:, 1].mean()
         assert center_y < previous_center_y
         previous_center_y = center_y
-        solution = PoseSolver(CALIBRATION, layout, SIZE).solve(observations)
+        solution = solver(layout, rotation).solve(observations)
         selected = min(solution.candidates, key=lambda p: p.reprojection_error_px)
+        assert selected.reprojection_error_px < 1e-6
         forward = quaternion_to_matrix(selected.quaternion_wxyz)[:, 0]
         assert np.isclose(forward[2], -np.sin(np.deg2rad(pitch)), atol=1e-6)
         assert np.isclose(selected.translation[2], CAMERA[2], atol=1e-6)

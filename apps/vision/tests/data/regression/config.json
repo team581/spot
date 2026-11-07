@@ -13,6 +13,13 @@
       "calibration": "calibration.json",
       "detector": {
         "backend": "cpu"
+      },
+      "robot_from_camera": {
+        "translation_m": [
+          0.0,
+          0.0,
+          0.6
+        ]
       }
     }
   ]

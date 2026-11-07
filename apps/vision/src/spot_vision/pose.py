@@ -11,6 +11,14 @@ from .config import Calibration, ConfigError, file_revision
 from .models import Detection, PoseCandidate, PoseMethod, PoseSolution
 from .uncertainty import distortion_factors
 
+# The solver assumes the robot is flat and at most this far above the floor,
+# e.g. on top of a 6 in bump. Anything else is left to the residual for consumers to reject.
+MAX_ROBOT_HEIGHT_M = 0.1524
+# Floor-fit minima closer than this are the same answer. The wire carries two candidates.
+DISTINCT_TRANSLATION_M = 0.05
+DISTINCT_YAW_RAD = np.deg2rad(2.0)
+MAX_CANDIDATES = 2
+
 # OpenCV's camera basis is +X right, +Y down, +Z forward.  WPILib's camera
 # pose convention is NWU: +X forward, +Y left, +Z up.  This matrix converts a
 # vector expressed in the OpenCV camera basis into the WPILib camera basis.
@@ -190,9 +198,15 @@ class PoseSolver:
         calibration: Calibration | None,
         layout: FieldLayout | None,
         tag_size_m: float,
+        robot_from_camera: np.ndarray,
         *,
         tag_sizes: dict[int, float] | None = None,
     ) -> None:
+        """robot_from_camera is the mount of the orientation-corrected camera."""
+        robot_from_camera = np.asarray(robot_from_camera, dtype=np.float64)
+        if robot_from_camera.shape != (4, 4) or not np.isfinite(robot_from_camera).all():
+            raise ConfigError("robot_from_camera must be a finite 4x4 transform")
+        self.robot_from_camera = robot_from_camera
         self.calibration = calibration
         self.layout = layout
         self.tag_size_m = tag_size_m
@@ -222,10 +236,8 @@ class PoseSolver:
                 rejection_reasons=reasons, solve_ms=(time.perf_counter_ns() - started) / 1e6
             )
         try:
-            if len(known) == 1:
-                candidates = self._solve_single(known[0])
-            else:
-                candidates = self._solve_multi(known)
+            seeds = self._solve_single(known[0]) if len(known) == 1 else self._solve_multi(known)
+            candidates = self._fit_to_floor(known, seeds)
             factors = (
                 np.asarray([d.distortion_factor_px for d in known], dtype=np.float64)
                 if all(d.distortion_factor_px is not None for d in known)
@@ -293,6 +305,117 @@ class PoseSolver:
             rejection_reasons={detection.id: reason for detection in detections},
             solve_ms=(time.perf_counter_ns() - started) / 1e6,
         )
+
+    def _fit_to_floor(
+        self, detections: list[Detection], seeds: tuple[PoseCandidate, ...]
+    ) -> tuple[PoseCandidate, ...]:
+        """Refine PnP seeds assuming a flat robot no more than MAX_ROBOT_HEIGHT_M up.
+
+        Roll and pitch are fixed at zero; X, Y, height, and yaw are fitted. Distinct
+        local minima are returned best-first so the robot can choose using its heading.
+        """
+        import cv2
+
+        assert self.layout is not None and self.camera_matrix is not None
+        camera_matrix = self.camera_matrix
+        objects = np.concatenate(
+            [
+                _tag_plane_to_field(
+                    self.layout.tags[d.id].field_from_tag,
+                    _tag_corners(self.tag_sizes.get(d.id, self.tag_size_m)),
+                )
+                for d in detections
+            ]
+        )
+        images = np.concatenate([d.corners for d in detections])
+        camera_basis = _transform(NWU_FROM_OPENCV, np.zeros(3))
+        camera_from_robot = np.linalg.inv(self.robot_from_camera)
+
+        def camera_pose(parameters):
+            x, y, z, yaw = parameters
+            c, s = np.cos(yaw), np.sin(yaw)
+            return (
+                _transform(np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]), np.array([x, y, z]))
+                @ self.robot_from_camera
+            )
+
+        def bounded(parameters):
+            return np.array(
+                [*parameters[:2], np.clip(parameters[2], 0, MAX_ROBOT_HEIGHT_M), parameters[3]]
+            )
+
+        def residual(parameters):
+            optical_from_field = np.linalg.inv(camera_pose(parameters) @ camera_basis)
+            rvec = cv2.Rodrigues(optical_from_field[:3, :3])[0]
+            projected = cv2.projectPoints(
+                objects, rvec, optical_from_field[:3, 3], camera_matrix, self.distortion
+            )[0].reshape(-1, 2)
+            return (projected - images).ravel()
+
+        fits: list[tuple[float, np.ndarray, PoseCandidate]] = []
+        for seed in seeds:
+            field_robot = (
+                _transform(quaternion_to_matrix(seed.quaternion_wxyz), seed.translation)
+                @ camera_from_robot
+            )
+            parameters = bounded(
+                np.array(
+                    [
+                        field_robot[0, 3],
+                        field_robot[1, 3],
+                        field_robot[2, 3],
+                        np.arctan2(field_robot[1, 0], field_robot[0, 0]),
+                    ]
+                )
+            )
+            # Gauss-Newton with four parameters and at least eight residuals.
+            valid = True
+            for _ in range(20):
+                errors = residual(parameters)
+                jacobian = np.column_stack(
+                    [(residual(parameters + axis * 1e-5) - errors) / 1e-5 for axis in np.eye(4)]
+                )
+                step, _, rank, _ = np.linalg.lstsq(jacobian, -errors, rcond=None)
+                if rank < 4 or not np.isfinite(step).all():
+                    valid = False
+                    break
+                # Backtracking prevents a poor 3D seed from increasing pixel error.
+                previous = parameters
+                scale = 1.0
+                while scale >= 1 / 128:
+                    trial = bounded(parameters + scale * step)
+                    if np.linalg.norm(residual(trial)) <= np.linalg.norm(errors):
+                        parameters = trial
+                        break
+                    scale /= 2
+                if scale < 1 / 128 or np.linalg.norm(parameters - previous) < 1e-7:
+                    break
+            field_camera = camera_pose(parameters)
+            optical_from_field = np.linalg.inv(field_camera @ camera_basis)
+            depths = (optical_from_field[:3, :3] @ objects.T + optical_from_field[:3, 3:4])[2]
+            error = float(
+                np.sqrt(np.mean(np.sum(residual(parameters).reshape(-1, 2) ** 2, axis=1)))
+            )
+            if valid and np.all(depths > 0.05) and np.isfinite(error):
+                candidate = replace(
+                    seed,
+                    translation=field_camera[:3, 3].copy(),
+                    quaternion_wxyz=matrix_to_quaternion(field_camera[:3, :3]),
+                    reprojection_error_px=error,
+                )
+                fits.append((error, parameters, candidate))
+        # Seeds often converge to the same minimum; keep distinct ones, best first.
+        candidates: list[PoseCandidate] = []
+        kept: list[np.ndarray] = []
+        for _, parameters, candidate in sorted(fits, key=lambda fit: fit[0]):
+            if all(
+                np.linalg.norm(parameters[:2] - other[:2]) > DISTINCT_TRANSLATION_M
+                or abs(np.angle(np.exp(1j * (parameters[3] - other[3])))) > DISTINCT_YAW_RAD
+                for other in kept
+            ):
+                candidates.append(candidate)
+                kept.append(parameters)
+        return tuple(candidates[:MAX_CANDIDATES])
 
     def _solve_single(self, detection: Detection) -> tuple[PoseCandidate, ...]:
         import cv2

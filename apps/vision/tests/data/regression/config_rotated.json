@@ -14,7 +14,14 @@
       "detector": {
         "backend": "cpu"
       },
-      "image_rotation_deg": 180
+      "image_rotation_deg": 180,
+      "robot_from_camera": {
+        "translation_m": [
+          0.0,
+          0.0,
+          0.6
+        ]
+      }
     }
   ]
 }

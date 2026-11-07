@@ -62,21 +62,28 @@ def camera_projection(field_from_camera):
     return cv2.Rodrigues(camera_from_field[:3, :3])[0], camera_from_field[:3, 3]
 
 
+def floor_mount(field_from_camera):
+    """Mount placing this camera on a flat robot whose origin is on the floor below it."""
+    yaw = np.rad2deg(np.arctan2(field_from_camera[1, 0], field_from_camera[0, 0]))
+    robot = transform(_rpy_matrix((0, 0, yaw)), [*field_from_camera[:2, 3], 0])
+    return np.linalg.inv(robot) @ field_from_camera
+
+
 def test_quaternion_matrix_round_trip():
     original = np.array([0.9238795, 0, 0, 0.3826834])
     recovered = matrix_to_quaternion(quaternion_to_matrix(original))
     assert np.allclose(recovered, original / np.linalg.norm(original), atol=1e-6)
 
 
-def test_single_tag_preserves_two_ippe_candidates():
+def test_single_tag_recovers_camera_on_flat_robot():
     field_from_tag = transform(np.eye(3), np.array([0.0, 0.0, 0.5]))
     layout = FieldLayout({1: FieldTag(1, field_from_tag)}, 9)
-    solver = PoseSolver(CALIBRATION, layout, 0.1651)
     field_from_camera = transform(_rpy_matrix((2.0, -3.0, 177.0)), [2.5, 0.1, 0.6])
+    solver = PoseSolver(CALIBRATION, layout, 0.1651, floor_mount(field_from_camera))
     rvec, tvec = camera_projection(field_from_camera)
     observed = detection(1, _tag_plane_to_field(field_from_tag, corners()), rvec, tvec)
     result = solver.solve((observed,))
-    assert len(result.candidates) == 2
+    assert 1 <= len(result.candidates) <= 2
     assert all(
         candidate.method == PoseMethod.SINGLE_TAG_IPPE_SQUARE for candidate in result.candidates
     )
@@ -99,7 +106,9 @@ def test_multi_tag_sq_pnp_recovers_field_from_camera():
     for tag_id, tag_transform in ((1, tag1), (2, tag2)):
         field = _tag_plane_to_field(tag_transform, corners())
         detections.append(detection(tag_id, field, rvec, tvec))
-    result = PoseSolver(CALIBRATION, layout, 0.1651).solve(tuple(detections))
+    result = PoseSolver(CALIBRATION, layout, 0.1651, floor_mount(field_from_camera)).solve(
+        tuple(detections)
+    )
     assert len(result.candidates) == 1
     candidate = result.candidates[0]
     assert candidate.method == PoseMethod.MULTI_TAG_SQPNP
@@ -139,7 +148,7 @@ def test_image_rotation_and_mount_transform_recover_robot_pose():
     robot_from_corrected = robot_from_camera_transform(
         camera.robot_from_camera_translation, camera.robot_from_camera_rpy_deg
     )
-    field_from_robot = transform(_rpy_matrix((1.0, -2.0, 178.0)), [3.0, 0.1, 0.6])
+    field_from_robot = transform(_rpy_matrix((0.0, 0.0, 178.0)), [3.0, 0.1, 0.1])
     # The raw sensor is physically rolled relative to the corrected virtual frame.
     field_from_raw = (
         field_from_robot
@@ -160,7 +169,9 @@ def test_image_rotation_and_mount_transform_recover_robot_pose():
         observations.append(
             Detection(tag_id, np.array([camera.width - 1, camera.height - 1]) - raw_pixels)
         )
-    solution = PoseSolver(rotated_calibration, layout, 0.1651).solve(tuple(observations))
+    solution = PoseSolver(rotated_calibration, layout, 0.1651, robot_from_corrected).solve(
+        tuple(observations)
+    )
     robot_pose = select_robot_pose(solution, robot_from_corrected)
     assert robot_pose is not None
     assert robot_pose.reprojection_error_px < 1e-4
@@ -209,7 +220,9 @@ def test_multi_tag_solve_passes_all_known_corners_to_both_stages(monkeypatch):
 
     monkeypatch.setattr(cv2, "solvePnPGeneric", capture_generic)
     monkeypatch.setattr(cv2, "solvePnP", capture_refine)
-    result = PoseSolver(CALIBRATION, layout, 0.1651).solve(detections)
+    result = PoseSolver(CALIBRATION, layout, 0.1651, floor_mount(field_from_camera)).solve(
+        detections
+    )
     assert len(result.candidates) == 1
     assert [stage for stage, _, _ in seen] == ["initial", "refine"]
     assert all(objects.shape == (8, 3) and images.shape == (8, 2) for _, objects, images in seen)
@@ -219,7 +232,7 @@ def test_multi_tag_solve_passes_all_known_corners_to_both_stages(monkeypatch):
 
 def test_failed_multi_tag_solve_does_not_fall_back_to_single(monkeypatch):
     layout = FieldLayout({tag_id: FieldTag(tag_id, np.eye(4)) for tag_id in (1, 2)}, 10)
-    solver = PoseSolver(CALIBRATION, layout, 0.1651)
+    solver = PoseSolver(CALIBRATION, layout, 0.1651, np.eye(4))
     monkeypatch.setattr(solver, "_solve_multi", lambda detections: ())
 
     def unexpected_single(_detection):
@@ -263,7 +276,8 @@ def test_robot_extrinsic_is_applied_after_camera_candidate_selection():
 def test_unknown_and_missing_inputs_keep_raw_rejection_reasons():
     observed = Detection(99, np.zeros((4, 2)))
     assert (
-        PoseSolver(None, None, 0.1651).solve((observed,)).rejection_reasons[99] == "NO_CALIBRATION"
+        PoseSolver(None, None, 0.1651, np.eye(4)).solve((observed,)).rejection_reasons[99]
+        == "NO_CALIBRATION"
     )
-    result = PoseSolver(CALIBRATION, FieldLayout({}, 1), 0.1651).solve((observed,))
+    result = PoseSolver(CALIBRATION, FieldLayout({}, 1), 0.1651, np.eye(4)).solve((observed,))
     assert result.rejection_reasons[99] == "UNKNOWN_TAG_ID"

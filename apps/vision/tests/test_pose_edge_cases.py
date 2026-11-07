@@ -57,6 +57,7 @@ def test_solver_failure_retains_known_and_unknown_raw_observations(monkeypatch):
         load_calibration(DATA / "calibration.json"),
         FieldLayout({1: FieldTag(1, np.eye(4))}, 1),
         0.3,
+        np.eye(4),
     )
 
     def fail(_):

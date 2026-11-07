@@ -7,6 +7,14 @@ Robot code owns Spot's camera configuration in `src/main/deploy/spot-config.json
 The robot forwards the file to Spot over NetworkTables, and Spot validates and applies
 it. Edits made on the dashboard take priority until robot code matches them.
 
+Pose solving assumes the robot is flat: roll and pitch are fixed at zero, height
+stays between the floor and 6 in (for example, on top of a bump), and X, Y, height,
+and yaw are fitted to the detected corners. Measure camera height from the robot
+origin on the floor. Tilted frames do not fit this model and show a large
+reprojection error. Spot sends up to two distinct candidates; the robot chooses
+between them using its heading. Deploy the matching robot consumer before
+updating Spot.
+
 ## Get started
 
 1. Download the [starter configuration](../starter/spot-config.json) to

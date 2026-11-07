@@ -38,7 +38,13 @@ from .native import create_detector
 from .nt_transport import NtTransport, make_observation
 from .optical_modes import advertised_modes, mode_supported, preview_mode, preview_modes
 from .persistence import StateSnapshot, StateStore, canonical_bytes, durable_replace
-from .pose import FieldLayout, FieldTag, PoseSolver, quaternion_to_matrix
+from .pose import (
+    FieldLayout,
+    FieldTag,
+    PoseSolver,
+    quaternion_to_matrix,
+    robot_from_camera_transform,
+)
 from .processing import CameraDetector, ProcessingBudget, ProcessingPolicy, solve_tag_selection
 from .runtime_status import StatusSnapshot, build_status
 from .system_metrics import SystemMetrics
@@ -513,6 +519,10 @@ class Runtime:
                             calibration,
                             layout,
                             0.1651,
+                            robot_from_camera_transform(
+                                camera.robot_from_camera_translation,
+                                camera.robot_from_camera_rpy_deg,
+                            ),
                             tag_sizes={t.id: t.size_m for t in manifest.profile.field.tags}
                             if manifest
                             else {},
