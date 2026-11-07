@@ -53,6 +53,48 @@ def test_clipped_control_readback_cannot_acknowledge_success(monkeypatch):
         write_controls("/dev/test", {"gain": 30})
 
 
+def test_out_of_range_control_error_names_value_and_range_in_api_units(monkeypatch):
+    monkeypatch.setattr(camera_capture, "_run", lambda args, timeout: capabilities())
+    with pytest.raises(
+        ConfigError, match=r"exposure_time_absolute: 5000 ms is outside 0.3–204.7 ms"
+    ):
+        write_controls("/dev/test", {"exposure_time_absolute": 5000})
+
+
+def test_rejected_controls_mark_attached_camera_as_recoverable():
+    def reject(device, values, *, reset_defaults=False):
+        raise ConfigError("gain: rejected")
+
+    worker = CameraCapture(
+        CameraConfig(
+            "test",
+            True,
+            CameraSelector(device="/dev/test"),
+            "YUYV",
+            8,
+            8,
+            30,
+            None,
+            0,
+            DetectorConfig(),
+        ),
+        "/dev/test",
+        "old",
+        {"gain": 1},
+        lambda packet: None,
+        capture_factory=lambda *args: type(
+            "Capture", (), {"negotiated_fps": 30, "release": lambda self: None}
+        )(),
+        control_writer=reject,
+    )
+    worker.start()
+    try:
+        assert worker.ready.wait(1)
+        assert worker.controls_rejected and not worker.verified
+    finally:
+        worker.stop()
+
+
 def test_unknown_control_never_writes_device(monkeypatch):
     calls = []
     monkeypatch.setattr(

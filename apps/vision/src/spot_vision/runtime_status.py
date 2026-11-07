@@ -97,6 +97,9 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
         record = runtime.calibrations.get(identity)
         capabilities = []
         actual_capabilities = getattr(worker, "capabilities", None) if worker else None
+        # A camera that refused its controls still shows its pre-profile flags (e.g. exposure
+        # inactive under auto mode); only hard flags should block fixing the values.
+        rejected = bool(worker and worker.controls_rejected)
         for control in (
             actual_capabilities if actual_capabilities is not None else device["controls"]
         ):
@@ -116,7 +119,14 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
                     if worker
                     else scaled(control["value"], factor),
                     "allowed": bool(
-                        control["writable"]
+                        (
+                            control["writable"]
+                            or rejected
+                            and not any(
+                                flag in control["flags"]
+                                for flag in ("read-only", "disabled", "grabbed")
+                            )
+                        )
                         and definition is not None
                         and (policy is None or policy.allow_override)
                     ),
@@ -143,6 +153,7 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             "required": bool(definition and definition.required),
             "present": True,
             "connected": bool(worker and worker.verified),
+            "controls_rejected": rejected,
             "controls": capabilities,
             "calibrated": bool(record),
             "calibration_id": record.get("id", "") if record else "",

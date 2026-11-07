@@ -63,6 +63,7 @@ class Capture:
         self._lock = threading.RLock()
         self.slot, self.counters = LatestFrameSlot(), CameraCounters()
         self.verified, self.frame = False, None
+        self.controls_rejected = False
         self.ready = threading.Event()
         self.last_progress = time.monotonic()
         self.updates, self.stopped = [], False
@@ -190,6 +191,17 @@ def test_failed_readback_restores_previous_durable_and_runtime_generation(runtim
     assert app.store.load().data == before.data
     assert app.generation == before.generation
     assert app.workers[identity].readback["gain"] == 1
+
+
+def test_camera_that_rejected_its_controls_restarts_with_edited_values(runtime):
+    app, identity, _, _ = runtime
+    stuck = app.workers[identity]
+    stuck.verified, stuck.controls_rejected = False, True
+    assert app.status()["cameras"][0]["controls_rejected"]
+    app.configuration.tune("front", {"gain": 5}, app.configuration.state.generation)
+    worker = app.workers[identity]
+    assert worker is not stuck and stuck.stopped
+    assert worker.verified and worker.requested["gain"] == 5
 
 
 def test_unsupported_mode_is_not_opened_or_falsely_calibrated(runtime):

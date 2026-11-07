@@ -62,7 +62,13 @@ def write_controls(
             or not control["min"] <= scaled <= control["max"]
             or (int(scaled) - control["min"]) % max(1, control["step"])
         ):
-            raise ConfigError(f"{name}: value outside supported range or step")
+            low, high, step = (
+                to_api(control[key], control["factor"]) for key in ("min", "max", "step")
+            )
+            unit = f" {control['unit']}" if control["unit"] else ""
+            raise ConfigError(
+                f"{name}: {value:g}{unit} is outside {low:g}–{high:g}{unit} in steps of {step:g}"
+            )
         if control["options"] and scaled not in {o["value"] for o in control["options"]}:
             raise ConfigError(f"{name}: unsupported menu value")
         if (
@@ -147,6 +153,8 @@ class CameraCapture(threading.Thread):
         self.commands: queue.Queue[ControlRequest] = queue.Queue(maxsize=1)
         self.last_progress = time.monotonic()
         self.verified = False
+        # The device is attached but refused the requested control values.
+        self.controls_rejected = False
         self.timestamp_correction_us = 0
         self.frame = None
         self._lock = threading.RLock()
@@ -195,9 +203,14 @@ class CameraCapture(threading.Thread):
                     raise ConfigError("Driver did not report a verified capture cadence")
                 if abs(capture.negotiated_fps - self.camera.fps) > 0.1:
                     raise ConfigError(f"driver negotiated {capture.negotiated_fps:g} FPS")
-                self.readback = self.control_writer(
-                    self.device, self.requested, reset_defaults=self.reset_defaults
-                )
+                try:
+                    self.readback = self.control_writer(
+                        self.device, self.requested, reset_defaults=self.reset_defaults
+                    )
+                except ConfigError:
+                    self.controls_rejected = True
+                    raise
+                self.controls_rejected = False
                 self.capabilities = getattr(self.readback, "capabilities", None)
                 capture_epoch = uuid.uuid4().hex
                 sequence, previous_driver = 0, None

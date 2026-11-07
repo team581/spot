@@ -33,6 +33,8 @@ export interface Camera {
 	name: string;
 	logical_name?: string | null;
 	connected: boolean;
+	/** Attached, but refused the requested control values; editing them can recover it. */
+	controls_rejected?: boolean;
 	present?: boolean;
 	health?: string;
 	calibrated: boolean;

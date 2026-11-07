@@ -3,6 +3,8 @@ import { useDashboard } from '../dashboard';
 import { useOperation, useStatus } from '../queries';
 import { controlPath, isOverride } from '../state/changes';
 import type { Camera, Control } from '../types';
+import { errorMessage } from '../errors';
+import { Feedback } from './common';
 import { Button } from '@/components/ui/button';
 import type { LiveTuner } from '../state/editing';
 import { Label } from '@/components/ui/label';
@@ -14,7 +16,7 @@ export function TuningControl({ control: c, tuner, camera }: { control: Control;
 		revert = useOperation<'configuration/clear-overrides'>(),
 		path = controlPath(camera.logical_name ?? '', c.name),
 		edited = camera.logical_name ? isOverride(status.overrides, path) : undefined;
-	const disabled = Boolean(!c.allowed || !camera.connected || tuner.conflict);
+	const disabled = Boolean(!c.allowed || !(camera.connected || camera.controls_rejected) || tuner.conflict);
 	const value = tuner.gesture ? (tuner.requested[c.name] ?? c.value) : c.value;
 	const id = 'control-' + c.name;
 	const gesture = {
@@ -97,6 +99,7 @@ export function TuningControl({ control: c, tuner, camera }: { control: Control;
 					</Button>
 				</div>
 			) : null}
+			{revert.error ? <Feedback>{errorMessage(revert.error)}</Feedback> : null}
 			<small className="text-xs text-muted-foreground empty:hidden">
 				{c.allowed ? c.range_reason || '' : c.reason || 'Unavailable'}
 			</small>

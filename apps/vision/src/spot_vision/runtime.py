@@ -532,6 +532,11 @@ class Runtime:
                 if hasattr(self, "progress"):
                     self.progress["configuration"] = time.monotonic()
                 worker = self.workers.get(identity)
+                if worker and worker.controls_rejected and controls[identity] != worker.requested:
+                    # New values may fix the rejected ones; restart with them.
+                    worker.stop()
+                    del self.workers[identity]
+                    worker = None
                 if worker:
                     if worker.verified:
                         worker.update(
