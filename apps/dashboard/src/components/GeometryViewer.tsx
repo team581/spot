@@ -51,7 +51,7 @@ export default function GeometryViewer({
 			)}
 		>
 			<canvas
-				className="block size-full min-h-48 touch-none"
+				className="block size-full min-h-48 touch-none outline-none"
 				ref={canvas}
 				id="geometry-canvas"
 				width={inspection ? 1000 : 700}
