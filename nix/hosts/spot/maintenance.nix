@@ -69,6 +69,9 @@ in
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
+      # Drop vanished clients within ~45 s so stale deploy forwards don't hold ports.
+      ClientAliveInterval = 15;
+      ClientAliveCountMax = 3;
     };
   };
   users.users.team581 = {
