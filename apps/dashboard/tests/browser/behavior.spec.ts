@@ -150,7 +150,7 @@ test('network apply payload and confirmation token', async ({ page }) => {
 	await page.goto('/network');
 	await expect(page.getByLabel('Ethernet port')).toHaveCount(0);
 	await expect(page.getByText('Either Ethernet port works.', { exact: false })).toBeVisible();
-	await page.getByLabel('IPv4 address / prefix').fill('10.5.81.12/24');
+	await page.getByLabel('IPv4 address').fill('10.5.81.12/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
 	await expect(page.locator('#network-countdown')).toContainText('89 seconds');
 	await page.getByRole('button', { name: 'Keep settings', exact: true }).click();
@@ -275,11 +275,11 @@ test('automatic network rollback restores the form; explicit revert uses the con
 		return { result: {} };
 	});
 	await page.goto('/network');
-	await page.getByLabel('IPv4 address / prefix').fill('10.5.81.99/24');
+	await page.getByLabel('IPv4 address').fill('10.5.81.99/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Revert now', exact: true })).toBeVisible();
 	delete status.network.pending;
-	await expect(page.getByLabel('IPv4 address / prefix')).toHaveValue('10.5.81.11/24');
+	await expect(page.getByLabel('IPv4 address')).toHaveValue('10.5.81.11/24');
 	await page.getByRole('button', { name: 'Apply for 90 seconds', exact: true }).click();
 	await page.getByRole('button', { name: 'Revert now', exact: true }).click();
 	await expect(page.locator('#network-feedback')).toContainText('Previous connection restored');

@@ -22,7 +22,6 @@ def change(**values):
     "values",
     [
         change(interface="spot0"),
-        change(address="10.5.81.11"),
         change(address="10.5.81.0/24"),
         change(address="10.5.81.255/24"),
         change(address="127.0.0.1/24"),
@@ -37,6 +36,10 @@ def change(**values):
 def test_address_validation_rejects_unsafe_or_ambiguous_input(values):
     with pytest.raises(NetworkError):
         validate_change(values)
+
+
+def test_bare_address_defaults_to_frc_subnet():
+    assert validate_change(change(address="10.99.91.11"))["address"] == "10.99.91.11/24"
 
 
 class FakeManager(NetworkManager):

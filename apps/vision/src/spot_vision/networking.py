@@ -37,18 +37,20 @@ def validate_change(values):
     if mode not in {"automatic", "static"}:
         raise NetworkError("Choose Automatic (DHCP) or Static")
     if not isinstance(address, str) or len(address) > 32:
-        raise NetworkError("Use an IPv4 address with a prefix, for example 10.5.81.11/24")
+        raise NetworkError("Use an IPv4 address, for example 10.5.81.11 or 10.5.81.11/24")
     if mode == "automatic":
         if address:
             raise NetworkError("Automatic mode does not take a static address")
         return dict(values)
+    # FRC robot networks (10.TE.AM.x) are always /24.
+    if "/" not in address:
+        address += "/24"
     try:
         parsed = ipaddress.IPv4Interface(address)
     except ValueError as exc:
-        raise NetworkError("Use an IPv4 address with a prefix, for example 10.5.81.11/24") from exc
+        raise NetworkError("Use an IPv4 address, for example 10.5.81.11 or 10.5.81.11/24") from exc
     if (
-        "/" not in address
-        or not 1 <= parsed.network.prefixlen <= 30
+        not 1 <= parsed.network.prefixlen <= 30
         or parsed.ip.is_multicast
         or parsed.ip.is_loopback
         or parsed.ip.is_link_local

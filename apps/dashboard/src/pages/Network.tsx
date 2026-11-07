@@ -213,18 +213,18 @@ export default function NetworkPage() {
 						<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
 						<NativeSelectOption value="static">Static</NativeSelectOption>
 					</NativeSelect>
-					<Label htmlFor="network-address">IPv4 address / prefix</Label>
+					<Label htmlFor="network-address">IPv4 address</Label>
 					<Input
 						id="network-address"
-						placeholder="10.5.81.11/24"
+						placeholder="10.5.81.11"
 						autoComplete="off"
 						value={address}
 						onChange={(e) => setAddress(e.target.value)}
 						disabled={mode !== 'static' || busy || Boolean(pending)}
 					/>
 					<p>
-						Automatic needs a DHCP server. A direct roboRIO cable usually needs Static. The maintenance address stays
-						available through either port.
+						Addresses without a prefix use /24, the standard FRC robot subnet. Automatic needs a DHCP server. A direct
+						roboRIO cable usually needs Static. The maintenance address stays available through either port.
 					</p>
 					<Button
 						className="self-start"
