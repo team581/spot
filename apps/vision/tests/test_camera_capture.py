@@ -37,8 +37,8 @@ def test_auto_control_precedes_manual_write_and_returns_refreshed_flags(monkeypa
         )
 
     monkeypatch.setattr(camera_capture, "_run", run)
-    result = write_controls("/dev/test", {"exposure_time_absolute": 3000.0, "exposure_auto": 1})
-    assert result == {"exposure_time_absolute": 3000.0, "exposure_auto": 1}
+    result = write_controls("/dev/test", {"exposure_time_absolute": 3.0, "exposure_auto": 1})
+    assert result == {"exposure_time_absolute": 3.0, "exposure_auto": 1}
     assert writes == ["exposure_auto", "exposure_time_absolute"]
     assert next(c for c in result.capabilities if c["name"] == "exposure_time_absolute")["writable"]
 
@@ -67,7 +67,7 @@ def test_unknown_control_never_writes_device(monkeypatch):
     ("initial_auto", "requested", "expected"),
     [
         (1, {}, {"exposure_auto": 3, "gain": 1}),
-        (3, {"exposure_auto": 1}, {"exposure_auto": 1, "exposure_time_absolute": 2500, "gain": 1}),
+        (3, {"exposure_auto": 1}, {"exposure_auto": 1, "exposure_time_absolute": 2.5, "gain": 1}),
     ],
 )
 def test_defaults_follow_effective_automatic_policy(monkeypatch, initial_auto, requested, expected):
@@ -96,7 +96,7 @@ def test_defaults_follow_effective_automatic_policy(monkeypatch, initial_auto, r
 def test_explicit_manual_control_cannot_be_ignored_in_automatic_mode(monkeypatch):
     monkeypatch.setattr(camera_capture, "_run", lambda args, timeout: capabilities())
     with pytest.raises(ConfigError, match="unavailable after applying automatic-control policy"):
-        write_controls("/dev/test", {"exposure_time_absolute": 3000}, reset_defaults=True)
+        write_controls("/dev/test", {"exposure_time_absolute": 3}, reset_defaults=True)
 
 
 def test_preview_does_not_reset_hardware_controls(monkeypatch):

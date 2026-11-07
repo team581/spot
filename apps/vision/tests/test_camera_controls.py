@@ -7,31 +7,31 @@ from spot_vision.devices import parse_capability_controls
 @pytest.mark.parametrize(
     "fps,hardware_max,expected",
     [
-        (120, 1_000_000, 8300),
-        (30, 1_000_000, 33300),
-        (120, 7000, 7000),
+        (120, 1000, 8.3),
+        (30, 1000, 33.3),
+        (120, 7, 7),
     ],
 )
 def test_exposure_range_fits_capture_interval_and_driver_steps(fps, hardware_max, expected):
     control = {
         "name": "exposure_time_absolute",
-        "min": 5000,
+        "min": 0.5,
         "max": hardware_max,
-        "step": 100,
-        "value": 5000,
+        "step": 0.1,
+        "value": 0.5,
         "allowed": True,
     }
     result = module.frame_limited_exposure(control, fps)
     assert result["max"] == expected and result["hardware_max"] == hardware_max
     assert result["exposure_limit_available"]
-    assert control["max"] == hardware_max and result["value"] == 5000
+    assert control["max"] == hardware_max and result["value"] == 0.5
 
 
 def test_no_valid_exposure_does_not_invent_a_value_below_device_minimum():
     result = module.frame_limited_exposure(
-        {"name": "exposure_absolute", "min": 5000, "max": 1_000_000, "step": 100}, 210
+        {"name": "exposure_absolute", "min": 5, "max": 1000, "step": 0.1}, 210
     )
-    assert result["max"] == 5000 and not result["exposure_limit_available"]
+    assert result["max"] == 5 and not result["exposure_limit_available"]
     assert not result["allowed"] and "lower capture rate" in result["reason"]
 
 
@@ -55,7 +55,7 @@ def test_discovery_uses_actual_camera_ranges_units_flags_and_sparse_menus():
     controls = {c["name"]: c for c in parse_capability_controls(ARDUCAM)}
     assert controls["brightness"]["label"] == "Black level / brightness"
     assert controls["brightness"]["min"] == -64
-    assert controls["exposure_time_absolute"]["factor"] == 100
+    assert controls["exposure_time_absolute"]["factor"] == 0.1
     assert controls["exposure_time_absolute"]["value"] == 10
     assert not controls["white_balance_temperature"]["writable"]
     assert [o["value"] for o in controls["auto_exposure"]["options"]] == [1, 3]

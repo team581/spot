@@ -17,7 +17,7 @@ import numpy as np
 from . import protocol_models as wire
 from .calibration_record import validate_record
 from .camera_capture import CameraCapture
-from .camera_controls import EXPOSURE_NAMES, frame_limited_exposure
+from .camera_controls import EXPOSURE_NAMES, frame_limited_exposure, scaled
 from .clock import FrameRateCounter
 from .config import (
     Backend,
@@ -731,7 +731,10 @@ class Runtime:
             limited = frame_limited_exposure(
                 {
                     **control,
-                    **{key: control[key] * control["factor"] for key in ("min", "max", "step")},
+                    **{
+                        key: scaled(control[key], control["factor"])
+                        for key in ("min", "max", "step")
+                    },
                 },
                 mode.fps,
             )
@@ -740,7 +743,7 @@ class Runtime:
                 type(value) in (int, float) and value > limited["max"]
             ):
                 raise ConfigError(
-                    f"Exposure must fit one {mode.fps:g} FPS frame (maximum {limited['max']:g} µs)"
+                    f"Exposure must fit one {mode.fps:g} FPS frame (maximum {limited['max']:g} ms)"
                 )
 
     def _supported_controls(self, name):

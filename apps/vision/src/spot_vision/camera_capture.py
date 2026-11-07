@@ -11,6 +11,7 @@ from typing import cast
 
 import numpy as np
 
+from .camera_controls import scaled as to_api
 from .capture import gray_to_yuyv_frame, orient_yuyv_frame
 from .clock import FrameRateCounter, nt_now_us
 from .config import CameraConfig, ConfigError
@@ -54,7 +55,7 @@ def write_controls(
         control = capabilities.get(name)
         if control is None:
             raise ConfigError(f"{name}: control unavailable")
-        scaled = value / control["factor"]
+        scaled = round(value / control["factor"], 6)
         if (
             not np.isfinite(scaled)
             or scaled != int(scaled)
@@ -97,11 +98,13 @@ def write_controls(
                         f"{name}: unavailable after applying automatic-control policy"
                     )
                 command(["v4l2-ctl", "--device", device, f"--set-ctrl={name}={value}"])
-            expected[name] = value * fresh[name]["factor"]
+            expected[name] = to_api(value, fresh[name]["factor"])
 
     actual = read_controls()
     readback = {
-        name: actual[name]["value"] * actual[name]["factor"] for name in expected if name in actual
+        name: to_api(actual[name]["value"], actual[name]["factor"])
+        for name in expected
+        if name in actual
     }
     if readback != expected:
         raise ConfigError(f"device clipped or rejected controls; readback {readback}")

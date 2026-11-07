@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict
 from typing import TYPE_CHECKING, TypedDict
 
-from .camera_controls import frame_limited_exposure
+from .camera_controls import frame_limited_exposure, scaled
 from .configuration import mode_signature
 from .optical_modes import advertised_modes, mode_supported, preview_mode, preview_modes
 
@@ -108,12 +108,12 @@ def build_status(runtime: Runtime) -> StatusSnapshot:
             capabilities.append(
                 {
                     **control,
-                    "min": control["min"] * factor,
-                    "max": control["max"] * factor,
-                    "step": control["step"] * factor,
-                    "value": worker.readback.get(control["name"], control["value"] * factor)
+                    "min": scaled(control["min"], factor),
+                    "max": scaled(control["max"], factor),
+                    "step": scaled(control["step"], factor),
+                    "value": worker.readback.get(control["name"], scaled(control["value"], factor))
                     if worker
-                    else control["value"] * factor,
+                    else scaled(control["value"], factor),
                     "allowed": bool(
                         control["writable"]
                         and definition is not None

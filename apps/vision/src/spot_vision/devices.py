@@ -45,7 +45,7 @@ class ControlCapability(TypedDict):
     flags: str
     options: list[ControlOption]
     writable: bool
-    factor: int
+    factor: float
     unit: str
 
 
@@ -154,8 +154,8 @@ def parse_capability_controls(output: str) -> list[ControlCapability]:
                 "writable": not any(
                     flag in flags for flag in ("inactive", "read-only", "disabled", "grabbed")
                 ),
-                "factor": 100 if name in EXPOSURE_NAMES else 1,
-                "unit": "µs" if name in EXPOSURE_NAMES else "",
+                "factor": 0.1 if name in EXPOSURE_NAMES else 1,
+                "unit": "ms" if name in EXPOSURE_NAMES else "",
             }
             controls.append(current)
         elif current is not None:

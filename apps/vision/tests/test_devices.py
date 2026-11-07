@@ -105,7 +105,7 @@ def test_capabilities_use_advertised_units_menus_flags_and_modes():
     assert modes[0]["width"] == 640 and modes[1]["fps"] == 120
     assert all(not mode["verified"] for mode in modes)
     exposure, vendor = parse_capability_controls(output)
-    assert exposure["min"] == 50 and exposure["factor"] == 100
+    assert exposure["min"] == 50 and exposure["factor"] == 0.1
     assert not vendor["writable"] and vendor["options"][1]["value"] == 2
 
 

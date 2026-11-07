@@ -486,8 +486,8 @@ def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(run
         "step": 1,
         "default": 50,
         "value": 50,
-        "factor": 100,
-        "unit": "µs",
+        "factor": 0.1,
+        "unit": "ms",
         "writable": True,
         "options": [],
         "flags": "",
@@ -497,10 +497,10 @@ def test_exposure_api_and_control_range_use_capture_mode_not_detection_limit(run
     control = next(
         c for c in app.status()["cameras"][0]["controls"] if c["name"] == "exposure_time_absolute"
     )
-    assert control["max"] == 8300 and control["hardware_max"] == 1_000_000
-    app._validate_exposure(identity, {"exposure_time_absolute": 8300})
-    with pytest.raises(ConfigError, match="maximum 8300"):
-        app._validate_exposure(identity, {"exposure_time_absolute": 8400})
+    assert control["max"] == 8.3 and control["hardware_max"] == 1000
+    app._validate_exposure(identity, {"exposure_time_absolute": 8.3})
+    with pytest.raises(ConfigError, match="maximum 8.3 ms"):
+        app._validate_exposure(identity, {"exposure_time_absolute": 8.4})
 
 
 def test_moving_usb_port_does_not_move_robot_name_and_return_restores_saved_tuning(runtime):

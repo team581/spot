@@ -54,14 +54,19 @@ EXPOSURE_NAMES = {"exposure_time_absolute", "exposure_absolute"}
 HEADER = re.compile(r"^\s*(\w+)\s+0x[0-9a-fA-F]+\s+\(([^)]+)\)\s*:\s*(.*)$")
 
 
+def scaled(value: float, factor: float) -> float:
+    """Convert a driver value to UI/API units without float noise (e.g. 100 µs steps to ms)."""
+    return round(value * factor, 6)
+
+
 def frame_limited_exposure(control: dict, fps: float) -> dict:
-    """Bound a microsecond UI/API range to one configured capture interval."""
+    """Bound a millisecond UI/API range to one configured capture interval."""
     if control["name"] not in EXPOSURE_NAMES or not fps or fps <= 0:
         return control
     result = dict(control)
-    minimum, step = control["min"], max(1, control["step"])
-    maximum = min(control["max"], 1_000_000 / fps)
-    limited = minimum + math.floor((maximum - minimum) / step) * step
+    minimum, step = control["min"], control["step"] or 1
+    maximum = min(control["max"], 1000 / fps)
+    limited = scaled(minimum + math.floor(round((maximum - minimum) / step, 6)) * step, 1)
     result["hardware_max"] = control["max"]
     result["max"] = max(minimum, limited)
     result["exposure_limit_available"] = limited >= minimum
