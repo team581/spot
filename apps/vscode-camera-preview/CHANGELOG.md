@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/team581/spot-2026/compare/camera-preview-v0.2.0...camera-preview-v0.3.0) (2026-11-07)
+
+
+### Features
+
+* **camera-viewer:** render geometry with Three.js and add WASD navigation ([03fdb19](https://github.com/team581/spot-2026/commit/03fdb19a7e30bc06d460453be0e1b09b9f28a5e9))
+* cleanup all documentation ([df29234](https://github.com/team581/spot-2026/commit/df29234a855ff08384e9bb48d4636336dae9a760))
+* make robot code's spot-config.json the source of truth for Spot ([861a008](https://github.com/team581/spot-2026/commit/861a00895496ba14734d91d10edbb075ef90537a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 1.1.0
+
 ## [0.2.0](https://github.com/team581/spot-2026/compare/camera-preview-v0.1.2...camera-preview-v0.2.0) (2026-11-04)
 
 

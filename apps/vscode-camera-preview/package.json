@@ -1,7 +1,7 @@
 {
 	"name": "spot-camera-preview",
 	"displayName": "Spot Camera Preview",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Offline preview of Spot robot camera configuration",
 	"categories": [
 		"Visualization"

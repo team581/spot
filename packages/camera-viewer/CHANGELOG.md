@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/team581/spot-2026/compare/camera-viewer-v1.0.0...camera-viewer-v1.1.0) (2026-11-07)
+
+
+### Features
+
+* **camera-viewer:** render geometry with Three.js and add WASD navigation ([03fdb19](https://github.com/team581/spot-2026/commit/03fdb19a7e30bc06d460453be0e1b09b9f28a5e9))
+
 ## 1.0.0 (2026-11-04)
 
 
