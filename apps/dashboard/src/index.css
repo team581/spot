@@ -156,6 +156,10 @@
 	body {
 		font-variant-numeric: tabular-nums;
 	}
+	button:not(:disabled),
+	[role='button']:not(:disabled) {
+		cursor: pointer;
+	}
 	a {
 		@apply text-accent-text;
 	}
