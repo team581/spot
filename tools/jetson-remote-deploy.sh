@@ -14,7 +14,7 @@ add new files to Git first.
 test     Activate until the next reboot (default).
 switch   Activate and make it the boot default.
 
-SPOT_HOST    Jetson address (default: 192.168.69.170)
+SPOT_HOST    Jetson address (default: 10.99.91.11)
 SPOT_CONFIG  Configuration to build (default: spot; spot-test for the test unit)
 HELP
     exit 0

@@ -11,7 +11,7 @@ Copies tracked working-tree files, builds on the Jetson, and restarts Spot.
 No local Nix or Docker is used. Add new files to Git before deploying.
 Pause calibration first; deployment restarts the service.
 
-SPOT_HOST                 Jetson address (default: 192.168.69.170)
+SPOT_HOST                 Jetson address (default: 10.99.91.11)
 SPOT_SSH_CONTROL_SOCKET   Reuse an SSH master that forwards remote SOCKS :11080.
                           Otherwise this script opens and closes its own tunnel.
 HELP

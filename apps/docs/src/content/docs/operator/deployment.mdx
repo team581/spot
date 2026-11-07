@@ -11,14 +11,15 @@ preserves the firmware-provided device tree and disables automatic firmware upda
 
 ## Connect
 
-For direct Ethernet, give the laptop `192.168.69.171/24`, then:
+On the robot network, Spot is at `10.99.91.11`:
 
 ```sh
 bash tools/jetson-ssh.sh
 ```
 
 The helper uses the repository's shared maintenance key for `team581` with
-passwordless sudo. Set `SPOT_HOST` to override `192.168.69.170`.
+passwordless sudo. Set `SPOT_HOST` to override `10.99.91.11`. For direct
+Ethernet, give the laptop `192.168.69.171/24` and use `SPOT_HOST=192.168.69.170`.
 The [maintenance config](https://github.com/team581/spot-2026/blob/main/nix/hosts/spot/maintenance.nix) bridges both Ethernet ports;
 they are on the same network.
 

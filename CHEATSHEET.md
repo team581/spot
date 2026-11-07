@@ -1,6 +1,6 @@
 # Spot cheatsheet
 
-Run from the repo root. The Jetson is `192.168.69.170`; set `SPOT_HOST=<ip>` for another address.
+Run from the repo root. The Jetson is `10.99.91.11`; set `SPOT_HOST=<ip>` for another address.
 
 Open a shell on the Jetson with the shared maintenance key:
 
