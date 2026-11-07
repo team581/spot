@@ -86,8 +86,9 @@ export interface Scene {
 	center: number[];
 	/** Metres to fit in view at zoom 1. */
 	extent: number[];
+	/** Framed close on the robot's field pose; the viewer then holds this framing until reset. */
+	focused: boolean;
 	status: string;
-	footer: string;
 }
 function posed(parent: THREE.Object3D, pose: Pose): THREE.Group {
 	const group = new THREE.Group(),
@@ -170,9 +171,12 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 			(a, b) => (!a || (b.error_px ?? NaN) < (a.error_px ?? NaN) ? b : a),
 			null,
 		),
-		world = !inspection && selected && field ? { selected, field } : null;
-	if (world) {
-		const { length, width } = world.field,
+		// Live previews stay on the field so flickering detections don't swap scenes.
+		arena = !inspection && !mounts ? field : undefined,
+		world = arena && selected ? { selected, field: arena } : null,
+		pose = world && geometry ? robotPose(world.selected, geometry) : null;
+	if (arena) {
+		const { length, width } = arena,
 			grid: number[][] = [];
 		for (let x = 1; x < length; x++) grid.push([x, 0, 0], [x, width, 0]);
 		for (let y = 1; y < width; y++) grid.push([0, y, 0], [length, y, 0]);
@@ -190,30 +194,30 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 			grid.push([i * 0.4, -1.2, 0], [i * 0.4, 1.2, 0], [-1.2, i * 0.4, 0], [1.2, i * 0.4, 0]);
 		segments(root, grid, 'line');
 	}
-	const chassis = posed(
-		root,
-		world && geometry ? robotPose(world.selected, geometry) : { translation: [0, 0, 0], quaternion: [1, 0, 0, 0] },
-	);
-	if (!mounts) box(chassis, [1, 0.8, 0.15], 'muted-foreground');
-	else if (
-		drivebase?.visible &&
-		Number.isFinite(drivebase.length) &&
-		Number.isFinite(drivebase.width) &&
-		drivebase.length > 0 &&
-		drivebase.width > 0
-	)
-		// Footprint only: X is length, Y is width. No guessed chassis height.
-		loop(chassis, rectangle(drivebase.length, drivebase.width), 'accent-text', 2.5);
-	arrow(chassis, [0, 0, 0.8], '+Z up', 'muted-foreground');
-	arrow(chassis, [0.95, 0, 0.03], 'Front · +X', 'accent-text');
-	arrow(chassis, [0, 0.65, 0.03], '+Y left', 'muted-foreground');
+	// Without a current field pose there is nowhere to place the robot on the field.
+	if (!arena || world) {
+		const chassis = posed(root, pose ?? { translation: [0, 0, 0], quaternion: [1, 0, 0, 0] });
+		if (!mounts) box(chassis, [1, 0.8, 0.15], 'muted-foreground');
+		else if (
+			drivebase?.visible &&
+			Number.isFinite(drivebase.length) &&
+			Number.isFinite(drivebase.width) &&
+			drivebase.length > 0 &&
+			drivebase.width > 0
+		)
+			// Footprint only: X is length, Y is width. No guessed chassis height.
+			loop(chassis, rectangle(drivebase.length, drivebase.width), 'accent-text', 2.5);
+		arrow(chassis, [0, 0, 0.8], '+Z up', 'muted-foreground');
+		arrow(chassis, [0.95, 0, 0.03], 'Front · +X', 'accent-text');
+		arrow(chassis, [0, 0.65, 0.03], '+Y left', 'muted-foreground');
+	}
 	if (mounts) {
 		for (const mount of mounts) {
 			const group = camera(root, mount, mount.name === selectedName ? 'blue' : 'muted-foreground', mount.name);
 			arrow(group, [0, 0.25, 0], '+Y', 'good');
 			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
-	} else if (world) {
+	} else if (arena) {
 		for (const candidate of candidates)
 			camera(
 				root,
@@ -221,8 +225,8 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 				candidate === selected ? 'blue' : 'warning',
 				candidate === selected ? 'Selected camera' : 'Alternate camera',
 			);
-		const seen = new Set(data!.tags.map((t) => t.id));
-		for (const tag of world.field.tags || []) {
+		const seen = new Set(world ? data!.tags.map((t) => t.id) : []);
+		for (const tag of arena.tags || []) {
 			const half = tag.size / 2,
 				visible = seen.has(tag.id);
 			loop(
@@ -236,7 +240,7 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 				visible ? 'good' : 'muted-foreground',
 				1.5,
 			);
-			if (visible) {
+			if (world && visible) {
 				segments(root, [world.selected.translation, tag.translation], 'good');
 				label(root, '#' + tag.id, tag.translation, 'good');
 			}
@@ -244,15 +248,21 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 	} else if (geometry) camera(root, geometry, 'blue', 'Camera · robot NWU');
 	return {
 		root,
-		center: world ? [world.field.length / 2, world.field.width / 2, 0] : [0, 0, 0.3],
-		extent: world ? [world.field.length + 2, world.field.width + 2] : [3, 3],
+		center: world
+			? [...(pose ?? world.selected).translation.slice(0, 2), 0.3]
+			: arena
+				? [arena.length / 2, arena.width / 2, 0]
+				: [0, 0, 0.3],
+		extent: arena && !world ? [arena.length + 2, arena.width + 2] : [3, 3],
+		focused: !!world,
 		status:
 			!geometry && !mounts
 				? 'Camera geometry unavailable'
 				: !mounts && !inspection && !current
-					? 'No current field pose · camera mount shown'
+					? arena
+						? 'No current field pose'
+						: 'No current field pose · camera mount shown'
 					: '',
-		footer: mounts ? 'Metres · grid 0.4 m · camera bodies schematic' : 'Drivebase outline is schematic',
 	};
 }
 function dispose(root: THREE.Object3D) {
@@ -279,13 +289,14 @@ export class SpotViewer {
 	private frame = 0;
 	private last = 0;
 	private framing = { center: [0, 0, 0], extent: [3, 3] };
+	/** Holds framing on the robot so flickering detections don't move the view. */
+	private focused = false;
 	private drag: number[] | null = null;
 	private listeners: (() => void)[] = [];
 	private resize: ResizeObserver;
 	private renderer: THREE.WebGLRenderer;
 	private labels = new CSS2DRenderer();
 	private status = document.createElement('div');
-	private footer = document.createElement('div');
 	private scene = new THREE.Scene();
 	private camera = new THREE.OrthographicCamera();
 	private content: THREE.Group | null = null;
@@ -296,20 +307,16 @@ export class SpotViewer {
 		this.provider = provider;
 		this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 		this.renderer.setPixelRatio(devicePixelRatio);
-		const overlay = this.labels.domElement,
-			notes = document.createElement('div');
+		const overlay = this.labels.domElement;
 		Object.assign(overlay.style, { position: 'absolute', pointerEvents: 'none', font: '14px system-ui' });
-		Object.assign(notes.style, {
+		Object.assign(this.status.style, {
 			position: 'absolute',
-			inset: '16px',
-			display: 'flex',
-			flexDirection: 'column',
-			justifyContent: 'space-between',
+			top: '16px',
+			left: '16px',
 			fontSize: '13px',
 			color: 'var(--muted-foreground)',
 		});
-		notes.append(this.status, this.footer);
-		overlay.append(notes);
+		overlay.append(this.status);
 		canvas.after(overlay);
 		const on = <K extends keyof HTMLElementEventMap>(
 			event: K,
@@ -375,7 +382,8 @@ export class SpotViewer {
 	}
 	reset(): void {
 		Object.assign(this.orbit, defaultOrbit());
-		this.render();
+		this.focused = false;
+		this.draw();
 	}
 	/** Moves continuously while WASD/QE are held: A/D pan, Q/E lower/raise, W/S zoom in/out. */
 	private move = (time: number) => {
@@ -412,7 +420,7 @@ export class SpotViewer {
 	/** Rebuilds the scene from the provider, then renders. */
 	draw(): void {
 		if (this.content) dispose(this.content);
-		const { root, center, extent, status, footer } = buildScene(this.provider()),
+		const { root, center, extent, focused, status } = buildScene(this.provider()),
 			styles = getComputedStyle(this.canvas),
 			palette = new Map<string, THREE.Color>();
 		this.content = root;
@@ -424,8 +432,10 @@ export class SpotViewer {
 			object.material.color.copy(palette.get(object.name)!);
 		});
 		this.status.textContent = status;
-		this.footer.textContent = footer;
-		this.framing = { center, extent };
+		if (!this.focused) {
+			this.framing = { center, extent };
+			this.focused = focused;
+		}
 		this.render();
 	}
 	/** Renders the current scene from the current orbit. */
