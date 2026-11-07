@@ -18,6 +18,8 @@ MAX_ROBOT_HEIGHT_M = 0.1524
 DISTINCT_TRANSLATION_M = 0.05
 DISTINCT_YAW_RAD = np.deg2rad(2.0)
 MAX_CANDIDATES = 2
+# Step fractions tried by the floor fit's backtracking line search, largest first.
+BACKTRACK_SCALES = 2.0 ** -np.arange(8)
 
 # OpenCV's camera basis is +X right, +Y down, +Z forward.  WPILib's camera
 # pose convention is NWU: +X forward, +Y left, +Z up.  This matrix converts a
@@ -172,6 +174,39 @@ def _tag_plane_to_field(field_from_tag: np.ndarray, local_corners: np.ndarray) -
     return (field_from_tag @ tag_from_plane @ homogeneous.T).T[:, :3]
 
 
+def _project(points: np.ndarray, camera_matrix: np.ndarray, distortion: np.ndarray) -> np.ndarray:
+    """cv2.projectPoints for points already in the OpenCV camera frame, shape (..., 3).
+
+    Implements OpenCV's rational and thin-prism model; a tilted sensor falls back to OpenCV.
+    """
+    coefficients = np.zeros(14)
+    coefficients[: len(distortion)] = distortion
+    if coefficients[12] or coefficients[13]:
+        import cv2
+
+        flat = points.reshape(-1, 3)
+        return cv2.projectPoints(flat, np.zeros(3), np.zeros(3), camera_matrix, distortion)[
+            0
+        ].reshape(*points.shape[:-1], 2)
+    k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4 = coefficients[:12]
+    z = points[..., 2]
+    inverse_z = np.divide(1.0, z, out=np.ones_like(z), where=z != 0)
+    x, y = points[..., 0] * inverse_z, points[..., 1] * inverse_z
+    r2 = x * x + y * y
+    r4, r6 = r2 * r2, r2 * r2 * r2
+    radial = (1 + k1 * r2 + k2 * r4 + k3 * r6) / (1 + k4 * r2 + k5 * r4 + k6 * r6)
+    xy2 = 2 * x * y
+    xd = x * radial + p1 * xy2 + p2 * (r2 + 2 * x * x) + s1 * r2 + s2 * r4
+    yd = y * radial + p1 * (r2 + 2 * y * y) + p2 * xy2 + s3 * r2 + s4 * r4
+    return np.stack(
+        (
+            camera_matrix[0, 0] * xd + camera_matrix[0, 2],
+            camera_matrix[1, 1] * yd + camera_matrix[1, 2],
+        ),
+        axis=-1,
+    )
+
+
 def _rpy_matrix(rpy_deg: tuple[float, float, float]) -> np.ndarray:
     """Return Rz(yaw) @ Ry(pitch) @ Rx(roll) for right-handed NWU axes."""
     roll, pitch, yaw = np.deg2rad(np.asarray(rpy_deg, dtype=np.float64))
@@ -314,10 +349,9 @@ class PoseSolver:
         Roll and pitch are fixed at zero; X, Y, height, and yaw are fitted. Distinct
         local minima are returned best-first so the robot can choose using its heading.
         """
-        import cv2
-
         assert self.layout is not None and self.camera_matrix is not None
-        camera_matrix = self.camera_matrix
+        assert self.distortion is not None
+        camera_matrix, distortion = self.camera_matrix, self.distortion
         objects = np.concatenate(
             [
                 _tag_plane_to_field(
@@ -340,17 +374,30 @@ class PoseSolver:
             )
 
         def bounded(parameters):
-            return np.array(
-                [*parameters[:2], np.clip(parameters[2], 0, MAX_ROBOT_HEIGHT_M), parameters[3]]
-            )
+            result = np.array(parameters, dtype=np.float64)
+            result[..., 2] = np.clip(result[..., 2], 0, MAX_ROBOT_HEIGHT_M)
+            return result
 
-        def residual(parameters):
-            optical_from_field = np.linalg.inv(camera_pose(parameters) @ camera_basis)
-            rvec = cv2.Rodrigues(optical_from_field[:3, :3])[0]
-            projected = cv2.projectPoints(
-                objects, rvec, optical_from_field[:3, 3], camera_matrix, self.distortion
-            )[0].reshape(-1, 2)
-            return (projected - images).ravel()
+        mount_rotation = self.robot_from_camera[:3, :3] @ NWU_FROM_OPENCV
+        mount_translation = self.robot_from_camera[:3, 3]
+
+        def residuals(batch):
+            """Pixel residuals for each row of (x, y, z, yaw) parameters, shape (K, 2N).
+
+            Vectorized so one solve makes a few NumPy calls per iteration instead of hundreds
+            of OpenCV calls, each of which releases and must reacquire the GIL. Other threads
+            can hold the GIL for a full switch interval, so avoid calls that release it here
+            (np.einsum does; small matmuls do not).
+            """
+            c, s = np.cos(batch[:, 3]), np.sin(batch[:, 3])
+            yaw = np.zeros((len(batch), 3, 3))
+            yaw[:, 0, 0], yaw[:, 0, 1], yaw[:, 1, 0], yaw[:, 1, 1], yaw[:, 2, 2] = c, -s, s, c, 1
+            # field_from_optical; its transpose maps field points into the optical frame.
+            rotation = yaw @ mount_rotation
+            translation = batch[:, :3] + yaw @ mount_translation
+            points = (objects[None] - translation[:, None]) @ rotation
+            projected = _project(points, camera_matrix, distortion)
+            return (projected - images).reshape(len(batch), -1)
 
         fits: list[tuple[float, np.ndarray, PoseCandidate]] = []
         for seed in seeds:
@@ -371,30 +418,27 @@ class PoseSolver:
             # Gauss-Newton with four parameters and at least eight residuals.
             valid = True
             for _ in range(20):
-                errors = residual(parameters)
-                jacobian = np.column_stack(
-                    [(residual(parameters + axis * 1e-5) - errors) / 1e-5 for axis in np.eye(4)]
-                )
+                probes = residuals(np.vstack([parameters, parameters + np.eye(4) * 1e-5]))
+                errors = probes[0]
+                jacobian = ((probes[1:] - errors) / 1e-5).T
                 step, _, rank, _ = np.linalg.lstsq(jacobian, -errors, rcond=None)
                 if rank < 4 or not np.isfinite(step).all():
                     valid = False
                     break
-                # Backtracking prevents a poor 3D seed from increasing pixel error.
-                previous = parameters
-                scale = 1.0
-                while scale >= 1 / 128:
-                    trial = bounded(parameters + scale * step)
-                    if np.linalg.norm(residual(trial)) <= np.linalg.norm(errors):
-                        parameters = trial
-                        break
-                    scale /= 2
-                if scale < 1 / 128 or np.linalg.norm(parameters - previous) < 1e-7:
+                # Backtracking prevents a poor 3D seed from increasing pixel error. Every scale
+                # is evaluated at once and the largest one that does not increase error is kept.
+                trials = bounded(parameters + BACKTRACK_SCALES[:, None] * step)
+                accepted = np.flatnonzero(np.sum(residuals(trials) ** 2, axis=1) <= errors @ errors)
+                if not len(accepted):
+                    break
+                previous, parameters = parameters, trials[accepted[0]]
+                if np.linalg.norm(parameters - previous) < 1e-7:
                     break
             field_camera = camera_pose(parameters)
             optical_from_field = np.linalg.inv(field_camera @ camera_basis)
             depths = (optical_from_field[:3, :3] @ objects.T + optical_from_field[:3, 3:4])[2]
             error = float(
-                np.sqrt(np.mean(np.sum(residual(parameters).reshape(-1, 2) ** 2, axis=1)))
+                np.sqrt(np.mean(np.sum(residuals(parameters[None])[0].reshape(-1, 2) ** 2, axis=1)))
             )
             if valid and np.all(depths > 0.05) and np.isfinite(error):
                 candidate = replace(

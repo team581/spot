@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import cv2
 import numpy as np
+import pytest
 
 from spot_vision.config import Calibration, CameraConfig, CameraSelector, DetectorConfig
 from spot_vision.models import Detection, PoseCandidate, PoseMethod, PoseSolution
@@ -13,6 +14,7 @@ from spot_vision.pose import (
     FieldLayout,
     FieldTag,
     PoseSolver,
+    _project,
     _rpy_matrix,
     _tag_plane_to_field,
     matrix_to_quaternion,
@@ -281,3 +283,19 @@ def test_unknown_and_missing_inputs_keep_raw_rejection_reasons():
     )
     result = PoseSolver(CALIBRATION, FieldLayout({}, 1), 0.1651, np.eye(4)).solve((observed,))
     assert result.rejection_reasons[99] == "UNKNOWN_TAG_ID"
+
+
+@pytest.mark.parametrize("count", [4, 5, 8, 12, 14])
+@pytest.mark.parametrize("tilted", [False, True])
+def test_floor_fit_projection_matches_opencv_for_every_lens_model(count, tilted):
+    # The floor fit projects in NumPy; any drift from OpenCV's model biases every pose.
+    if tilted and count < 14:
+        pytest.skip("only the 14-coefficient model has sensor tilt")
+    rng = np.random.default_rng(count)
+    distortion = rng.normal(0, 0.05, count)
+    if count == 14 and not tilted:
+        distortion[12:] = 0
+    matrix = np.array([[600.0, 0, 320], [0, 590, 240], [0, 0, 1]])
+    points = np.column_stack([rng.uniform(-3, 3, (64, 2)), rng.uniform(0.3, 8, 64)])
+    expected = cv2.projectPoints(points, np.zeros(3), np.zeros(3), matrix, distortion)[0]
+    assert np.allclose(_project(points, matrix, distortion), expected.reshape(-1, 2), atol=1e-6)
