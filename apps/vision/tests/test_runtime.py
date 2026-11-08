@@ -31,6 +31,7 @@ class Transport:
         self.clock = SimpleNamespace(snapshot=lambda: SyncSnapshot("Waiting", None))
         self.published = []
         self.nt = nt
+        self.invalidations = 0
 
     def set_endpoint(self, nt):
         self.nt = nt
@@ -43,7 +44,7 @@ class Transport:
         pass
 
     def invalidate_configuration(self):
-        pass
+        self.invalidations += 1
 
     def heartbeat(self, *args):
         pass
@@ -162,6 +163,7 @@ def test_runtime_tuning_retains_single_capture_owner_and_detector(runtime):
     app, identity, _, built = runtime
     worker = app.workers[identity]
     before = len(built)
+    invalidations = app.transport.invalidations
     old_generation = app.configuration.state.generation
     worker.slot.put(
         FramePacket(
@@ -180,6 +182,7 @@ def test_runtime_tuning_retains_single_capture_owner_and_detector(runtime):
     assert app.generation == app.configuration.state.generation != old_generation
     assert worker.slot.take() is None
     assert len(built) == before
+    assert app.transport.invalidations == invalidations + 1
 
 
 def test_failed_readback_restores_previous_durable_and_runtime_generation(runtime):
@@ -256,6 +259,7 @@ def test_dashboard_can_switch_to_an_advertised_mode_robot_code_lacks(runtime):
 def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(runtime):
     app, identity, nodes, _ = runtime
     old_worker = app.workers[identity]
+    invalidations = app.transport.invalidations
     nodes.clear()
     app.devices.refresh()
     app.apply(app.configuration.state, app.configuration.manifest)
@@ -268,6 +272,8 @@ def test_disconnect_and_reenumeration_preserve_binding_without_estimator_reset(r
     assert app.workers[identity] is not old_worker
     assert app.roles[identity] == "front"
     assert app.configuration.camera("front").binding_id == identity
+    # Other cameras keep publishing while one re-enumerates.
+    assert app.transport.invalidations == invalidations
 
 
 @pytest.mark.parametrize("disconnect_at", ["snapshot", "capture"])

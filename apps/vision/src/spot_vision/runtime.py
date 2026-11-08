@@ -359,7 +359,10 @@ class Runtime:
 
     def apply(self, state: StateSnapshot, manifest: wire.Manifest | None) -> None:
         """Switch at a scheduler boundary, retaining capture workers for tuning."""
-        self.transport.invalidate_configuration()
+        # Re-enumeration keeps the robot generation, so one camera connecting
+        # or disconnecting must not withdraw readiness for the others.
+        if state.generation != self.generation:
+            self.transport.invalidate_configuration()
         bindings = (
             {c.name: {"identity": c.binding_id} for c in manifest.profile.cameras if c.binding_id}
             if manifest
