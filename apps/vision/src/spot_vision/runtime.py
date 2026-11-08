@@ -842,7 +842,7 @@ class Runtime:
         ):
             if active and self.startup[key] is None:
                 self.startup[key] = now - self.started
-        self.watchdog.ping("Spot · " + (self.fatal or sync.state))
+        self.watchdog.ping("Spot - " + (self.fatal or sync.state))
         return True
 
     def close(self) -> None:
