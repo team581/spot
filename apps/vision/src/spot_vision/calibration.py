@@ -278,14 +278,12 @@ class CalibrationManager:
                         "mode_signature": camera.mode_signature,
                         "image_rotation_deg": camera.image_rotation_deg,
                         "board": asdict(self.board),
-                        "model": self.options.model,
                         "optical_controls": optical_controls(
                             self.runtime.workers[identity].readback
                         ),
                         "intrinsics": copy.deepcopy(camera.intrinsics),
                         "fit": copy.deepcopy(camera.report),
                         "holdout": copy.deepcopy(camera.validation),
-                        "algorithm": "charuco-fit-holdout-v2",
                         "build": self.runtime.software.get("package_path"),
                         "saved_at": camera.intrinsics.get("calibrated_at")
                         if wall_time_available()

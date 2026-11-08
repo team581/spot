@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -245,10 +245,6 @@ def calibrate(
             rejected,
         )
     result = {
-        "schema_version": 2,
-        "method": "charuco",
-        "board": asdict(board_config),
-        "model": options.model,
         "width": frames[0].image_size[0],
         "height": frames[0].image_size[1],
         "camera_matrix": matrix.tolist(),
@@ -258,7 +254,6 @@ def calibrate(
         "diversity": diversity,
         "reprojection_error_px": float(rms),
         "rms_reprojection_error_px": float(rms),
-        "provisional": False,
         "calibrated_at": datetime.now(timezone.utc).isoformat(),
     }
     return result, CalibrationReport(

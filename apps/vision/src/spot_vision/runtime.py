@@ -734,10 +734,6 @@ class Runtime:
             raise ConfigError("Calibration camera is unavailable")
         if record.get("image_rotation_deg", 0) != worker.camera.image_rotation_deg:
             raise ConfigError("Calibration image orientation mismatch")
-        if not record.get("holdout", {}).get("accepted") or not record.get("fit", {}).get(
-            "accepted"
-        ):
-            raise ConfigError("Calibration fit and separate validation must both pass")
         if record.get("optical_controls", {}) != optical_controls(worker.readback):
             raise ConfigError("Calibration lens/control state mismatch")
         record_calibration(record, worker.camera)

@@ -315,8 +315,6 @@ def test_calibration_group_rebuild_failure_cannot_activate(runtime):
             "diversity": 0.75,
         },
         "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
-        "algorithm": "charuco-fit-holdout-v2",
-        "model": "plumb_bob",
         "board": {
             "squares_x": 15,
             "squares_y": 15,
@@ -465,8 +463,6 @@ def test_named_camera_can_tune_and_calibrate_while_robot_is_disconnected(runtime
             "diversity": 0.75,
         },
         "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
-        "algorithm": "charuco-fit-holdout-v2",
-        "model": "plumb_bob",
         "board": {
             "squares_x": 15,
             "squares_y": 15,
@@ -694,8 +690,6 @@ def test_pose_solver_uses_robot_supplied_camera_mount(runtime):
             "diversity": 0.75,
         },
         "holdout": {"accepted": True, "views": 5, "rms_px": 0.2},
-        "algorithm": "charuco-fit-holdout-v2",
-        "model": "plumb_bob",
         "board": {
             "squares_x": 15,
             "squares_y": 15,
