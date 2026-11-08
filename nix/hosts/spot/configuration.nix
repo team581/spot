@@ -22,6 +22,7 @@
   documentation.nixos.enable = false;
   environment.systemPackages = [
     pkgs.git
+    pkgs.usbutils
     pkgs.v4l-utils
   ];
   services.spot-vision = {

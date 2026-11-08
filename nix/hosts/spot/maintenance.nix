@@ -76,7 +76,10 @@ in
   };
   users.users.team581 = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
+    extraGroups = [
+      "video"
+      "wheel"
+    ];
     openssh.authorizedKeys.keys = [ (builtins.readFile ../../maintenance_ed25519.pub) ];
   };
   security.sudo.wheelNeedsPassword = false;
