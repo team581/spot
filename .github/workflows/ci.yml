@@ -76,6 +76,8 @@ jobs:
           - run: pnpm lint
           - run: pnpm knip
       - run: pnpm build
+      - name: Package VS Code extension
+        run: pnpm --filter spot-camera-preview package
       - run: pnpm build:jetson
       - run: pnpm test
       - uses: actions/upload-artifact@v7
