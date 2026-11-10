@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/team581/spot-2026/compare/camera-preview-v0.3.1...camera-preview-v0.3.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **vscode-camera-preview:** fix minimum VS Code version ([1dd3d17](https://github.com/team581/spot-2026/commit/1dd3d179a7204fcc37c8b81433e49f3195d96f17))
+
 ## [0.3.1](https://github.com/team581/spot-2026/compare/camera-preview-v0.3.0...camera-preview-v0.3.1) (2026-11-10)
 
 
