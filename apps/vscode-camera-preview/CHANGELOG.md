@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1](https://github.com/team581/spot-2026/compare/camera-preview-v0.3.0...camera-preview-v0.3.1) (2026-11-10)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 1.1.1
+
 ## [0.3.0](https://github.com/team581/spot-2026/compare/camera-preview-v0.2.0...camera-preview-v0.3.0) (2026-11-07)
 
 
