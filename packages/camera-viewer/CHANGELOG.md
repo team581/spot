@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/team581/spot-2026/compare/camera-viewer-v1.1.0...camera-viewer-v1.1.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **camera-viewer:** keep live preview framing stable when tags flicker ([7e9313d](https://github.com/team581/spot-2026/commit/7e9313dd81bf67db857f57a664ab7e8eaababf0a))
+
 ## [1.1.0](https://github.com/team581/spot-2026/compare/camera-viewer-v1.0.0...camera-viewer-v1.1.0) (2026-11-07)
 
 
