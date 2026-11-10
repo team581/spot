@@ -305,8 +305,8 @@ importers:
         specifier: 26.6.6
         version: 26.6.6
       '@types/vscode':
-        specifier: 1.144.0
-        version: 1.144.0
+        specifier: 1.145.0
+        version: 1.145.0
       '@vscode/vsce':
         specifier: 4.1.0
         version: 4.1.0(supports-color@10.2.2)
@@ -2363,8 +2363,8 @@ packages:
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
 
-  '@types/vscode@1.144.0':
-    resolution: {integrity: sha512-IDd4eQzu6MjGucfaQF0V/TY5vHX9o1albkKyZD6K/iVXSCcL5NSj4KW1wWfx1QDadPKWyxMaE/+M1wKLCJlXpA==}
+  '@types/vscode@1.145.0':
+    resolution: {integrity: sha512-mADZK4SF/j1n0+Qk4bH8NT1qTQGYDAsbhb5hStbzuB3hKP3mRH7xja5yUaIm7ExCh65Ff+C9XGwxcBvSlTCvkQ==}
 
   '@types/webxr@0.5.24':
     resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
@@ -7269,7 +7269,7 @@ snapshots:
 
   '@types/validate-npm-package-name@4.0.2': {}
 
-  '@types/vscode@1.144.0': {}
+  '@types/vscode@1.145.0': {}
 
   '@types/webxr@0.5.24': {}
 
