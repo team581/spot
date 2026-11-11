@@ -8,9 +8,18 @@ use zune_core::options::DecoderOptions;
 use zune_jpeg::JpegDecoder;
 
 pub struct Gray {
-    pub pixels: Vec<u8>,
+    pub pixels: Pixels,
     pub width: u32,
     pub height: u32,
+}
+
+/// Where a decoded image's 8-bit luma lives.
+pub enum Pixels {
+    /// Packed rows in CPU memory.
+    Host(Vec<u8>),
+    /// Rows `pitch` bytes apart in CUDA device memory, valid until the next decode.
+    #[cfg_attr(not(feature = "jetson"), allow(dead_code))]
+    Device { ptr: *const u8, pitch: usize },
 }
 
 pub fn dimensions(jpeg: &[u8]) -> anyhow::Result<(u32, u32)> {
@@ -34,7 +43,11 @@ impl Decoder {
         let mut decoder = JpegDecoder::new_with_options(ZCursor::new(jpeg), options);
         let pixels = decoder.decode()?;
         let info = decoder.info().ok_or_else(|| anyhow::anyhow!("missing JPEG header"))?;
-        Ok(Gray { pixels, width: info.width.into(), height: info.height.into() })
+        Ok(Gray {
+            pixels: Pixels::Host(pixels),
+            width: info.width.into(),
+            height: info.height.into(),
+        })
     }
 }
 
@@ -45,7 +58,7 @@ pub use nvjpg::Decoder;
 mod nvjpg {
     use std::ffi::{CStr, c_char};
 
-    use super::Gray;
+    use super::{Gray, Pixels};
 
     #[repr(C)]
     struct Raw {
@@ -58,8 +71,8 @@ mod nvjpg {
             decoder: *mut Raw,
             jpeg: *const u8,
             len: usize,
-            out: *mut u8,
-            capacity: usize,
+            luma: *mut *const u8,
+            pitch: *mut u32,
             width: *mut u32,
             height: *mut u32,
             error: *mut c_char,
@@ -87,20 +100,18 @@ mod nvjpg {
             let end =
                 jpeg.windows(2).rposition(|m| m == [0xff, 0xd9]).map_or(jpeg.len(), |i| i + 2);
             let jpeg = &jpeg[..end];
-            let (width, height) = super::dimensions(jpeg)?;
-            let mut pixels = vec![0; (width * height) as usize];
-            let (mut w, mut h) = (0, 0);
+            let (mut luma, mut pitch, mut width, mut height) = (std::ptr::null(), 0, 0, 0);
             let mut error = [0 as c_char; 256];
-            // SAFETY: all buffers outlive the call and their lengths are passed.
+            // SAFETY: all outputs outlive the call and the error length is passed.
             let status = unsafe {
                 spot_nvjpg_decode(
                     self.0,
                     jpeg.as_ptr(),
                     jpeg.len(),
-                    pixels.as_mut_ptr(),
-                    pixels.len(),
-                    &mut w,
-                    &mut h,
+                    &mut luma,
+                    &mut pitch,
+                    &mut width,
+                    &mut height,
                     error.as_mut_ptr(),
                     255,
                 )
@@ -109,11 +120,7 @@ mod nvjpg {
             let message =
                 || unsafe { CStr::from_ptr(error.as_ptr()) }.to_string_lossy().into_owned();
             anyhow::ensure!(status == 0, "NVJPG: {}", message());
-            anyhow::ensure!(
-                (w, h) == (width, height),
-                "NVJPG returned {w}x{h} for {width}x{height}"
-            );
-            Ok(Gray { pixels, width, height })
+            Ok(Gray { pixels: Pixels::Device { ptr: luma, pitch: pitch as usize }, width, height })
         }
     }
 

@@ -3,6 +3,7 @@
 use std::ffi::{CStr, c_char};
 
 use crate::config::Calibration;
+use crate::decode::{Gray, Pixels};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -29,11 +30,14 @@ unsafe extern "C" {
     fn spot_detector_detect(
         detector: *mut RawDetector,
         gray: *const u8,
+        pitch: i32,
+        on_device: i32,
         out: *mut RawDetection,
         capacity: i32,
         error: *mut c_char,
         len: i32,
     ) -> i32;
+    fn spot_detector_gray(detector: *mut RawDetector) -> *const u8;
     fn spot_detector_free(detector: *mut RawDetector);
 }
 
@@ -91,17 +95,33 @@ impl Detector {
     }
 
     /// Detects tags in a packed grayscale image of the detector's size.
-    pub fn detect(&mut self, gray: &[u8]) -> anyhow::Result<Vec<Detection>> {
-        anyhow::ensure!(gray.len() == (self.width * self.height) as usize, "image size mismatch");
+    pub fn detect(&mut self, gray: &Gray) -> anyhow::Result<Vec<Detection>> {
+        anyhow::ensure!(
+            (gray.width, gray.height) == (self.width, self.height),
+            "image size mismatch"
+        );
+        let (pointer, pitch, on_device) = match &gray.pixels {
+            Pixels::Host(pixels) => {
+                anyhow::ensure!(
+                    pixels.len() == (self.width * self.height) as usize,
+                    "image size mismatch"
+                );
+                (pixels.as_ptr(), self.width as usize, false)
+            }
+            Pixels::Device { ptr, pitch } => (*ptr, *pitch, true),
+        };
         let mut out =
             [RawDetection { id: 0, hamming: 0, decision_margin: 0.0, corners: [[0.0; 2]; 4] };
                 CAPACITY];
         let mut error = [0 as c_char; 256];
-        // SAFETY: `gray` has the detector's dimensions; `out` and `error` have the given capacities.
+        // SAFETY: the image has the detector's dimensions and pitch; `out` and `error` have
+        // the given capacities.
         let count = unsafe {
             spot_detector_detect(
                 self.raw,
-                gray.as_ptr(),
+                pointer,
+                pitch as i32,
+                on_device as i32,
                 out.as_mut_ptr(),
                 CAPACITY as i32,
                 error.as_mut_ptr(),
@@ -118,6 +138,23 @@ impl Detector {
                 corners: d.corners,
             })
             .collect())
+    }
+}
+
+impl Detector {
+    /// The last detected image's pixels in CPU memory.
+    pub fn host_pixels<'a>(&'a self, gray: &'a Gray) -> &'a [u8] {
+        match &gray.pixels {
+            Pixels::Host(pixels) => pixels,
+            // SAFETY: the detector copies each image to host memory, which stays valid until
+            // its next detection; `self` is borrowed for as long as the slice.
+            Pixels::Device { .. } => unsafe {
+                std::slice::from_raw_parts(
+                    spot_detector_gray(self.raw),
+                    (self.width * self.height) as usize,
+                )
+            },
+        }
     }
 }
 
@@ -142,7 +179,8 @@ mod tests {
     #[test]
     fn detects_corners_in_order() {
         let (pixels, width, height) = gray("center.png");
-        let detections = Detector::new(width, height, None).unwrap().detect(&pixels).unwrap();
+        let gray = Gray { pixels: Pixels::Host(pixels), width, height };
+        let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
         assert_eq!(detections.len(), 1);
         let expected = [[587.43, 452.55], [692.32, 452.43], [692.22, 347.76], [587.53, 347.64]];
         for (corner, expected) in detections[0].corners.iter().zip(expected) {

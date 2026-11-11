@@ -62,7 +62,7 @@ fn run(
         let start = Instant::now();
         let gray = decoder.decode(jpeg)?;
         let decoded = Instant::now();
-        let detections = detector.detect(&gray.pixels)?;
+        let detections = detector.detect(&gray)?;
         let detected = Instant::now();
         let estimate = processing.as_ref().and_then(|p| pipeline::estimate(p, &detections, size).1);
         let done = Instant::now();

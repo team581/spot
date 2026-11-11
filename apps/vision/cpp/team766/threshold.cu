@@ -14,15 +14,15 @@ namespace {
 
 // Writes out the grayscale image and decimated image.
 __global__ void InternalCudaToGreyscaleAndDecimateHalide(
-    const uint8_t *color_image, uint8_t *gray_image, uint8_t *decimated_image,
-    size_t width, size_t height) {
+    const uint8_t *color_image, size_t pitch, uint8_t *gray_image,
+    uint8_t *decimated_image, size_t width, size_t height) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   while (i < width * height) {
-    // Spot feeds 8-bit grayscale rather than YUYV.
-    uint8_t pixel = gray_image[i] = color_image[i];
-
     const size_t row = i / width;
     const size_t col = i - width * row;
+
+    // Spot feeds 8-bit grayscale rows `pitch` bytes apart rather than YUYV.
+    uint8_t pixel = gray_image[i] = color_image[row * pitch + col];
 
     // Copy over every other pixel.
     if (row % 2 == 0 && col % 2 == 0) {
@@ -150,7 +150,7 @@ __global__ void InternalThreshold(const uint8_t *decimated_image,
 }  // namespace
 
 void CudaToGreyscaleAndDecimateHalide(
-    const uint8_t *color_image, uint8_t *gray_image, uint8_t *decimated_image,
+    const uint8_t *color_image, size_t pitch, uint8_t *gray_image, uint8_t *decimated_image,
     uint8_t *unfiltered_minmax_image, uint8_t *minmax_image,
     uint8_t *thresholded_image, size_t width, size_t height,
     size_t min_white_black_diff, CudaStream *stream) {
@@ -162,7 +162,7 @@ void CudaToGreyscaleAndDecimateHalide(
     size_t kBlocks = (width * height + kThreads - 1) / kThreads / 4;
     InternalCudaToGreyscaleAndDecimateHalide<<<kBlocks, kThreads, 0,
                                                stream->get()>>>(
-        color_image, gray_image, decimated_image, width, height);
+        color_image, pitch, gray_image, decimated_image, width, height);
     MaybeCheckAndSynchronize();
   }
 

@@ -1,4 +1,5 @@
 // CPU tag36h11 detector for development machines, using the vendored umich AprilTag library.
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,12 +30,14 @@ spot_detector *spot_detector_new(int32_t width, int32_t height, const double *in
   return result;
 }
 
-int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray,
-                             spot_detection *out, int32_t capacity, char *error,
-                             int32_t error_len) {
-  (void)error;
-  (void)error_len;
-  image_u8_t image = {detector->width, detector->height, detector->width, (uint8_t *)gray};
+int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray, int32_t pitch,
+                             int32_t on_device, spot_detection *out, int32_t capacity,
+                             char *error, int32_t error_len) {
+  if (on_device) {
+    snprintf(error, error_len, "the CPU detector needs host memory");
+    return -1;
+  }
+  image_u8_t image = {detector->width, detector->height, pitch, (uint8_t *)gray};
   zarray_t *detections = apriltag_detector_detect(detector->detector, &image);
   int32_t count = 0;
   for (int i = 0; i < zarray_size(detections) && count < capacity; ++i) {
@@ -48,6 +51,11 @@ int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray,
   }
   apriltag_detections_destroy(detections);
   return count;
+}
+
+const uint8_t *spot_detector_gray(spot_detector *detector) {
+  (void)detector;
+  return NULL;
 }
 
 void spot_detector_free(spot_detector *detector) {

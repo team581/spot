@@ -72,7 +72,12 @@ public:
   virtual ~GpuDetector();
 
   // Detects april tags in the provided image.
-  void Detect(const uint8_t *image);
+  // `image` is 8-bit grayscale with rows `pitch` bytes apart, in device memory when
+  // `on_device`, otherwise packed in host memory.
+  void Detect(const uint8_t *image, size_t pitch, bool on_device);
+
+  // The grayscale image of the last detection, in host memory.
+  const uint8_t *GrayHost() const { return gray_image_host_.get(); }
 
   const std::vector<QuadCorners> &FitQuads() const;
 

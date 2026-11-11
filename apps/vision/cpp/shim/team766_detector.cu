@@ -53,12 +53,12 @@ extern "C" spot_detector *spot_detector_new(int32_t width, int32_t height,
   return self;
 }
 
-extern "C" int32_t spot_detector_detect(spot_detector *self, const uint8_t *gray,
-                                        spot_detection *out, int32_t capacity, char *error,
-                                        int32_t len) {
+extern "C" int32_t spot_detector_detect(spot_detector *self, const uint8_t *gray, int32_t pitch,
+                                        int32_t on_device, spot_detection *out,
+                                        int32_t capacity, char *error, int32_t len) {
   (void)error;
   (void)len;
-  self->gpu->Detect(gray);
+  self->gpu->Detect(gray, pitch, on_device != 0);
   const zarray_t *detections = self->gpu->Detections();
   int32_t count = 0;
   for (int i = 0; i < zarray_size(detections) && count < capacity; ++i) {
@@ -74,6 +74,10 @@ extern "C" int32_t spot_detector_detect(spot_detector *self, const uint8_t *gray
     }
   }
   return count;
+}
+
+extern "C" const uint8_t *spot_detector_gray(spot_detector *self) {
+  return self->gpu->GrayHost();
 }
 
 extern "C" void spot_detector_free(spot_detector *self) {

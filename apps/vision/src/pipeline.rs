@@ -215,7 +215,8 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
             if detector.as_ref().is_none_or(|d| !d.matches(size, calibration)) {
                 detector = Some(Detector::new(gray.width, gray.height, calibration)?);
             }
-            let detections = detector.as_mut().unwrap().detect(&gray.pixels)?;
+            let detector = detector.as_mut().unwrap();
+            let detections = detector.detect(&gray)?;
             let (used_tags, estimate) =
                 estimate(&processing, &detections, (gray.width, gray.height));
             let charuco = match &processing.charuco {
@@ -223,7 +224,7 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
                     charuco
                         .lock()
                         .unwrap()
-                        .detect(&gray.pixels, gray.width, gray.height)
+                        .detect(detector.host_pixels(&gray), gray.width, gray.height)
                         .map_err(|e| anyhow::anyhow!("ChArUco: {e}"))?,
                 ),
                 None => None,
@@ -317,8 +318,12 @@ mod tests {
                 .unwrap()
                 .to_luma8();
             let (width, height) = image.dimensions();
-            let detections =
-                Detector::new(width, height, None).unwrap().detect(image.as_raw()).unwrap();
+            let gray = crate::decode::Gray {
+                pixels: crate::decode::Pixels::Host(image.into_raw()),
+                width,
+                height,
+            };
+            let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
             let mut ids: Vec<u32> = detections.iter().map(|d| d.id).collect();
             ids.sort();
             let expected: Vec<u32> = case["tags"]

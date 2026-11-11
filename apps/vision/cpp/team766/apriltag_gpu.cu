@@ -733,16 +733,18 @@ struct MergePeakExtents {
 
 }  // namespace
 
-void GpuDetector::Detect(const uint8_t *image) {
-  // const aos::monotonic_clock::time_point start_time =
-  //     aos::monotonic_clock::now();
+void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
   start_.Record(&stream_);
-  color_image_device_.MemcpyAsyncFrom(image, &stream_);
+  if (!on_device) {
+    color_image_device_.MemcpyAsyncFrom(image, &stream_);
+    image = color_image_device_.get();
+    pitch = width_;
+  }
   after_image_memcpy_to_device_.Record(&stream_);
 
   // Threshold the image.
   CudaToGreyscaleAndDecimateHalide(
-      color_image_device_.get(), gray_image_device_.get(),
+      image, pitch, gray_image_device_.get(),
       decimated_image_device_.get(), unfiltered_minmax_image_device_.get(),
       minmax_image_device_.get(), thresholded_image_device_.get(), width_,
       height_, tag_detector_->qtp.min_white_black_diff, &stream_);

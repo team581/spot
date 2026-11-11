@@ -21,11 +21,14 @@ typedef struct spot_detector spot_detector;
 // camera is uncalibrated. Returns NULL and fills `error` on failure.
 spot_detector *spot_detector_new(int32_t width, int32_t height, const double *intrinsics,
                                  char *error, int32_t error_len);
-// Detects tag36h11 tags in a packed 8-bit grayscale image of the detector's size.
+// Detects tag36h11 tags in an 8-bit grayscale image of the detector's size, with rows
+// `pitch` bytes apart, in CUDA device memory when `on_device` is nonzero.
 // Returns the number of detections written (at most `capacity`), or -1 and fills `error`.
-int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray,
-                             spot_detection *out, int32_t capacity, char *error,
-                             int32_t error_len);
+int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray, int32_t pitch,
+                             int32_t on_device, spot_detection *out, int32_t capacity,
+                             char *error, int32_t error_len);
+// The last detected image as packed host memory, or NULL if the caller already has it.
+const uint8_t *spot_detector_gray(spot_detector *detector);
 void spot_detector_free(spot_detector *detector);
 
 #ifdef __cplusplus
