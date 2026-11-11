@@ -57,9 +57,9 @@
 
 ### AprilTag detection
 
-- NVIDIA `libcuapriltags` (the library [isaac_ros_apriltag](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag) wraps) called directly via a C shim, no ROS
+- Team 766 / FRC 971 CUDA detector (vendored) called via a C shim
   - Detector only provides tag corners, pose solving is ours
-  - Fall back to the 971/766 detector if pinning the binary to JetPack/CUDA versions becomes painful
+  - Chosen over NVIDIA `libcuapriltags`, which was 2-4x slower on the Orin Nano
 - tag36h11 only
 
 ### Pose estimation

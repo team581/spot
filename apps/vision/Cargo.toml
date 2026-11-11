@@ -8,7 +8,7 @@ publish = false
 default-run = "spot-vision"
 
 [features]
-# NVJPG decoding and the CUDA detector. Requires the Jetson Multimedia API and CUDA.
+# NVJPG decoding and the Team 766 / FRC 971 CUDA detector. Requires the Jetson Multimedia API and CUDA.
 jetson = []
 
 [dependencies]

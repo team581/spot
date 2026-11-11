@@ -210,8 +210,10 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
                 decoder = Some(Decoder::new()?);
             }
             let gray = decoder.as_mut().unwrap().decode(&frame.jpeg)?;
-            if detector.as_ref().is_none_or(|d| d.size() != (gray.width, gray.height)) {
-                detector = Some(Detector::new(gray.width, gray.height)?);
+            let size = (gray.width, gray.height);
+            let calibration = processing.calibration.as_ref();
+            if detector.as_ref().is_none_or(|d| !d.matches(size, calibration)) {
+                detector = Some(Detector::new(gray.width, gray.height, calibration)?);
             }
             let detections = detector.as_mut().unwrap().detect(&gray.pixels)?;
             let (used_tags, estimate) =
@@ -252,7 +254,7 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
 }
 
 /// Keeps known, non-ignored tags and solves when the camera is calibrated.
-fn estimate(
+pub fn estimate(
     processing: &Processing,
     detections: &[Detection],
     size: (u32, u32),
@@ -315,7 +317,8 @@ mod tests {
                 .unwrap()
                 .to_luma8();
             let (width, height) = image.dimensions();
-            let detections = Detector::new(width, height).unwrap().detect(image.as_raw()).unwrap();
+            let detections =
+                Detector::new(width, height, None).unwrap().detect(image.as_raw()).unwrap();
             let mut ids: Vec<u32> = detections.iter().map(|d| d.id).collect();
             ids.sort();
             let expected: Vec<u32> = case["tags"]

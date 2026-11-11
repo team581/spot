@@ -12,8 +12,9 @@ struct spot_detector {
   int32_t width, height;
 };
 
-spot_detector *spot_detector_new(int32_t width, int32_t height, char *error,
-                                 int32_t error_len) {
+spot_detector *spot_detector_new(int32_t width, int32_t height, const double *intrinsics,
+                                 char *error, int32_t error_len) {
+  (void)intrinsics;
   (void)error;
   (void)error_len;
   spot_detector *result = calloc(1, sizeof(*result));

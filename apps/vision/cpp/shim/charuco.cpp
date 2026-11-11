@@ -1,4 +1,4 @@
-// ChArUco detection, board images, camera calibration, and corner refinement through OpenCV.
+// ChArUco detection, board images, and camera calibration through OpenCV.
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -9,7 +9,6 @@
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
 #include <opencv2/objdetect/charuco_detector.hpp>
 
 struct spot_charuco {
@@ -120,22 +119,6 @@ extern "C" int32_t spot_charuco_calibrate(spot_charuco *self, int32_t frames,
     for (int i = 0; i < 9; ++i) camera[i] = k.at<double>(i / 3, i % 3);
     for (int i = 0; i < 5; ++i) distortion[i] = d.at<double>(i);
     for (int32_t f = 0; f < frames; ++f) view_errors[f] = errors.at<double>(f);
-    return 0;
-  } catch (const std::exception &e) {
-    Message(e, error, len);
-    return -1;
-  }
-}
-
-// Refines `count` corner points in place to subpixel accuracy.
-extern "C" int32_t spot_refine_corners(const uint8_t *gray, int32_t width, int32_t height,
-                                       float *corners, int32_t count, char *error,
-                                       int32_t len) {
-  try {
-    const cv::Mat image(height, width, CV_8UC1, const_cast<uint8_t *>(gray));
-    cv::Mat points(count, 1, CV_32FC2, corners);
-    cv::cornerSubPix(image, points, cv::Size(3, 3), cv::Size(-1, -1),
-                     cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 40, 0.001));
     return 0;
   } catch (const std::exception &e) {
     Message(e, error, len);

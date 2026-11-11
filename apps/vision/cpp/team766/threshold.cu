@@ -18,7 +18,8 @@ __global__ void InternalCudaToGreyscaleAndDecimateHalide(
     size_t width, size_t height) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   while (i < width * height) {
-    uint8_t pixel = gray_image[i] = color_image[i * 2];
+    // Spot feeds 8-bit grayscale rather than YUYV.
+    uint8_t pixel = gray_image[i] = color_image[i];
 
     const size_t row = i / width;
     const size_t col = i - width * row;

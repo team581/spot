@@ -78,24 +78,6 @@ let
       cp -r dist/dashboard dist/jetson-docs $out/
     '';
   };
-  # NVIDIA's tag36h11 detector from Isaac ROS, built for JetPack 6.1 (CUDA 12.6).
-  cuapriltags =
-    let
-      rev = "260cee67e8344db363f7584256ae161d03abfd01";
-      base = "NVIDIA-ISAAC-ROS/isaac_ros_nitros/${rev}/cuapriltags_vendor";
-      library = pkgs.fetchurl {
-        url = "https://media.githubusercontent.com/media/${base}/lib_aarch64_jetpack61/libcuapriltags.a";
-        hash = "sha256-5nKY6O5S1iU81wL0xVs3J76hd/VyNqojeXveUNdN/CQ=";
-      };
-      header = pkgs.fetchurl {
-        url = "https://raw.githubusercontent.com/${base}/cuapriltags/cuAprilTags.h";
-        hash = "sha256-zpqbwE3xmCFEjFAxPhDQYKSSb/LCRvuC1KbCd8+Sxpk=";
-      };
-    in
-    pkgs.runCommand "cuapriltags" { } ''
-      install -Dm644 ${library} $out/lib/libcuapriltags.a
-      install -Dm644 ${header} $out/include/cuAprilTags.h
-    '';
   # nvcc needs the host compiler that CUDA supports.
   buildRustPackage =
     if jetson then
@@ -134,13 +116,14 @@ let
     ++ lib.optionals jetson [
       pkgs.cudaPackages.cuda_cudart
       pkgs.cudaPackages.cuda_cccl
+      pkgs.glog
+      pkgs.gflags
       pkgs.nvidia-jetpack.l4t-cuda
       pkgs.nvidia-jetpack.l4t-multimedia
     ];
     env = lib.optionalAttrs jetson {
       SPOT_JETSON_MULTIMEDIA_API = "${jetsonMultimediaApi}";
       SPOT_NVJPG_LIBRARY_DIRS = "${pkgs.nvidia-jetpack.l4t-multimedia}/lib:${pkgs.nvidia-jetpack.l4t-cuda}/lib";
-      SPOT_CUAPRILTAGS = "${cuapriltags}";
     };
     # CI runs the tests; Jetson tests would also need the GPU.
     doCheck = false;

@@ -1,7 +1,9 @@
 //! JPEG to grayscale. Jetson builds decode on the NVJPG engine.
 
 use zune_core::bytestream::ZCursor;
+#[cfg(not(feature = "jetson"))]
 use zune_core::colorspace::ColorSpace;
+#[cfg(not(feature = "jetson"))]
 use zune_core::options::DecoderOptions;
 use zune_jpeg::JpegDecoder;
 

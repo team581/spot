@@ -5,7 +5,6 @@ fn main() {
     let apriltag = Path::new("cpp/apriltag");
     let mut sources = vec![
         apriltag.join("apriltag.c"),
-        apriltag.join("apriltag_pose.c"),
         apriltag.join("apriltag_quad_thresh.c"),
         apriltag.join("tag36h11.c"),
     ];
@@ -30,11 +29,12 @@ fn main() {
     if std::env::var_os("CARGO_FEATURE_JETSON").is_none() {
         build.file("cpp/shim/cpu_detector.c").include("cpp/shim");
     }
-    build.compile("apriltag");
     charuco();
     if std::env::var_os("CARGO_FEATURE_JETSON").is_some() {
         jetson();
     }
+    // Static libraries resolve in link order; the detectors above use this one.
+    build.compile("apriltag");
 }
 
 /// ChArUco detection and calibration through OpenCV, found with pkg-config.
@@ -64,7 +64,7 @@ fn env(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("{name} must be set for Jetson builds"))
 }
 
-/// NVJPG decoding (Jetson Multimedia API) and libcuapriltags detection.
+/// NVJPG decoding (Jetson Multimedia API) and the CUDA detector.
 fn jetson() {
     let api = env("SPOT_JETSON_MULTIMEDIA_API");
     let classes = Path::new(&api).join("samples/common/classes");
@@ -94,16 +94,42 @@ fn jetson() {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
 
-    let cuapriltags = env("SPOT_CUAPRILTAGS");
+    team766();
+}
+
+/// The Team 766 / FRC 971 CUDA detector, built on the vendored umich AprilTag library.
+fn team766() {
+    let sources = [
+        "apriltag_detect",
+        "apriltag_gpu",
+        "cuda_frc971",
+        "labeling_allegretti_2019_BKE",
+        "line_fit_filter",
+        "points",
+        "threshold",
+    ];
     cc::Build::new()
         .cuda(true)
         .cudart("shared")
+        // Debug info would add -G, which disables device code optimization.
+        .debug(false)
         .flag("-arch=sm_87")
-        .file("cpp/shim/cuapriltags_detector.cu")
+        .flag("-rdc=true")
+        .flag("-std=c++20")
+        .flag("--expt-relaxed-constexpr")
+        .flag("--extended-lambda")
+        // glog's CMake package normally defines this.
+        .define("GLOG_USE_GLOG_EXPORT", None)
+        .define("GLOG_USE_GFLAGS", None)
+        .files(sources.map(|name| format!("cpp/team766/{name}.cu")))
+        .file("cpp/shim/team766_detector.cu")
+        .include("cpp/team766")
+        .include("cpp/apriltag")
+        .include("cpp/apriltag/common")
         .include("cpp/shim")
-        .include(Path::new(&cuapriltags).join("include"))
+        .warnings(false)
         .compile("spot_detector");
-    println!("cargo:rustc-link-search=native={cuapriltags}/lib");
-    println!("cargo:rustc-link-lib=static=cuapriltags");
-    println!("cargo:rustc-link-lib=dylib=stdc++");
+    for library in ["glog", "gflags", "stdc++"] {
+        println!("cargo:rustc-link-lib=dylib={library}");
+    }
 }

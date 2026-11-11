@@ -17,8 +17,10 @@ typedef struct spot_detection {
 
 typedef struct spot_detector spot_detector;
 
-// Returns NULL and fills `error` on failure.
-spot_detector *spot_detector_new(int32_t width, int32_t height, char *error, int32_t error_len);
+// `intrinsics` is fx, fy, cx, cy, k1, k2, p1, p2, k3 (OpenCV's model), or NULL when the
+// camera is uncalibrated. Returns NULL and fills `error` on failure.
+spot_detector *spot_detector_new(int32_t width, int32_t height, const double *intrinsics,
+                                 char *error, int32_t error_len);
 // Detects tag36h11 tags in a packed 8-bit grayscale image of the detector's size.
 // Returns the number of detections written (at most `capacity`), or -1 and fills `error`.
 int32_t spot_detector_detect(spot_detector *detector, const uint8_t *gray,
