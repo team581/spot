@@ -2,39 +2,10 @@ use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=cpp");
-    let apriltag = Path::new("cpp/apriltag");
-    let mut sources = vec![
-        apriltag.join("apriltag.c"),
-        apriltag.join("apriltag_quad_thresh.c"),
-        apriltag.join("tag36h11.c"),
-    ];
-    for entry in std::fs::read_dir(apriltag.join("common")).unwrap() {
-        let path = entry.unwrap().path();
-        let name = path.file_name().unwrap().to_string_lossy();
-        // macOS archives can carry AppleDouble `._*.c` sidecars.
-        if name.ends_with(".c") && !name.starts_with("._") {
-            sources.push(path);
-        }
-    }
-    let mut build = cc::Build::new();
-    build
-        .files(&sources)
-        .include(apriltag)
-        .include(apriltag.join("common"))
-        // The vendored library predates C23, which newer GCC defaults to.
-        .std("gnu11")
-        .define("NDEBUG", None)
-        .opt_level(3)
-        .warnings(false);
-    if std::env::var_os("CARGO_FEATURE_JETSON").is_none() {
-        build.file("cpp/shim/cpu_detector.c").include("cpp/shim");
-    }
     charuco();
     if std::env::var_os("CARGO_FEATURE_JETSON").is_some() {
         jetson();
     }
-    // Static libraries resolve in link order; the detectors above use this one.
-    build.compile("apriltag");
 }
 
 /// ChArUco detection and calibration through OpenCV, found with pkg-config.
@@ -97,7 +68,7 @@ fn jetson() {
     team766();
 }
 
-/// The Team 766 / FRC 971 CUDA detector, built on the vendored umich AprilTag library.
+/// The Team 766 / FRC 971 CUDA quad detector.
 fn team766() {
     let sources = [
         "apriltag_detect",
@@ -123,9 +94,6 @@ fn team766() {
         .files(sources.map(|name| format!("cpp/team766/{name}.cu")))
         .file("cpp/shim/team766_detector.cu")
         .include("cpp/team766")
-        .include("cpp/apriltag")
-        .include("cpp/apriltag/common")
-        .include("cpp/shim")
         .warnings(false)
         .compile("spot_detector");
     for library in ["glog", "stdc++"] {

@@ -15,18 +15,6 @@
 #include "labeling_allegretti_2019_BKE.h"
 #include "threshold.h"
 
-
-
-extern "C" {
-
-void quad_decode_index(apriltag_detector_t *td, struct quad *quad_original,
-                       image_u8_t *im, image_u8_t *im_samples,
-                       zarray_t *detections);
-
-void reconcile_detections(zarray_t *detections, zarray_t *poly0,
-                          zarray_t *poly1);
-};
-
 namespace frc971::apriltag {
 namespace {
 
@@ -196,7 +184,7 @@ void GpuDetector::UpdateFitQuads() {
             sqrtf((dx1 * dx1 + dy1 * dy1) * (dx2 * dx2 + dy2 * dy2));
 
 
-        if (std::abs(cos_dtheta) > tag_detector_->qtp.cos_critical_rad ||
+        if (std::abs(cos_dtheta) > kCosCriticalRad ||
             dx1 * dy2 < dy1 * dx2) {
           reject_corner = true;
           break;
@@ -211,146 +199,12 @@ void GpuDetector::UpdateFitQuads() {
 }
 
 void GpuDetector::AdjustPixelCenters() {
-  const float quad_decimate = tag_detector_->quad_decimate;
-
-  if (quad_decimate > 1) {
-    if (tag_detector_->quad_decimate == 1.5) {
-      for (QuadCorners &quad : quad_corners_host_) {
-        for (int j = 0; j < 4; j++) {
-          quad.corners[j][0] *= quad_decimate;
-          quad.corners[j][1] *= quad_decimate;
-        }
-      }
-    } else {
-      for (QuadCorners &quad : quad_corners_host_) {
-        for (int j = 0; j < 4; j++) {
-          quad.corners[j][0] =
-              (quad.corners[j][0] - 0.5f) * quad_decimate + 0.5f;
-          quad.corners[j][1] =
-              (quad.corners[j][1] - 0.5f) * quad_decimate + 0.5f;
-        }
-      }
+  for (QuadCorners &quad : quad_corners_host_) {
+    for (int j = 0; j < 4; j++) {
+      quad.corners[j][0] = (quad.corners[j][0] - 0.5f) * kQuadDecimate + 0.5f;
+      quad.corners[j][1] = (quad.corners[j][1] - 0.5f) * kQuadDecimate + 0.5f;
     }
   }
-}
-
-static inline int detection_compare_function(const void *_a, const void *_b) {
-  apriltag_detection_t *a = *(apriltag_detection_t **)_a;
-  apriltag_detection_t *b = *(apriltag_detection_t **)_b;
-  return a->id - b->id;
-}
-
-struct QuadDecodeTaskStruct {
-  int i0, i1;
-  QuadCorners *quads;
-  apriltag_detector_t *td;
-
-  image_u8_t *im;
-  zarray_t *detections;
-
-  image_u8_t *im_samples;
-
-  CameraMatrix *camera_matrix;
-  DistCoeffs *distortion_coefficients;
-};
-
-void GpuDetector::QuadDecodeTask(void *_u) {
-  QuadDecodeTaskStruct *task = reinterpret_cast<QuadDecodeTaskStruct *>(_u);
-  apriltag_detector_t *td = task->td;
-  image_u8_t *im = task->im;
-
-  for (int quadidx = task->i0; quadidx < task->i1; quadidx++) {
-    struct quad quad_original;
-    std::memcpy(quad_original.p, task->quads[quadidx].corners,
-                sizeof(task->quads[quadidx].corners));
-
-    quad_original.reversed_border = task->quads[quadidx].reversed_border;
-    quad_original.H = nullptr;
-    quad_original.Hinv = nullptr;
-
-    if (td->refine_edges) {
-      RefineEdges(td, im, &quad_original, task->camera_matrix,
-                  task->distortion_coefficients);
-    }
-
-    if (td->debug) {
-      image_u8_t *im_quads = image_u8_copy(im);
-      image_u8_darken(im_quads);
-      image_u8_darken(im_quads);
-
-      srandom(0);
-
-      const int bias = 100;
-      int color = bias + (random() % (255 - bias));
-
-      image_u8_draw_line(im_quads, quad_original.p[0][0], quad_original.p[0][1],
-                         quad_original.p[1][0], quad_original.p[1][1], color,
-                         1);
-      image_u8_draw_line(im_quads, quad_original.p[1][0], quad_original.p[1][1],
-                         quad_original.p[2][0], quad_original.p[2][1], color,
-                         1);
-      image_u8_draw_line(im_quads, quad_original.p[2][0], quad_original.p[2][1],
-                         quad_original.p[3][0], quad_original.p[3][1], color,
-                         1);
-      image_u8_draw_line(im_quads, quad_original.p[3][0], quad_original.p[3][1],
-                         quad_original.p[0][0], quad_original.p[0][1], color,
-                         1);
-
-      image_u8_write_pnm(
-          im_quads,
-          std::string("/tmp/quad" + std::to_string(quadidx) + ".pnm").c_str());
-    }
-
-    quad_decode_index(td, &quad_original, im, task->im_samples,
-                      task->detections);
-  }
-}
-
-void GpuDetector::DecodeTags() {
-  size_t chunksize =
-      1 + quad_corners_host_.size() /
-              (APRILTAG_TASKS_PER_THREAD_TARGET * tag_detector_->nthreads);
-
-  std::vector<QuadDecodeTaskStruct> tasks(
-      (quad_corners_host_.size() / chunksize + 1));
-
-  for (int i = 0; i < zarray_size(detections_); ++i) {
-    apriltag_detection_t *det;
-    zarray_get(detections_, i, &det);
-    apriltag_detection_destroy(det);
-  }
-
-  zarray_truncate(detections_, 0);
-
-  image_u8_t im_orig{
-      .width = static_cast<int32_t>(width_),
-      .height = static_cast<int32_t>(height_),
-      .stride = static_cast<int32_t>(width_),
-      .buf = gray_image_host_.get(),
-  };
-
-  int ntasks = 0;
-  for (size_t i = 0; i < quad_corners_host_.size(); i += chunksize) {
-    tasks[ntasks].i0 = i;
-    tasks[ntasks].i1 = std::min(quad_corners_host_.size(), i + chunksize);
-    tasks[ntasks].quads = quad_corners_host_.data();
-    tasks[ntasks].td = tag_detector_;
-    tasks[ntasks].im = &im_orig;
-    tasks[ntasks].detections = detections_;
-    tasks[ntasks].camera_matrix = &camera_matrix_;
-    tasks[ntasks].distortion_coefficients = &distortion_coefficients_;
-
-    tasks[ntasks].im_samples = nullptr;
-
-    workerpool_add_task(tag_detector_->wp, QuadDecodeTask, &tasks[ntasks]);
-    ntasks++;
-  }
-
-  workerpool_run(tag_detector_->wp);
-
-  reconcile_detections(detections_, poly0_, poly1_);
-
-  zarray_sort(detections_, detection_compare_function);
 }
 
 }  // namespace frc971::apriltag

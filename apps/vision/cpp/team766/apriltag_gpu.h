@@ -1,10 +1,10 @@
 #ifndef FRC971_ORIN_APRILTAGGPU_H_
 #define FRC971_ORIN_APRILTAGGPU_H_
 
+#include <cmath>
 #include <cub/util_type.cuh>
+#include <vector>
 
-#include "apriltag.h"
-#include "camera_geometry.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -65,10 +65,18 @@ public:
   // The number of blobs we will consider when counting april tags.
   static constexpr size_t kMaxBlobs = IndexPoint::kMaxBlobs;
 
+  // umich AprilTag's quad thresholding defaults, for tag36h11 at 2x decimation.
+  static constexpr int kMinWhiteBlackDiff = 5;
+  static constexpr int kMinClusterPixels = 5;
+  static constexpr int kMaxNMaxima = 10;
+  static constexpr float kMaxLineFitMse = 10.0f;
+  // cos(10 degrees)
+  static constexpr float kCosCriticalRad = 0.98480775301220802f;
+  static constexpr float kQuadDecimate = 2.0f;
+
   // Constructs a detector, reserving space for detecting tags of the provided
-  // with and height, using the provided detector options.
-  GpuDetector(size_t width, size_t height, apriltag_detector_t *tag_detector,
-              CameraMatrix camera_matrix, DistCoeffs distortion_coefficients);
+  // with and height.
+  GpuDetector(size_t width, size_t height);
   virtual ~GpuDetector();
 
   // Detects april tags in the provided image.
@@ -79,18 +87,13 @@ public:
   // The grayscale image of the last detection, in host memory.
   const uint8_t *GrayHost() const { return gray_image_host_.get(); }
 
-  const zarray_t *Detections() const { return detections_; }
-
-  void ReinitializeDetections();
+  // Quad candidates from the last detection, in full-resolution pixels.
+  const std::vector<QuadCorners> &Quads() const { return quad_corners_host_; }
 
 private:
   void UpdateFitQuads();
 
   void AdjustPixelCenters();
-
-  void DecodeTags();
-
-  static void QuadDecodeTask(void *_u);
 
   // Creates a GPU image wrapped around the provided memory.
   template <typename T> GpuImage<T> ToGpuImage(GpuMemory<T> &memory) {
@@ -116,9 +119,6 @@ private:
   // Size of the image.
   const size_t width_;
   const size_t height_;
-
-  // Detector parameters.
-  apriltag_detector_t *tag_detector_;
 
   // Stream to operate on.
   CudaStream stream_;
@@ -205,9 +205,6 @@ private:
   GpuMemory<int> num_quad_peaked_quads_device_{/* allocate 1 integer...*/ 1};
   GpuMemory<PeakExtents> peak_extents_device_;
 
-  CameraMatrix camera_matrix_;
-  DistCoeffs distortion_coefficients_;
-
   GpuMemory<FitQuad> fit_quads_device_;
 
   std::vector<FitQuad> fit_quads_host_;
@@ -230,15 +227,11 @@ private:
   // True if this is the first detection.
   bool first_ = true;
 
-  // Cached quantities used for tag filtering.
-  bool normal_border_ = false;
+  // Tag filtering for tag36h11, the only family: a normal border 8 bits wide,
+  // decimated 2x.
+  bool normal_border_ = true;
   bool reversed_border_ = false;
-  int min_tag_width_ = 1000000;
-
-  zarray_t *poly0_;
-  zarray_t *poly1_;
-
-  zarray_t *detections_ = nullptr;
+  int min_tag_width_ = 4;
 };
 
 } // namespace frc971::apriltag

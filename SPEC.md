@@ -57,7 +57,8 @@
 
 ### AprilTag detection
 
-- Team 766 / FRC 971 CUDA detector (vendored) called via a C shim
+- Team 766 / FRC 971 CUDA detector (vendored) finds quads, called via a C shim
+  - Quads are decoded in Rust with `kornia-apriltag`, which also runs the whole detector on dev machines
   - Detector only provides tag corners, pose solving is ours
   - Chosen over NVIDIA `libcuapriltags`, which was 2-4x slower on the Orin Nano
 - tag36h11 only

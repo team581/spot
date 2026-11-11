@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "apriltag_gpu.h"
-#include "g2d.h"
 #include "glog/logging.h"
 
 //#include "aos/time/time.h"
@@ -111,13 +110,9 @@ static size_t DeviceScanInclusiveScanByKeyScratchSpace(size_t elements) {
 
 }  // namespace
 
-GpuDetector::GpuDetector(size_t width, size_t height,
-                         apriltag_detector_t *tag_detector,
-                         CameraMatrix camera_matrix,
-                         DistCoeffs distortion_coefficients)
+GpuDetector::GpuDetector(size_t width, size_t height)
     : width_(width),
       height_(height),
-      tag_detector_(tag_detector),
       gray_image_host_(width * height),
       color_image_device_(width * height),
       gray_image_device_(width * height),
@@ -141,8 +136,6 @@ GpuDetector::GpuDetector(size_t width, size_t height,
       compressed_peaks_device_(line_fit_points_device_.size()),
       sorted_compressed_peaks_device_(line_fit_points_device_.size()),
       peak_extents_device_(kMaxBlobs),
-      camera_matrix_(camera_matrix),
-      distortion_coefficients_(distortion_coefficients),
       fit_quads_device_(kMaxBlobs),
       radix_sort_tmpstorage_device_(RadixSortScratchSpace<QuadBoundaryPoint>(
           sorted_union_marker_pair_device_.size())),
@@ -168,62 +161,9 @@ GpuDetector::GpuDetector(size_t width, size_t height,
               sorted_selected_blobs_device_.size())) {
   fit_quads_host_.reserve(kMaxBlobs);
   quad_corners_host_.reserve(kMaxBlobs);
-
-  CHECK_EQ(tag_detector_->quad_decimate, 2);
-  CHECK(!tag_detector_->qtp.deglitch);
-
-  for (int i = 0; i < zarray_size(tag_detector_->tag_families); i++) {
-    apriltag_family_t *family;
-    zarray_get(tag_detector_->tag_families, i, &family);
-    if (family->width_at_border < min_tag_width_) {
-      min_tag_width_ = family->width_at_border;
-    }
-    normal_border_ |= !family->reversed_border;
-    reversed_border_ |= family->reversed_border;
-  }
-  min_tag_width_ /= tag_detector_->quad_decimate;
-  if (min_tag_width_ < 3) {
-    min_tag_width_ = 3;
-  }
-
-  poly0_ = g2d_polygon_create_zeros(4);
-  poly1_ = g2d_polygon_create_zeros(4);
-
-  detections_ = zarray_create(sizeof(apriltag_detection_t *));
-  zarray_ensure_capacity(detections_, kMaxBlobs);
 }
 
-GpuDetector::~GpuDetector() {
-  for (int i = 0; i < zarray_size(detections_); ++i) {
-    apriltag_detection_t *det;
-    zarray_get(detections_, i, &det);
-    apriltag_detection_destroy(det);
-  }
-
-  zarray_destroy(detections_);
-  zarray_destroy(poly1_);
-  zarray_destroy(poly0_);
-}
-
-void GpuDetector::ReinitializeDetections() {
-  // Convenience method to reinitialize the detections_ array
-  // so we don't have to call the destructor to free the memory.
-  for (int i = 0; i < zarray_size(detections_); ++i) {
-    apriltag_detection_t *det;
-    zarray_get(detections_, i, &det);
-    apriltag_detection_destroy(det);
-  }
-
-  zarray_destroy(detections_);
-  zarray_destroy(poly1_);
-  zarray_destroy(poly0_);
-
-  poly0_ = g2d_polygon_create_zeros(4);
-  poly1_ = g2d_polygon_create_zeros(4);
-
-  detections_ = zarray_create(sizeof(apriltag_detection_t *));
-  zarray_ensure_capacity(detections_, kMaxBlobs);
-}
+GpuDetector::~GpuDetector() = default;
 
 namespace {
 
@@ -746,7 +686,7 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
       image, pitch, gray_image_device_.get(),
       decimated_image_device_.get(), unfiltered_minmax_image_device_.get(),
       minmax_image_device_.get(), thresholded_image_device_.get(), width_,
-      height_, tag_detector_->qtp.min_white_black_diff, &stream_);
+      height_, kMinWhiteBlackDiff, &stream_);
   after_threshold_.Record(&stream_);
 
   gray_image_device_.MemcpyAsyncTo(&gray_image_host_, &stream_);
@@ -888,7 +828,7 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         extents_device_.get());
     TransformZeroFilteredBlobSizes rewrite(
         min_tag_width_, reversed_border_, normal_border_,
-        tag_detector_->qtp.min_cluster_pixels, max_april_tag_perimeter);
+        kMinClusterPixels, max_april_tag_perimeter);
     auto input_iterator =
         thrust::make_transform_iterator(value_index_input_iterator, rewrite);
 
@@ -1075,9 +1015,9 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
     apriltag::FitQuads(
         sorted_compressed_peaks_device_.get(), num_compressed_peaks_host,
         peak_extents_device_.get(), num_quad_peaked_quads_host,
-        line_fit_points_device_.get(), tag_detector_->qtp.max_nmaxima,
-        selected_extents_device_.get(), tag_detector_->qtp.max_line_fit_mse,
-        tag_detector_->qtp.cos_critical_rad, fit_quads_device_.get(), &stream_);
+        line_fit_points_device_.get(), kMaxNMaxima,
+        selected_extents_device_.get(), kMaxLineFitMse,
+        kCosCriticalRad, fit_quads_device_.get(), &stream_);
   }
   after_quad_fit_.Record(&stream_);
 
@@ -1093,8 +1033,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
   //     aos::monotonic_clock::now();
   UpdateFitQuads();
   AdjustPixelCenters();
-
-  DecodeTags();
 
   // const aos::monotonic_clock::time_point end_time =
   // aos::monotonic_clock::now();

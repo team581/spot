@@ -1,11 +1,9 @@
-// Spot's host-side edge geometry, extracted from Team 766's attributed import.
-// Shared by the CUDA decoder and host regression tests. See UPSTREAM.md.
+// Host-side edge refinement for the CUDA detector's quads, from Team 766's
+// https://github.com/Team766/apriltags_cuda.
 #pragma once
 #include <algorithm>
 #include <cmath>
-extern "C" {
-#include "apriltag.h"
-}
+#include <cstdint>
 namespace frc971::apriltag {
 struct CameraMatrix { double fx; double cx; double fy; double cy; };
 struct DistCoeffs { double k1; double k2; double p1; double p2; double k3; };
@@ -76,8 +74,10 @@ inline bool UnDistort(double *u, double *v, const CameraMatrix *camera,
 }
 
 // Mostly stolen from aprilrobotics, but modified to implement the dewarp.
-inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
-                 struct quad *quad, CameraMatrix *camera_matrix,
+// `p` holds a quad's corners in image pixels, wound like umich AprilTag's quads.
+// `range` is how far from each edge to search, in pixels.
+inline void RefineEdges(const uint8_t *im, int width, int height, double range,
+                 float p[4][2], bool reversed_border, CameraMatrix *camera_matrix,
                  DistCoeffs *distortion_coefficients) {
   double lines[4][4];  // for each line, [Ex Ey nx ny]
 
@@ -85,14 +85,14 @@ inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
     int a = edge, b = (edge + 1) & 3;  // indices of the end points.
 
     // compute the normal to the current line estimate
-    float nx = quad->p[b][1] - quad->p[a][1];
-    float ny = -quad->p[b][0] + quad->p[a][0];
+    float nx = p[b][1] - p[a][1];
+    float ny = -p[b][0] + p[a][0];
     float mag = sqrtf(nx * nx + ny * ny);
     if (!std::isfinite(mag) || mag < 1e-6) return;
     nx /= mag;
     ny /= mag;
 
-    if (quad->reversed_border) {
+    if (reversed_border) {
       nx = -nx;
       ny = -ny;
     }
@@ -110,8 +110,8 @@ inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
       // sampling *right* at the corners, since those points are
       // the least reliable.
       double alpha = (1.0 + s) / (nsamples + 1);
-      double x0 = alpha * quad->p[a][0] + (1 - alpha) * quad->p[b][0];
-      double y0 = alpha * quad->p[a][1] + (1 - alpha) * quad->p[b][1];
+      double x0 = alpha * p[a][0] + (1 - alpha) * p[b][0];
+      double y0 = alpha * p[a][1] + (1 - alpha) * p[b][1];
 
       // search along the normal to this line, looking at the
       // gradients along the way. We're looking for a strong
@@ -127,8 +127,7 @@ inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
       // search on another pixel in the first place. Likewise,
       // for very small tags, we don't want the range to be too
       // big.
-      double range = td->quad_decimate + 1;
-
+      
       // XXX tunable step size.
       for (double n = -range; n <= range; n += 0.25) {
         // Because of the guaranteed winding order of the
@@ -142,16 +141,16 @@ inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
         double grange = 1;
         int x1 = x0 + (n + grange) * nx;
         int y1 = y0 + (n + grange) * ny;
-        if (x1 < 0 || x1 >= im_orig->width || y1 < 0 || y1 >= im_orig->height)
+        if (x1 < 0 || x1 >= width || y1 < 0 || y1 >= height)
           continue;
 
         int x2 = x0 + (n - grange) * nx;
         int y2 = y0 + (n - grange) * ny;
-        if (x2 < 0 || x2 >= im_orig->width || y2 < 0 || y2 >= im_orig->height)
+        if (x2 < 0 || x2 >= width || y2 < 0 || y2 >= height)
           continue;
 
-        int g1 = im_orig->buf[y1 * im_orig->stride + x1];
-        int g2 = im_orig->buf[y2 * im_orig->stride + x2];
+        int g1 = im[y1 * width + x1];
+        int g2 = im[y2 * width + x2];
 
         if (g1 < g2)  // reject points whose gradient is "backwards". They can
                       // only hurt us.
@@ -231,8 +230,8 @@ inline void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
 
       ReDistort(&px, &py, camera_matrix, distortion_coefficients);
       if (!std::isfinite(px) || !std::isfinite(py)) continue;
-      quad->p[(i + 1) & 3][0] = px;
-      quad->p[(i + 1) & 3][1] = py;
+      p[(i + 1) & 3][0] = px;
+      p[(i + 1) & 3][1] = py;
     } else {
       // this is a bad sign. We'll just keep the corner we had.
       //            debug_print("bad det: %15f %15f %15f %15f %15f\n", A00, A11,
