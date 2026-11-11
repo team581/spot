@@ -1,4 +1,4 @@
 {
-	"apps/vscode-camera-preview": "0.3.1",
+	"apps/vscode-camera-preview": "0.3.2",
 	"packages/camera-viewer": "1.1.1"
 }
