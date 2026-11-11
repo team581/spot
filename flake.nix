@@ -84,19 +84,6 @@
           default = packages.spot;
           spot-vision = packages.spot;
           web = packages.web;
-          jetson-ssh = pkgs.writeShellApplication {
-            name = "jetson-ssh";
-            runtimeInputs = [
-              pkgs.openssh
-              pkgs.coreutils
-            ];
-            text = ''
-              key=$(mktemp)
-              trap 'rm -f "$key"' EXIT
-              install -m 0600 ${./nix/maintenance_ed25519} "$key"
-              ssh -i "$key" -o IdentitiesOnly=yes "team581@''${SPOT_HOST:-192.168.69.170}" "$@"
-            '';
-          };
           jetson-deploy = pkgs.writeShellApplication {
             name = "jetson-deploy";
             runtimeInputs = [
@@ -122,11 +109,6 @@
         }
       );
       apps = forSystems (system: {
-        ssh = {
-          type = "app";
-          program = "${self.packages.${system}.jetson-ssh}/bin/jetson-ssh";
-          meta.description = "SSH to Spot with the shared maintenance key";
-        };
         deploy = {
           type = "app";
           program = "${self.packages.${system}.jetson-deploy}/bin/jetson-deploy";

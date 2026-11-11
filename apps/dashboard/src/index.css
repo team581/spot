@@ -46,13 +46,7 @@
 	--warning: #825a16;
 	--info: #255a86;
 	--feed: #26323b;
-
-	/* Read by @spot/camera-viewer. */
-	--ink: var(--foreground);
-	--line: var(--border);
-	--blue: var(--info);
 	--accent-text: #591616;
-	--good: var(--success);
 }
 
 /* Dark roles follow the pit display's Material dark scheme. */

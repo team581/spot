@@ -1,5 +1,4 @@
 {
-	"java.compile.nullAnalysis.mode": "disabled",
 	"[typescript][javascript][json][jsonc][css]": {
 		"editor.defaultFormatter": "oxc.oxc-vscode"
 	},
