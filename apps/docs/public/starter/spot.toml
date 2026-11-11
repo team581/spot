@@ -1,0 +1,11 @@
+#:schema https://spot.frc581.com/spot-config.schema.json
+
+# Tag edge length in meters, across the outer black border.
+tag_size = 0.1651
+
+[cameras.front]
+serial = "CHANGE-ME"
+required = true
+mode = "1280x800@120"
+# Robot to camera: meters, and degrees as WPILib Rotation3d. Positive pitch points down.
+mount = { x = 0.0, y = 0.0, z = 0.0, roll = 0.0, pitch = 0.0, yaw = 0.0 }

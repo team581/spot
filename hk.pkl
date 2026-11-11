@@ -80,24 +80,22 @@ steps {
       )
     check = "pnpm check"
   }
-  ["ruff"] = (Builtins.ruff) {
-    prefix = List("uv", "run", "--no-sync")
-    glob = List("apps/**/*.py", "tools/**/*.py")
+  ["cargo-fmt"] {
+    glob = List("apps/vision/**/*.rs")
+    check = "cargo fmt --manifest-path apps/vision/Cargo.toml --check"
+    fix = "cargo fmt --manifest-path apps/vision/Cargo.toml"
   }
-  ["ruff-format"] = (Builtins.ruff_format) {
-    prefix = List("uv", "run", "--no-sync")
-    glob = List("apps/**/*.py", "tools/**/*.py")
-    depends = "ruff"
-  }
-  ["ty"] = (Builtins.ty) {
-    depends = "ruff"
-    prefix = List("uv", "run", "--no-sync")
-    glob = List("apps/vision/src/**/*.py", "**/pyproject.toml", "uv.lock")
-    check = new Command { argv = List("ty", "check") }
-  }
-  ["vulture"] {
-    depends = "ruff"
-    glob = List("**/*.py", "**/pyproject.toml", "uv.lock")
-    check = "uv run --no-sync vulture"
+  ["clippy"] {
+    depends = "cargo-fmt"
+    glob =
+      List(
+        "apps/vision/**/*.rs",
+        "apps/vision/Cargo.*",
+        "apps/vision/build.rs",
+        "apps/vision/cpp/**",
+      )
+    // OpenCV comes from the Nix shell.
+    check =
+      "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings"
   }
 }

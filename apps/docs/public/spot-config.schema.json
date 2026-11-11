@@ -1,225 +1,230 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://spot.frc581.com/spot-config.schema.json",
+	"title": "Spot configuration",
+	"description": "Spot's configuration, owned by robot code and sent as TOML over NetworkTables.",
+	"type": "object",
+	"properties": {
+		"cameras": {
+			"description": "Cameras keyed by name. Names appear in NetworkTables topics.",
+			"type": "object",
+			"additionalProperties": {
+				"$ref": "#/$defs/CameraConfig"
+			},
+			"default": {}
+		},
+		"ignored_tags": {
+			"description": "Tag IDs that are never used for pose estimation.",
+			"type": "array",
+			"default": [],
+			"items": {
+				"type": "integer",
+				"format": "uint32",
+				"minimum": 0
+			}
+		},
+		"recording": {
+			"$ref": "#/$defs/RecordingConfig",
+			"default": {
+				"enabled": true,
+				"image_fps": 30.0,
+				"max_disk_usage_percent": 80.0
+			}
+		},
+		"tag_size": {
+			"description": "AprilTag edge length in meters, measured across the outer black border.",
+			"type": "number",
+			"format": "double",
+			"default": 0.1651,
+			"minimum": 0.0
+		}
+	},
+	"additionalProperties": false,
 	"$defs": {
-		"CameraDefinition": {
-			"additionalProperties": false,
+		"AutoExposure": {
+			"type": "string",
+			"enum": ["manual", "aperture_priority"]
+		},
+		"Calibration": {
+			"description": "Pinhole intrinsics with OpenCV's five-coefficient distortion model.",
+			"type": "object",
 			"properties": {
-				"name": {
-					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
-					"type": "string"
+				"cx": {
+					"type": "number",
+					"format": "double"
 				},
-				"required": {
-					"default": false,
-					"type": "boolean"
+				"cy": {
+					"type": "number",
+					"format": "double"
 				},
-				"enabled": {
-					"default": true,
-					"type": "boolean"
-				},
-				"robot_to_camera": {
-					"$ref": "#/$defs/Mount"
-				},
-				"image_rotation_deg": {
-					"default": 0,
-					"enum": [0, 180],
-					"type": "integer"
-				},
-				"allowed_modes": {
-					"description": "The first mode is the active capture mode.",
+				"distortion": {
+					"description": "`[k1, k2, p1, p2, k3]`",
+					"type": "array",
 					"items": {
-						"$ref": "#/$defs/OpticalMode"
+						"type": "number",
+						"format": "double"
 					},
-					"maxItems": 16,
-					"minItems": 1,
-					"type": "array"
+					"maxItems": 5,
+					"minItems": 5
+				},
+				"fx": {
+					"type": "number",
+					"format": "double"
+				},
+				"fy": {
+					"type": "number",
+					"format": "double"
+				},
+				"rms": {
+					"description": "RMS reprojection error of the calibration in pixels.",
+					"type": ["number", "null"],
+					"format": "double"
+				}
+			},
+			"additionalProperties": false,
+			"required": ["fx", "fy", "cx", "cy", "distortion"]
+		},
+		"CameraConfig": {
+			"type": "object",
+			"properties": {
+				"calibrations": {
+					"description": "Calibrations keyed by resolution, for example `1280x800`.",
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/$defs/Calibration"
+					},
+					"default": {}
 				},
 				"controls": {
-					"items": {
-						"$ref": "#/$defs/ControlPolicy"
-					},
-					"maxItems": 64,
-					"type": "array"
+					"$ref": "#/$defs/Controls",
+					"default": {}
 				},
-				"binding_id": {
-					"default": "",
-					"description": "Physical camera identity. Leave empty and assign it from the dashboard.",
-					"maxLength": 128,
-					"type": "string"
+				"mode": {
+					"description": "Capture mode as `WIDTHxHEIGHT@FPS`.",
+					"$ref": "#/$defs/Mode",
+					"default": "1280x800@120"
 				},
-				"calibration": {
+				"mount": {
+					"description": "Robot-to-camera transform (WPILib coordinates: +X forward, +Y left, +Z up).",
+					"$ref": "#/$defs/Mount",
+					"default": {
+						"pitch": 0.0,
+						"roll": 0.0,
+						"x": 0.0,
+						"y": 0.0,
+						"yaw": 0.0,
+						"z": 0.0
+					}
+				},
+				"port": {
+					"description": "Physical USB port label, for example `usb1`. Set exactly one of `serial` or `port`.",
+					"type": ["string", "null"]
+				},
+				"required": {
+					"description": "Spot is not ready unless this camera is streaming and calibrated.",
+					"type": "boolean",
+					"default": false
+				},
+				"serial": {
+					"description": "USB serial number. Set exactly one of `serial` or `port`.",
+					"type": ["string", "null"]
+				}
+			},
+			"additionalProperties": false
+		},
+		"Controls": {
+			"description": "Camera controls. Unset controls are reset to the camera's default.",
+			"type": "object",
+			"properties": {
+				"auto_exposure": {
 					"anyOf": [
 						{
-							"additionalProperties": true,
-							"type": "object"
+							"$ref": "#/$defs/AutoExposure"
 						},
 						{
 							"type": "null"
 						}
-					],
-					"default": null,
-					"description": "Calibration record applied from the dashboard."
+					]
 				},
-				"detector": {
-					"$ref": "#/$defs/DetectorConfig"
+				"exposure_time_absolute": {
+					"description": "Exposure time in the camera's units (100 µs for UVC cameras). Applies in manual mode.",
+					"type": ["integer", "null"],
+					"format": "int32"
+				},
+				"gain": {
+					"type": ["integer", "null"],
+					"format": "int32"
 				}
 			},
-			"required": ["name", "robot_to_camera", "allowed_modes"],
-			"type": "object"
+			"additionalProperties": false
 		},
-		"ControlPolicy": {
-			"additionalProperties": false,
-			"description": "A V4L2 control value applied by Spot, such as exposure_time_absolute.",
-			"properties": {
-				"name": {
-					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
-					"type": "string"
-				},
-				"default_value": {
-					"type": "number"
-				},
-				"allow_override": {
-					"default": false,
-					"description": "Whether the dashboard may change this value.",
-					"type": "boolean"
-				},
-				"required": {
-					"default": false,
-					"description": "Fault the camera if the device lacks this control.",
-					"type": "boolean"
-				}
-			},
-			"required": ["name", "default_value"],
-			"type": "object"
-		},
-		"DetectorConfig": {
-			"additionalProperties": false,
-			"properties": {
-				"backend": {
-					"default": "cuda",
-					"enum": ["cuda", "cpu"],
-					"type": "string"
-				},
-				"max_hamming": {
-					"default": 2,
-					"maximum": 2,
-					"minimum": 0,
-					"type": "integer"
-				}
-			},
-			"type": "object"
+		"Mode": {
+			"description": "Capture mode as WIDTHxHEIGHT@FPS",
+			"type": "string",
+			"examples": ["1280x800@120"],
+			"pattern": "^\\d+x\\d+@\\d+$"
 		},
 		"Mount": {
-			"additionalProperties": false,
-			"description": "Camera position on the robot: translation in metres (WPILib NWU: +X forward, +Y left,\n+Z up) and rotation in degrees as WPILib Rotation3d(roll, pitch, yaw). Positive pitch\npoints the lens down.",
+			"description": "Translation in meters and rotation in degrees, as WPILib's `Transform3d` and `Rotation3d`.\nPositive pitch points the lens down.",
+			"type": "object",
 			"properties": {
-				"x_m": {
-					"default": 0.0,
-					"type": "number"
+				"pitch": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				},
-				"y_m": {
-					"default": 0.0,
-					"type": "number"
+				"roll": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				},
-				"z_m": {
-					"default": 0.0,
-					"type": "number"
+				"x": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				},
-				"roll_deg": {
-					"default": 0.0,
-					"maximum": 180,
-					"minimum": -180,
-					"type": "number"
+				"y": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				},
-				"pitch_deg": {
-					"default": 0.0,
-					"maximum": 180,
-					"minimum": -180,
-					"type": "number"
+				"yaw": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				},
-				"yaw_deg": {
-					"default": 0.0,
-					"maximum": 180,
-					"minimum": -180,
-					"type": "number"
+				"z": {
+					"type": "number",
+					"format": "double",
+					"default": 0.0
 				}
 			},
-			"type": "object"
+			"additionalProperties": false
 		},
-		"OpticalMode": {
-			"additionalProperties": false,
+		"RecordingConfig": {
+			"type": "object",
 			"properties": {
-				"id": {
-					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
-					"type": "string"
+				"enabled": {
+					"description": "Record MCAP files of matches and robot enables.",
+					"type": "boolean",
+					"default": true
 				},
-				"width": {
-					"exclusiveMinimum": 0,
-					"maximum": 4096,
-					"multipleOf": 2,
-					"type": "integer"
+				"image_fps": {
+					"description": "Maximum rate of camera images stored per camera.",
+					"type": "number",
+					"format": "double",
+					"default": 30.0,
+					"minimum": 0.0
 				},
-				"height": {
-					"exclusiveMinimum": 0,
-					"maximum": 4096,
-					"type": "integer"
-				},
-				"pixel_format": {
-					"enum": ["YUYV", "MJPEG"],
-					"type": "string"
-				},
-				"fps": {
-					"exclusiveMinimum": 0,
-					"maximum": 240,
-					"type": "integer"
+				"max_disk_usage_percent": {
+					"description": "Delete the oldest recordings once the disk is fuller than this percentage.",
+					"type": "number",
+					"format": "double",
+					"default": 80.0,
+					"maximum": 99.0,
+					"minimum": 1.0
 				}
 			},
-			"required": ["id", "width", "height", "pixel_format", "fps"],
-			"type": "object"
-		},
-		"ProcessingPolicy": {
-			"additionalProperties": false,
-			"properties": {
-				"max_fps": {
-					"default": 30,
-					"maximum": 120,
-					"minimum": 1,
-					"type": "number"
-				},
-				"utilization_budget": {
-					"default": 0.8,
-					"maximum": 0.95,
-					"minimum": 0.1,
-					"type": "number"
-				}
-			},
-			"type": "object"
+			"additionalProperties": false
 		}
-	},
-	"additionalProperties": false,
-	"description": "Robot code's src/main/deploy/spot-config.json. See https://spot.frc581.com/robot-config/.",
-	"properties": {
-		"$schema": {
-			"type": "string"
-		},
-		"cameras": {
-			"items": {
-				"$ref": "#/$defs/CameraDefinition"
-			},
-			"maxItems": 32,
-			"type": "array"
-		},
-		"processing": {
-			"$ref": "#/$defs/ProcessingPolicy"
-		},
-		"latency_ms": {
-			"default": 5.0,
-			"description": "Fixed delay from exposure to Spot reading a frame; Spot shifts every capture timestamp earlier by it.",
-			"maximum": 250,
-			"minimum": 0,
-			"type": "number"
-		}
-	},
-	"type": "object",
-	"title": "Spot camera configuration"
+	}
 }

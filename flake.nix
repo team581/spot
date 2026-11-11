@@ -11,21 +11,6 @@
       url = "github:anduril/jetpack-nixos";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    pyproject-nix = {
-      url = "github:pyproject-nix/pyproject.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    uv2nix = {
-      url = "github:pyproject-nix/uv2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-    };
-    pyproject-build-systems = {
-      url = "github:pyproject-nix/build-system-pkgs";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.uv2nix.follows = "uv2nix";
-    };
   };
 
   outputs =
@@ -153,23 +138,26 @@
         };
       });
       formatter = forSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
-      checks = forSystems (
+      # OpenCV and pkg-config for building the vision service outside Nix.
+      devShells = forSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          spot = self.packages.${system}.spot-vision;
         in
         {
-          # Start with CPU processing and empty discovery even for a CUDA build.
-          # This exercises the installed package without claiming GPU qualification.
-          application = pkgs.runCommand "spot-installed-service" { } ''
-            unset PYTHONPATH PYTHONHOME
-            cd "$TMPDIR"
-            ${spot}/bin/python ${./apps/vision/tests/installed_service.py} \
-              --smoke${lib.optionalString (system == "aarch64-linux") "-cuda"} ${spot} "$TMPDIR"
-            touch "$out"
-          '';
+          default = pkgs.mkShellNoCC {
+            packages = [
+              pkgs.opencv
+              pkgs.pkg-config
+            ];
+            env = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+              LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+            };
+          };
         }
       );
+      checks = forSystems (system: {
+        application = self.packages.${system}.spot-vision;
+      });
     };
 }

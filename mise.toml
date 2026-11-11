@@ -1,17 +1,18 @@
 [tools]
 hk = "2.12.0"
 pkl = "0.32.2"
+rust = { version = "1.99.1", components = "clippy,rustfmt" }
 
 [settings]
 idiomatic_version_file_enable_tools = ["node", "pnpm"]
 
 [tasks.setup]
-description = "Install the JS workspace, bundle the dashboard and docs, and install the CPU detector"
+description = "Install the JS workspace, bundle the dashboard and docs, and build the vision service"
 run = [
   "pnpm install --frozen-lockfile",
   "pnpm build",
   "pnpm build:jetson",
-  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_CUDA=OFF",
+  "nix develop -c cargo build --manifest-path apps/vision/Cargo.toml",
   "hk install --mise",
 ]
 
@@ -20,8 +21,11 @@ description = "Run the dashboard with synthetic cameras"
 depends = ["dev:backend", "dev:dashboard"]
 
 [tasks."dev:backend"]
-description = "Run the synthetic vision backend without hardware"
-run = "uv run --no-sync python apps/vision/tools/ui_fixture.py --port 5808"
+description = "Run the vision service with the fixture JPEGs as cameras"
+run = """
+nix develop -c cargo run --manifest-path apps/vision/Cargo.toml -- run --state-dir .spot-dev \
+  --listen 127.0.0.1:5808 --replay apps/vision/tests/data/live-alpha --docs-dir dist/jetson-docs
+"""
 
 [tasks."dev:dashboard"]
 description = "Run the dashboard development server"
@@ -49,36 +53,23 @@ docker buildx build --platform linux/arm64 \\
 """
 
 [tasks.format]
-run = ["pnpm format", "uv run --no-sync ruff format --check"]
+run = ["pnpm format", "cargo fmt --manifest-path apps/vision/Cargo.toml --check"]
 
 [tasks."format:fix"]
-run = ["pnpm format:fix", "uv run --no-sync ruff format"]
+run = ["pnpm format:fix", "cargo fmt --manifest-path apps/vision/Cargo.toml"]
 
 [tasks.lint]
-run = ["pnpm lint", "pnpm knip", "uv run --no-sync ruff check", "uv run --no-sync vulture"]
-
-[tasks.deadcode]
-description = "Check Python dead code against the existing Vulture baseline"
-run = "uv run --no-sync vulture"
+run = [
+  "pnpm lint",
+  "pnpm knip",
+  "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings",
+]
 
 [tasks."lint:fix"]
-run = ["pnpm lint:fix", "uv run --no-sync ruff check --fix"]
+run = ["pnpm lint:fix", "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --fix --allow-dirty"]
 
 [tasks.typecheck]
-run = ["pnpm check", "uv run --no-sync ty check"]
+run = ["pnpm check"]
 
 [tasks.test]
-run = ["uv run --no-sync pytest", "pnpm test"]
-
-[tasks."check:application"]
-description = "Run CPU application checks and native CUDA geometry regressions"
-run = [
-  "uv sync --locked --extra nt --extra systemd -Ccmake.define.SPOT_BUILD_DIAGNOSTICS=ON",
-  "uv run --no-sync ruff format --check",
-  "uv run --no-sync ruff check",
-  "uv run --no-sync vulture",
-  "uv run --no-sync ty check",
-  "uv run --no-sync pytest",
-  "uv build --package spot-vision --wheel --out-dir dist/wheels -Ccmake.define.SPOT_BUILD_CUDA=OFF",
-  "uv run --no-sync python apps/vision/tests/installed_service.py dist/wheels",
-]
+run = ["nix develop -c cargo test --manifest-path apps/vision/Cargo.toml", "pnpm test"]

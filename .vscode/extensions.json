@@ -1,3 +1,8 @@
 {
-	"recommendations": ["oxc.oxc-vscode", "charliermarsh.ruff", "astral-sh.ty", "team581.spot-camera-preview"]
+	"recommendations": [
+		"oxc.oxc-vscode",
+		"rust-lang.rust-analyzer",
+		"tamasfe.even-better-toml",
+		"team581.spot-camera-preview"
+	]
 }

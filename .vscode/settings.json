@@ -3,9 +3,5 @@
 	"[typescript][javascript][json][jsonc][css]": {
 		"editor.defaultFormatter": "oxc.oxc-vscode"
 	},
-	"[python]": {
-		"editor.defaultFormatter": "charliermarsh.ruff"
-	},
-	"python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-	"python.languageServer": "None"
+	"rust-analyzer.linkedProjects": ["apps/vision/Cargo.toml"]
 }

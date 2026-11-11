@@ -6,33 +6,33 @@
 }:
 let
   cfg = config.services.spot-vision;
-  settingsFormat = pkgs.formats.json { };
 in
 {
   options.services.spot-vision = {
     enable = lib.mkEnableOption "Spot vision";
-    package = lib.mkPackageOption pkgs "spot-vision" { default = null; };
-    settings = lib.mkOption {
-      type = settingsFormat.type;
-      default = { };
-      description = "Spot installation settings written to /etc/spot-vision/installation.json.";
+    package = lib.mkOption {
+      type = lib.types.package;
+      description = "The spot-vision service.";
+    };
+    web = lib.mkOption {
+      type = lib.types.package;
+      description = "Built dashboard (`dashboard/`) and documentation (`jetson-docs/`).";
+    };
+    team = lib.mkOption {
+      type = lib.types.nullOr lib.types.ints.u16;
+      default = null;
+      description = "Team number used until one is set on the dashboard.";
+    };
+    ports = lib.mkOption {
+      type = lib.types.listOf lib.types.port;
+      default = [
+        80
+        5800
+      ];
+      description = "HTTP ports for the dashboard and API.";
     };
   };
   config = lib.mkIf cfg.enable {
-    services.spot-vision.settings = {
-      schema_version = lib.mkDefault 2;
-      backend = lib.mkDefault "cuda";
-      nt = {
-        enabled = lib.mkDefault true;
-        mode = lib.mkDefault "client";
-        identity = lib.mkDefault "spot-vision";
-      };
-      http = {
-        bind = lib.mkDefault "0.0.0.0";
-        port = lib.mkDefault 5800;
-        hostnames = lib.mkDefault [ "spot.local" ];
-      };
-    };
     users.groups.spot-vision = { };
     users.users.spot-vision = {
       isSystemUser = true;
@@ -42,26 +42,11 @@ in
         "render"
       ];
     };
-    environment.etc."spot-vision/installation.json".source =
-      settingsFormat.generate "spot-vision.json" cfg.settings;
     environment.systemPackages = [
       cfg.package
-      pkgs.networkmanager
-      pkgs.iproute2
       pkgs.v4l-utils
     ];
-    networking.networkmanager.enable = true;
-    networking.firewall.allowedTCPPorts = [
-      80
-      cfg.settings.http.port
-    ];
-    services.nginx = {
-      enable = true;
-      virtualHosts.spot = {
-        default = true;
-        locations."/".return = "307 http://$host:${toString cfg.settings.http.port}$request_uri";
-      };
-    };
+    networking.firewall.allowedTCPPorts = cfg.ports;
     services.avahi = {
       enable = true;
       hostName = "spot";
@@ -74,7 +59,7 @@ in
         <?xml version="1.0" standalone='no'?>
         <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
         <service-group><name replace-wildcards="yes">Spot on %h</name><service>
-        <type>_http._tcp</type><port>${toString cfg.settings.http.port}</port><txt-record>path=/</txt-record>
+        <type>_http._tcp</type><port>${toString (builtins.head cfg.ports)}</port><txt-record>path=/</txt-record>
         </service></service-group>
       '';
     };
@@ -82,16 +67,6 @@ in
       description = "Team 581 Spot Vision";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
-      path = [
-        pkgs.iproute2
-        pkgs.v4l-utils
-      ];
-      environment = {
-        PYTHONUNBUFFERED = "1";
-      }
-      // lib.optionalAttrs (config.system.configurationRevision != null) {
-        SPOT_CONFIGURATION_REVISION = config.system.configurationRevision;
-      };
       unitConfig = {
         StartLimitIntervalSec = 60;
         StartLimitBurst = 5;
@@ -104,13 +79,34 @@ in
           "video"
           "render"
         ];
-        ExecStart = "${cfg.package}/bin/spot-vision --json-logs run --installation /etc/spot-vision/installation.json";
+        ExecStart = lib.escapeShellArgs (
+          [
+            (lib.getExe cfg.package)
+            "run"
+            "--state-dir"
+            "/var/lib/spot-vision"
+            "--web-dir"
+            "${cfg.web}/dashboard"
+            "--docs-dir"
+            "${cfg.web}/jetson-docs"
+          ]
+          ++ lib.concatMap (port: [
+            "--listen"
+            "0.0.0.0:${toString port}"
+          ]) cfg.ports
+          ++ lib.optionals (cfg.team != null) [
+            "--team"
+            (toString cfg.team)
+          ]
+        );
         Restart = "on-failure";
         RestartSec = 1;
         WatchdogSec = 15;
         NotifyAccess = "main";
         StateDirectory = "spot-vision";
         StateDirectoryMode = "0750";
+        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectSystem = "strict";
@@ -135,7 +131,7 @@ in
       };
     };
     systemd.services.spot-network = {
-      description = "Spot Ethernet bridge configuration helper";
+      description = "Spot Ethernet configuration helper";
       requires = [
         "NetworkManager.service"
         "NetworkManager-ensure-profiles.service"
@@ -150,13 +146,9 @@ in
         pkgs.iproute2
       ];
       serviceConfig = {
-        ExecStart = "${pkgs.python312}/bin/python ${../apps/vision/src/spot_vision/networking.py}";
+        ExecStart = "${cfg.package}/bin/spot-network";
         Restart = "on-failure";
         RestartSec = 1;
-        User = "root";
-        Group = "root";
-        StateDirectory = "spot-network";
-        StateDirectoryMode = "0700";
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = true;
