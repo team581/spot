@@ -80,6 +80,11 @@ mod nvjpg {
         }
 
         pub fn decode(&mut self, jpeg: &[u8]) -> anyhow::Result<Gray> {
+            // UVC cameras may pad frames after the end-of-image marker, which NVJPG's
+            // libjpeg reports on every frame.
+            let end =
+                jpeg.windows(2).rposition(|m| m == [0xff, 0xd9]).map_or(jpeg.len(), |i| i + 2);
+            let jpeg = &jpeg[..end];
             let (width, height) = super::dimensions(jpeg)?;
             let mut pixels = vec![0; (width * height) as usize];
             let (mut w, mut h) = (0, 0);

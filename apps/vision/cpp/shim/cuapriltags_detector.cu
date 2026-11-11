@@ -79,9 +79,11 @@ extern "C" int32_t spot_detector_detect(spot_detector *self, const uint8_t *gray
     out[i].id = tags[i].id;
     out[i].hamming = tags[i].hamming_error;
     out[i].decision_margin = 0.0f;
+    // libcuapriltags lists corners top-left, top-right, bottom-right, bottom-left; Spot
+    // uses the reverse (umich) order.
     for (int c = 0; c < 4; ++c) {
-      out[i].corners[c][0] = tags[i].corners[c].x;
-      out[i].corners[c][1] = tags[i].corners[c].y;
+      out[i].corners[c][0] = tags[i].corners[3 - c].x;
+      out[i].corners[c][1] = tags[i].corners[3 - c].y;
     }
   }
   return static_cast<int32_t>(found);

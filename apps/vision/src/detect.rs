@@ -88,7 +88,12 @@ impl Detector {
             )
         };
         anyhow::ensure!(count >= 0, "detector: {}", message(&error));
-        Ok(out[..count as usize]
+        #[cfg_attr(not(feature = "jetson"), allow(unused_mut))]
+        let mut out = out[..count as usize].to_vec();
+        // libcuapriltags reports whole-pixel corners.
+        #[cfg(feature = "jetson")]
+        self.refine(gray, &mut out)?;
+        Ok(out
             .iter()
             .map(|d| Detection {
                 id: d.id as u32,
@@ -97,6 +102,48 @@ impl Detector {
                 corners: d.corners,
             })
             .collect())
+    }
+}
+
+impl Detector {
+    #[cfg(feature = "jetson")]
+    fn refine(&self, gray: &[u8], detections: &mut [RawDetection]) -> anyhow::Result<()> {
+        unsafe extern "C" {
+            fn spot_refine_corners(
+                gray: *const u8,
+                width: i32,
+                height: i32,
+                corners: *mut f32,
+                count: i32,
+                error: *mut c_char,
+                len: i32,
+            ) -> i32;
+        }
+        if detections.is_empty() {
+            return Ok(());
+        }
+        let mut corners: Vec<f32> =
+            detections.iter().flat_map(|d| d.corners.iter().flatten().map(|v| *v as f32)).collect();
+        let mut error = [0 as c_char; 256];
+        // SAFETY: `gray` has the detector's size and `corners` holds `4 * len` points.
+        let status = unsafe {
+            spot_refine_corners(
+                gray.as_ptr(),
+                self.width as i32,
+                self.height as i32,
+                corners.as_mut_ptr(),
+                (corners.len() / 2) as i32,
+                error.as_mut_ptr(),
+                255,
+            )
+        };
+        anyhow::ensure!(status == 0, "corner refinement: {}", message(&error));
+        for (detection, points) in detections.iter_mut().zip(corners.chunks(8)) {
+            for (corner, point) in detection.corners.iter_mut().zip(points.chunks(2)) {
+                *corner = [point[0] as f64, point[1] as f64];
+            }
+        }
+        Ok(())
     }
 }
 

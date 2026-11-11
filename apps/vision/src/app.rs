@@ -353,7 +353,9 @@ impl App {
                     }
                     Ok(_) if !calibrated => (
                         CameraState::Uncalibrated,
-                        Some(format!("No calibration for {}", config.mode.resolution())),
+                        camera_error.or_else(|| {
+                            Some(format!("No calibration for {}", config.mode.resolution()))
+                        }),
                     ),
                     Ok(_) if dropping => (CameraState::FallingBehind, camera_error),
                     Ok(_) => (CameraState::Streaming, camera_error),

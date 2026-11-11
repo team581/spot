@@ -46,7 +46,8 @@ in
       cfg.package
       pkgs.v4l-utils
     ];
-    networking.firewall.allowedTCPPorts = cfg.ports;
+    # Dashboard and API, plus the Foxglove WebSocket server.
+    networking.firewall.allowedTCPPorts = cfg.ports ++ [ 5801 ];
     services.avahi = {
       enable = true;
       hostName = "spot";
@@ -67,6 +68,8 @@ in
       description = "Team 581 Spot Vision";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
+      # The Jetson multimedia libraries run lsmod.
+      path = [ pkgs.kmod ];
       unitConfig = {
         StartLimitIntervalSec = 60;
         StartLimitBurst = 5;

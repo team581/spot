@@ -240,7 +240,14 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
             Ok(())
         })();
         shared.counters.processed.fetch_add(1, Ordering::Relaxed);
-        *shared.process_error.lock().unwrap() = result.err().map(|e| format!("{e:#}"));
+        let error = result.err().map(|e| format!("{e:#}"));
+        let mut last = shared.process_error.lock().unwrap();
+        if error != *last {
+            if let Some(error) = &error {
+                tracing::warn!(camera = shared.name, %error, "could not process frames");
+            }
+            *last = error;
+        }
     }
 }
 
