@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { client, unwrap, type AddressMode, type NetworkStatus, type Settings } from '../api';
-import { queryClient, useNetwork, useSettings } from '../queries';
+import type { AddressMode, NetworkStatus, Settings } from '../api';
+import { $api, queryClient, useNetwork, useSaveSettings, useSettings } from '../queries';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -12,16 +11,15 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 function SettingsForm({ settings }: { settings: Settings }) {
 	const [team, setTeam] = useState(settings.team?.toString() ?? ''),
 		[server, setServer] = useState(settings.nt_server ?? '');
-	const save = useMutation({
-		mutationFn: (body: Settings) => unwrap(client.PUT('/api/settings', { body })),
-		onSuccess: (data) => queryClient.setQueryData(['settings'], data),
-	});
+	const save = useSaveSettings();
 	return (
 		<form
 			className="flex flex-col gap-4"
 			onSubmit={(e) => {
 				e.preventDefault();
-				save.mutate({ ...settings, team: team.trim() ? Number(team) : null, nt_server: server.trim() || null });
+				save.mutate({
+					body: { ...settings, team: team.trim() ? Number(team) : null, nt_server: server.trim() || null },
+				});
 			}}
 		>
 			<div className="flex flex-col gap-2">
@@ -98,10 +96,11 @@ function EthernetForm({
 
 function Ethernet() {
 	const { data: network, error } = useNetwork();
-	const action = useMutation({
-		mutationFn: (request: () => Promise<NetworkStatus>) => request(),
-		onSuccess: (data) => queryClient.setQueryData(['network'], data),
-	});
+	const onSuccess = (data: NetworkStatus) =>
+		queryClient.setQueryData($api.queryOptions('get', '/api/network').queryKey, data);
+	const apply = $api.useMutation('post', '/api/network', { onSuccess }),
+		confirm = $api.useMutation('post', '/api/network/confirm', { onSuccess }),
+		revert = $api.useMutation('post', '/api/network/revert', { onSuccess });
 	if (!network) return <Panel title="Ethernet">{error ? <ErrorText error={error} /> : 'Loading…'}</Panel>;
 	const pending = network.pending;
 	return (
@@ -124,14 +123,10 @@ function Ethernet() {
 						{network.maintenance_address}.
 					</AlertDescription>
 					<AlertAction className="flex gap-2">
-						<Button size="sm" onClick={() => action.mutate(() => unwrap(client.POST('/api/network/confirm')))}>
+						<Button size="sm" onClick={() => confirm.mutate({})}>
 							Confirm
 						</Button>
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={() => action.mutate(() => unwrap(client.POST('/api/network/revert')))}
-						>
+						<Button size="sm" variant="outline" onClick={() => revert.mutate({})}>
 							Revert
 						</Button>
 					</AlertAction>
@@ -140,14 +135,10 @@ function Ethernet() {
 				<EthernetForm
 					key={network.mode + network.address}
 					network={network}
-					apply={(mode, address) =>
-						action.mutate(() =>
-							unwrap(client.POST('/api/network', { body: mode === 'static' ? { mode, address } : { mode } })),
-						)
-					}
+					apply={(mode, address) => apply.mutate({ body: mode === 'static' ? { mode, address } : { mode } })}
 				/>
 			)}
-			<ErrorText error={action.error} />
+			<ErrorText error={apply.error ?? confirm.error ?? revert.error} />
 		</Panel>
 	);
 }

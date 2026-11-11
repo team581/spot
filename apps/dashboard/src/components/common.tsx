@@ -41,8 +41,10 @@ export function Panel({
 }
 
 /** A failure message; renders nothing without one. */
-export function ErrorText({ error }: { error: Error | null | undefined }) {
-	return error ? <p className="text-sm whitespace-pre-wrap text-destructive">{error.message}</p> : null;
+export function ErrorText({ error }: { error: Error | string | null | undefined }) {
+	return error ? (
+		<p className="text-sm whitespace-pre-wrap text-destructive">{typeof error === 'string' ? error : error.message}</p>
+	) : null;
 }
 
 export const stateLabel = (state: string) => (state[0]?.toUpperCase() + state.slice(1)).replaceAll('_', ' ');

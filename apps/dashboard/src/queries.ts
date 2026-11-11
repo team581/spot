@@ -1,24 +1,24 @@
-import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
-import { client, unwrap } from './api';
+import { QueryClient, useMutation } from '@tanstack/react-query';
+import createQueryClient from 'openapi-react-query';
+import { client } from './api';
 import type { Json, Overrides } from './overrides';
 import { setOverride } from './overrides';
 
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+export const $api = createQueryClient(client);
 
-export const useStatus = () =>
-	useQuery({ queryKey: ['status'], queryFn: () => unwrap(client.GET('/api/status')), refetchInterval: 1000 });
-export const useDevices = () =>
-	useQuery({ queryKey: ['devices'], queryFn: () => unwrap(client.GET('/api/devices')), refetchInterval: 2000 });
-export const useConfig = () =>
-	useQuery({ queryKey: ['config'], queryFn: () => unwrap(client.GET('/api/config')), refetchInterval: 2000 });
-export const useSettings = () =>
-	useQuery({ queryKey: ['settings'], queryFn: () => unwrap(client.GET('/api/settings')) });
-export const useNetwork = () =>
-	useQuery({ queryKey: ['network'], queryFn: () => unwrap(client.GET('/api/network')), refetchInterval: 1000 });
-export const useSystem = () =>
-	useQuery({ queryKey: ['system'], queryFn: () => unwrap(client.GET('/api/system')), refetchInterval: 1000 });
-export const useRecordings = () =>
-	useQuery({ queryKey: ['recordings'], queryFn: () => unwrap(client.GET('/api/recordings')), refetchInterval: 5000 });
+export const useStatus = () => $api.useQuery('get', '/api/status', undefined, { refetchInterval: 1000 });
+export const useDevices = () => $api.useQuery('get', '/api/devices', undefined, { refetchInterval: 2000 });
+export const useConfig = () => $api.useQuery('get', '/api/config', undefined, { refetchInterval: 2000 });
+export const useSettings = () => $api.useQuery('get', '/api/settings');
+export const useNetwork = () => $api.useQuery('get', '/api/network', undefined, { refetchInterval: 1000 });
+export const useSystem = () => $api.useQuery('get', '/api/system', undefined, { refetchInterval: 1000 });
+export const useRecordings = () => $api.useQuery('get', '/api/recordings', undefined, { refetchInterval: 5000 });
+
+export const useSaveSettings = () =>
+	$api.useMutation('put', '/api/settings', {
+		onSuccess: (data) => queryClient.setQueryData($api.queryOptions('get', '/api/settings').queryKey, data),
+	});
 
 type Edit = (overrides: Overrides) => Overrides;
 /**
@@ -26,16 +26,17 @@ type Edit = (overrides: Overrides) => Overrides;
  * The mutation's error holds the service's reason when the merged config would be invalid.
  */
 export function useEditOverrides() {
+	const configKey = $api.queryOptions('get', '/api/config').queryKey;
 	const mutation = useMutation({
 		scope: { id: 'overrides' },
 		mutationFn: async (edit: Edit) => {
-			const current = (queryClient.getQueryData<{ overrides: object }>(['config'])?.overrides ?? {}) as Overrides;
-			return unwrap(client.PUT('/api/config/overrides', { body: edit(current) }));
+			const current = (queryClient.getQueryData<{ overrides: object }>(configKey)?.overrides ?? {}) as Overrides;
+			return (await client.PUT('/api/config/overrides', { body: edit(current) })).data;
 		},
 		onSuccess: (view) => {
-			queryClient.setQueryData(['config'], view);
-			void queryClient.invalidateQueries({ queryKey: ['status'] });
-			void queryClient.invalidateQueries({ queryKey: ['devices'] });
+			queryClient.setQueryData(configKey, view);
+			void queryClient.invalidateQueries({ queryKey: $api.queryOptions('get', '/api/status').queryKey });
+			void queryClient.invalidateQueries({ queryKey: $api.queryOptions('get', '/api/devices').queryKey });
 		},
 	});
 	return {

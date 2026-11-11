@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { client, unwrap, type Settings } from '../api';
-import { queryClient, useEditOverrides, useSettings, useStatus } from '../queries';
+import type { Settings } from '../api';
+import { $api, queryClient, useEditOverrides, useSaveSettings, useSettings, useStatus } from '../queries';
 import { useCharuco, useImage } from '../live';
 import { DataList, ErrorText, fmt, PageTitle, Panel } from '../components/common';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,10 @@ type Session = components['schemas']['CalibrationView'];
 const dictionaries: Board['dictionary'][] = ['4x4_50', '4x4_100', '5x5_50', '5x5_100', '6x6_50', '6x6_250'];
 /** Coverage hint grid: cells with a captured corner count as covered. */
 const GRID = 6;
+const cameraParams = (camera: string) => ({ params: { path: { camera } } });
+const sessionKey = (camera: string) =>
+	$api.queryOptions('get', '/api/calibration/{camera}', cameraParams(camera)).queryKey;
+const setSession = (data: Session) => queryClient.setQueryData(sessionKey(data.camera), data);
 
 function BoardForm({ settings }: { settings: Settings }) {
 	const board = settings.calibration_board;
@@ -25,10 +28,7 @@ function BoardForm({ settings }: { settings: Settings }) {
 		marker_mm: String(board.marker_size * 1000),
 		dictionary: board.dictionary,
 	});
-	const save = useMutation({
-		mutationFn: (body: Settings) => unwrap(client.PUT('/api/settings', { body })),
-		onSuccess: (data) => queryClient.setQueryData(['settings'], data),
-	});
+	const save = useSaveSettings();
 	const field = (key: 'squares_x' | 'squares_y' | 'square_mm' | 'marker_mm', label: string) => (
 		<div className="flex flex-col gap-2">
 			<Label htmlFor={key}>{label}</Label>
@@ -46,13 +46,15 @@ function BoardForm({ settings }: { settings: Settings }) {
 			onSubmit={(e) => {
 				e.preventDefault();
 				save.mutate({
-					...settings,
-					calibration_board: {
-						squares_x: Number(draft.squares_x),
-						squares_y: Number(draft.squares_y),
-						square_size: Number(draft.square_mm) / 1000,
-						marker_size: Number(draft.marker_mm) / 1000,
-						dictionary: draft.dictionary,
+					body: {
+						...settings,
+						calibration_board: {
+							squares_x: Number(draft.squares_x),
+							squares_y: Number(draft.squares_y),
+							square_size: Number(draft.square_mm) / 1000,
+							marker_size: Number(draft.marker_mm) / 1000,
+							dictionary: draft.dictionary,
+						},
 					},
 				});
 			}}
@@ -145,15 +147,12 @@ function CalibrationView({ session }: { session: Session }) {
 
 function SessionPanel({ session }: { session: Session }) {
 	const overrides = useEditOverrides();
-	const action = useMutation({
-		mutationFn: (step: 'capture' | 'solve') =>
-			unwrap(client.POST(`/api/calibration/{camera}/${step}`, { params: { path: { camera: session.camera } } })),
-		onSuccess: (data) => queryClient.setQueryData(['calibration', session.camera], data),
-	});
-	const stop = useMutation({
-		mutationFn: () => client.DELETE('/api/calibration/{camera}', { params: { path: { camera: session.camera } } }),
-		onSuccess: () => queryClient.removeQueries({ queryKey: ['calibration', session.camera] }),
-	});
+	const capture = $api.useMutation('post', '/api/calibration/{camera}/capture', { onSuccess: setSession }),
+		solve = $api.useMutation('post', '/api/calibration/{camera}/solve', { onSuccess: setSession }),
+		stop = $api.useMutation('delete', '/api/calibration/{camera}', {
+			onSuccess: () => queryClient.removeQueries({ queryKey: sessionKey(session.camera) }),
+		});
+	const busy = capture.isPending || solve.isPending;
 	const solution = session.solution;
 	const resolution = `${session.width}x${session.height}`;
 	const enough = session.latest.corners.length >= session.min_corners;
@@ -165,21 +164,21 @@ function SessionPanel({ session }: { session: Session }) {
 				{session.min_frames}. Shaded areas have no captured corners yet; cover the edges and corners.
 			</p>
 			<div className="flex flex-wrap gap-3">
-				<Button disabled={!enough || action.isPending} onClick={() => action.mutate('capture')}>
+				<Button disabled={!enough || busy} onClick={() => capture.mutate(cameraParams(session.camera))}>
 					Capture view
 				</Button>
 				<Button
 					variant="outline"
-					disabled={session.frames.length < session.min_frames || action.isPending}
-					onClick={() => action.mutate('solve')}
+					disabled={session.frames.length < session.min_frames || busy}
+					onClick={() => solve.mutate(cameraParams(session.camera))}
 				>
-					{action.isPending && action.variables === 'solve' ? 'Solving…' : 'Solve'}
+					{solve.isPending ? 'Solving…' : 'Solve'}
 				</Button>
-				<Button variant="ghost" onClick={() => stop.mutate()}>
+				<Button variant="ghost" onClick={() => stop.mutate(cameraParams(session.camera))}>
 					End session
 				</Button>
 			</div>
-			<ErrorText error={action.error} />
+			<ErrorText error={capture.error ?? solve.error} />
 			{solution ? (
 				<Panel title={solution.accepted ? 'Calibration ready' : 'Calibration error is too high'}>
 					<DataList
@@ -198,7 +197,7 @@ function SessionPanel({ session }: { session: Session }) {
 							disabled={overrides.isPending}
 							onClick={() =>
 								overrides.set([[['cameras', session.camera, 'calibrations', resolution], solution.calibration]], {
-									onSettled: () => stop.mutate(),
+									onSettled: () => stop.mutate(cameraParams(session.camera)),
 								})
 							}
 						>
@@ -222,18 +221,11 @@ export default function Calibration() {
 		cameras = status.data?.cameras ?? [];
 	const [camera, setCamera] = useState('');
 	const selected = camera || cameras[0]?.name || '';
-	const session = useQuery({
-		queryKey: ['calibration', selected],
-		// No session is a normal state, not an error.
-		queryFn: async () =>
-			(await client.GET('/api/calibration/{camera}', { params: { path: { camera: selected } } })).data ?? null,
+	const session = $api.useQuery('get', '/api/calibration/{camera}', cameraParams(selected), {
 		enabled: Boolean(selected),
 		refetchInterval: 500,
 	});
-	const start = useMutation({
-		mutationFn: () => unwrap(client.POST('/api/calibration/{camera}', { params: { path: { camera: selected } } })),
-		onSuccess: (data) => queryClient.setQueryData(['calibration', selected], data),
-	});
+	const start = $api.useMutation('post', '/api/calibration/{camera}', { onSuccess: setSession });
 	return (
 		<>
 			<PageTitle>Calibration</PageTitle>
@@ -252,7 +244,8 @@ export default function Calibration() {
 				>
 					{!selected ? (
 						<p className="text-sm text-muted-foreground">Name a camera before calibrating it.</p>
-					) : session.data ? (
+					) : session.data && !session.isError ? (
+						// No session is a normal state (the service answers 409), not an error.
 						<SessionPanel session={session.data} />
 					) : (
 						<>
@@ -260,7 +253,11 @@ export default function Calibration() {
 								Calibrate at the mode the camera will run in. Hold the board flat and sharp, and capture views at varied
 								distances and tilts.
 							</p>
-							<Button className="self-start" disabled={start.isPending} onClick={() => start.mutate()}>
+							<Button
+								className="self-start"
+								disabled={start.isPending}
+								onClick={() => start.mutate(cameraParams(selected))}
+							>
 								Start calibrating {selected}
 							</Button>
 							<ErrorText error={start.error} />

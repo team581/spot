@@ -11,10 +11,9 @@ export type AddressMode = Schemas['AddressMode'];
 export type Settings = Schemas['Settings'];
 
 export const client = createClient<paths>();
-
-/** Resolves to the response body, or rejects with the service's error text. */
-export async function unwrap<T>(request: Promise<{ data?: T; error?: unknown; response: Response }>) {
-	const { data, error, response } = await request;
-	if (!response.ok) throw new Error(typeof error === 'string' && error ? error : `HTTP ${response.status}`);
-	return data as T;
-}
+// Failed requests reject with the service's error text, including ones with an empty body.
+client.use({
+	async onResponse({ response }) {
+		if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+	},
+});
