@@ -1,18 +1,18 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "dashboard",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "spot-dashboard", "dev"],
-      "port": 5173
-    },
-    {
-      "name": "dashboard-robot",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "spot-dashboard", "dev"],
-      "env": { "SPOT_BACKEND": "http://spot.local" },
-      "port": 5173
-    }
-  ]
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "dashboard",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--filter", "spot-dashboard", "dev"],
+			"port": 5173
+		},
+		{
+			"name": "dashboard-robot",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--filter", "spot-dashboard", "dev"],
+			"env": { "SPOT_BACKEND": "http://spot.local" },
+			"port": 5173
+		}
+	]
 }
