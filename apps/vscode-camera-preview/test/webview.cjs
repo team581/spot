@@ -1,13 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
-const { parseConfig } = require('../profile.ts');
 const { renderWebview } = require('../webview.ts');
 
-void test('preview reads spot-config.json and rejects a file without cameras', () => {
-	assert.throws(() => parseConfig('{}'), /needs a cameras array/);
-	assert.deepEqual(parseConfig('{"$schema":"x","cameras":[]}').cameras, []);
-});
 void test('webview template keeps nonce-based CSP and escapes asset attributes', () => {
 	const template = readFileSync(require.resolve('../media/preview.html'), 'utf8');
 	const html = renderWebview(template, {

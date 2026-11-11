@@ -2,9 +2,16 @@
 	"name": "spot-camera-preview",
 	"displayName": "Spot Camera Preview",
 	"version": "0.3.2",
-	"description": "Offline preview of Spot robot camera configuration",
+	"description": "Preview Spot camera mounts from a robot project's spot.toml",
 	"categories": [
 		"Visualization"
+	],
+	"keywords": [
+		"camera",
+		"frc",
+		"spot",
+		"toml",
+		"wpilib"
 	],
 	"license": "MIT",
 	"repository": {
@@ -26,7 +33,8 @@
 		"lint:fix": "oxlint --fix"
 	},
 	"dependencies": {
-		"@spot/camera-viewer": "workspace:*"
+		"@spot/camera-viewer": "workspace:*",
+		"smol-toml": "1.9.1"
 	},
 	"devDependencies": {
 		"@types/node": "26.6.6",
@@ -44,17 +52,23 @@
 			}
 		],
 		"menus": {
+			"commandPalette": [
+				{
+					"command": "spot.previewCameras",
+					"when": "resourceFilename == spot.toml"
+				}
+			],
 			"editor/title": [
 				{
 					"command": "spot.previewCameras",
-					"when": "resourceFilename == VisionConfig.java || resourceFilename == spot-config.json",
+					"when": "resourceFilename == spot.toml",
 					"group": "navigation"
 				}
 			],
 			"explorer/context": [
 				{
 					"command": "spot.previewCameras",
-					"when": "resourceFilename == VisionConfig.java || resourceFilename == spot-config.json"
+					"when": "resourceFilename == spot.toml"
 				}
 			]
 		},
@@ -64,14 +78,14 @@
 				"spot.cameraPreview.autoOpen": {
 					"type": "boolean",
 					"default": true,
-					"description": "Open camera preview when VisionConfig.java or spot-config.json is opened."
+					"description": "Open the camera preview when spot.toml is opened."
 				}
 			}
 		}
 	},
 	"activationEvents": [
-		"onLanguage:java",
-		"workspaceContains:**/src/main/deploy/spot-config.json"
+		"onLanguage:toml",
+		"workspaceContains:**/src/main/deploy/spot.toml"
 	],
 	"extensionKind": [
 		"workspace"

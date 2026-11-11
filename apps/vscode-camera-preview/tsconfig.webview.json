@@ -9,5 +9,5 @@
 		"noEmit": true,
 		"types": []
 	},
-	"include": ["media/preview.ts", "profile.ts"]
+	"include": ["media/preview.ts", "config.ts"]
 }

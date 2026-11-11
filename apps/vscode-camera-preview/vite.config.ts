@@ -6,7 +6,8 @@ export default defineConfig({
 		outDir: 'out',
 		target: 'node20',
 		dts: false,
-		deps: { neverBundle: ['vscode'] },
+		// The VSIX ships without node_modules.
+		deps: { neverBundle: ['vscode'], alwaysBundle: ['smol-toml'] },
 	},
 	build: {
 		outDir: 'media',

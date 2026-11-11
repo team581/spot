@@ -29,9 +29,20 @@ button {
 button[aria-pressed='true'] {
 	outline: 2px solid var(--vscode-focusBorder);
 }
-pre {
-	white-space: pre-wrap;
+dl {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 4px 12px;
+}
+dt {
+	color: var(--muted-foreground);
+}
+dd {
+	margin: 0;
 	overflow-wrap: anywhere;
+}
+.warning {
+	color: var(--vscode-editorWarning-foreground, var(--warning));
 }
 #cameras {
 	display: flex;
@@ -39,6 +50,8 @@ pre {
 }
 #status {
 	font-weight: bold;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 .drivebase-controls {

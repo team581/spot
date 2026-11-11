@@ -5,9 +5,8 @@ tsconfig.json
 test/**
 *.vsix
 *.vsix.sha256
-media/preview.ts
-project.ts
-profile.ts
+media/*.ts
+config.ts
 webview.ts
 vite.config.ts
 tsconfig.webview.json
