@@ -22,6 +22,8 @@ fn main() {
         .files(&sources)
         .include(apriltag)
         .include(apriltag.join("common"))
+        // The vendored library predates C23, which newer GCC defaults to.
+        .std("gnu11")
         .define("NDEBUG", None)
         .opt_level(3)
         .warnings(false);
