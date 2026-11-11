@@ -4,81 +4,69 @@ title: Camera setup
 
 ## Connect
 
-Open <http://spot.local:5800> or the default maintenance address
-<http://192.168.69.170:5800>. For direct Ethernet, give the laptop
-`192.168.69.171/24`. The Network page shows current addresses and the robot link.
+Open <http://spot.local> or the default maintenance address
+<http://192.168.69.170>. For direct Ethernet, give the laptop `192.168.69.171/24`.
 
-Fresh images request a DHCP address and also keep the maintenance address.
-Use **Network → Connection** to set the NetworkTables robot endpoint: a team
-number, or a server address for an NT4 server on a laptop or simulator. It
-reconnects immediately and saves the selection across reboots.
-Changing the endpoint does not change a static Jetson IP address.
-
-Use **Network → Jetson address** to change Ethernet settings. Check the new
-connection and click **Keep settings** before the trial expires; an unconfirmed
-trial rolls back. Both Ethernet ports share one network.
-
-Camera settings can be adjusted while the robot is enabled or disconnected. Spot
-keeps the last robot configuration it received, so bench work only needs robot code
-to have connected once.
+On **Network**, set the team number (Spot connects to `10.TE.AM.2`) or an
+NetworkTables server address for a simulator or laptop. Ethernet addressing (DHCP
+or static) changes as a trial: confirm it before the countdown ends or it rolls
+back. The maintenance address always stays.
 
 ## Assign cameras
 
-Camera names come from robot code. Select a physical feed, confirm it matches the
-camera, then assign an available code-defined name. Unnamed cameras are preview-only;
-name a camera before tuning or calibrating it.
+Each camera in [`spot.toml`](../../robot-config/) selects a physical camera by USB
+`serial` or by labeled `port`. Prefer serials; cameras can be reflashed with unique
+serials. If several cameras share a serial, Spot reports `duplicate_serial` instead
+of guessing.
 
-## Mount
-
-Measure mounts from the robot origin to the camera optical origin in metres,
-using WPILib axes: X forward, Y left, Z up. Positive pitch points the lens down.
-Mounts come from robot code. On the camera's **Mount** tab, use **Inspection
-preview** to adjust a mount, then **Save mount on Spot**. The saved mount is used by
-both Spot and robot localization and appears in **Changes** until robot code matches
-it or it is reverted.
-The [VS Code extension](../vscode-camera-preview/) previews deployed mounts.
+On the dashboard's camera naming page, pick a plugged-in camera and give it a name.
+This creates an override (see [saved settings](#saved-settings)).
 
 ## Tune
 
-Use the camera page's live preview and detection outlines while adjusting exposure
-and gain. **Reset to code defaults** returns every control to its robot-code value;
-an edited control's **Revert** button resets just that control.
+On a camera's page, choose the mode and adjust exposure and gain while watching the
+live view and detections. Unset controls use the camera's defaults. Prefer short,
+manual exposures to limit motion blur.
 
-## Saved settings
+## Mount
 
-Robot code supplies defaults in `src/main/deploy/spot-config.json`. Edits made on
-Spot take priority and persist across reconnects, restarts, and deployments.
-**Changes** lists each edit next to its robot-code value, flags edits whose
-robot-code value changed later, and reverts them individually or together. Edited
-camera controls also show their robot-code value on the camera page. Robot code can
-read the edited paths from the `/Spot/overrides` NetworkTables topic.
-
-To keep edits, use **Changes → Copy spot-config.json** (or download it), replace the
-file in the robot project, and deploy. Edits that match the deployed values are
-removed automatically.
+Measure each `mount` from the robot origin on the floor to the camera, in meters on
+WPILib axes (+X forward, +Y left, +Z up); positive pitch points the lens down. Check
+mounts in [Foxglove](#recordings-and-foxglove)'s 3D panel, where each camera's estimate, mount, and
+image appear with the field tags. The [VS Code extension](../vscode-camera-preview/)
+previews mounts from `spot.toml`.
 
 ## Calibrate
 
-1. In **Calibration → Board**, enter the measured dimensions and dictionary of
-   the actual ChArUco board. Click **Update board**.
-2. Choose one camera. Click **Start capture** and move the board through varied
-   positions, distances, and tilts until **Calibrate** is enabled. Keep the board
-   sharp and cover the image edges.
-3. Click **Calibrate**. Then click **Start capture** again to collect separate
-   validation views and click **Validate**. Follow the reported retry reasons;
-   **Clear views** discards only the current step's captures.
-4. Click **Apply calibration** and wait for **Applied**, then calibrate the next
-   camera. Choosing another camera discards an unapplied session.
-5. Applied calibrations appear in **Changes**; adopt them in robot code like other
-   edits.
+1. Print the board from the **Calibration** page at 100% scale and measure a
+   square. If it differs, set the measured size on the page before capturing.
+2. Choose a camera at the mode it will run in and start a session. Spot outlines
+   the board corners it finds.
+3. Capture views at varied distances and tilts until the coverage hint fills the
+   image, including its edges and corners. Keep the board flat and sharp.
+4. Solve. Spot rejects outlier views once, refits, and accepts the result only if
+   its RMS error is low enough.
+5. Apply the result. It becomes an override for that camera and resolution.
 
-Intrinsic calibration does not measure the mount. Recalibrate after replacement,
-focus changes, or incompatible optical modes. Use history to restore compatible
-calibration records. **Export calibrations** and **Import calibrations** under
-history move calibration records between Spots.
+Recalibrate after changing a lens, its focus, or the mode's resolution.
+
+## Saved settings
+
+Dashboard edits are overrides kept on the Jetson. They take priority over robot code
+until robot code matches them, then Spot removes them. The **Config** page lists
+every override against the robot value and shows the merged `spot.toml` to copy into
+robot code.
+
+## Recordings and Foxglove
+
+Spot keeps a rolling buffer and saves MCAP recordings around each enable; download
+them from **Recordings** and open them in [Foxglove](https://foxglove.dev/). For live
+data, connect Foxglove to `ws://spot.local:5801`. Recordings contain camera images,
+tag detections, estimates, camera status, the effective configuration, and service
+logs.
 
 ## Check on hardware
 
-Before enabling robot fusion, verify measured mounts, calibration, capture
-timestamps, field accuracy, multi-camera load, and disconnect/restart recovery.
-A passing software test or health check does not establish physical accuracy.
+Before trusting estimates, check measured mounts, calibration, timestamps against
+other sensors, accuracy on the field, and recovery after disconnecting a camera.
+A passing software test does not establish physical accuracy.

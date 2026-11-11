@@ -82,14 +82,14 @@ Run from the development checkout; no checkout on the Jetson is needed:
 
 ```sh
 nix run .#deploy -- test
-bash tools/jetson-ssh.sh spot-vision check-health --robot
+curl http://192.168.69.170:5800/api/status
 nix run .#deploy -- switch
 ```
 
 Add new files to Git before deploying and keep the checkout unchanged between
 `test` and `switch`. `test` changes the running system but leaves the boot default
-unchanged. There is no automatic deployment rollback. `check-health --robot`
-checks robot and camera readiness; it does not certify hardware accuracy.
+unchanged. There is no automatic deployment rollback. Check the status's `state`
+and cameras before switching; it does not certify hardware accuracy.
 
 ## Recover
 

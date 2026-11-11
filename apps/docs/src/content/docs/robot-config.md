@@ -1,68 +1,77 @@
 ---
 title: Robot configuration
-description: Start robot code's spot-config.json and keep it in sync with Spot.
+description: Keep Spot's TOML configuration in robot code and read its estimates.
 ---
 
-Robot code owns Spot's camera configuration in `src/main/deploy/spot-config.json`.
-The robot forwards the file to Spot over NetworkTables, and Spot validates and applies
-it. Edits made on the dashboard take priority until robot code matches them.
-
-Pose solving assumes the robot is flat: roll and pitch are fixed at zero, height
-stays between the floor and 6 in (for example, on top of a bump), and X, Y, height,
-and yaw are fitted to the detected corners. Measure camera height from the robot
-origin on the floor. Tilted frames do not fit this model and show a large
-reprojection error. Spot sends up to two distinct candidates; the robot chooses
-between them using its heading. Deploy the matching robot consumer before
-updating Spot.
+Robot code owns Spot's configuration in `src/main/deploy/spot.toml`. Robot code
+publishes the file's contents as a string; Spot validates and applies it. Spot keeps
+the last configuration it received, so bench work only needs the robot to have
+connected once.
 
 ## Get started
 
-1. Download the [starter configuration](../starter/spot-config.json) to
-   `src/main/deploy/spot-config.json` in the robot project.
-2. Give each camera a `name` and set `robot_to_camera` if the mount is already
-   measured: metres from the robot origin (WPILib NWU: +X forward, +Y left, +Z up)
-   and `roll_deg`, `pitch_deg`, `yaw_deg` as in WPILib's `Rotation3d`. Positive
-   pitch points the lens down. Otherwise measure it on the dashboard's **Mount** tab.
-   Give each camera the capture mode you expect from its datasheet; if the camera
-   does not support it, choose a supported mode on its **Tuning** tab.
-   Omitted settings use their defaults, and the dashboard fills in `binding_id` and
-   `calibration`. The top-level `latency_ms` (default 5) is a fixed allowance for the
-   delay between exposure and Spot reading a frame; Spot shifts every capture
-   timestamp earlier by it.
-3. Publish the file's contents as a string; robot code never parses it. The offseason robot's
-   [`VisionConfig.java`](https://github.com/team581/offseason-2026/blob/main/offseason-bot/src/main/java/frc/robot/vision/VisionConfig.java)
-   reads it and the shared
-   [`com.team581.vision.spot`](https://github.com/team581/offseason-2026/tree/main/shared/src/main/java/com/team581/vision/spot)
-   library sends it to Spot.
-4. Deploy robot code. Spot's **Changes** page shows **In sync** once it has the file.
-5. On the dashboard, [assign each feed](../operator/cameras/#assign-cameras) to a
-   camera name, then tune, measure mounts, and calibrate.
-6. Use **Changes → Copy spot-config.json**, replace the file in the robot project,
-   and deploy. Spot's changes clear once robot code matches them.
+1. Download the [starter configuration](../starter/spot.toml) to
+   `src/main/deploy/spot.toml`.
+2. Add a `[cameras.<name>]` table per camera. Names appear in NetworkTables topics.
+   Select each camera by `serial` (preferred) or physical `port`, not both. The
+   dashboard can fill these in: see [assign cameras](../operator/cameras/#assign-cameras).
+3. Publish the file to `/Spot/inputs/config` and the field layout
+   (WPILib `AprilTagFieldLayout` JSON) to `/Spot/inputs/fieldLayout`.
+4. Deploy robot code, then tune and calibrate on the dashboard.
+5. Copy the merged TOML from the dashboard's **Config** page into
+   `spot.toml` and deploy. Dashboard overrides clear once robot code matches them.
 
-## Where settings belong
+The `#:schema` line lets editors with TOML schema support (for example
+[Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml))
+autocomplete and check the file against the
+[published schema](../spot-config.schema.json). Spot also checks rules the schema
+cannot express and reports them on `/Spot/outputs/error`. An invalid configuration
+is rejected and the last valid one keeps running.
 
-A setting lives with whoever reads it:
+Team number, IP address, and the NetworkTables server are set on the Jetson, not here.
 
-- **Only Spot reads it:** `spot-config.json`. Cameras, capture modes, controls,
-  mounts, and processing. The dashboard can edit these, and robot code forwards the
-  file without parsing it.
-- **Robot code and Spot both read it:** a typed value in robot code, published under
-  `/Spot/Config/` in NetworkTables, so the roboRIO never parses JSON. The field
-  layout and tag sizes, `maxAgeS`, and `futureToleranceS`.
-- **Only robot code reads it:** robot code, never sent to Spot. Fusion, heading use,
-  measurement ordering, and the timing uncertainty used to weight vision
-  measurements, for example.
+## Mounts and pose estimates
 
-## Schema
+`mount` is the robot-to-camera transform: meters on WPILib axes (+X forward, +Y left,
++Z up) and degrees as `Rotation3d(roll, pitch, yaw)`. Positive pitch points the lens
+down. Unset values are 0.
 
-The starter names the published schema so editors such as VS Code autocomplete
-and check the file:
+Spot assumes the robot is flat on the floor (zero height, roll, and pitch) and fits
+every visible tag at once, per camera and frame. It only ignores tags that are not in
+the field layout, are listed in `ignored_tags`, or are seen by an uncalibrated
+camera. All trust decisions belong to robot code.
 
-```json
-{ "$schema": "https://spot.frc581.com/spot-config.schema.json" }
-```
+## NetworkTables
 
-Spot also checks rules the schema cannot express, such as unique camera names and
-calibrations that match their camera. Spot reports these errors on the `/Spot/error`
-NetworkTables topic.
+Spot connects as NT4 client `spot` and publishes nothing until time sync is
+acquired. Values are WPILib structs with published schemas.
+
+| Topic                                   | Type                      | Contents                                    |
+| --------------------------------------- | ------------------------- | ------------------------------------------- |
+| `/Spot/inputs/config`                   | string                    | `spot.toml` contents, from robot code       |
+| `/Spot/inputs/fieldLayout`              | string                    | `AprilTagFieldLayout` JSON, from robot code |
+| `/Spot/inputs/saveRecording`            | double                    | Optional: keep the last N seconds           |
+| `/Spot/outputs/status`                  | `struct:SpotStatus`       | Version, state, overrides active            |
+| `/Spot/outputs/error`                   | string                    | Details for a non-ready state               |
+| `/Spot/outputs/cameras/<name>/estimate` | `struct:SpotEstimate`     | Pose estimate, only for frames with tags    |
+| `/Spot/outputs/cameras/<name>/status`   | `struct:SpotCameraStatus` | State, FPS, dropped frames                  |
+
+Each estimate's NT timestamp is the frame's capture time in NT server time; pass it
+straight to `addVisionMeasurement`. An estimate holds a primary `Pose3d` and its RMS
+reprojection error in pixels, an optional alternate candidate (disambiguate it, for
+example, by heading), a bitmask of the tag IDs (0–63) used, the average
+camera-to-tag distance in meters, and the tags' share of the image area.
+
+`SpotStatus.state` reports the most fundamental problem: `ready`,
+`waiting_for_time_sync`, `waiting_for_config`, `invalid_config`, `missing_camera`, or
+`uncalibrated_camera`. Only cameras marked `required` affect it. Each camera's state
+is `streaming`, `disconnected`, `duplicate_serial`, `uncalibrated`, or
+`falling_behind`.
+
+## Recordings
+
+Spot records MCAP files around every enable (from about 5 s before to 5 s after),
+using `/FMSInfo` from the Driver Station, and names them by event and match when an
+FMS is attached. Setting `/Spot/inputs/saveRecording` to N keeps the last N seconds
+(up to 60). Recording log times are NT server time, the same time base as WPILOG.
+The `[recording]` table sets the image rate and disk limit.
