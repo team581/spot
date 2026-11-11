@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn detects_corners_in_order() {
-        let (pixels, width, height) = gray("center.png");
+        let (pixels, width, height) = gray("center.jpg");
         let gray = Gray { pixels: Pixels::Host(pixels), width, height };
         let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
         assert_eq!(detections.len(), 1);

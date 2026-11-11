@@ -12,9 +12,10 @@ mise run setup
 mise run dev
 ```
 
-Open the dashboard URL that Vite prints. The development service replays the JPEGs in
-`apps/vision/tests/data/live-alpha` as cameras (serials `camera-1` to `camera-4`) and
-keeps its state in `.spot-dev/`. Name cameras on the dashboard to start them.
+Open the dashboard URL that Vite prints. The development service replays the synthetic
+images in `apps/vision/tests/data/regression` as cameras (their serials are the file
+names, such as `center`) and keeps its state in `.spot-dev/`. Name cameras on the
+dashboard to start them.
 Run `mise tasks` for available checks and
 `cargo run --manifest-path apps/vision/Cargo.toml -- --help` for service commands.
 

@@ -23,11 +23,7 @@ pub struct Temperature {
     pub celsius: f64,
 }
 
-const GPU_LOAD: &[&str] = &[
-    "/sys/devices/platform/bus@0/17000000.gpu/load",
-    "/sys/devices/platform/17000000.gpu/load",
-    "/sys/devices/platform/gpu.0/load",
-];
+const GPU_LOAD: &str = "/sys/devices/platform/bus@0/17000000.gpu/load";
 
 /// Keeps the previous CPU counters to report use between readings.
 #[derive(Default)]
@@ -56,10 +52,7 @@ impl System {
             };
             Some(100.0 * (1.0 - field("MemAvailable:")? / field("MemTotal:")?))
         });
-        let gpu = GPU_LOAD
-            .iter()
-            .find_map(|path| read(path)?.trim().parse::<f64>().ok())
-            .map(|load| load / 10.0);
+        let gpu = read(GPU_LOAD).and_then(|l| l.trim().parse::<f64>().ok()).map(|load| load / 10.0);
         let mut temperatures: Vec<Temperature> = std::fs::read_dir("/sys/class/thermal")
             .into_iter()
             .flatten()

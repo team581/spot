@@ -79,116 +79,9 @@ public:
   // The grayscale image of the last detection, in host memory.
   const uint8_t *GrayHost() const { return gray_image_host_.get(); }
 
-  const std::vector<QuadCorners> &FitQuads() const;
-
   const zarray_t *Detections() const { return detections_; }
 
   void ReinitializeDetections();
-
-  // Debug methods to expose internal state for testing.
-  void CopyGrayTo(uint8_t *output) const {
-    gray_image_device_.MemcpyTo(output);
-  }
-  void CopyDecimatedTo(uint8_t *output) const {
-    decimated_image_device_.MemcpyTo(output);
-  }
-  void CopyThresholdedTo(uint8_t *output) const {
-    thresholded_image_device_.MemcpyTo(output);
-  }
-  void CopyUnionMarkersTo(uint32_t *output) const {
-    union_markers_device_.MemcpyTo(output);
-  }
-
-  void CopyUnionMarkerPairTo(QuadBoundaryPoint *output) const {
-    union_marker_pair_device_.MemcpyTo(output);
-  }
-
-  void CopyCompressedUnionMarkerPairTo(QuadBoundaryPoint *output) const {
-    compressed_union_marker_pair_device_.MemcpyTo(output);
-  }
-
-  std::vector<QuadBoundaryPoint> CopySortedUnionMarkerPair() const {
-    std::vector<QuadBoundaryPoint> result;
-    int size = NumCompressedUnionMarkerPairs();
-    result.resize(size);
-    sorted_union_marker_pair_device_.MemcpyTo(result.data(), size);
-    return result;
-  }
-
-  int NumCompressedUnionMarkerPairs() const {
-    return num_compressed_union_marker_pair_device_.Copy()[0];
-  }
-
-  void CopyUnionMarkersSizeTo(uint32_t *output) const {
-    union_markers_size_device_.MemcpyTo(output);
-  }
-
-  int NumQuads() const { return num_quads_device_.Copy()[0]; }
-
-  std::vector<MinMaxExtents> CopyExtents() const {
-    return extents_device_.Copy(NumQuads());
-  }
-
-  std::vector<cub::KeyValuePair<long, MinMaxExtents>>
-  CopySelectedExtents() const {
-    return selected_extents_device_.Copy(NumQuads());
-  }
-
-  int NumSelectedPairs() const { return num_selected_blobs_device_.Copy()[0]; }
-
-  std::vector<IndexPoint> CopySelectedBlobs() const {
-    return selected_blobs_device_.Copy(NumSelectedPairs());
-  }
-
-  std::vector<IndexPoint> CopySortedSelectedBlobs() const {
-    return sorted_selected_blobs_device_.Copy(NumSelectedPairs());
-  }
-
-  std::vector<LineFitPoint> CopyLineFitPoints() const {
-    return line_fit_points_device_.Copy(NumSelectedPairs());
-  }
-
-  std::vector<double> CopyErrors() const {
-    return errs_device_.Copy(NumSelectedPairs());
-  }
-
-  std::vector<double> CopyFilteredErrors() const {
-    return filtered_errs_device_.Copy(NumSelectedPairs());
-  }
-  std::vector<Peak> CopyPeaks() const {
-    return filtered_is_local_peak_device_.Copy(NumSelectedPairs());
-  }
-
-  int NumCompressedPeaks() const {
-    return num_compressed_peaks_device_.Copy()[0];
-  }
-
-  std::vector<Peak> CopyCompressedPeaks() const {
-    return compressed_peaks_device_.Copy(NumCompressedPeaks());
-  }
-
-  int NumFitQuads() const { return num_quad_peaked_quads_device_.Copy()[0]; }
-
-  std::vector<FitQuad> CopyFitQuads() const {
-    return fit_quads_device_.Copy(NumFitQuads());
-  }
-
-  void AdjustCenter(float corners[4][2]) const;
-
-  // TODO(max): We probably don't want to use these after our test images are
-  // just orin images
-  void SetCameraMatrix(CameraMatrix camera_matrix) {
-    camera_matrix_ = camera_matrix;
-  }
-
-  void SetDistortionCoefficients(DistCoeffs distortion_coefficients) {
-    distortion_coefficients_ = distortion_coefficients;
-  }
-
-  // Undistort pixels based on our camera model, using iterative algorithm
-  // Returns false if we fail to converge
-  static bool UnDistort(double *u, double *v, const CameraMatrix *camera_matrix,
-                        const DistCoeffs *distortion_coefficients);
 
 private:
   void UpdateFitQuads();
@@ -255,7 +148,6 @@ private:
   CudaEvent after_quad_fit_memcpy_;
 
   // TODO(austin): Remove this...
-  HostMemory<uint8_t> color_image_host_;
   HostMemory<uint8_t> gray_image_host_;
 
   // Starting color image.

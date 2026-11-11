@@ -118,7 +118,6 @@ GpuDetector::GpuDetector(size_t width, size_t height,
     : width_(width),
       height_(height),
       tag_detector_(tag_detector),
-      color_image_host_(width * height),
       gray_image_host_(width * height),
       color_image_device_(width * height),
       gray_image_device_(width * height),
@@ -790,7 +789,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         thresholded_image_device_.get(), union_markers_device_.get(),
         union_markers_size_device_.get(), union_marker_pair_device_.get(),
         decimated_width, decimated_height);
-    MaybeCheckAndSynchronize("BlobDiff");
   }
 
   // TODO(austin): Can I do the first step of the zero removal in the BlobDiff
@@ -811,7 +809,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         num_compressed_union_marker_pair_device_.get(),
         union_marker_pair_device_.size(), nz, stream_.get()));
 
-    MaybeCheckAndSynchronize("cub::DeviceSelect::If");
   }
 
   after_compact_.Record(&stream_);
@@ -834,7 +831,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         QuadBoundaryPoint::kRepEndBit, QuadBoundaryPoint::kBitsInKey,
         stream_.get()));
 
-    MaybeCheckAndSynchronize("cub::DeviceRadixSort::SortKeys");
   }
 
   after_sort_.Record(&stream_);
@@ -910,7 +906,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         input_iterator, selected_extents_device_.get(), sum_points,
         num_quads_host));
 
-    MaybeCheckAndSynchronize("cub::DeviceScan::InclusiveScan");
   }
 
   after_transform_extents_.Record(&stream_);
@@ -941,7 +936,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         num_selected_blobs_device_.get(), num_compressed_union_marker_pair_host,
         select_blobs, stream_.get()));
 
-    MaybeCheckAndSynchronize("cub::DeviceSelect::If");
 
     num_selected_blobs_device_.MemcpyAsyncTo(&num_selected_blobs_host,
                                              &stream_);
@@ -960,7 +954,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         num_selected_blobs_host, decomposer, IndexPoint::kRepEndBit,
         IndexPoint::kBitsInKey, stream_.get()));
 
-    MaybeCheckAndSynchronize("cub::DeviceRadixSort::SortKeys");
   }
 
   after_filtered_sort_.Record(&stream_);
@@ -993,7 +986,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         key_iterator, input_iterator, line_fit_points_device_.get(), sum_points,
         num_selected_blobs_host));
 
-    MaybeCheckAndSynchronize("cub::DeviceScan::InclusiveScanByKey");
   }
   after_line_fit_.Record(&stream_);
 
@@ -1019,7 +1011,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         num_selected_blobs_host, peak_filter, stream_.get()));
 
     after_peak_compression_.Record(&stream_);
-    MaybeCheckAndSynchronize("cub::DeviceSelect::If");
     num_compressed_peaks_device_.MemcpyAsyncTo(&num_compressed_peaks_host,
                                                &stream_);
     after_peak_count_memcpy_.Record(&stream_);
@@ -1037,7 +1028,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         num_compressed_peaks_host, decomposer, 0, PeakDecomposer::kBitsInKey,
         stream_.get()));
 
-    MaybeCheckAndSynchronize("cub::DeviceRadixSort::SortKeys");
   }
 
   after_peak_sort_.Record(&stream_);
@@ -1072,13 +1062,11 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         key_input_iterator, key_discard_iterator, value_input_iterator,
         peak_extents_device_.get(), num_quad_peaked_quads_device_.get(), reduce,
         num_compressed_peaks_host, stream_.get());
-    MaybeCheckAndSynchronize("cub::DeviceReduce::ReduceByKey");
 
     after_filtered_peak_reduce_.Record(&stream_);
 
     num_quad_peaked_quads_device_.MemcpyAsyncTo(&num_quad_peaked_quads_host,
                                                 &stream_);
-    MaybeCheckAndSynchronize("num_quad_peaked_quads_device_.MemcpyTo");
     after_filtered_peak_host_memcpy_.Record(&stream_);
     after_filtered_peak_host_memcpy_.Synchronize();
   }
@@ -1090,7 +1078,6 @@ void GpuDetector::Detect(const uint8_t *image, size_t pitch, bool on_device) {
         line_fit_points_device_.get(), tag_detector_->qtp.max_nmaxima,
         selected_extents_device_.get(), tag_detector_->qtp.max_line_fit_mse,
         tag_detector_->qtp.cos_critical_rad, fit_quads_device_.get(), &stream_);
-    MaybeCheckAndSynchronize("FitQuads");
   }
   after_quad_fit_.Record(&stream_);
 

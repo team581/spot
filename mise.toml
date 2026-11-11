@@ -17,14 +17,14 @@ run = [
 ]
 
 [tasks.dev]
-description = "Run the dashboard with synthetic cameras"
+description = "Run the dashboard with the regression images as cameras"
 depends = ["dev:backend", "dev:dashboard"]
 
 [tasks."dev:backend"]
-description = "Run the vision service with the fixture JPEGs as cameras"
+description = "Run the vision service with the regression images as cameras"
 run = """
 nix develop -c cargo run --manifest-path apps/vision/Cargo.toml -- run --state-dir .spot-dev \
-  --listen 127.0.0.1:5808 --replay apps/vision/tests/data/live-alpha --docs-dir dist/jetson-docs
+  --listen 127.0.0.1:5808 --replay apps/vision/tests/data/regression --docs-dir dist/jetson-docs
 """
 
 [tasks."dev:dashboard"]

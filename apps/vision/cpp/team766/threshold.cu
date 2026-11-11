@@ -163,7 +163,6 @@ void CudaToGreyscaleAndDecimateHalide(
     InternalCudaToGreyscaleAndDecimateHalide<<<kBlocks, kThreads, 0,
                                                stream->get()>>>(
         color_image, pitch, gray_image, decimated_image, width, height);
-    MaybeCheckAndSynchronize();
   }
 
   size_t decimated_width = width / 2;
@@ -178,7 +177,6 @@ void CudaToGreyscaleAndDecimateHalide(
     InternalBlockMinMax<<<blocks, threads, 0, stream->get()>>>(
         decimated_image, reinterpret_cast<uchar2 *>(unfiltered_minmax_image),
         decimated_width / 4, decimated_height / 4);
-    MaybeCheckAndSynchronize();
 
     // Step 3, Blur those min/max's a further +- 1 block in each direction using
     // min/max.
@@ -186,7 +184,6 @@ void CudaToGreyscaleAndDecimateHalide(
         reinterpret_cast<uchar2 *>(unfiltered_minmax_image),
         reinterpret_cast<uchar2 *>(minmax_image), decimated_width / 4,
         decimated_height / 4);
-    MaybeCheckAndSynchronize();
   }
 
   {
@@ -197,7 +194,6 @@ void CudaToGreyscaleAndDecimateHalide(
         decimated_image, reinterpret_cast<uchar2 *>(minmax_image),
         thresholded_image, decimated_width, decimated_height,
         min_white_black_diff);
-    MaybeCheckAndSynchronize();
   }
 }
 

@@ -120,7 +120,6 @@ fn team766() {
         .flag("--extended-lambda")
         // glog's CMake package normally defines this.
         .define("GLOG_USE_GLOG_EXPORT", None)
-        .define("GLOG_USE_GFLAGS", None)
         .files(sources.map(|name| format!("cpp/team766/{name}.cu")))
         .file("cpp/shim/team766_detector.cu")
         .include("cpp/team766")
@@ -129,7 +128,7 @@ fn team766() {
         .include("cpp/shim")
         .warnings(false)
         .compile("spot_detector");
-    for library in ["glog", "gflags", "stdc++"] {
+    for library in ["glog", "stdc++"] {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
 }

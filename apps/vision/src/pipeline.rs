@@ -283,7 +283,7 @@ mod tests {
     use super::*;
     use crate::config::RobotConfig;
 
-    /// The camera that rendered the fixtures; `rotated.png` was rendered upside down.
+    /// The camera that rendered the fixtures; `rotated.jpg` was rendered upside down.
     fn processing(rotated: bool) -> Processing {
         let (roll, cx, cy, p1, p2) =
             if rotated { (180, 639, 399, -0.006, 0.008) } else { (0, 640, 400, 0.006, -0.008) };
@@ -333,8 +333,11 @@ mod tests {
                 .map(|t| t["id"].as_u64().unwrap() as u32)
                 .collect();
             assert_eq!(ids, expected, "{name}");
-            let (_, estimate) =
-                estimate(&processing(case.get("config").is_some()), &detections, (width, height));
+            let (_, estimate) = estimate(
+                &processing(case["rotated"].as_bool().unwrap_or(false)),
+                &detections,
+                (width, height),
+            );
             let Some(translation) = case["robot_translation_m"].as_array() else {
                 assert!(estimate.is_none(), "{name}");
                 continue;

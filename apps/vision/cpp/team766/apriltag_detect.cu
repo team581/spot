@@ -15,7 +15,6 @@
 #include "labeling_allegretti_2019_BKE.h"
 #include "threshold.h"
 
-DEFINE_int32(debug_blob_index, 4096, "Blob to print out for");
 
 
 extern "C" {
@@ -87,15 +86,10 @@ void HostFitLine(LineFitMoments moments, double *lineparam01,
 
 }  // namespace
 
-const std::vector<QuadCorners> &GpuDetector::FitQuads() const {
-  return quad_corners_host_;
-}
-
 void GpuDetector::UpdateFitQuads() {
   quad_corners_host_.resize(0);
   VLOG(1) << "Considering " << fit_quads_host_.size();
   for (const FitQuad &quad : fit_quads_host_) {
-    bool print = quad.blob_index == FLAGS_debug_blob_index;
     if (!quad.valid) {
       continue;
     }
@@ -109,12 +103,6 @@ void GpuDetector::UpdateFitQuads() {
       double err;
       double mse;
       HostFitLine(quad.moments[i], lines[i], lines[i] + 2, &err, &mse);
-      if (print) {
-        LOG(INFO) << "Blob " << corners.blob_index << " mse -> " << mse
-                  << " err " << err << " index " << quad.indices[i] << ", "
-                  << quad.indices[(i + 1) % 4];
-        LOG(INFO) << "   " << quad.moments[i];
-      }
     }
 
     bool bad_determinant = false;
@@ -154,11 +142,6 @@ void GpuDetector::UpdateFitQuads() {
       // compute intersection
       corners.corners[i][0] = lines[i][0] + L0 * A00;
       corners.corners[i][1] = lines[i][1] + L0 * A10;
-      if (print) {
-        LOG(INFO) << "Calculated corner[" << i << "] -> ("
-                  << std::setprecision(20) << corners.corners[i][0] << ", "
-                  << std::setprecision(20) << corners.corners[i][1] << ")";
-      }
     }
     if (bad_determinant) {
       continue;
@@ -194,10 +177,6 @@ void GpuDetector::UpdateFitQuads() {
       area += sqrtf(p * (p - length[0]) * (p - length[1]) * (p - length[2]));
 
       if (area < 0.95 * min_tag_width_ * min_tag_width_) {
-        if (print) {
-          LOG(INFO) << "Area of " << area << " smaller than "
-                    << 0.95 * min_tag_width_ * min_tag_width_;
-        }
         continue;
       }
     }
@@ -216,11 +195,6 @@ void GpuDetector::UpdateFitQuads() {
             (dx1 * dx2 + dy1 * dy2) /
             sqrtf((dx1 * dx1 + dy1 * dy1) * (dx2 * dx2 + dy2 * dy2));
 
-        if (print) {
-          LOG(INFO) << "Cosdtheta -> for " << i0 << " " << i1 << " " << i2
-                    << " -> " << cos_dtheta << " threshold "
-                    << tag_detector_->qtp.cos_critical_rad;
-        }
 
         if (std::abs(cos_dtheta) > tag_detector_->qtp.cos_critical_rad ||
             dx1 * dy2 < dy1 * dx2) {
@@ -233,23 +207,6 @@ void GpuDetector::UpdateFitQuads() {
       }
     }
     quad_corners_host_.push_back(corners);
-  }
-}
-
-void GpuDetector::AdjustCenter(float corners[4][2]) const {
-  const float quad_decimate = tag_detector_->quad_decimate;
-  if (tag_detector_->quad_decimate > 1) {
-    if (tag_detector_->quad_decimate == 1.5) {
-      for (int j = 0; j < 4; j++) {
-        corners[j][0] *= quad_decimate;
-        corners[j][1] *= quad_decimate;
-      }
-    } else {
-      for (int j = 0; j < 4; j++) {
-        corners[j][0] = (corners[j][0] - 0.5f) * quad_decimate + 0.5f;
-        corners[j][1] = (corners[j][1] - 0.5f) * quad_decimate + 0.5f;
-      }
-    }
   }
 }
 
@@ -296,11 +253,6 @@ struct QuadDecodeTaskStruct {
   CameraMatrix *camera_matrix;
   DistCoeffs *distortion_coefficients;
 };
-
-bool GpuDetector::UnDistort(double *u, double *v, const CameraMatrix *camera,
-                            const DistCoeffs *distortion) {
-  return frc971::apriltag::UnDistort(u, v, camera, distortion);
-}
 
 void GpuDetector::QuadDecodeTask(void *_u) {
   QuadDecodeTaskStruct *task = reinterpret_cast<QuadDecodeTaskStruct *>(_u);

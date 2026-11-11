@@ -117,7 +117,6 @@ let
       pkgs.cudaPackages.cuda_cudart
       pkgs.cudaPackages.cuda_cccl
       pkgs.glog
-      pkgs.gflags
       pkgs.nvidia-jetpack.l4t-cuda
       pkgs.nvidia-jetpack.l4t-multimedia
     ];

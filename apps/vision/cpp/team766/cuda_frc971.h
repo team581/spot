@@ -193,13 +193,7 @@ private:
   const size_t size_;
 };
 
-// Synchronizes and CHECKs for success the last CUDA operation.
-void CheckAndSynchronize(std::string_view message = "");
 
-// Synchronizes and CHECKS iff --sync is passed on the command line.  Makes it
-// so we can leave debugging in the code.
-void MaybeCheckAndSynchronize();
-void MaybeCheckAndSynchronize(std::string_view message);
 
 } // namespace frc971::apriltag
 

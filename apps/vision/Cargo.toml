@@ -45,7 +45,7 @@ cc = "1"
 pkg-config = "0.3"
 
 [dev-dependencies]
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
 [profile.release]
 debug = "line-tables-only"
