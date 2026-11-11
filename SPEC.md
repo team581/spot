@@ -65,7 +65,7 @@
 ### Pose estimation
 
 - Stateless: at most one estimate per camera per frame
-- Assumes the robot is flat on the floor (roll/pitch 0, height ~0)
+- Full 6-DOF robot pose (x, y, z, roll, pitch, yaw), seeded from a flat-on-the-floor sweep
   - Fits all visible tags at once using the robot-to-camera mount
   - Returns a primary and optional alternate candidate, robot disambiguates (ex. by heading)
 - Backend only rejects tags that are unknown, listed in `ignored_tags`, or seen by an uncalibrated camera

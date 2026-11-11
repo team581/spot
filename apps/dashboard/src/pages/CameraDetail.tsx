@@ -113,7 +113,9 @@ function Settings({ name }: { name: string }) {
 }
 
 const candidate = (c: Candidate | null | undefined) =>
-	c ? `x ${fmt(c.x, 2)} m · y ${fmt(c.y, 2)} m · yaw ${fmt(c.yaw)}° · error ${fmt(c.error, 2)} px` : '—';
+	c
+		? `x ${fmt(c.x, 2)} m · y ${fmt(c.y, 2)} m · z ${fmt(c.z, 2)} m · roll ${fmt(c.roll)}° · pitch ${fmt(c.pitch)}° · yaw ${fmt(c.yaw)}° · error ${fmt(c.error, 2)} px`
+		: '—';
 
 function Detections({ name }: { name: string }) {
 	const detections = useDetections(name),

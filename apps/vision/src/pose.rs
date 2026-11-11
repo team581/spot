@@ -1,13 +1,15 @@
-//! Floor-constrained robot pose from AprilTag corners seen by one camera.
+//! Full 6-DOF robot pose from AprilTag corners seen by one camera.
 //!
-//! The robot is assumed flat on the floor (z, roll, and pitch are zero), leaving x, y, and
-//! yaw. For a fixed yaw the camera projection is linear in x and y, so a yaw sweep with
-//! linear least squares finds every local minimum; each is then refined with
-//! Levenberg-Marquardt on the pixel reprojection error.
+//! Seeds come from a yaw sweep with the robot flat on the floor: for a fixed yaw the camera
+//! projection is linear in x and y, so linear least squares finds each local minimum. Every
+//! seed is then refined over x, y, z, roll, pitch, and yaw with Levenberg-Marquardt on the
+//! pixel reprojection error.
 
 use std::f64::consts::TAU;
 
-use nalgebra::{Isometry3, Matrix2, Matrix3, Point3, UnitQuaternion, Vector2, Vector3};
+use nalgebra::{
+    Isometry3, Matrix2, Matrix3, Matrix6, Point3, UnitQuaternion, Vector2, Vector3, Vector6,
+};
 
 use crate::config::Calibration;
 
@@ -76,21 +78,23 @@ struct Problem {
     focal: Vector2<f64>,
 }
 
-impl Problem {
-    fn yaw(theta: f64) -> Matrix3<f64> {
-        let (s, c) = theta.sin_cos();
-        Matrix3::new(c, -s, 0.0, s, c, 0.0, 0.0, 0.0, 1.0)
-    }
+/// Robot pose parameters: x, y, z in meters, then roll, pitch, yaw in radians.
+type Params = [f64; 6];
 
-    /// Optical-frame point `o = A (P - T) - c` for robot yaw `theta` and position `T`.
-    fn transform(&self, theta: f64) -> (Matrix3<f64>, Vector3<f64>) {
-        let a = self.mount_rotation * Self::yaw(theta).transpose();
+fn rotation(params: &Params) -> UnitQuaternion<f64> {
+    UnitQuaternion::from_euler_angles(params[3], params[4], params[5])
+}
+
+impl Problem {
+    /// Optical-frame point `o = A (P - T) - c` for the robot rotation and position `T`.
+    fn transform(&self, rotation: &UnitQuaternion<f64>) -> (Matrix3<f64>, Vector3<f64>) {
+        let a = self.mount_rotation * rotation.to_rotation_matrix().matrix().transpose();
         (a, self.mount_rotation * self.mount_offset)
     }
 
-    /// Best x and y for a fixed yaw, from the linear projection constraints.
+    /// Best x and y for a flat robot at a fixed yaw, from the linear projection constraints.
     fn translation(&self, theta: f64) -> Option<Vector2<f64>> {
-        let (a, c) = self.transform(theta);
+        let (a, c) = self.transform(&UnitQuaternion::from_euler_angles(0.0, 0.0, theta));
         let mut normal = Matrix2::zeros();
         let mut rhs = Vector2::zeros();
         for (p, uv) in self.field.iter().zip(&self.image) {
@@ -106,9 +110,9 @@ impl Problem {
     }
 
     /// Pixel residuals, or `None` if any corner is behind the camera.
-    fn residuals(&self, params: &[f64; 3]) -> Option<Vec<f64>> {
-        let (a, c) = self.transform(params[2]);
-        let t = Vector3::new(params[0], params[1], 0.0);
+    fn residuals(&self, params: &Params) -> Option<Vec<f64>> {
+        let (a, c) = self.transform(&rotation(params));
+        let t = Vector3::new(params[0], params[1], params[2]);
         let mut residuals = Vec::with_capacity(self.field.len() * 2);
         for (p, uv) in self.field.iter().zip(&self.image) {
             let o = a * (p - t) - c;
@@ -121,18 +125,18 @@ impl Problem {
         Some(residuals)
     }
 
-    fn cost(&self, params: &[f64; 3]) -> f64 {
+    fn cost(&self, params: &Params) -> f64 {
         self.residuals(params).map_or(f64::INFINITY, |r| r.iter().map(|v| v * v).sum())
     }
 
-    fn refine(&self, mut params: [f64; 3]) -> [f64; 3] {
+    fn refine(&self, mut params: Params) -> Params {
         let mut cost = self.cost(&params);
         let mut lambda = 1e-3;
         for _ in 0..50 {
             let Some(r) = self.residuals(&params) else { break };
-            let steps = [1e-6, 1e-6, 1e-7];
-            let mut jacobian = vec![[0.0; 3]; r.len()];
-            for k in 0..3 {
+            let steps = [1e-6, 1e-6, 1e-6, 1e-7, 1e-7, 1e-7];
+            let mut jacobian = vec![[0.0; 6]; r.len()];
+            for k in 0..6 {
                 let (mut plus, mut minus) = (params, params);
                 plus[k] += steps[k];
                 minus[k] -= steps[k];
@@ -143,23 +147,23 @@ impl Problem {
                     jacobian[i][k] = (rp[i] - rm[i]) / (2.0 * steps[k]);
                 }
             }
-            let mut jtj = Matrix3::zeros();
-            let mut jtr = Vector3::zeros();
+            let mut jtj = Matrix6::zeros();
+            let mut jtr = Vector6::zeros();
             for (row, ri) in jacobian.iter().zip(&r) {
-                let j = Vector3::from(*row);
+                let j = Vector6::from(*row);
                 jtj += j * j.transpose();
                 jtr += j * *ri;
             }
             let mut improved = false;
             while lambda < 1e8 {
                 let mut damped = jtj;
-                for k in 0..3 {
+                for k in 0..6 {
                     damped[(k, k)] *= 1.0 + lambda;
                 }
                 let Some(delta) = damped.try_inverse().map(|inverse| -(inverse * jtr)) else {
                     break;
                 };
-                let next = [params[0] + delta.x, params[1] + delta.y, params[2] + delta.z];
+                let next: Params = std::array::from_fn(|k| params[k] + delta[k]);
                 let next_cost = self.cost(&next);
                 if next_cost < cost {
                     let converged = delta.norm() < 1e-9;
@@ -200,19 +204,19 @@ pub fn solve(
         focal: Vector2::new(calibration.fx, calibration.fy),
     };
 
-    let sweep: Vec<([f64; 3], f64)> = (0..SWEEP_STEPS)
+    let sweep: Vec<(Params, f64)> = (0..SWEEP_STEPS)
         .map(|i| {
             let theta = i as f64 * TAU / SWEEP_STEPS as f64;
             match problem.translation(theta) {
                 Some(t) => {
-                    let params = [t.x, t.y, theta];
+                    let params = [t.x, t.y, 0.0, 0.0, 0.0, theta];
                     (params, problem.cost(&params))
                 }
-                None => ([0.0, 0.0, theta], f64::INFINITY),
+                None => ([0.0, 0.0, 0.0, 0.0, 0.0, theta], f64::INFINITY),
             }
         })
         .collect();
-    let mut seeds: Vec<&([f64; 3], f64)> = (0..SWEEP_STEPS)
+    let mut seeds: Vec<&(Params, f64)> = (0..SWEEP_STEPS)
         .filter(|&i| {
             let cost = sweep[i].1;
             cost.is_finite()
@@ -224,7 +228,7 @@ pub fn solve(
     seeds.sort_by(|a, b| a.1.total_cmp(&b.1));
 
     let corners = problem.field.len() as f64;
-    let mut candidates: Vec<([f64; 3], f64)> = Vec::new();
+    let mut candidates: Vec<(Params, f64)> = Vec::new();
     for (seed, _) in seeds.into_iter().take(4) {
         let params = problem.refine(*seed);
         let cost = problem.cost(&params);
@@ -233,18 +237,20 @@ pub fn solve(
         }
         let error = (cost / corners).sqrt();
         let duplicate = candidates.iter().any(|(other, _)| {
-            let angle = (params[2] - other[2] + TAU / 2.0).rem_euclid(TAU) - TAU / 2.0;
-            (params[0] - other[0]).hypot(params[1] - other[1]) < 0.02 && angle.abs() < 0.01
+            let distance = (Vector3::from_column_slice(&params[..3])
+                - Vector3::from_column_slice(&other[..3]))
+            .norm();
+            distance < 0.02 && rotation(&params).angle_to(&rotation(other)) < 0.01
         });
         if !duplicate {
             candidates.push((params, error));
         }
     }
     candidates.sort_by(|a, b| a.1.total_cmp(&b.1));
-    let to_candidate = |(params, error): &([f64; 3], f64)| Candidate {
+    let to_candidate = |(params, error): &(Params, f64)| Candidate {
         pose: Isometry3::from_parts(
-            Vector3::new(params[0], params[1], 0.0).into(),
-            UnitQuaternion::from_euler_angles(0.0, 0.0, params[2]),
+            Vector3::new(params[0], params[1], params[2]).into(),
+            rotation(params),
         ),
         error: *error,
     };
@@ -324,11 +330,18 @@ mod tests {
     }
 
     #[test]
-    fn recovers_robot_pose_from_tags_at_several_heights() {
+    fn recovers_tilted_raised_robot_pose_from_tags_at_several_heights() {
         let mount =
             crate::config::Mount { x: 0.25, y: -0.1, z: 0.4, roll: 2.0, pitch: -12.0, yaw: 15.0 }
                 .isometry();
-        let robot = facing(3.2, 1.7, 0.0, 160.0);
+        let robot = Isometry3::from_parts(
+            Vector3::new(3.2, 1.7, 0.08).into(),
+            UnitQuaternion::from_euler_angles(
+                4f64.to_radians(),
+                -6f64.to_radians(),
+                160f64.to_radians(),
+            ),
+        );
         let camera = robot * mount;
         let tags = [
             observe(3, facing(0.0, 2.0, 1.2, 0.0), &camera),

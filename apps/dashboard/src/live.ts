@@ -40,6 +40,11 @@ interface Tag {
 export interface Candidate {
 	x: number;
 	y: number;
+	z: number;
+	/** Degrees. */
+	roll: number;
+	/** Degrees. */
+	pitch: number;
 	/** Degrees. */
 	yaw: number;
 	/** Reprojection error in pixels. */

@@ -37,8 +37,9 @@ Team number, IP address, and the NetworkTables server are set on the Jetson, not
 +Z up) and degrees as `Rotation3d(roll, pitch, yaw)`. Positive pitch points the lens
 down. Unset values are 0.
 
-Spot assumes the robot is flat on the floor (zero height, roll, and pitch) and fits
-every visible tag at once, per camera and frame. It only ignores tags that are not in
+Spot solves the full 3D robot pose (x, y, z, roll, pitch, yaw) and fits every
+visible tag at once, per camera and frame. Height, roll, and pitch are noisy on far,
+head-on tags, so robot code should usually keep only x, y, and yaw. It only ignores tags that are not in
 the field layout, are listed in `ignored_tags`, or are seen by an uncalibrated
 camera. All trust decisions belong to robot code.
 

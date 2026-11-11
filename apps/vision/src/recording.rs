@@ -315,7 +315,16 @@ impl Recorder {
             .collect();
         let candidate = |c: &crate::pose::Candidate| {
             let t = c.pose.translation.vector;
-            json!({ "x": t.x, "y": t.y, "yaw": c.pose.rotation.euler_angles().2.to_degrees(), "error": c.error })
+            let (roll, pitch, yaw) = c.pose.rotation.euler_angles();
+            json!({
+                "x": t.x,
+                "y": t.y,
+                "z": t.z,
+                "roll": roll.to_degrees(),
+                "pitch": pitch.to_degrees(),
+                "yaw": yaw.to_degrees(),
+                "error": c.error,
+            })
         };
         let estimate = result.estimate.as_ref().map(|e| {
             json!({
