@@ -25,7 +25,7 @@
 		},
 		{
 			"groupName": "vision dependencies",
-			"matchFileNames": ["pyproject.toml", "apps/vision/**"],
+			"matchFileNames": ["apps/vision/**"],
 			"separateMajorMinor": true
 		},
 		{
@@ -35,7 +35,7 @@
 		},
 		{
 			"groupName": "development tooling dependencies",
-			"matchFileNames": ["package.json", "mise.toml", ".tool-versions"],
+			"matchFileNames": ["package.json", "mise.toml"],
 			"separateMajorMinor": true
 		},
 		{

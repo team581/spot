@@ -21,7 +21,7 @@ jobs:
       - uses: useblacksmith/checkout@v1
       - uses: jdx/mise-action@v5
         with:
-          install_args: hk pkl
+          install_args: hk pkl rust
       - run: hk fix --all --step pkl-format
         continue-on-error: true
       - run: hk validate
@@ -29,11 +29,7 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
-      - uses: astral-sh/setup-uv@v10.3.3
-        with:
-          enable-cache: true
-          version-file: .tool-versions
-      - run: uv sync --locked --no-install-workspace
+      - run: sudo apt-get install -y libclang-dev libopencv-dev
       - run: pnpm --filter spot-docs exec astro sync
       - run: pnpm --filter spot-dashboard generate:api
         continue-on-error: true
@@ -43,9 +39,7 @@ jobs:
         continue-on-error: true
       - run: pnpm lint:fix
         continue-on-error: true
-      - run: uv run --no-sync ruff check --fix
-        continue-on-error: true
-      - run: uv run --no-sync ruff format
+      - run: cargo fmt --manifest-path apps/vision/Cargo.toml
         continue-on-error: true
       - name: Run autofix.ci
         uses: autofix-ci/action@v1

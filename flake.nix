@@ -110,10 +110,6 @@
               install -m 0600 ${./nix/maintenance_ed25519} "$key"
               export NIX_SSHOPTS="-i $key -o IdentitiesOnly=yes"
               host="team581@''${SPOT_HOST:-192.168.69.170}"
-              # Spot has no RTC battery, so its clock restarts at the epoch on every boot.
-              # The /run marker tells Spot to trust this time until the next reboot.
-              ssh -i "$key" -o IdentitiesOnly=yes "$host" \
-                "sudo date -u -s @$(date +%s) && sudo touch /run/spot-clock-set"
               if [ "$#" -eq 0 ]; then set -- test; fi
               nixos-rebuild "$@" --flake "$PWD#spot" \
                 --build-host "$host" \
