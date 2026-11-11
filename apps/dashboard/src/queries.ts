@@ -1,41 +1,50 @@
-import { MutationCache, QueryClient, queryOptions, useMutation, useQuery } from '@tanstack/react-query';
-import { api, submit, type OperationName, type OperationPayload, type OperationResult } from './api';
-import { initialStatus, type Status } from './types';
+import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
+import { client, unwrap } from './api';
+import type { Json, Overrides } from './overrides';
+import { setOverride } from './overrides';
 
-const statusQuery = queryOptions({
-	queryKey: ['status'],
-	queryFn: () => api<Status>('/api/status'),
-	refetchInterval: 500,
-	retry: false,
-});
+export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-export const queryClient = new QueryClient({
-	// Operations change service state, so each resolves only after status reflects it.
-	mutationCache: new MutationCache({
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: statusQuery.queryKey }),
-	}),
-});
+export const useStatus = () =>
+	useQuery({ queryKey: ['status'], queryFn: () => unwrap(client.GET('/api/status')), refetchInterval: 1000 });
+export const useDevices = () =>
+	useQuery({ queryKey: ['devices'], queryFn: () => unwrap(client.GET('/api/devices')), refetchInterval: 2000 });
+export const useConfig = () =>
+	useQuery({ queryKey: ['config'], queryFn: () => unwrap(client.GET('/api/config')), refetchInterval: 2000 });
+export const useSettings = () =>
+	useQuery({ queryKey: ['settings'], queryFn: () => unwrap(client.GET('/api/settings')) });
+export const useNetwork = () =>
+	useQuery({ queryKey: ['network'], queryFn: () => unwrap(client.GET('/api/network')), refetchInterval: 1000 });
+export const useSystem = () =>
+	useQuery({ queryKey: ['system'], queryFn: () => unwrap(client.GET('/api/system')), refetchInterval: 1000 });
+export const useRecordings = () =>
+	useQuery({ queryKey: ['recordings'], queryFn: () => unwrap(client.GET('/api/recordings')), refetchInterval: 5000 });
 
-/** Settles after the first status read so pages mount with real cameras; errors surface through `useStatusQuery`. */
-export const loadStatus = () =>
-	queryClient.ensureQueryData(statusQuery).then(
-		() => undefined,
-		() => undefined,
-	);
-export const useStatusQuery = () => useQuery(statusQuery);
-export const useStatus = () => useStatusQuery().data ?? initialStatus;
-export const useCamera = (id: string) => useStatus().cameras.find((c) => c.identity === id);
-/** Latest status for async handlers that outlive the render that started them. */
-export const readStatus = () => queryClient.getQueryData(statusQuery.queryKey) ?? initialStatus;
-export const refreshStatus = () => queryClient.fetchQuery({ ...statusQuery, staleTime: 0 });
-
-type Operation<N extends OperationName> = { [K in N]: { operation: K; payload: OperationPayload<K> } }[N];
-/** Runs service operations; narrow `N` when the caller needs that operation's result type. */
-export const useOperation = <N extends OperationName = OperationName>() =>
-	useMutation({
-		mutationFn: ({ operation, payload }: Operation<N>) =>
-			submit<N>(operation, payload as OperationPayload<N>) as Promise<OperationResult<N>>,
+type Edit = (overrides: Overrides) => Overrides;
+/**
+ * Writes overrides by editing the latest ones. Edits run one at a time, so each builds on the last.
+ * The mutation's error holds the service's reason when the merged config would be invalid.
+ */
+export function useEditOverrides() {
+	const mutation = useMutation({
+		scope: { id: 'overrides' },
+		mutationFn: async (edit: Edit) => {
+			const current = (queryClient.getQueryData<{ overrides: object }>(['config'])?.overrides ?? {}) as Overrides;
+			return unwrap(client.PUT('/api/config/overrides', { body: edit(current) }));
+		},
+		onSuccess: (view) => {
+			queryClient.setQueryData(['config'], view);
+			void queryClient.invalidateQueries({ queryKey: ['status'] });
+			void queryClient.invalidateQueries({ queryKey: ['devices'] });
+		},
 	});
-
-/** Pending and error state for a multi-step handler; it refreshes status like any operation. */
-export const useTask = () => useMutation({ mutationFn: (run: () => Promise<void>) => run() });
+	return {
+		...mutation,
+		/** Sets each `[path, value]` pair; `null` removes the key from the robot config. */
+		set: (changes: [string[], Json][], options?: { onSettled?: () => void }) =>
+			mutation.mutate(
+				(overrides) => changes.reduce((next, [path, value]) => setOverride(next, path, value), overrides),
+				options,
+			),
+	};
+}

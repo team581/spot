@@ -1,61 +1,79 @@
 import { Link } from '@tanstack/react-router';
-import { useServiceError } from '../dashboard';
-import { useStatus } from '../queries';
-import { Feed, usePreview } from '../components/Feed';
-import { age, CalibrationState, Feedback, PageTitle, Panel } from '../components/common';
+import { useDevices, useStatus } from '../queries';
+import { fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { LiveView } from '../components/LiveView';
 import { Card } from '@/components/ui/card';
-import type { Camera } from '../types';
-function Tile({ camera: c }: { camera: Camera }) {
-	const view = usePreview(c.identity),
-		captureFresh = c.connected && c.age_s != null && c.age_s < 0.5,
-		fresh = c.connected && c.metrics?.detect_age_s != null && c.metrics.detect_age_s < 0.5;
-	return (
-		<Link
-			className="tile group/tile rounded-lg text-foreground no-underline hover:no-underline"
-			to="/cameras/$id"
-			params={{ id: c.identity }}
-			data-tile={c.identity}
-		>
-			<Card className="gap-0 py-0 transition-shadow group-hover/tile:ring-foreground/30">
-				<header className="flex items-center justify-between px-4 py-3">
-					<strong className="font-heading text-base">{c.name}</strong>
-					<CalibrationState camera={c} />
-				</header>
-				<Feed id={c.identity} className="aspect-2/1 rounded-none" />
-				<div className="flex justify-between gap-2 px-4 py-3 text-lg font-semibold sm:text-xl">
-					<span title="Measured capture FPS; detection and preview rates are separate">
-						{captureFresh && c.metrics?.captured && Number.isFinite(c.metrics.fps_capture)
-							? `${Math.round(c.metrics.fps_capture!)} FPS`
-							: '— FPS'}
-					</span>
-					<span>
-						{view.data && !view.data.stale && fresh && view.data.processed ? `${view.data.tags.length} tags` : '— tags'}
-					</span>
-					<span>{age(c.age_s)}</span>
-				</div>
-			</Card>
-		</Link>
-	);
-}
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 export default function Cameras() {
-	const status = useStatus(),
-		serviceError = useServiceError();
+	const cameras = useStatus().data?.cameras ?? [],
+		unassigned = useDevices().data?.filter((d) => !d.camera) ?? [];
 	return (
 		<>
-			<PageTitle>Cameras</PageTitle>
-			<div className="grid gap-6 md:grid-cols-2">
-				{status.cameras.length ? (
-					status.cameras.map((c) => <Tile key={c.identity} camera={c} />)
-				) : (
-					<Panel title="No cameras discovered" className="max-w-2xl">
-						<p>Connect a powered USB camera. Discovery continues automatically.</p>
-						<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="connect">
-							Connection guide
+			<PageTitle
+				action={
+					<Button variant="outline" render={<Link to="/devices" />}>
+						Assign devices
+					</Button>
+				}
+			>
+				Cameras
+			</PageTitle>
+			{cameras.length ? (
+				<div className="grid gap-6 md:grid-cols-2">
+					{cameras.map((c) => (
+						<Link
+							key={c.name}
+							to="/cameras/$name"
+							params={{ name: c.name }}
+							className="group/tile rounded-xl text-foreground no-underline"
+						>
+							<Card className="gap-0 py-0 transition-shadow group-hover/tile:ring-foreground/30">
+								<header className="flex items-center justify-between gap-2 px-4 py-3">
+									<strong className="font-heading text-base">{c.name}</strong>
+									<StateBadge state={c.state} />
+								</header>
+								<LiveView camera={c.name} className="rounded-none" />
+								<div className="flex justify-between gap-2 px-4 py-3 text-sm">
+									<span>{c.mode}</span>
+									<span className="font-semibold">{fmt(c.fps, 0)} FPS</span>
+								</div>
+							</Card>
 						</Link>
-					</Panel>
-				)}
-			</div>
-			<Feedback id="page-feedback">{serviceError}</Feedback>
+					))}
+				</div>
+			) : (
+				<Panel title="No cameras configured" className="max-w-2xl">
+					<p className="text-sm">
+						Add cameras to the robot config, or <Link to="/devices">assign a connected device</Link> to a camera name.
+					</p>
+				</Panel>
+			)}
+			{unassigned.length ? (
+				<Panel title="Unassigned devices" action={<Link to="/devices">Assign</Link>}>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Device</TableHead>
+								<TableHead>Product</TableHead>
+								<TableHead>Serial</TableHead>
+								<TableHead>Port</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{unassigned.map((d) => (
+								<TableRow key={d.path}>
+									<TableCell>{d.path}</TableCell>
+									<TableCell>{d.product}</TableCell>
+									<TableCell>{d.serial ?? '—'}</TableCell>
+									<TableCell>{d.port ?? '—'}</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</Panel>
+			) : null}
 		</>
 	);
 }

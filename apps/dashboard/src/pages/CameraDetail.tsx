@@ -1,174 +1,207 @@
-import { lazy, Suspense, useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { useDashboard } from '../dashboard';
-import { useOperation, useStatus } from '../queries';
-import { CalibrationState, CameraSelector, CameraTabs, Feedback, Panel, PageTitle, age } from '../components/common';
+import { useState } from 'react';
+import { Link, useParams } from '@tanstack/react-router';
+import type { ControlRange } from '../api';
+import type { Json } from '../overrides';
+import { useConfig, useDevices, useEditOverrides, useStatus } from '../queries';
+import { useDetections, type Candidate } from '../live';
+import { DataList, ErrorText, fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { LiveView } from '../components/LiveView';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { Feed, usePreview, previewData, frameAge } from '../components/Feed';
-import { Detections } from '../components/Detections';
-import { useTuner } from '../components/useTuner';
-import type { Camera } from '../types';
-import { TuningControl } from '../components/TuningControl';
-const GeometryViewer = lazy(() => import('../components/GeometryViewer'));
-export default function CameraDetail({ camera }: { camera: Camera }) {
-	const [version, setVersion] = useState(0);
-	return <CameraDetailPage key={version} camera={camera} onModeApplied={() => setVersion((value) => value + 1)} />;
-}
-function CameraDetailPage({ camera: c, onModeApplied }: { camera: Camera; onModeApplied: () => void }) {
-	const { announce, previews } = useDashboard(),
-		status = useStatus(),
-		operation = useOperation(),
-		{ tuner, reset, reconcile } = useTuner(c);
-	const [notice, setNotice] = useState(''),
-		[outlines, setOutlines] = useState(true),
-		[replacement, setReplacement] = useState(''),
-		[confirmed, setConfirmed] = useState(false);
-	const view = usePreview(c.identity),
-		data = previewData(view),
-		preferred = ['exposure_time_absolute', 'exposure_absolute', 'gain', 'brightness'];
-	const primary = (c.controls ?? [])
-			.filter((v) => preferred.includes(v.name))
-			.sort((a, b) => preferred.indexOf(a.name) - preferred.indexOf(b.name)),
-		advanced = (c.controls ?? []).filter((v) => !preferred.includes(v.name));
-	const replacements = status.cameras.filter(
-		(cam) => cam.connected && (!cam.logical_name || cam.identity === c.identity),
+import { Slider } from '@/components/ui/slider';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+/** A device control slider; unset means the camera's default. */
+function ControlSlider({
+	label,
+	range,
+	value,
+	onChange,
+}: {
+	label: string;
+	range: ControlRange | undefined;
+	value: number | null | undefined;
+	onChange: (value: number | null, done: () => void) => void;
+}) {
+	const [draft, setDraft] = useState<number>();
+	if (!range)
+		return (
+			<div className="flex flex-col gap-2">
+				<Label>{label}</Label>
+				<span className="text-sm text-muted-foreground">Not supported by this camera</span>
+			</div>
+		);
+	const shown = draft ?? value ?? range.default;
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="flex items-center justify-between gap-2">
+				<Label>{label}</Label>
+				<span className="text-sm">
+					{shown}
+					{value == null && draft === undefined ? <span className="text-muted-foreground"> (default)</span> : null}
+				</span>
+			</div>
+			<div className="flex items-center gap-3">
+				<Slider
+					min={range.min}
+					max={range.max}
+					step={range.step || 1}
+					value={shown}
+					onValueChange={(v) => setDraft(v as number)}
+					onValueCommitted={(v) => onChange(v as number, () => setDraft(undefined))}
+				/>
+				<Button variant="outline" size="sm" disabled={value == null} onClick={() => onChange(null, () => {})}>
+					Reset
+				</Button>
+			</div>
+		</div>
 	);
-	const replacementId = replacements.some((cam) => cam.identity === replacement)
-		? replacement
-		: (replacements[0]?.identity ?? '');
+}
+
+function Settings({ name }: { name: string }) {
+	const edit = useEditOverrides(),
+		camera = useConfig().data?.config?.cameras?.[name],
+		device = useDevices().data?.find((d) => d.camera === name),
+		controls = camera?.controls ?? {},
+		mode = camera?.mode ?? '',
+		modes = device?.modes.includes(mode) || !mode ? (device?.modes ?? []) : [mode, ...(device?.modes ?? [])],
+		range = (control: string) => device?.controls.find((c) => c.name === control),
+		set = (key: string[], value: Json, done?: () => void) =>
+			edit.set([[['cameras', name, ...key], value]], { onSettled: done });
+	return (
+		<Panel title="Settings">
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="mode">Mode</Label>
+				<NativeSelect id="mode" className="w-full" value={mode} onChange={(e) => set(['mode'], e.target.value)}>
+					{modes.map((m) => (
+						<NativeSelectOption key={m} value={m}>
+							{m}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+			</div>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="auto-exposure">Auto exposure</Label>
+				<NativeSelect
+					id="auto-exposure"
+					className="w-full"
+					value={controls.auto_exposure ?? ''}
+					disabled={!range('auto_exposure')}
+					onChange={(e) => set(['controls', 'auto_exposure'], e.target.value || null)}
+				>
+					<NativeSelectOption value="">Camera default</NativeSelectOption>
+					<NativeSelectOption value="manual">Manual</NativeSelectOption>
+					<NativeSelectOption value="aperture_priority">Aperture priority</NativeSelectOption>
+				</NativeSelect>
+			</div>
+			<ControlSlider
+				label="Exposure"
+				range={range('exposure_time_absolute')}
+				value={controls.exposure_time_absolute}
+				onChange={(v, done) => set(['controls', 'exposure_time_absolute'], v, done)}
+			/>
+			<ControlSlider
+				label="Gain"
+				range={range('gain')}
+				value={controls.gain}
+				onChange={(v, done) => set(['controls', 'gain'], v, done)}
+			/>
+			<ErrorText error={edit.error} />
+		</Panel>
+	);
+}
+
+const candidate = (c: Candidate | null | undefined) =>
+	c ? `x ${fmt(c.x, 2)} m · y ${fmt(c.y, 2)} m · yaw ${fmt(c.yaw)}° · error ${fmt(c.error, 2)} px` : '—';
+
+function Detections({ name }: { name: string }) {
+	const detections = useDetections(name),
+		estimate = detections?.estimate;
 	return (
 		<>
-			<div className="flex items-center justify-between gap-4">
-				<PageTitle id="camera-title">{c.name}</PageTitle>
-				<Link id="calibrated-state" to="/calibration">
-					<CalibrationState camera={c} />
-				</Link>
-			</div>
-			<CameraSelector cameras={status.cameras} id={c.identity} />
-			<CameraTabs id={c.identity} />
-			<div className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
-				<Panel title="Config">
-					{primary.map((ctrl) => (
-						<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
-					))}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="optical-mode">Capture resolution / rate</Label>
-						<NativeSelect
-							id="optical-mode"
-							className="w-full"
-							value={c.mode_id || ''}
-							disabled={!c.present || tuner.inFlight}
-							onChange={(e) => {
-								if (!c.logical_name) return;
-								operation.mutate(
-									{
-										operation: 'camera/mode',
-										payload: { name: c.logical_name, mode_id: e.target.value, revision: status.revision },
-									},
-									{ onSuccess: onModeApplied },
-								);
+			<Panel title="Estimate">
+				<DataList
+					values={{
+						Primary: candidate(estimate?.primary),
+						Alternate: candidate(estimate?.alternate),
+						'Average tag distance': estimate ? fmt(estimate.average_tag_distance, 2) + ' m' : '—',
+						'Tag area': estimate ? fmt(estimate.tag_area * 100, 2) + '%' : '—',
+					}}
+				/>
+			</Panel>
+			<Panel title="Detections">
+				{detections?.tags.length ? (
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>ID</TableHead>
+								<TableHead>Used</TableHead>
+								<TableHead>Hamming</TableHead>
+								<TableHead>Margin</TableHead>
+								<TableHead>Corners (px)</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{detections.tags.map((t) => (
+								<TableRow key={t.id + ':' + t.corners.join()}>
+									<TableCell>{t.id}</TableCell>
+									<TableCell>{t.used ? 'Yes' : 'No'}</TableCell>
+									<TableCell>{t.hamming}</TableCell>
+									<TableCell>{fmt(t.decision_margin)}</TableCell>
+									<TableCell className="font-mono text-xs">
+										{t.corners.map(([x, y]) => `(${x.toFixed(0)}, ${y.toFixed(0)})`).join(' ')}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				) : (
+					<p className="text-sm text-muted-foreground">{detections ? 'No tags in view' : 'Waiting for detections'}</p>
+				)}
+			</Panel>
+		</>
+	);
+}
+
+export default function CameraDetail() {
+	const { name } = useParams({ from: '/cameras/$name' }),
+		status = useStatus(),
+		camera = status.data?.cameras.find((c) => c.name === name);
+	if (!camera)
+		return (
+			<>
+				<PageTitle>{name}</PageTitle>
+				<p className="text-sm">
+					{status.data ? 'This camera is not configured.' : 'Loading…'} <Link to="/">All cameras</Link>
+				</p>
+			</>
+		);
+	return (
+		<>
+			<PageTitle>{name}</PageTitle>
+			<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+				<div className="flex min-w-0 flex-col gap-6">
+					<LiveView camera={name} />
+					<Detections name={name} />
+				</div>
+				<div className="flex flex-col gap-6">
+					<Panel title="Status">
+						<DataList
+							values={{
+								State: <StateBadge state={camera.state} />,
+								...(camera.error ? { Error: <span className="text-warning">{camera.error}</span> } : {}),
+								Mode: camera.mode,
+								FPS: fmt(camera.fps),
+								'Capture FPS': fmt(camera.capture_fps),
+								'Dropped frames': camera.dropped_frames,
+								Calibrated: camera.calibrated ? 'Yes' : 'No',
+								Required: camera.required ? 'Yes' : 'No',
+								Device: camera.device ?? '—',
 							}}
-						>
-							{c.mode_id ? null : <NativeSelectOption value="">Choose a supported mode</NativeSelectOption>}
-							{(c.allowed_modes ?? []).map((m) => (
-								<NativeSelectOption key={m.id} value={m.id} disabled={!m.supported}>
-									{m.width} × {m.height} · {m.fps} FPS · {m.pixel_format}
-									{m.supported ? '' : ' · unsupported'}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					</div>
-					<Feedback id="control-feedback">
-						{tuner.error || (tuner.inFlight || tuner.pending ? 'Pending device acknowledgement' : '')}
-					</Feedback>
-					<Button
-						variant="outline"
-						disabled={Boolean(!(c.controls ?? []).some((ctrl) => ctrl.allowed) || tuner.inFlight || tuner.conflict)}
-						onClick={() => void reset()}
-					>
-						Reset to code defaults
-					</Button>
-					<Collapsible>
-						<CollapsibleTrigger className="text-muted-foreground hover:text-foreground">Advanced</CollapsibleTrigger>
-						<CollapsibleContent className="mt-3 flex flex-col gap-3">
-							{advanced.map((ctrl) => (
-								<TuningControl key={ctrl.name} control={ctrl} tuner={tuner} camera={c} />
-							))}
-							<Label htmlFor="replacement-identity">Replacement camera</Label>
-							<NativeSelect
-								id="replacement-identity"
-								className="w-full"
-								value={replacementId}
-								onChange={(e) => setReplacement(e.target.value)}
-							>
-								{replacements.map((cam) => (
-									<NativeSelectOption key={cam.identity} value={cam.identity}>
-										{cam.name} · {cam.display_id || ''}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-							<Label>
-								<Checkbox checked={confirmed} onCheckedChange={setConfirmed} /> I confirmed the replacement feed
-							</Label>
-							<Button
-								variant="outline"
-								disabled={!c.logical_name || !replacements.length}
-								onClick={() => {
-									if (!c.logical_name) return;
-									if (!confirmed) {
-										setNotice('Identify the replacement feed before replacing this camera');
-										return;
-									}
-									setNotice('');
-									operation.mutate(
-										{
-											operation: 'camera/replace',
-											payload: { name: c.logical_name, identity: replacementId, revision: status.revision },
-										},
-										{ onSuccess: () => announce('Physical camera calibration invalidated') },
-									);
-								}}
-							>
-								Replace camera
-							</Button>
-						</CollapsibleContent>
-					</Collapsible>
-					{tuner.conflict ? (
-						<Button variant="outline" onClick={() => void reconcile()}>
-							Reconcile current values
-						</Button>
-					) : null}
-					<Feedback id="page-feedback">{notice || operation.error?.message}</Feedback>
-					<Link to="/help/$" params={{ _splat: 'operator/cameras/' }} hash="tune">
-						Tuning
-					</Link>
-				</Panel>
-				<div className="flex min-w-0 flex-col gap-4">
-					<Feed id={c.identity} outlines={outlines} />
-					<div className="flex flex-wrap items-center gap-4">
-						<Label>
-							<Checkbox checked={outlines} onCheckedChange={setOutlines} />
-							Show detection outlines
-						</Label>
-						<Button variant="outline" onClick={() => previews.toggle(c.identity, status)}>
-							{view.paused ? 'Resume image' : 'Pause image'}
-						</Button>
-						<small id="frame-info" className="ml-auto text-xs text-muted-foreground">
-							{data
-								? `Frame ${data.sequence} · ${age(frameAge(view))} · ${data.width} × ${data.height}`
-								: 'Waiting for frame'}
-						</small>
-					</div>
-					<div className="grid gap-4 xl:grid-cols-2">
-						<Detections camera={c} />
-						<Suspense fallback={<p>Loading geometry…</p>}>
-							<GeometryViewer camera={c} />
-						</Suspense>
-					</div>
+						/>
+					</Panel>
+					<Settings name={name} />
 				</div>
 			</div>
 		</>

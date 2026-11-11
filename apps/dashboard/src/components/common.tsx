@@ -1,39 +1,21 @@
-import type { ComponentProps, ReactNode } from 'react';
-import { createLink, useNavigate } from '@tanstack/react-router';
-import { CircleCheck, TriangleAlert } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { cn } from 'cn';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import type { Camera } from '../types';
-export const fmt = (value: number | undefined, digits = 1) => (Number.isFinite(value) ? value!.toFixed(digits) : '—');
-export const age = (value: number | undefined) =>
-	!Number.isFinite(value) ? '— ms' : value! < 1 ? `${Math.round(value! * 1000)} ms` : `${value!.toFixed(1)} s`;
-export const date = (value: string | undefined) =>
-	value && !Number.isNaN(Date.parse(value))
-		? new Date(value).toLocaleString(undefined, {
-				month: 'short',
-				day: 'numeric',
-				hour: '2-digit',
-				minute: '2-digit',
-				hour12: false,
-			})
-		: 'Time unavailable';
-/** Save a JSON document through the browser's download prompt. */
-export function saveJson(value: unknown, name: string) {
-	const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }));
-	const link = document.createElement('a');
-	link.href = url;
-	link.download = name;
-	link.click();
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-export function PageTitle({ children, id }: { children: ReactNode; id?: string }) {
+import type { CameraState } from '../api';
+
+/** Fixed-point text for nullable numbers. */
+export const fmt = (value: number | null | undefined, digits = 1) =>
+	value == null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+
+export function PageTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
 	return (
-		<h1 id={id} className="font-heading text-2xl font-semibold">
-			{children}
-		</h1>
+		<div className="flex flex-wrap items-center justify-between gap-2">
+			<h1 className="font-heading text-2xl font-semibold">{children}</h1>
+			{action}
+		</div>
 	);
 }
+
 export function Panel({
 	title,
 	action,
@@ -49,9 +31,7 @@ export function Panel({
 		<Card className={cn('min-w-0', className)}>
 			{title ? (
 				<CardHeader>
-					<CardTitle role="heading" aria-level={2} className="text-base">
-						{title}
-					</CardTitle>
+					<CardTitle className="text-base">{title}</CardTitle>
 					{action ? <CardAction>{action}</CardAction> : null}
 				</CardHeader>
 			) : null}
@@ -59,99 +39,36 @@ export function Panel({
 		</Card>
 	);
 }
-/** Status text for locks and failures. Empty messages take no space. */
-export function Feedback({ children, id, className }: { children?: ReactNode; id?: string; className?: string }) {
+
+/** A failure message; renders nothing without one. */
+export function ErrorText({ error }: { error: Error | null | undefined }) {
+	return error ? <p className="text-sm whitespace-pre-wrap text-destructive">{error.message}</p> : null;
+}
+
+export const stateLabel = (state: string) => (state[0]?.toUpperCase() + state.slice(1)).replaceAll('_', ' ');
+
+export function StateBadge({ state }: { state: CameraState }) {
 	return (
-		<p id={id} role="status" className={cn('text-xs whitespace-pre-wrap text-warning empty:hidden', className)}>
-			{children}
-		</p>
+		<span
+			className={cn(
+				'rounded-full border px-2 py-0.5 text-xs font-medium',
+				state === 'streaming' ? 'border-success/40 text-success' : 'border-warning/40 text-warning',
+			)}
+		>
+			{stateLabel(state)}
+		</span>
 	);
 }
-export function DataList({ values, id }: { values: Record<string, string | number>; id?: string }) {
+
+export function DataList({ values }: { values: Record<string, ReactNode> }) {
 	return (
-		<dl className="grid grid-cols-[40%_minmax(0,1fr)] gap-x-3 gap-y-3 max-sm:grid-cols-1 max-sm:gap-y-1" id={id}>
+		<dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
 			{Object.entries(values).map(([key, value]) => (
 				<div className="contents" key={key}>
 					<dt className="text-muted-foreground">{key}</dt>
-					<dd className="wrap-anywhere max-sm:mb-2">{value}</dd>
+					<dd className="wrap-anywhere">{value}</dd>
 				</div>
 			))}
 		</dl>
-	);
-}
-export function CalibrationState({ camera: c }: { camera: Camera }) {
-	return c.health === 'Disabled' ? (
-		<span className="text-xs text-muted-foreground">Disabled in code</span>
-	) : !c.logical_name ? (
-		<span className="inline-flex items-center gap-1 text-xs text-warning">
-			<TriangleAlert className="size-3.5" aria-hidden /> Choose camera name
-		</span>
-	) : c.calibrated ? (
-		<span className="inline-flex items-center gap-1 text-xs text-success">
-			<CircleCheck className="size-3.5" aria-hidden /> Calibrated
-		</span>
-	) : (
-		<span className="inline-flex items-center gap-1 text-xs text-warning">
-			<TriangleAlert className="size-3.5" aria-hidden /> Calibration required
-		</span>
-	);
-}
-export function CameraSelector({
-	cameras,
-	id,
-	geometry = false,
-}: {
-	cameras: Camera[];
-	id: string;
-	geometry?: boolean;
-}) {
-	const navigate = useNavigate();
-	return (
-		<NativeSelect
-			className="w-full lg:hidden"
-			aria-label="Select camera"
-			value={id}
-			onChange={(e) => {
-				void navigate({ to: geometry ? '/cameras/$id/mount' : '/cameras/$id', params: { id: e.target.value } });
-			}}
-		>
-			{cameras.map((c) => (
-				<NativeSelectOption key={c.identity} value={c.identity}>
-					{c.name}
-				</NativeSelectOption>
-			))}
-		</NativeSelect>
-	);
-}
-/** A route link styled as a tab; the router marks the active one with `aria-current`. */
-export const TabLink = createLink((props: ComponentProps<'a'>) => (
-	<a
-		{...props}
-		className="rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
-	/>
-));
-/** Route tabs styled like shadcn's tab list. */
-export function LinkTabs({ tabs, children }: { tabs: ReactNode; children?: ReactNode }) {
-	return (
-		<div className="flex flex-wrap items-center gap-2">
-			<nav className="inline-flex rounded-lg bg-muted p-0.5">{tabs}</nav>
-			{children ? <div className="ml-auto flex gap-2">{children}</div> : null}
-		</div>
-	);
-}
-export function CameraTabs({ id }: { id: string }) {
-	return (
-		<LinkTabs
-			tabs={
-				<>
-					<TabLink to="/cameras/$id" params={{ id }} activeOptions={{ exact: true }}>
-						Tuning
-					</TabLink>
-					<TabLink to="/cameras/$id/mount" params={{ id }}>
-						Mount
-					</TabLink>
-				</>
-			}
-		/>
 	);
 }

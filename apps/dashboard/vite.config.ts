@@ -4,6 +4,8 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 const backend = process.env.SPOT_BACKEND || 'http://127.0.0.1:5808';
+// The live camera views use the Foxglove WebSocket server on the same host.
+const foxglove = Object.assign(new URL(backend), { protocol: 'ws:', port: '5801' }).origin;
 export default defineConfig({
 	plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react(), tailwindcss()],
 	resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
@@ -11,24 +13,14 @@ export default defineConfig({
 	server: {
 		host: '127.0.0.1',
 		proxy: {
-			'/api': {
-				target: backend,
-				changeOrigin: true,
-				ws: true,
-				configure(proxy) {
-					// The service only accepts writes and streams from its own origin.
-					const origin = (req: { getHeader(name: string): unknown; setHeader(name: string, value: string): void }) => {
-						if (req.getHeader('origin')) req.setHeader('Origin', backend);
-					};
-					proxy.on('proxyReq', origin);
-					proxy.on('proxyReqWs', origin);
-				},
-			},
-			'/docs': { target: backend, changeOrigin: true },
+			'/api': backend,
+			'/docs': backend,
+			'/recordings': backend,
+			'/foxglove': { target: foxglove, ws: true, rewrite: () => '/' },
 		},
 	},
 	test: {
-		include: ['src/**/*.test.ts', 'tests/*.test.{ts,js}'],
+		include: ['src/**/*.test.ts'],
 		reporters: ['default', 'junit'],
 		outputFile: { junit: 'test-results/unit-junit.xml' },
 	},

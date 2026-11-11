@@ -1,245 +1,169 @@
 import { useState } from 'react';
-import { useOperation, useStatus } from '../queries';
-import { DataList, Feedback, PageTitle, Panel } from '../components/common';
+import { useMutation } from '@tanstack/react-query';
+import { client, unwrap, type AddressMode, type NetworkStatus, type Settings } from '../api';
+import { queryClient, useNetwork, useSettings } from '../queries';
+import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-const networkFeedback = {
-	'network/apply': 'Check the address below, then Keep settings before the countdown ends.',
-	'network/confirm': 'Network settings saved for future boots.',
-	'network/revert': 'Previous connection restored.',
-};
-export default function NetworkPage() {
-	const status = useStatus(),
-		networkChange = useOperation<'network/apply' | 'network/confirm' | 'network/revert'>(),
-		saveEndpoint = useOperation<'nt/endpoint'>(),
-		busy = networkChange.isPending,
-		endpointBusy = saveEndpoint.isPending,
-		network = status.network ?? {},
-		endpoint = status.endpoint ?? {};
-	const [mode, setMode] = useState(network.mode ?? 'automatic'),
-		[address, setAddress] = useState(network.address ?? ''),
-		[feedback, setFeedback] = useState('');
 
-	const savedTarget = endpoint.configured || endpoint.team?.toString() || '',
-		[target, setTarget] = useState(savedTarget),
-		[byAddress, setByAddress] = useState(Boolean(endpoint.configured)),
-		[lastTarget, setLastTarget] = useState(savedTarget);
-	if (lastTarget !== savedTarget) {
-		setLastTarget(savedTarget);
-		setTarget(savedTarget);
-		setByAddress(Boolean(endpoint.configured));
-	}
+function SettingsForm({ settings }: { settings: Settings }) {
+	const [team, setTeam] = useState(settings.team?.toString() ?? ''),
+		[server, setServer] = useState(settings.nt_server ?? '');
+	const save = useMutation({
+		mutationFn: (body: Settings) => unwrap(client.PUT('/api/settings', { body })),
+		onSuccess: (data) => queryClient.setQueryData(['settings'], data),
+	});
+	return (
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				save.mutate({ ...settings, team: team.trim() ? Number(team) : null, nt_server: server.trim() || null });
+			}}
+		>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="team">Team number</Label>
+				<Input id="team" inputMode="numeric" pattern="[0-9]*" value={team} onChange={(e) => setTeam(e.target.value)} />
+			</div>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="nt-server">NetworkTables server</Label>
+				<Input
+					id="nt-server"
+					placeholder="Robot address from the team number"
+					value={server}
+					onChange={(e) => setServer(e.target.value)}
+				/>
+			</div>
+			<div className="flex items-center gap-3">
+				<Button type="submit" disabled={save.isPending}>
+					Save
+				</Button>
+				<ErrorText error={save.error} />
+			</div>
+		</form>
+	);
+}
 
-	const [restore, setRestore] = useState(true),
-		[lastPending, setLastPending] = useState('');
-	const token = network.pending?.token ?? '';
-	if (lastPending !== token) {
-		setLastPending(token);
-		if (lastPending && !token) setRestore(true);
-	}
-	if (restore && !busy && !network.pending) {
-		if (network.available && network.mode) {
-			setMode(network.mode);
-			setAddress(network.address ?? '');
-			setRestore(false);
-		}
-	}
+function EthernetForm({
+	network,
+	apply,
+}: {
+	network: NetworkStatus;
+	apply: (mode: AddressMode, address: string) => void;
+}) {
+	const [mode, setMode] = useState(network.mode),
+		[address, setAddress] = useState(network.address);
+	return (
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				apply(mode, address.trim());
+			}}
+		>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="mode">Addressing</Label>
+				<NativeSelect
+					id="mode"
+					className="w-full"
+					value={mode}
+					onChange={(e) => setMode(e.target.value as AddressMode)}
+				>
+					<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
+					<NativeSelectOption value="static">Static</NativeSelectOption>
+				</NativeSelect>
+			</div>
+			{mode === 'static' ? (
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="address">Static address</Label>
+					<Input
+						id="address"
+						placeholder="10.5.81.11/24"
+						value={address}
+						onChange={(e) => setAddress(e.target.value)}
+					/>
+				</div>
+			) : null}
+			<div>
+				<Button type="submit" disabled={mode === 'static' && !address.trim()}>
+					Try change
+				</Button>
+			</div>
+		</form>
+	);
+}
 
-	const change = (variables: Parameters<typeof networkChange.mutate>[0]) =>
-		networkChange.mutate(variables, {
-			onSuccess: () => setFeedback(networkFeedback[variables.operation]),
-			onError: (error) => {
-				setRestore(true);
-				setFeedback(error.message + ' If this page disconnected, open the new address or wait for rollback.');
-			},
-		});
-	const pending = network.pending,
-		pendingUrl = pending?.address ? `http://${pending.address.split('/')[0]}:${location.port || 80}/network` : '';
+function Ethernet() {
+	const { data: network, error } = useNetwork();
+	const action = useMutation({
+		mutationFn: (request: () => Promise<NetworkStatus>) => request(),
+		onSuccess: (data) => queryClient.setQueryData(['network'], data),
+	});
+	if (!network) return <Panel title="Ethernet">{error ? <ErrorText error={error} /> : 'Loading…'}</Panel>;
+	const pending = network.pending;
+	return (
+		<Panel title="Ethernet">
+			<DataList
+				values={{
+					Link: network.connected ? 'Connected' : 'No cable',
+					Addressing: network.mode === 'static' ? 'Static ' + network.address : 'Automatic',
+					Addresses: network.addresses.join(', ') || '—',
+					'Maintenance address': network.maintenance_address,
+				}}
+			/>
+			{pending ? (
+				<Alert>
+					<AlertTitle>
+						Trying {pending.mode === 'static' ? 'static ' + pending.address : 'automatic addressing'}
+					</AlertTitle>
+					<AlertDescription>
+						Rolls back in {pending.remaining_s} s unless confirmed. If this page stops responding, reconnect at{' '}
+						{network.maintenance_address}.
+					</AlertDescription>
+					<AlertAction className="flex gap-2">
+						<Button size="sm" onClick={() => action.mutate(() => unwrap(client.POST('/api/network/confirm')))}>
+							Confirm
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => action.mutate(() => unwrap(client.POST('/api/network/revert')))}
+						>
+							Revert
+						</Button>
+					</AlertAction>
+				</Alert>
+			) : (
+				<EthernetForm
+					key={network.mode + network.address}
+					network={network}
+					apply={(mode, address) =>
+						action.mutate(() =>
+							unwrap(client.POST('/api/network', { body: mode === 'static' ? { mode, address } : { mode } })),
+						)
+					}
+				/>
+			)}
+			<ErrorText error={action.error} />
+		</Panel>
+	);
+}
+
+export default function Network() {
+	const { data: settings, error } = useSettings();
 	return (
 		<>
 			<PageTitle>Network</PageTitle>
-			<div className="grid gap-6 md:grid-cols-2">
-				<Panel title="Connection">
-					<DataList
-						id="connection-data"
-						values={{
-							'Robot endpoint': endpoint.configured || (endpoint.team ? `Team ${endpoint.team}` : 'Unavailable'),
-							'NetworkTables server': status.connected ? 'Connected' : 'Disconnected',
-							'Connection mode': endpoint.mode || 'NT4 client',
-						}}
-					/>
-					<form
-						className="flex flex-col gap-3"
-						onSubmit={(e) => {
-							e.preventDefault();
-							saveEndpoint.mutate({
-								operation: 'nt/endpoint',
-								payload: byAddress ? { server: target.trim() } : { team: Number(target) },
-							});
-						}}
-					>
-						<Label htmlFor="nt-mode">Connect using</Label>
-						<NativeSelect
-							id="nt-mode"
-							className="w-full"
-							value={byAddress ? 'server' : 'team'}
-							onChange={(e) => {
-								setByAddress(e.target.value === 'server');
-								setTarget('');
-							}}
-							disabled={endpointBusy}
-						>
-							<NativeSelectOption value="team">Team number</NativeSelectOption>
-							<NativeSelectOption value="server">Server address</NativeSelectOption>
-						</NativeSelect>
-						<Label htmlFor="nt-target">{byAddress ? 'Server address' : 'Team number'}</Label>
-						{byAddress ? (
-							<Input
-								id="nt-target"
-								type="text"
-								placeholder="10.5.81.2"
-								pattern="[A-Za-z0-9.\-]{1,253}"
-								required
-								value={target}
-								onChange={(e) => setTarget(e.target.value)}
-								disabled={endpointBusy}
-							/>
-						) : (
-							<Input
-								id="nt-target"
-								type="number"
-								min="1"
-								max="25599"
-								step="1"
-								required
-								value={target}
-								onChange={(e) => setTarget(e.target.value)}
-								disabled={endpointBusy}
-							/>
-						)}
-						<p>
-							Saving reconnects NetworkTables. Use a server address for an NT4 server on a laptop or simulator. Jetson
-							IP settings are configured below.
-						</p>
-						<Button type="submit" className="self-start" disabled={endpointBusy || !target}>
-							Save robot endpoint
-						</Button>
-					</form>
-					<Feedback id="endpoint-feedback">
-						{saveEndpoint.isSuccess
-							? 'Robot endpoint saved for future boots. Reconnecting NetworkTables.'
-							: saveEndpoint.error?.message}
-					</Feedback>
+			<div className="grid max-w-5xl gap-6 lg:grid-cols-2">
+				<Panel title="Robot">
+					<ErrorText error={error} />
+					{settings ? <SettingsForm key={JSON.stringify(settings)} settings={settings} /> : null}
 				</Panel>
-				<Panel title="Link">
-					<DataList
-						values={{
-							NetworkTables: status.connected ? 'Connected' : 'Disconnected',
-							'Local addresses': endpoint.local_addresses?.join(', ') || 'Unavailable',
-							Synchronization: status.clock.state || 'Unavailable',
-							Profile: status.fresh
-								? 'Current robot session'
-								: status.has_configuration
-									? 'Cached configuration'
-									: 'Unavailable',
-						}}
-					/>
-				</Panel>
+				<Ethernet />
 			</div>
-			<Panel title="Jetson address">
-				<p>
-					{network.hostname ? (
-						<>
-							Find Spot on this local network:{' '}
-							<a href={`http://${network.hostname}:${location.port || 80}/`}>{network.hostname}</a>.
-						</>
-					) : (
-						'Local-name discovery is unavailable. Use one of the current IP addresses below.'
-					)}
-				</p>
-				<p>Either Ethernet port works. Both ports share these addresses and settings.</p>
-				<DataList
-					values={{
-						'Current addresses': network.addresses?.join(', ') || 'Unavailable',
-						'Maintenance address': network.maintenance_address || 'Unavailable',
-					}}
-				/>
-				<Feedback>
-					{network.available ? '' : network.error || 'Install the Spot network helper to change Ethernet addresses.'}
-				</Feedback>
-				{pending ? (
-					<div className="flex flex-col items-start gap-2">
-						<p id="network-countdown" role="status">
-							Testing network settings. Automatic rollback in {pending.remaining_s} seconds.{' '}
-							{pendingUrl ? <a href={pendingUrl}>Open the new address</a> : 'Check the assigned DHCP address above.'}
-						</p>
-						<div className="flex gap-2">
-							<Button
-								disabled={busy}
-								onClick={() => change({ operation: 'network/confirm', payload: { token: pending.token } })}
-							>
-								Keep settings
-							</Button>
-							<Button
-								variant="outline"
-								disabled={busy}
-								onClick={() => change({ operation: 'network/revert', payload: { token: pending.token } })}
-							>
-								Revert now
-							</Button>
-						</div>
-					</div>
-				) : null}
-				<form
-					className="flex max-w-2xl flex-col gap-3"
-					onSubmit={(e) => {
-						e.preventDefault();
-						change({
-							operation: 'network/apply',
-							payload: { mode, address: mode === 'static' ? address.trim() : '' },
-						});
-					}}
-				>
-					<Label htmlFor="network-mode">Address mode</Label>
-					<NativeSelect
-						id="network-mode"
-						className="w-full"
-						value={mode}
-						disabled={busy || Boolean(pending)}
-						onChange={(e) => setMode(e.target.value === 'static' ? 'static' : 'automatic')}
-					>
-						<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
-						<NativeSelectOption value="static">Static</NativeSelectOption>
-					</NativeSelect>
-					<Label htmlFor="network-address">IPv4 address</Label>
-					<Input
-						id="network-address"
-						placeholder="10.5.81.11"
-						autoComplete="off"
-						value={address}
-						onChange={(e) => setAddress(e.target.value)}
-						disabled={mode !== 'static' || busy || Boolean(pending)}
-					/>
-					<p>
-						Addresses without a prefix use /24, the standard FRC robot subnet. Automatic needs a DHCP server. A direct
-						roboRIO cable usually needs Static. The maintenance address stays available through either port.
-					</p>
-					<Button
-						className="self-start"
-						type="submit"
-						disabled={busy || !network.available || (mode === 'static' && !address.trim()) || Boolean(pending)}
-					>
-						Apply for 90 seconds
-					</Button>
-				</form>
-				<p>
-					Reconnect if the address changes, then choose Keep settings. Without confirmation, the previous connection
-					returns automatically. Wi-Fi and the internet default route stay unchanged.
-				</p>
-				<Feedback id="network-feedback">{feedback}</Feedback>
-			</Panel>
 		</>
 	);
 }

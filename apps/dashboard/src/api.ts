@@ -1,24 +1,20 @@
-import { up } from 'up-fetch';
-import type { paths } from './api.gen';
+import createClient from 'openapi-fetch';
+import type { components, paths } from './api.gen';
 
-type MutationPath = {
-	[P in keyof paths]: paths[P] extends { post: { requestBody: object } } ? P : never;
-}[keyof paths];
-export type OperationName = MutationPath extends `/api/${infer N}` ? N : never;
-type Operation<N extends OperationName> = paths[`/api/${N}`]['post'];
-export type OperationPayload<N extends OperationName> = Operation<N>['requestBody']['content']['application/json'];
-export type OperationResult<N extends OperationName> = Operation<N>['responses'][200]['content']['application/json'];
+type Schemas = components['schemas'];
+export type CameraState = Schemas['CameraState'];
+export type DeviceStatus = Schemas['DeviceStatus'];
+export type CameraConfig = Schemas['CameraConfig'];
+export type ControlRange = Schemas['ControlRange'];
+export type NetworkStatus = Schemas['NetworkStatus'];
+export type AddressMode = Schemas['AddressMode'];
+export type Settings = Schemas['Settings'];
 
-/** Same-origin JSON client. Rejections carry the service's `error` message. */
-export const api = up(
-	(input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
-	() => ({
-		baseUrl: location.origin,
-		credentials: 'same-origin',
-		parseRejected: async (response: Response) => new Error((await response.json()).error || `HTTP ${response.status}`),
-	}),
-);
+export const client = createClient<paths>();
 
-/** Resolves only after the runtime applies the operation. */
-export const submit = <N extends OperationName>(operation: N, payload: OperationPayload<N>) =>
-	api<OperationResult<N>>(`/api/${operation}`, { method: 'POST', body: payload });
+/** Resolves to the response body, or rejects with the service's error text. */
+export async function unwrap<T>(request: Promise<{ data?: T; error?: unknown; response: Response }>) {
+	const { data, error, response } = await request;
+	if (!response.ok) throw new Error(typeof error === 'string' && error ? error : `HTTP ${response.status}`);
+	return data as T;
+}
