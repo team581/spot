@@ -318,12 +318,15 @@ export interface components {
 			mode?: components['schemas']['Mode'];
 			/** @description Robot-to-camera transform (WPILib coordinates: +X forward, +Y left, +Z up). */
 			mount?: components['schemas']['Mount'];
-			/** @description Physical USB port label, for example `usb1`. Set exactly one of `serial` or `port`. */
+			/**
+			 * @description USB port path, for example `1-2.2`. Only used to tell apart cameras that share a
+			 *     serial, which is the default for some cameras.
+			 */
 			port?: string | null;
 			/** @description Spot is not ready unless this camera is streaming and calibrated. */
 			required?: boolean;
-			/** @description USB serial number. Set exactly one of `serial` or `port`. */
-			serial?: string | null;
+			/** @description USB serial number. */
+			serial: string;
 		};
 		/** @enum {string} */
 		CameraState: 'streaming' | 'disconnected' | 'duplicate_serial' | 'uncalibrated' | 'falling_behind';
@@ -399,7 +402,7 @@ export interface components {
 			modes: components['schemas']['Mode'][];
 			/** @description Device node, or the image file for a replay camera. */
 			path: string;
-			/** @description Physical port label, when plugged into a labeled port. */
+			/** @description USB port path, such as `1-2.2`. */
 			port?: string | null;
 			product: string;
 			serial?: string | null;

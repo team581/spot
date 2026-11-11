@@ -116,7 +116,7 @@
 					}
 				},
 				"port": {
-					"description": "Physical USB port label, for example `usb1`. Set exactly one of `serial` or `port`.",
+					"description": "USB port path, for example `1-2.2`. Only used to tell apart cameras that share a\nserial, which is the default for some cameras.",
 					"type": ["string", "null"]
 				},
 				"required": {
@@ -125,11 +125,12 @@
 					"default": false
 				},
 				"serial": {
-					"description": "USB serial number. Set exactly one of `serial` or `port`.",
-					"type": ["string", "null"]
+					"description": "USB serial number.",
+					"type": "string"
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": false,
+			"required": ["serial"]
 		},
 		"Controls": {
 			"description": "Camera controls. Unset controls are reset to the camera's default.",

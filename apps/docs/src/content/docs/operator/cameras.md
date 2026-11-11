@@ -14,10 +14,11 @@ back. The maintenance address always stays.
 
 ## Assign cameras
 
-Each camera in [`spot.toml`](../../robot-config/) selects a physical camera by USB
-`serial` or by labeled `port`. Prefer serials; cameras can be reflashed with unique
-serials. If several cameras share a serial, Spot reports `duplicate_serial` instead
-of guessing.
+Each camera in [`spot.toml`](../../robot-config/) finds its physical camera by USB
+`serial`. Cameras that ship with the same serial also need a `port`, the USB path
+shown on the naming page (for example `1-2.2`); keep those cameras in the same
+ports, or reflash them with unique serials. If cameras share a serial and no port
+tells them apart, Spot reports `duplicate_serial` instead of guessing.
 
 On the dashboard's camera naming page, pick a plugged-in camera and give it a name.
 This creates an override (see [saved settings](#saved-settings)).

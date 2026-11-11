@@ -1,10 +1,4 @@
 { lib, pkgs, ... }:
-let
-  # Physical USB port labels for Spot's camera `port` selectors, keyed by label, with
-  # the udev ID_PATH of the port (without the interface suffix). Read one with
-  # `udevadm info -q property /dev/videoN | grep ID_PATH=` while a camera is in it.
-  usbPorts = { };
-in
 {
   # jetpack-nixos explicitly supports extending its carrier-board enum.
   options.hardware.nvidia-jetpack.carrierBoard = lib.mkOption {
@@ -54,13 +48,6 @@ in
     # These are the policies selected by Seeed's factory image on the 8GB module.
     services.nvfancontrol.enable = true;
     services.nvpmodel.configFile = "${pkgs.nvidia-jetpack.l4t-nvpmodel}/etc/nvpmodel/nvpmodel_p3767_0003_super.conf";
-
-    # /dev/spot/<label> links to the capture node of the camera in each labeled port.
-    services.udev.extraRules = lib.concatStrings (
-      lib.mapAttrsToList (label: path: ''
-        SUBSYSTEM=="video4linux", ATTR{index}=="0", ENV{ID_PATH}=="${path}:*", SYMLINK+="spot/${label}"
-      '') usbPorts
-    );
 
     # Match physical ports, not the shared driver or a per-device MAC address.
     systemd.network.links = {

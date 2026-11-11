@@ -27,8 +27,6 @@ const CONTROLS: [(&str, u32); 3] = [
     ("exposure_time_absolute", EXPOSURE_TIME_ABSOLUTE),
     ("gain", GAIN),
 ];
-/// Symlinks to capture nodes, named by physical port label (from the J401 Nix module).
-const PORTS: &str = "/dev/spot";
 
 /// Modes and controls by device node and USB path, which only change on replug.
 pub type Cache = HashMap<(String, PathBuf), (Vec<Mode>, Vec<ControlRange>)>;
@@ -38,17 +36,6 @@ fn read(path: &Path) -> Option<String> {
 }
 
 pub fn devices(cache: &mut Cache) -> Vec<Device> {
-    let ports: HashMap<PathBuf, String> = std::fs::read_dir(PORTS)
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            Some((
-                entry.path().canonicalize().ok()?,
-                entry.file_name().to_string_lossy().into_owned(),
-            ))
-        })
-        .collect();
     let Ok(entries) = std::fs::read_dir("/sys/class/video4linux") else { return Vec::new() };
     let mut devices = Vec::new();
     let mut seen = Vec::new();
@@ -79,7 +66,8 @@ pub fn devices(cache: &mut Cache) -> Vec<Device> {
         }
         let (modes, controls) = cache[&key].clone();
         devices.push(Device {
-            port: ports.get(Path::new(&path)).cloned(),
+            // The sysfs USB device name, such as `1-2.2`, names the physical port.
+            port: usb.file_name().map(|n| n.to_string_lossy().into_owned()),
             serial: read(&usb.join("serial")).filter(|s| !s.is_empty()),
             product: read(&usb.join("product")).unwrap_or_else(|| "USB camera".into()),
             path,

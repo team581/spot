@@ -13,8 +13,9 @@ connected once.
 1. Download the [starter configuration](../starter/spot.toml) to
    `src/main/deploy/spot.toml`.
 2. Add a `[cameras.<name>]` table per camera. Names appear in NetworkTables topics.
-   Select each camera by `serial` (preferred) or physical `port`, not both. The
-   dashboard can fill these in: see [assign cameras](../operator/cameras/#assign-cameras).
+   Each camera needs its USB `serial`, plus a `port` when several cameras share a
+   serial. The dashboard can fill these in: see
+   [assign cameras](../operator/cameras/#assign-cameras).
 3. Publish the file to `/Spot/inputs/config` and the field layout
    (WPILib `AprilTagFieldLayout` JSON) to `/Spot/inputs/fieldLayout`.
 4. Deploy robot code, then tune and calibrate on the dashboard.

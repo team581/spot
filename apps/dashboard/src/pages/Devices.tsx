@@ -7,7 +7,6 @@ import { ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const defaultMode = '1280x800@120';
@@ -24,13 +23,12 @@ function Assign({
 	edit: ReturnType<typeof useEditOverrides>;
 }) {
 	const [name, setName] = useState(d.camera ?? ''),
-		[by, setBy] = useState<'serial' | 'port'>(d.serial && !shared ? 'serial' : d.port ? 'port' : 'serial'),
 		camera = name.trim();
 	const assign = () => {
-		const other = by === 'serial' ? 'port' : 'serial',
-			changes: [string[], Json][] = [[['cameras', camera, by], d[by]!]];
-		// A camera is selected by exactly one of serial or port.
-		if (cameras[camera]?.[other] != null) changes.push([['cameras', camera, other], null]);
+		const changes: [string[], Json][] = [[['cameras', camera, 'serial'], d.serial!]];
+		// The port only tells apart cameras that share a serial.
+		if (shared) changes.push([['cameras', camera, 'port'], d.port!]);
+		else if (cameras[camera]?.port != null) changes.push([['cameras', camera, 'port'], null]);
 		// New cameras default to a mode this device may not support.
 		if (!cameras[camera] && !d.modes.includes(defaultMode) && d.modes[0])
 			changes.push([['cameras', camera, 'mode'], d.modes[0]]);
@@ -51,15 +49,7 @@ function Assign({
 				value={name}
 				onChange={(e) => setName(e.target.value)}
 			/>
-			<NativeSelect value={by} onChange={(e) => setBy(e.target.value as 'serial' | 'port')}>
-				<NativeSelectOption value="serial" disabled={!d.serial}>
-					By serial
-				</NativeSelectOption>
-				<NativeSelectOption value="port" disabled={!d.port}>
-					By port
-				</NativeSelectOption>
-			</NativeSelect>
-			<Button type="submit" variant="outline" disabled={!camera || !d[by] || edit.isPending}>
+			<Button type="submit" variant="outline" disabled={!camera || !d.serial || (shared && !d.port) || edit.isPending}>
 				Assign
 			</Button>
 		</form>
@@ -76,15 +66,16 @@ export default function Devices() {
 		<>
 			<PageTitle>Devices</PageTitle>
 			<p className="max-w-3xl text-sm text-muted-foreground">
-				Assign each connected camera to a camera name from the robot config, or a new one. Select cameras by serial when
-				it is unique, otherwise by USB port. Assignments are saved as overrides until the robot config matches.
+				Assign each connected camera to a camera name from the robot config, or a new one. Cameras are found by serial;
+				cameras that share a serial are also told apart by USB port, so keep those in the same ports. Assignments are
+				saved as overrides until the robot config matches.
 			</p>
 			{shared.size ? (
 				<Alert>
 					<TriangleAlert className="text-warning!" />
 					<AlertDescription>
-						Serial {[...shared].join(', ')} is shared by several devices. Select those cameras by port, or reflash them
-						with unique serials.
+						Serial {[...shared].join(', ')} is shared by several devices, so those cameras are also matched by USB port.
+						Reflash them with unique serials to move them between ports freely.
 					</AlertDescription>
 				</Alert>
 			) : null}

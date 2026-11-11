@@ -620,32 +620,25 @@ impl App {
     }
 }
 
-/// Finds the one device a camera's serial or port selects.
+/// Finds a camera's device by serial, using the port only to tell apart devices that share
+/// the serial.
 fn resolve(devices: &[Device], camera: &CameraConfig) -> Result<Device, (CameraState, String)> {
-    let matching: Vec<&Device> = devices
-        .iter()
-        .filter(|d| match (&camera.serial, &camera.port) {
-            (Some(serial), _) => d.serial.as_ref() == Some(serial),
-            (None, Some(port)) => d.port.as_ref() == Some(port),
-            (None, None) => false,
-        })
-        .collect();
-    match (matching.as_slice(), &camera.serial) {
+    let serial = &camera.serial;
+    let matching: Vec<&Device> =
+        devices.iter().filter(|d| d.serial.as_ref() == Some(serial)).collect();
+    match (matching.as_slice(), &camera.port) {
         ([device], _) => Ok((*device).clone()),
-        ([], Some(serial)) => {
-            Err((CameraState::Disconnected, format!("No camera with serial {serial:?}")))
-        }
-        ([], None) => Err((
-            CameraState::Disconnected,
-            format!("No camera on port {:?}", camera.port.as_deref().unwrap_or("")),
-        )),
-        (devices, _) => Err((
+        ([], _) => Err((CameraState::Disconnected, format!("No camera with serial {serial:?}"))),
+        (shared, Some(port)) => match shared.iter().find(|d| d.port.as_ref() == Some(port)) {
+            Some(device) => Ok((*device).clone()),
+            None => Err((
+                CameraState::Disconnected,
+                format!("No camera with serial {serial:?} on port {port:?}"),
+            )),
+        },
+        (shared, None) => Err((
             CameraState::DuplicateSerial,
-            format!(
-                "{} cameras share serial {:?}",
-                devices.len(),
-                camera.serial.as_deref().unwrap_or("")
-            ),
+            format!("{} cameras share serial {serial:?}; set a port", shared.len()),
         )),
     }
 }
@@ -778,4 +771,43 @@ pub struct CalibrationView {
     pub min_corners: u32,
     /// RMS error in pixels above which a solution is not accepted.
     pub max_rms: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn device(serial: &str, port: &str) -> Device {
+        Device {
+            path: format!("/dev/{port}"),
+            serial: Some(serial.into()),
+            port: Some(port.into()),
+            product: String::new(),
+            modes: Vec::new(),
+            controls: Vec::new(),
+        }
+    }
+
+    fn camera(serial: &str, port: Option<&str>) -> CameraConfig {
+        let port = port.map_or(String::new(), |p| format!("port = \"{p}\"\n"));
+        let config =
+            RobotConfig::parse(&format!("[cameras.a]\nserial = \"{serial}\"\n{port}")).unwrap();
+        config.cameras["a"].clone()
+    }
+
+    #[test]
+    fn resolves_by_serial_and_falls_back_to_port_for_shared_serials() {
+        let devices = [device("U", "1-2.1"), device("S", "1-2.2"), device("S", "1-2.3")];
+        // A unique serial wins even if the camera moved ports.
+        assert_eq!(resolve(&devices, &camera("U", Some("1-2.4"))).unwrap().path, "/dev/1-2.1");
+        assert_eq!(resolve(&devices, &camera("S", Some("1-2.3"))).unwrap().path, "/dev/1-2.3");
+        assert_eq!(
+            resolve(&devices, &camera("S", None)).unwrap_err().0,
+            CameraState::DuplicateSerial
+        );
+        assert_eq!(
+            resolve(&devices, &camera("S", Some("1-2.4"))).unwrap_err().0,
+            CameraState::Disconnected
+        );
+    }
 }

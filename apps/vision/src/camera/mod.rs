@@ -23,7 +23,7 @@ pub struct Device {
     /// Device node, or the image file for a replay camera.
     pub path: String,
     pub serial: Option<String>,
-    /// Physical port label, when plugged into a labeled port.
+    /// USB port path, such as `1-2.2`.
     pub port: Option<String>,
     pub product: String,
     /// Supported MJPEG modes.

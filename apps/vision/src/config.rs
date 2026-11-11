@@ -71,10 +71,10 @@ fn default_disk_usage() -> f64 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CameraConfig {
-    /// USB serial number. Set exactly one of `serial` or `port`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub serial: Option<String>,
-    /// Physical USB port label, for example `usb1`. Set exactly one of `serial` or `port`.
+    /// USB serial number.
+    pub serial: String,
+    /// USB port path, for example `1-2.2`. Only used to tell apart cameras that share a
+    /// serial, which is the default for some cameras.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<String>,
     /// Spot is not ready unless this camera is streaming and calibrated.
@@ -258,8 +258,7 @@ impl RobotConfig {
         if self.tag_size.is_nan() || self.tag_size <= 0.0 {
             errors.push("tag_size must be positive".to_string());
         }
-        let mut serials = BTreeSet::new();
-        let mut ports = BTreeSet::new();
+        let mut selectors = BTreeSet::new();
         for (name, camera) in &self.cameras {
             let at = format!("cameras.{name}");
             if name.is_empty()
@@ -267,18 +266,17 @@ impl RobotConfig {
             {
                 errors.push(format!("{at}: names may only use letters, digits, '-', and '_'"));
             }
-            match (&camera.serial, &camera.port) {
-                (Some(serial), None) => {
-                    if !serials.insert(serial) {
-                        errors.push(format!("{at}: serial {serial:?} is used by another camera"));
-                    }
-                }
-                (None, Some(port)) => {
-                    if !ports.insert(port) {
-                        errors.push(format!("{at}: port {port:?} is used by another camera"));
-                    }
-                }
-                _ => errors.push(format!("{at}: set exactly one of serial or port")),
+            if !selectors.insert((&camera.serial, &camera.port)) {
+                errors.push(format!("{at}: another camera has the same serial and port"));
+            }
+            let shared = self.cameras.values().filter(|c| c.serial == camera.serial).count() > 1;
+            if camera.serial.is_empty() {
+                errors.push(format!("{at}: serial must not be empty"));
+            } else if shared && camera.port.is_none() {
+                errors.push(format!(
+                    "{at}: serial {:?} is used by several cameras; give each a port",
+                    camera.serial
+                ));
             }
             if camera.mode.width == 0 || camera.mode.height == 0 || camera.mode.fps == 0 {
                 errors.push(format!("{at}.mode: width, height, and fps must be positive"));
@@ -396,12 +394,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_cameras_without_exactly_one_selector() {
+    fn shared_serials_need_distinct_ports() {
         let error = RobotConfig::parse(
-            "[cameras.a]\nserial = \"1\"\nport = \"usb1\"\n[cameras.b]\nmode = \"640x480@30\"",
+            "[cameras.a]\nserial = \"S\"\nport = \"1-2.1\"\n[cameras.b]\nserial = \"S\"\n\
+             [cameras.c]\nserial = \"T\"\nport = \"1-2.3\"\n[cameras.d]\nserial = \"T\"\nport = \"1-2.3\"",
         )
         .unwrap_err();
-        assert!(error.contains("cameras.a: set exactly one"), "{error}");
-        assert!(error.contains("cameras.b: set exactly one"), "{error}");
+        assert!(!error.contains("cameras.a"), "{error}");
+        assert!(error.contains("cameras.b: serial \"S\" is used by several cameras"), "{error}");
+        assert!(
+            error.contains("cameras.d: another camera has the same serial and port"),
+            "{error}"
+        );
     }
 }
