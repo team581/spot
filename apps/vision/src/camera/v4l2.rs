@@ -86,12 +86,11 @@ fn probe(path: &str) -> anyhow::Result<(Vec<Mode>, Vec<ControlRange>)> {
     for size in device.enum_framesizes(MJPG)? {
         let FrameSizeEnum::Discrete(size) = size.size else { continue };
         for interval in device.enum_frameintervals(MJPG, size.width, size.height)? {
-            if let FrameIntervalEnum::Discrete(fraction) = interval.interval {
-                if fraction.numerator > 0 {
-                    let fps =
-                        (fraction.denominator as f64 / fraction.numerator as f64).round() as u32;
-                    modes.push(Mode { width: size.width, height: size.height, fps });
-                }
+            if let FrameIntervalEnum::Discrete(fraction) = interval.interval
+                && fraction.numerator > 0
+            {
+                let fps = (fraction.denominator as f64 / fraction.numerator as f64).round() as u32;
+                modes.push(Mode { width: size.width, height: size.height, fps });
             }
         }
     }
