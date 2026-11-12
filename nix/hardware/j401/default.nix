@@ -48,6 +48,11 @@
     # These are the policies selected by Seeed's factory image on the 8GB module.
     services.nvfancontrol.enable = true;
     services.nvpmodel.configFile = "${pkgs.nvidia-jetpack.l4t-nvpmodel}/etc/nvpmodel/nvpmodel_p3767_0003_super.conf";
+    # Waking the GPU from engine-level power gating adds about half a millisecond to the
+    # first kernel after each idle gap, which is every camera frame.
+    services.udev.extraRules = ''
+      ACTION=="bind", SUBSYSTEM=="platform", DRIVER=="gk20a", ATTR{elpg_enable}="0"
+    '';
 
     # Match physical ports, not the shared driver or a per-device MAC address.
     systemd.network.links = {
