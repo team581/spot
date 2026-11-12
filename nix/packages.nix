@@ -50,7 +50,7 @@ let
   };
   web = pkgs.stdenvNoCC.mkDerivation {
     pname = "spot-web";
-    version = "0.2.1";
+    version = "2026.0.0";
     src = webSource;
     nativeBuildInputs = [
       pkgs.nodejs
@@ -86,7 +86,7 @@ let
       pkgs.rustPlatform.buildRustPackage;
   spot = buildRustPackage {
     pname = "spot-vision";
-    version = "0.2.1";
+    version = "2026.0.0";
     src = lib.fileset.toSource {
       root = ../apps/vision;
       fileset = lib.fileset.intersection (lib.fileset.fromSource source) (

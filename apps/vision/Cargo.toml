@@ -1,6 +1,6 @@
 [package]
 name = "spot-vision"
-version = "0.2.1"
+version = "2026.0.0"
 edition = "2024"
 description = "Jetson AprilTag vision service for Team 581"
 license = "MIT"
