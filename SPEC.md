@@ -57,10 +57,13 @@
 
 ### AprilTag detection
 
-- Team 766 / FRC 971 CUDA detector (vendored) finds quads, called via a C shim
-  - Quads are decoded in Rust with `kornia-apriltag`, which also runs the whole detector on dev machines
+- Our own detector (`apps/vision/src/apriltag`), after NAPA's approach: full-resolution work only where tags are likely
+  - Dense stage (sparse sample pyramid, local contrast and noise thresholds, dark-sample bitmask) runs on the GPU, straight from NVJPG output
+    - A bit-identical CPU version runs it on dev machines
+  - Blob grouping, edge fitting, and decoding run on the CPU, only for tag-shaped candidates
+  - Edges are fit in undistorted space when the camera is calibrated
   - Detector only provides tag corners, pose solving is ours
-  - Chosen over NVIDIA `libcuapriltags`, which was 2-4x slower on the Orin Nano
+  - Replaced the Team 766 / FRC 971 CUDA detector: 4-7x faster on the Orin Nano and finds more tags
 - tag36h11 only
 
 ### Pose estimation

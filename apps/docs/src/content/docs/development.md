@@ -36,7 +36,7 @@ pnpm --filter spot-dashboard generate:api
 pnpm --filter spot-docs generate:schema
 ```
 
-The Jetson build (`jetson` feature: NVJPG decoding and the CUDA detector) only builds
+The Jetson build (`jetson` feature: NVJPG decoding and the detector's GPU stage) only builds
 for `aarch64-linux` through Nix, for example on the Jetson with
 `nix run .#deploy -- test`. Run hardware checks on the Jetson.
 

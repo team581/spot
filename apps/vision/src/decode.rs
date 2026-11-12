@@ -16,6 +16,7 @@ pub struct Gray {
 /// Where a decoded image's 8-bit luma lives.
 pub enum Pixels {
     /// Packed rows in CPU memory.
+    #[cfg_attr(feature = "jetson", allow(dead_code))]
     Host(Vec<u8>),
     /// Rows `pitch` bytes apart in CUDA device memory, valid until the next decode.
     #[cfg_attr(not(feature = "jetson"), allow(dead_code))]

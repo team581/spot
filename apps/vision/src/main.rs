@@ -1,5 +1,6 @@
 mod api;
 mod app;
+mod apriltag;
 mod bench;
 mod calibration;
 mod camera;
