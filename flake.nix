@@ -96,7 +96,7 @@
               trap 'rm -f "$key"' EXIT
               install -m 0600 ${./nix/maintenance_ed25519} "$key"
               export NIX_SSHOPTS="-i $key -o IdentitiesOnly=yes"
-              host="team581@''${SPOT_HOST:-192.168.69.170}"
+              host="team581@''${SPOT_HOST:-10.5.81.11}"
               if [ "$#" -eq 0 ]; then set -- test; fi
               nixos-rebuild "$@" --flake "$PWD#spot" \
                 --build-host "$host" \

@@ -1,6 +1,6 @@
 let
   interface = "br0";
-  maintenanceAddress = "192.168.69.170/24";
+  maintenanceAddress = "10.5.81.11/24";
   defaultConnection = "58100000-0000-4000-8000-000000000001";
 in
 {

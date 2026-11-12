@@ -5,7 +5,7 @@ title: Camera setup
 ## Connect
 
 Open <http://spot.local> or the default maintenance address
-<http://192.168.69.170>. For direct Ethernet, give the laptop `192.168.69.171/24`.
+<http://10.5.81.11>.
 
 On **Network**, set the team number (Spot connects to `10.TE.AM.2`) or an
 NetworkTables server address for a simulator or laptop. Ethernet addressing (DHCP

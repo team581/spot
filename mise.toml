@@ -34,7 +34,7 @@ run = "pnpm --filter spot-dashboard dev"
 
 [tasks."dev:jetson"]
 description = "Run the dashboard development server against Spot's vision service"
-run = "SPOT_BACKEND=http://${SPOT_HOST:-192.168.69.170}:5800 pnpm --filter spot-dashboard dev"
+run = "SPOT_BACKEND=http://${SPOT_HOST:-10.5.81.11}:5800 pnpm --filter spot-dashboard dev"
 
 [tasks."jetson:ssh"]
 description = "SSH to Spot using the repository's shared maintenance key"
