@@ -53,6 +53,9 @@
     services.udev.extraRules = ''
       ACTION=="bind", SUBSYSTEM=="platform", DRIVER=="gk20a", ATTR{elpg_enable}="0"
     '';
+    # schedutil lowers the CPU clock while each frame waits on NVJPG and the GPU, which made
+    # decoding and detection about 0.8 ms slower per frame, for no measurable power saving.
+    boot.kernelParams = [ "cpufreq.default_governor=performance" ];
 
     # Match physical ports, not the shared driver or a per-device MAC address.
     systemd.network.links = {
