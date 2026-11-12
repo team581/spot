@@ -77,6 +77,12 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
+      - name: Garbage collect the Nix cache
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        run: |
+          df -h /nix
+          sudo "$(command -v nix-store)" --gc
+          df -h /nix
       - name: Stop Nix before unmounting the cache
         if: ${{ always() && steps.nix.outcome == 'success' }}
         run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service
