@@ -63,6 +63,7 @@
   - Blob grouping, edge fitting, and decoding run on the CPU, only for tag-shaped candidates
   - Edges are fit in undistorted space when the camera is calibrated
   - Detector only provides tag corners, pose solving is ours
+  - `spot-vision corpus` scores accuracy and speed on labelled frames (ex. NAPA's synthetic corpus)
   - Replaced the Team 766 / FRC 971 CUDA detector: 4-7x faster on the Orin Nano and finds more tags
 - tag36h11 only
 

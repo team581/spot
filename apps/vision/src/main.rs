@@ -6,6 +6,7 @@ mod calibration;
 mod camera;
 mod clock;
 mod config;
+mod corpus;
 mod decode;
 mod detect;
 mod network;
@@ -58,6 +59,8 @@ enum Command {
     ConfigSchema,
     /// Time decoding, detection, and pose solving on JPEG files.
     Bench(bench::Bench),
+    /// Score detection accuracy and speed on labelled grayscale frames.
+    Corpus(corpus::Corpus),
 }
 
 fn filter() -> tracing_subscriber::EnvFilter {
@@ -73,6 +76,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Openapi => println!("{}", api::openapi().to_pretty_json()?),
         Command::Bench(bench) => bench.run()?,
+        Command::Corpus(corpus) => corpus.run()?,
         Command::ConfigSchema => {
             let schema = schemars::schema_for!(config::RobotConfig);
             println!("{}", serde_json::to_string_pretty(&schema)?);

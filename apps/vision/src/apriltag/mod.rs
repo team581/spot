@@ -122,6 +122,12 @@ impl Detector {
         })
     }
 
+    /// Copies a packed host image to device memory, for timing as frames arrive from NVJPG.
+    #[cfg(feature = "jetson")]
+    pub fn upload(&mut self, image: &[u8]) -> anyhow::Result<Source<'static>> {
+        Ok(Source::Device { ptr: self.dense.upload(image)?, pitch: self.width })
+    }
+
     /// Detects tags in a frame of the detector's size.
     pub fn detect(&mut self, source: &Source) -> anyhow::Result<Vec<Tag>> {
         let host = match *source {
