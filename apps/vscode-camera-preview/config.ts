@@ -52,7 +52,7 @@ export function parseConfig(text: string): PreviewCamera[] {
 		const path = `cameras.${name}`;
 		const camera = table(value, path, cameraKeys);
 		const mode = optional(camera.mode, 'string', `${path}.mode`) ?? '1280x800@120';
-		const resolution = /^(\d+x\d+)@\d+$/.exec(mode)?.[1];
+		const resolution = /^(?<resolution>\d+x\d+)@\d+$/.exec(mode)?.groups?.resolution;
 		if (!resolution) {
 			throw new Error(`${path}.mode must look like 1280x800@120, not "${mode}"`);
 		}

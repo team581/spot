@@ -31,7 +31,8 @@ export function useEditOverrides() {
 		mutationFn: async (edit: Edit) => {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The backend returns JSON overrides validated against the robot config schema.
 			const current = (queryClient.getQueryData<{ overrides: object }>(configKey)?.overrides ?? {}) as Overrides;
-			return (await client.PUT('/api/config/overrides', { body: edit(current) })).data;
+			const response = await client.PUT('/api/config/overrides', { body: edit(current) });
+			return response.data;
 		},
 		onSuccess: (view) => {
 			queryClient.setQueryData(configKey, view);

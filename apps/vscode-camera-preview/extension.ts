@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { promises as fs, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { parseConfig } from './config';
@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const suppressed = new Set<string>();
 	function open(uri?: vscode.Uri, automatic = false) {
 		uri ??= vscode.window.activeTextEditor?.document.uri;
-		if (!uri || uri.scheme !== 'file' || path.basename(uri.fsPath) !== configName || !vscode.workspace.isTrusted) {
+		if (!uri || uri.scheme !== 'file' || basename(uri.fsPath) !== configName || !vscode.workspace.isTrusted) {
 			return;
 		}
 		const config = uri.fsPath;
@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const nonce = randomBytes(16).toString('hex');
 		const asset = (name: string) =>
 			panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', name)).toString();
-		panel.webview.html = renderWebview(readFileSync(path.join(context.extensionPath, 'media/preview.html'), 'utf8'), {
+		panel.webview.html = renderWebview(readFileSync(join(context.extensionPath, 'media/preview.html'), 'utf8'), {
 			cspSource: panel.webview.cspSource,
 			nonce,
 			script: asset('preview.bundle.js'),
@@ -64,9 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
 				);
 			}
 		}
-		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(path.dirname(config), configName),
-		);
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(dirname(config), configName));
 		const subscriptions = [
 			watcher,
 			watcher.onDidChange(load),

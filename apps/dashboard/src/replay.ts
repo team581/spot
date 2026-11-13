@@ -39,16 +39,20 @@ function httpReadable(url: string, size: bigint): IReadable {
 				return Promise.resolve(new Uint8Array());
 			}
 			const key = `${offset}:${length}`;
-			let data = cache.get(key);
-			if (!data) {
-				data = fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1n}` } }).then(async (response) => {
-					if (response.status !== 206) {
-						throw new Error(`Could not read the recording: HTTP ${response.status}`);
+			const data =
+				cache.get(key) ??
+				(async () => {
+					try {
+						const response = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1n}` } });
+						if (response.status !== 206) {
+							throw new Error(`Could not read the recording: HTTP ${response.status}`);
+						}
+						return new Uint8Array(await response.arrayBuffer());
+					} catch (error) {
+						cache.delete(key);
+						throw error;
 					}
-					return new Uint8Array(await response.arrayBuffer());
-				});
-				data.catch(() => cache.delete(key));
-			}
+				})();
 			cache.delete(key);
 			cache.set(key, data);
 			if (cache.size > 48) {
@@ -69,7 +73,7 @@ export interface Replay {
 	configs: Series<RobotConfig>;
 	fields: Series<FieldView>;
 	/** The camera's latest image at or before `time`, within a second. */
-	image(camera: string, time: number): Promise<{ time: number; jpeg: Uint8Array } | undefined>;
+	image: (camera: string, time: number) => Promise<{ time: number; jpeg: Uint8Array } | undefined>;
 }
 
 /**
@@ -151,19 +155,18 @@ export function useReplay(url: string) {
 	const [state, setState] = useState<{ url?: string; replay?: Replay; error?: Error }>({});
 	useEffect(() => {
 		let current = true;
-		openReplay(url).then(
-			(replay) => {
+		void (async () => {
+			try {
+				const replay = await openReplay(url);
 				if (current) {
 					setState({ replay, url });
 				}
-				return undefined;
-			},
-			(error: Error) => {
+			} catch (error) {
 				if (current) {
-					setState({ error, url });
+					setState({ error: error instanceof Error ? error : new Error(String(error)), url });
 				}
-			},
-		);
+			}
+		})();
 		return () => {
 			current = false;
 		};
@@ -202,7 +205,9 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 			let fetched: number | undefined;
 			try {
 				while (fetched !== wanted.current) {
-					const at = (fetched = wanted.current);
+					const at = wanted.current;
+					fetched = at;
+					// oxlint-disable-next-line no-await-in-loop -- Finish each batch before fetching the latest requested time.
 					const results = await Promise.all(replay.cameras.map((camera) => replay.image(camera, at)));
 					const images = new Map<string, Frame>();
 					const previous = urls.current;

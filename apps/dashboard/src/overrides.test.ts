@@ -2,6 +2,7 @@ import { expect, test } from 'vite-plus/test';
 import { diffOverrides, overridesFor, parseOverrides, setOverride } from './overrides';
 
 test('parseOverrides accepts nested config values and rejects TOML-only values', () => {
+	// oxlint-disable-next-line vitest/prefer-strict-equal -- TOML tables have null prototypes; compare their JSON-compatible values.
 	expect(parseOverrides('ignored_tags = [3]\n[cameras.front]\nrequired = true\nmount = { x = 0.5 }')).toEqual({
 		ignored_tags: [3],
 		cameras: { front: { required: true, mount: { x: 0.5 } } },
@@ -14,12 +15,12 @@ test('parseOverrides accepts nested config values and rejects TOML-only values',
 test('setOverride sets nested values without touching siblings or the input', () => {
 	const overrides = { ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1 } } } };
 	const next = setOverride(overrides, ['cameras', 'front', 'mount', 'y'], 2);
-	expect(next).toEqual({ ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1, y: 2 } } } });
-	expect(overrides.cameras.front.mount).toEqual({ x: 1 });
+	expect(next).toStrictEqual({ ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1, y: 2 } } } });
+	expect(overrides.cameras.front.mount).toStrictEqual({ x: 1 });
 });
 
 test('setOverride replaces a removed camera with an object to write into', () => {
-	expect(setOverride({ cameras: { front: null } }, ['cameras', 'front', 'port'], 'usb1')).toEqual({
+	expect(setOverride({ cameras: { front: null } }, ['cameras', 'front', 'port'], 'usb1')).toStrictEqual({
 		cameras: { front: { port: 'usb1' } },
 	});
 });
@@ -29,7 +30,7 @@ test('diffOverrides pairs leaf overrides with robot values', () => {
 	const overrides = {
 		cameras: { front: { serial: null, port: 'usb1', controls: { gain: 7 } }, back: { serial: 'B' } },
 	};
-	expect(diffOverrides(robot, overrides)).toEqual([
+	expect(diffOverrides(robot, overrides)).toStrictEqual([
 		{ path: 'cameras.front.serial', before: 'A', after: null },
 		{ path: 'cameras.front.port', before: undefined, after: 'usb1' },
 		{ path: 'cameras.front.controls.gain', before: 5, after: 7 },
@@ -40,7 +41,7 @@ test('diffOverrides pairs leaf overrides with robot values', () => {
 test('overridesFor removes robot keys missing from the target', () => {
 	const robot = { ignored_tags: [3], cameras: { front: { serial: 'A', required: true }, back: { serial: 'B' } } };
 	const target = { cameras: { front: { serial: 'C' } } };
-	expect(overridesFor(robot, target)).toEqual({
+	expect(overridesFor(robot, target)).toStrictEqual({
 		ignored_tags: null,
 		cameras: { back: null, front: { required: null, serial: 'C' } },
 	});

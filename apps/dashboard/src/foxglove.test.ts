@@ -6,7 +6,7 @@ test('parseMessageData splits the header from the payload', () => {
 	const message = parseMessageData(frame.buffer)!;
 	expect(message.subscriptionId).toBe(7);
 	expect(message.logTime).toBe(256n);
-	expect([...message.payload]).toEqual([0xaa, 0xbb]);
+	expect([...message.payload]).toStrictEqual([0xaa, 0xbb]);
 	expect(parseMessageData(new Uint8Array([0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).buffer)).toBeUndefined();
 });
 
@@ -36,6 +36,6 @@ test('protobufBytes finds CompressedImage data after other fields', () => {
 		0x65,
 		0x67,
 	]);
-	expect([...protobufBytes(message, 2)!]).toEqual(jpeg);
+	expect([...protobufBytes(message, 2)!]).toStrictEqual(jpeg);
 	expect(protobufBytes(message, 5)).toBeUndefined();
 });
