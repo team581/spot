@@ -43,12 +43,51 @@ let
   # Reuse pnpm's integrity hashes without a store hash or builds during evaluation.
   # TODO: Revisit this dependency's custom YAML parser when Nixpkgs supports
   # pnpm imports without a separate store hash.
-  pnpmLockfile = (pkgs.callPackage "${inputs.pnpm2nix}/nix/lockfile.nix" { }).processLockfile {
-    lockfile = ../pnpm-lock.yaml;
-    registry = "https://registry.npmjs.org";
-    noDevDependencies = false;
-    lockfileResolver = "regex";
-  };
+  pnpm2nix = pkgs.callPackage "${inputs.pnpm2nix}/nix/lockfile.nix" { };
+  # pnpm skips packages for other platforms, so only fetch the build platform's.
+  supports =
+    field: value: package:
+    let
+      values = package.${field} or [ ];
+    in
+    values == [ ]
+    || builtins.elem value values
+    || (lib.all (lib.hasPrefix "!") values && !builtins.elem "!${value}" values);
+  supported =
+    package:
+    let
+      platform = pkgs.stdenv.buildPlatform;
+    in
+    supports "os" platform.node.platform package
+    && supports "cpu" platform.node.arch package
+    && supports "libc" (if platform.isMusl then "musl" else "glibc") package;
+  fetchPackage =
+    key: package:
+    let
+      source = pnpm2nix.resolveSource "https://registry.npmjs.org" key package;
+    in
+    assert lib.assertMsg (source.type == "url") "pnpm: unsupported source for ${key}";
+    {
+      tarball = "file:${pkgs.fetchurl { inherit (source) url hash; }}";
+      integrity = source.hash;
+    };
+  pnpmLockfile = pkgs.writeText "pnpm-lock.yaml" (
+    lib.concatMapStrings (
+      document:
+      "---\n"
+      + builtins.toJSON (
+        document
+        // {
+          lockfileVersion = "9.0";
+          packages = lib.mapAttrs (
+            key: package:
+            package // lib.optionalAttrs (supported package) { resolution = fetchPackage key package; }
+          ) (document.packages or { });
+        }
+      )
+      + "\n"
+    ) (pnpm2nix.parseLockfile { lockfile = ../pnpm-lock.yaml; })
+  );
   web = pkgs.stdenvNoCC.mkDerivation {
     pname = "spot-web";
     version = "2026.0.0";
@@ -62,7 +101,7 @@ let
       export HOME="$TMPDIR"
       export pnpm_config_pm_on_fail=ignore
       export pnpm_config_store_dir="$TMPDIR/pnpm-store"
-      cp ${pnpmLockfile.patchedLockfileYaml} pnpm-lock.yaml
+      cp ${pnpmLockfile} pnpm-lock.yaml
       pnpm --filter spot --filter spot-dashboard... --filter spot-docs... install \
         --offline --frozen-lockfile --ignore-scripts --trust-lockfile
       patchShebangs node_modules/{*,.*}
