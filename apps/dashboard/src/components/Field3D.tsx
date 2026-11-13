@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from 'cn';
-import { SpotViewer, quaternion } from '@spot/camera-viewer';
+import { SpotViewer } from '@spot/camera-viewer';
+import { Euler, MathUtils, Quaternion, Vector3 } from 'three';
 import type { FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
 import type { Candidate, Detections } from '../live';
@@ -23,8 +24,10 @@ export interface FieldCamera {
 
 /** WPILib translation in metres and roll, pitch, yaw in degrees, as the viewer's pose. */
 const pose = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => ({
-	quaternion: quaternion(yaw, pitch, roll),
-	translation: [x, y, z],
+	quaternion: new Quaternion().setFromEuler(
+		new Euler(MathUtils.degToRad(roll), MathUtils.degToRad(pitch), MathUtils.degToRad(yaw), 'ZYX'),
+	),
+	position: new Vector3(x, y, z),
 });
 
 function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
@@ -42,9 +45,9 @@ function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]
 	}
 	const tags = field.tags.map((t) => ({
 		id: t.id,
-		quaternion: [t.qw, t.qx, t.qy, t.qz],
+		quaternion: new Quaternion(t.qx, t.qy, t.qz, t.qw).normalize(),
 		size: TAG_SIZE,
-		translation: [t.x, t.y, t.z],
+		position: new Vector3(t.x, t.y, t.z),
 	}));
 	const length = field.length === 0 ? Math.max(16.5, ...field.tags.map((t) => t.x)) : field.length;
 	const width = field.width || Math.max(8.1, ...field.tags.map((t) => t.y));

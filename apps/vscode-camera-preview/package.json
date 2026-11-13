@@ -34,10 +34,12 @@
 	},
 	"dependencies": {
 		"@spot/camera-viewer": "workspace:*",
-		"smol-toml": "1.9.1"
+		"smol-toml": "1.9.1",
+		"three": "0.187.0"
 	},
 	"devDependencies": {
 		"@types/node": "26.6.6",
+		"@types/three": "0.187.0",
 		"@types/vscode": "1.145.0",
 		"@vscode/vsce": "4.1.0",
 		"typescript": "7.0.2",

@@ -5,8 +5,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 
 export interface Pose {
-	translation: number[];
-	quaternion: number[];
+	position: THREE.Vector3;
+	quaternion: THREE.Quaternion;
 }
 export interface Mount extends Pose {
 	name: string;
@@ -29,59 +29,6 @@ export interface ViewerState {
 	selectedName?: string;
 	drivebase?: { visible: boolean; length: number; width: number };
 }
-export function rotate(q: number[], v: number[]): number[] {
-	const n = Math.hypot(...q);
-	const [w, x, y, z] = q.map((a) => a / n);
-	const [a, b, c] = v;
-	return [
-		(1 - 2 * (y * y + z * z)) * a + 2 * (x * y - z * w) * b + 2 * (x * z + y * w) * c,
-		2 * (x * y + z * w) * a + (1 - 2 * (x * x + z * z)) * b + 2 * (y * z - x * w) * c,
-		2 * (x * z - y * w) * a + 2 * (y * z + x * w) * b + (1 - 2 * (x * x + y * y)) * c,
-	];
-}
-export function angles(q: number[]): number[] {
-	const n = Math.hypot(...q);
-	const [w, x, y, z] = q.map((v) => v / n);
-	return [
-		Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
-		Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x)))),
-		Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)),
-	].map((v) => (v * 180) / Math.PI);
-}
-export function quaternion(yaw: number, pitch: number, roll: number): number[] {
-	const [z, y, x] = [yaw, pitch, roll].map((v) => (v * Math.PI) / 360);
-	const [cz, sz, cy, sy, cx, sx] = [Math.cos(z), Math.sin(z), Math.cos(y), Math.sin(y), Math.cos(x), Math.sin(x)];
-	return [
-		cz * cy * cx + sz * sy * sx,
-		cz * cy * sx - sz * sy * cx,
-		cz * sy * cx + sz * cy * sx,
-		sz * cy * cx - cz * sy * sx,
-	];
-}
-// Camera controls and stored quaternions both use native WPILib NWU angles.
-export function cameraAngles(q: number[]): number[] {
-	return angles(q);
-}
-export function cameraQuaternion(yaw: number, pitch: number, roll: number): number[] {
-	return quaternion(yaw, pitch, roll);
-}
-function multiply(a: number[], b: number[]) {
-	const [w, x, y, z] = a;
-	const [v, i, j, k] = b;
-	return [
-		w * v - x * i - y * j - z * k,
-		w * i + x * v + y * k - z * j,
-		w * j - x * k + y * v + z * i,
-		w * k + x * j - y * i + z * v,
-	];
-}
-/** `child` relative to `parent`, as a pose in `parent`'s frame. */
-export function compose(parent: Pose, child: Pose): Pose {
-	return {
-		quaternion: multiply(parent.quaternion, child.quaternion),
-		translation: rotate(parent.quaternion, child.translation).map((v, i) => v + parent.translation[i]),
-	};
-}
 /** A CSS custom property name (without `--`), or any other CSS color. */
 type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'warning' | (string & {});
 const isProperty = (color: string) => /^[\w-]+$/.test(color);
@@ -97,9 +44,8 @@ export interface Scene {
 }
 function posed(parent: THREE.Object3D, pose: Pose): THREE.Group {
 	const group = new THREE.Group();
-	const [w, x, y, z] = pose.quaternion;
-	group.position.fromArray(pose.translation);
-	group.quaternion.set(x, y, z, w).normalize();
+	group.position.copy(pose.position);
+	group.quaternion.copy(pose.quaternion);
 	parent.add(group);
 	return group;
 }
@@ -178,8 +124,8 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 	const estimates = arena ? (cameras ?? []).filter((c) => c.robot) : [];
 	// Cameras without an estimate ride on another camera's robot, or one at midfield.
 	const reference: Pose = estimates[0]?.robot ?? {
-		quaternion: [1, 0, 0, 0],
-		translation: arena ? [arena.length / 2, arena.width / 2, 0] : [0, 0, 0],
+		quaternion: new THREE.Quaternion(),
+		position: arena ? new THREE.Vector3(arena.length / 2, arena.width / 2, 0) : new THREE.Vector3(),
 	};
 	if (arena) {
 		const { length, width } = arena;
@@ -227,28 +173,28 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
 	} else if (arena) {
-		const robot = (parent: THREE.Object3D, pose: Pose, color: Color) => {
-			const chassis = posed(parent, pose);
+		const robot = (chassis: THREE.Object3D, color: Color) => {
 			box(chassis, [0.9, 0.9, 0.15], color);
 			arrow(chassis, [0.75, 0, 0.15], '', color);
 		};
 		const tags = new Map((arena.tags ?? []).map((t) => [t.id, t]));
 		const seen = new Map<number, Color>();
 		if (estimates.length === 0) {
-			robot(root, reference, 'muted-foreground');
+			robot(posed(root, reference), 'muted-foreground');
 		}
 		for (const c of cameras ?? []) {
-			const view = compose(c.robot ?? reference, c);
+			const chassis = posed(root, c.robot ?? reference);
 			if (c.robot) {
-				robot(root, c.robot, c.color);
+				robot(chassis, c.color);
 			}
-			camera(root, view, c.color, c.name, '');
+			const body = camera(chassis, c, c.color, c.name, '');
+			const position = body.getWorldPosition(new THREE.Vector3());
 			for (const id of c.robot ? c.tags : []) {
 				const tag = tags.get(id);
 				if (!tag) {
 					continue;
 				}
-				segments(root, [view.translation, tag.translation], c.color);
+				segments(root, [position.toArray(), tag.position.toArray()], c.color);
 				if (!seen.has(id)) {
 					seen.set(id, c.color);
 				}
@@ -268,13 +214,13 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 				color,
 				1.5,
 			);
-			label(root, `#${tag.id}`, tag.translation, color);
+			label(root, `#${tag.id}`, tag.position.toArray(), color);
 		}
 	}
 	return {
 		center:
 			estimates.length > 0
-				? [...reference.translation.slice(0, 2), 0.3]
+				? [reference.position.x, reference.position.y, 0.3]
 				: arena
 					? [arena.length / 2, arena.width / 2, 0]
 					: [0, 0, 0.3],
