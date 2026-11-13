@@ -54,7 +54,6 @@ acquired. Values are WPILib structs with published schemas.
 | --------------------------------------- | ------------------------- | ------------------------------------------- |
 | `/Spot/inputs/config`                   | string                    | `spot.toml` contents, from robot code       |
 | `/Spot/inputs/fieldLayout`              | string                    | `AprilTagFieldLayout` JSON, from robot code |
-| `/Spot/inputs/saveRecording`            | double                    | Optional: keep the last N seconds           |
 | `/Spot/outputs/status`                  | `struct:SpotStatus`       | Version, state, overrides active            |
 | `/Spot/outputs/error`                   | string                    | Details for a non-ready state               |
 | `/Spot/outputs/cameras/<name>/estimate` | `struct:SpotEstimate`     | Pose estimate, only for frames with tags    |
@@ -76,6 +75,5 @@ is `streaming`, `disconnected`, `duplicate_serial`, `uncalibrated`, or
 
 Spot records MCAP files around every enable (from about 5 s before to 5 s after),
 using `/FMSInfo` from the Driver Station, and names them by event and match when an
-FMS is attached. Setting `/Spot/inputs/saveRecording` to N keeps the last N seconds
-(up to 60). Recording log times are NT server time, the same time base as WPILOG.
+FMS is attached. Recording log times are NT server time, the same time base as WPILOG.
 The `[recording]` table sets the image rate and disk limit.

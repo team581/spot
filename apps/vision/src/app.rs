@@ -687,11 +687,6 @@ impl nt::Handler for Arc<App> {
                     self.set_input(FIELD_LAYOUT, json.to_string());
                 }
             }
-            "/Spot/inputs/saveRecording" => {
-                if let Some(seconds) = value.as_f64().filter(|s| *s > 0.0) {
-                    self.recorder.save(seconds);
-                }
-            }
             _ => {
                 let Some(key) = topic.strip_prefix("/FMSInfo/") else { return };
                 let fms = &mut self.inner.lock().unwrap().fms;

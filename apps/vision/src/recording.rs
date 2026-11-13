@@ -2,8 +2,8 @@
 //!
 //! Everything is logged to one Foxglove SDK context, whose WebSocket server feeds the
 //! dashboard's live views. An MCAP writer on that context rotates every few seconds into a
-//! buffer directory. Segments around robot enables, or requested with `saveRecording`, are
-//! merged into a recording; the rest age out. The dashboard replays recordings.
+//! buffer directory. Segments around robot enables are merged into a recording; the rest age
+//! out. The dashboard replays recordings.
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::File;
@@ -28,8 +28,6 @@ use crate::pipeline::FrameResult;
 const SEGMENT_US: i64 = 2_000_000;
 const PREROLL_US: i64 = 5_000_000;
 const POSTROLL_US: i64 = 5_000_000;
-/// How far back `saveRecording` can reach.
-const BUFFER_US: i64 = 60_000_000;
 const ENABLED: i64 = 0x01;
 const FMS_ATTACHED: i64 = 0x10;
 
@@ -325,19 +323,11 @@ impl Recorder {
         let keep_from = state
             .active
             .as_ref()
-            .map_or(now_us - BUFFER_US, |a| a.start_us.min(now_us - BUFFER_US));
+            .map_or(now_us - PREROLL_US, |a| a.start_us.min(now_us - PREROLL_US));
         while state.segments.front().is_some_and(|s| s.end_us < keep_from) {
             let segment = state.segments.pop_front().unwrap();
             let _ = std::fs::remove_file(segment.path);
         }
-    }
-
-    /// Saves the last `seconds` of the buffer as a recording.
-    pub fn save(&self, seconds: f64) {
-        let now_us = self.now();
-        let mut state = self.state.lock().unwrap();
-        let start = now_us - (seconds.clamp(0.0, BUFFER_US as f64 / 1e6) * 1e6) as i64;
-        self.finish(&mut state, start, now_us, format!("{}_saved", local_time()));
     }
 
     fn close_segment(&self, state: &mut State, now_us: i64) {

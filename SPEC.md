@@ -135,7 +135,6 @@
 | --------------------------------------- | ---------- | ------ | -------------------------------------------------- |
 | `/Spot/inputs/config`                   | Robot→Spot | string | TOML config                                        |
 | `/Spot/inputs/fieldLayout`              | Robot→Spot | string | WPILib `AprilTagFieldLayout` JSON                  |
-| `/Spot/inputs/saveRecording`            | Robot→Spot | double | Optional, protect the last N seconds of recording  |
 | `/Spot/outputs/status`                  | Spot→Robot | struct | Version, state enum, overrides active              |
 | `/Spot/outputs/error`                   | Spot→Robot | string | Details for the current non-ready state            |
 | `/Spot/outputs/cameras/<name>/estimate` | Spot→Robot | struct | Pose estimate, only published for frames with tags |
@@ -169,9 +168,8 @@
   - Tag detections (corners, IDs) and estimates at full rate
   - Camera status, effective config and field layout (at start and on every change), service logs
 - Merged recordings put everything but images first, in their own chunks, so replay loads them without reading images
-- Rolling on-disk buffer of short segments, similar to Limelight Rewind
+- Rolling on-disk buffer of short segments, long enough for the pre-enable lead-in
   - Segments from ~5 s before enable to ~5 s after disable are kept as a recording, based on `FMSControlData` (works with a Driver Station alone)
-  - `saveRecording` keeps the last N seconds
   - Named by event + match when FMS is attached, otherwise by time
   - Oldest recordings deleted above a disk usage threshold
 - Log time is NT server time, the same time base as WPILOG
