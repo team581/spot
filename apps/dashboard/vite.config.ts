@@ -12,6 +12,10 @@ export default defineConfig({
 	build: { outDir: '../../dist/dashboard', emptyOutDir: true, assetsInlineLimit: 0 },
 	server: {
 		host: '127.0.0.1',
+		// The router plugin regenerates the route tree when route files change. Ignoring the tree itself
+		// keeps the plugin from rewriting it when something else writes it, like hk restoring it mid-commit
+		// before the untracked routes it depends on, which made hk's restore fail.
+		watch: { ignored: ['**/src/routeTree.gen.ts'] },
 		proxy: {
 			'/api': backend,
 			'/docs': backend,
