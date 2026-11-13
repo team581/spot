@@ -68,6 +68,7 @@
 
 - Stateless: at most one estimate per camera per frame
 - Full 6-DOF robot pose (x, y, z, roll, pitch, yaw), seeded from a flat-on-the-floor sweep
+  - Soft prior toward flat on the floor (σ 0.1 m height, 5° roll/pitch), so far tags can't pick a physically impossible pose; tags that clearly show a tilt still win
   - Fits all visible tags at once using the robot-to-camera mount
   - Returns a primary and optional alternate candidate, robot disambiguates (ex. by heading)
 - Backend only rejects tags that are unknown, listed in `ignored_tags`, or seen by an uncalibrated camera

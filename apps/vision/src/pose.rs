@@ -3,9 +3,13 @@
 //! Seeds come from a yaw sweep with the robot flat on the floor: for a fixed yaw the camera
 //! projection is linear in x and y, so linear least squares finds each local minimum. Every
 //! seed is then refined over x, y, z, roll, pitch, and yaw with Levenberg-Marquardt on the
-//! pixel reprojection error.
+//! pixel reprojection error plus a soft prior toward a flat robot on the floor.
+//!
+//! Far tags barely constrain height and tilt, so a physically wrong pose can fit the pixels
+//! slightly better than the real one (ex. 0.8 m underground and pitched 10°). The prior breaks
+//! those near-ties, while tags that clearly show a real tilt or height still win.
 
-use std::f64::consts::TAU;
+use std::f64::consts::{PI, TAU};
 
 use nalgebra::{
     Isometry3, Matrix2, Matrix3, Matrix6, Point3, UnitQuaternion, Vector2, Vector3, Vector6,
@@ -78,6 +82,11 @@ struct Problem {
     focal: Vector2<f64>,
 }
 
+/// One standard deviation of the floor prior. Pixel residuals are roughly 1 px, so a robot
+/// this far from flat costs as much as 1 px of extra reprojection error.
+const FLOOR_HEIGHT_SIGMA: f64 = 0.1;
+const FLOOR_TILT_SIGMA: f64 = 5.0 * PI / 180.0;
+
 /// Robot pose parameters: x, y, z in meters, then roll, pitch, yaw in radians.
 type Params = [f64; 6];
 
@@ -109,11 +118,11 @@ impl Problem {
         normal.try_inverse().map(|inverse| inverse * rhs)
     }
 
-    /// Pixel residuals, or `None` if any corner is behind the camera.
+    /// Pixel residuals followed by the floor prior, or `None` if any corner is behind the camera.
     fn residuals(&self, params: &Params) -> Option<Vec<f64>> {
         let (a, c) = self.transform(&rotation(params));
         let t = Vector3::new(params[0], params[1], params[2]);
-        let mut residuals = Vec::with_capacity(self.field.len() * 2);
+        let mut residuals = Vec::with_capacity(self.field.len() * 2 + 3);
         for (p, uv) in self.field.iter().zip(&self.image) {
             let o = a * (p - t) - c;
             if o.z <= 1e-6 {
@@ -122,11 +131,22 @@ impl Problem {
             residuals.push((o.x / o.z - uv.x) * self.focal.x);
             residuals.push((o.y / o.z - uv.y) * self.focal.y);
         }
+        residuals.push(params[2] / FLOOR_HEIGHT_SIGMA);
+        residuals.push(params[3] / FLOOR_TILT_SIGMA);
+        residuals.push(params[4] / FLOOR_TILT_SIGMA);
         Some(residuals)
     }
 
     fn cost(&self, params: &Params) -> f64 {
         self.residuals(params).map_or(f64::INFINITY, |r| r.iter().map(|v| v * v).sum())
+    }
+
+    /// RMS corner reprojection error in pixels, without the prior.
+    fn pixel_error(&self, params: &Params) -> f64 {
+        self.residuals(params).map_or(f64::INFINITY, |r| {
+            let pixels = &r[..self.field.len() * 2];
+            (pixels.iter().map(|v| v * v).sum::<f64>() / self.field.len() as f64).sqrt()
+        })
     }
 
     fn refine(&self, mut params: Params) -> Params {
@@ -227,27 +247,26 @@ pub fn solve(
         .collect();
     seeds.sort_by(|a, b| a.1.total_cmp(&b.1));
 
-    let corners = problem.field.len() as f64;
-    let mut candidates: Vec<(Params, f64)> = Vec::new();
+    // (params, cost with the prior, pixel error)
+    let mut candidates: Vec<(Params, f64, f64)> = Vec::new();
     for (seed, _) in seeds.into_iter().take(4) {
         let params = problem.refine(*seed);
         let cost = problem.cost(&params);
         if !cost.is_finite() {
             continue;
         }
-        let error = (cost / corners).sqrt();
-        let duplicate = candidates.iter().any(|(other, _)| {
+        let duplicate = candidates.iter().any(|(other, ..)| {
             let distance = (Vector3::from_column_slice(&params[..3])
                 - Vector3::from_column_slice(&other[..3]))
             .norm();
             distance < 0.02 && rotation(&params).angle_to(&rotation(other)) < 0.01
         });
         if !duplicate {
-            candidates.push((params, error));
+            candidates.push((params, cost, problem.pixel_error(&params)));
         }
     }
     candidates.sort_by(|a, b| a.1.total_cmp(&b.1));
-    let to_candidate = |(params, error): &(Params, f64)| Candidate {
+    let to_candidate = |(params, _, error): &(Params, f64, f64)| Candidate {
         pose: Isometry3::from_parts(
             Vector3::new(params[0], params[1], params[2]).into(),
             rotation(params),
@@ -257,7 +276,7 @@ pub fn solve(
     let primary = to_candidate(candidates.first()?);
     let alternate = candidates
         .get(1)
-        .filter(|(_, error)| *error <= MAX_ALTERNATE_ERROR_RATIO * primary.error.max(1.0))
+        .filter(|(.., error)| *error <= MAX_ALTERNATE_ERROR_RATIO * primary.error.max(1.0))
         .map(to_candidate);
 
     let camera = primary.pose * mount;
@@ -349,11 +368,72 @@ mod tests {
             observe(7, facing(0.5, 3.5, 0.4, -60.0), &camera),
         ];
         let estimate = solve(&tags, &calibration(), &mount, (1280, 800)).unwrap();
+        // The floor prior pulls slightly toward flat, but close tags at several heights win.
         let error = estimate.primary.pose.inverse() * robot;
-        assert!(error.translation.vector.norm() < 1e-6, "{:?}", estimate.primary);
-        assert!(error.rotation.angle() < 1e-6);
-        assert!(estimate.primary.error < 1e-6);
+        assert!(error.translation.vector.norm() < 0.01, "{:?}", estimate.primary);
+        assert!(error.rotation.angle() < 0.5f64.to_radians());
+        assert!(estimate.primary.error < 0.1);
         assert_eq!(estimate.tag_ids, 1 << 3 | 1 << 4 | 1 << 7);
+    }
+
+    /// A real frame with the robot flat under the trench, seeing two ~19 px tags 4 m away. Without
+    /// the floor prior the best pixel fit was 0.8 m underground and pitched 10°.
+    #[test]
+    fn far_coplanar_tags_stay_on_the_floor() {
+        let calibration = Calibration {
+            fx: 485.22714440524544,
+            fy: 485.2050152053196,
+            cx: 324.50469689213844,
+            cy: 207.89836185791006,
+            distortion: [
+                -0.09948349064143425,
+                0.13412293525870608,
+                -0.00017105212871407996,
+                -0.00030704710075745117,
+                -0.11360614859723724,
+            ],
+            rms: None,
+        };
+        let mount = crate::config::Mount {
+            x: -0.318389,
+            y: 0.08255,
+            z: 0.342468,
+            pitch: -20.0,
+            yaw: 180.0,
+            ..Default::default()
+        }
+        .isometry();
+        let tag = |id, y, pixels| TagObservation {
+            id,
+            pixels,
+            field: tag_corners(&Isometry3::translation(0.007747, y, 0.55245), 0.1651),
+        };
+        let tags = [
+            tag(
+                29,
+                0.6659626,
+                [
+                    [313.7897644042969, 366.0027770996092],
+                    [332.9158325195313, 366.0675964355469],
+                    [333.40338134765625, 346.87905883789074],
+                    [314.0379943847656, 346.49871826171875],
+                ],
+            ),
+            tag(
+                30,
+                1.0977626,
+                [
+                    [365.49176025390625, 366.7007141113281],
+                    [384.98632812499994, 366.7386779785156],
+                    [384.40216064453125, 346.83721923828125],
+                    [365.1754455566407, 346.60433959960943],
+                ],
+            ),
+        ];
+        let primary = solve(&tags, &calibration, &mount, (640, 480)).unwrap().primary;
+        let (roll, pitch, _) = primary.pose.rotation.euler_angles();
+        assert!(primary.pose.translation.z.abs() < 0.1, "{primary:?}");
+        assert!(roll.abs().max(pitch.abs()) < 2f64.to_radians(), "{primary:?}");
     }
 
     #[test]

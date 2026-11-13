@@ -38,8 +38,10 @@ Team number, IP address, and the NetworkTables server are set on the Jetson, not
 down. Unset values are 0.
 
 Spot solves the full 3D robot pose (x, y, z, roll, pitch, yaw) and fits every
-visible tag at once, per camera and frame. Height, roll, and pitch are noisy on far,
-head-on tags, so robot code should usually keep only x, y, and yaw. It only ignores tags that are not in
+visible tag at once, per camera and frame. Far tags barely constrain height and tilt,
+so the solver prefers a robot flat on the floor unless the tags clearly show
+otherwise. Height, roll, and pitch are still noisy on far, head-on tags, so robot
+code should usually keep only x, y, and yaw. It only ignores tags that are not in
 the field layout, are listed in `ignored_tags`, or are seen by an uncalibrated
 camera. All trust decisions belong to robot code.
 
