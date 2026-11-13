@@ -28,11 +28,11 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: 8bb70056a503857d02b48fc5db648f61
       R2_BUCKET: spot-jetson-images
     steps:
-      - uses: useblacksmith/checkout@v1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
       - name: Mount Nix cache
-        uses: useblacksmith/stickydisk@v1
+        uses: useblacksmith/stickydisk@v1.7.2
         with:
           key: ${{ github.repository }}-nix-cache-aarch64-linux
           path: /nix
@@ -62,7 +62,7 @@ jobs:
         run: nix shell --inputs-from path:. nixpkgs#awscli2 --command bash tools/upload-jetson-installer.sh
       - name: Share private download links
         if: ${{ github.ref_name == github.event.repository.default_branch }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: installer-downloads
           path: dist/installer/downloads.html
@@ -70,7 +70,7 @@ jobs:
           retention-days: 7
       - name: Share branch installer
         if: ${{ github.ref_name != github.event.repository.default_branch }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: spot-installer
           path: result/iso/*.iso

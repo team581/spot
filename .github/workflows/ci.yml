@@ -18,8 +18,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 5
     steps:
-      - uses: useblacksmith/checkout@v1
-      - uses: jdx/mise-action@v5
+      - uses: useblacksmith/checkout@v1.8.2
+      - uses: jdx/mise-action@v5.2.8
         with:
           install_args: hk pkl
       - run: hk check --all --step pkl-format
@@ -33,9 +33,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604-arm
     timeout-minutes: 30
     steps:
-      - uses: useblacksmith/checkout@v1
+      - uses: useblacksmith/checkout@v1.8.2
       - name: Mount Nix cache
-        uses: useblacksmith/stickydisk@v1
+        uses: useblacksmith/stickydisk@v1.7.2
         with:
           key: ${{ github.repository }}-nix-cache-aarch64-linux
           path: /nix
@@ -66,7 +66,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 10
     steps:
-      - uses: useblacksmith/checkout@v1
+      - uses: useblacksmith/checkout@v1.8.2
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -80,7 +80,7 @@ jobs:
         run: pnpm --filter spot-camera-preview package
       - run: pnpm build:jetson
       - run: pnpm test
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: web-assets
           path: |
@@ -94,11 +94,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 15
     steps:
-      - uses: useblacksmith/checkout@v1
-      - uses: jdx/mise-action@v5
+      - uses: useblacksmith/checkout@v1.8.2
+      - uses: jdx/mise-action@v5.2.8
         with:
           install_args: rust
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/vision
       - run: sudo apt-get install -y libclang-dev libopencv-dev
@@ -119,10 +119,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 10
     steps:
-      - uses: useblacksmith/checkout@v1
-      - uses: actions/setup-java@v6
+      - uses: useblacksmith/checkout@v1.8.2
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6.4.1
       - run: ./gradlew build plainJavadocJar generatePomFileForMavenPublication

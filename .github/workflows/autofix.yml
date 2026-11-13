@@ -18,8 +18,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604-arm
     timeout-minutes: 15
     steps:
-      - uses: useblacksmith/checkout@v1
-      - uses: jdx/mise-action@v5
+      - uses: useblacksmith/checkout@v1.8.2
+      - uses: jdx/mise-action@v5.2.8
         with:
           install_args: hk pkl rust
       - run: hk fix --all --step pkl-format
@@ -42,4 +42,4 @@ jobs:
       - run: cargo fmt --manifest-path apps/vision/Cargo.toml
         continue-on-error: true
       - name: Run autofix.ci
-        uses: autofix-ci/action@v1
+        uses: autofix-ci/action@v1.3.4
