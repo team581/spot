@@ -9,6 +9,20 @@ Spot is stateless.
 Each estimate comes from one frame of one camera, with no smoothing over time and no fusion across cameras.
 Robot code already has a pose estimator that fuses odometry, gyro, and vision with proper timing; doing a second, weaker version of that on the Jetson would only hide information from it.
 
+```mermaid
+flowchart LR
+  subgraph spot[Spot]
+    front[front camera frame] --> frontEstimate[Estimate]
+    back[back camera frame] --> backEstimate[Estimate]
+  end
+  subgraph robot[Robot code]
+    odometry[Odometry] --> estimator[Pose estimator]
+    gyro[Gyro] --> estimator
+  end
+  frontEstimate --> estimator
+  backEstimate --> estimator
+```
+
 The same reasoning puts every trust decision in robot code.
 Spot drops a tag only when it isn't in the field layout or is in `ignored_tags`.
 An uncalibrated camera still publishes estimates using the Swyft USB camera's factory calibration, so expect them to be less accurate, especially for other camera models.
@@ -48,6 +62,14 @@ This is also why Spot publishes nothing until its clock is synced: an estimate w
 Capture and detection run separately for each camera, and detection always takes the newest frame.
 When detection can't keep up, Spot drops frames rather than queueing them.
 A queue would deliver every frame, but each one later than the last, and a pose estimator gains more from one fresh estimate than from several stale ones.
+
+```mermaid
+flowchart LR
+  capture[Capture] -->|replaces| slot[Newest frame]
+  slot -->|takes when free| detection[Detection and solve]
+  slot -.->|replaced before it was taken| dropped[Dropped, counted]
+```
+
 Dropped frames are counted in the camera's status, and a camera that keeps dropping reports `falling_behind`.
 
 ## The detector
@@ -55,6 +77,13 @@ Dropped frames are counted in the camera's status, and a camera that keeps dropp
 Spot uses its own tag36h11 detector, borrowing ideas from NAPA and Team 971's CUDA detector.
 The camera's MJPEG frames are decoded on the Jetson's hardware JPEG engine, and the dense, per-pixel work runs on the GPU straight from that output.
 Only tag-shaped candidates reach the CPU for edge fitting and decoding.
+
+```mermaid
+flowchart LR
+  jpeg[JPEG engine: decode] --> gpu[GPU: find candidates]
+  gpu --> cpu[CPU: decode tags, solve pose]
+```
+
 When the camera is calibrated, edges are fit in undistorted space, which matters most for tags near the image's edges.
 
 `spot-vision corpus` scores the detector's accuracy and speed on labelled frames, so detector changes can be measured instead of judged by eye.

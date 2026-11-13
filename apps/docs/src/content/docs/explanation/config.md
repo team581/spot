@@ -17,6 +17,15 @@ Some settings are only practical to find with live feedback: which serial is whi
 Editing TOML and redeploying robot code for each attempt would be slow, so the dashboard writes those changes as overrides stored on the Jetson.
 Overrides sit on top of robot code's config and win wherever they differ.
 
+```mermaid
+flowchart TB
+  toml[spot.toml in robot code] -->|published at startup| robot[Robot config]
+  dashboard[Dashboard changes] --> overrides[Overrides on the Jetson]
+  robot --> merged[Config Spot runs]
+  overrides -->|win where they differ| merged
+  merged -.->|copied back from Config| toml
+```
+
 Overrides are meant to be temporary.
 The **Config** page shows the merged result so it can be copied back into `spot.toml`.
 Once robot code's config matches an override, Spot deletes it.
@@ -26,6 +35,17 @@ Once robot code's config matches an override, Spot deletes it.
 
 Team number, Ethernet addressing, and the NetworkTables server aren't in `spot.toml` because Spot needs them before it can receive `spot.toml`.
 They are the only settings that live only on the Jetson.
+
+```mermaid
+sequenceDiagram
+  participant Jetson as Jetson settings
+  participant Spot
+  participant Robot as Robot code
+  Jetson->>Spot: Addressing, NetworkTables server
+  Spot->>Robot: Connect and sync clock
+  Robot->>Spot: spot.toml, field layout
+  Spot->>Robot: Status, estimates
+```
 
 ## Spot only listens
 

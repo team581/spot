@@ -6,6 +6,17 @@ description: Deploy a new Spot build to an installed Jetson, and undo it.
 These commands run from a checkout of this repository on a laptop with Nix.
 They reach Spot at `10.5.81.11`; set `SPOT_HOST` to use another address.
 
+```mermaid
+stateDiagram-v2
+  old: Old build running and boot default
+  testing: New build running, old build boot default
+  switched: New build running and boot default
+  old --> testing: deploy test
+  testing --> old: reboot or undo
+  testing --> switched: deploy switch
+  switched --> old: rollback
+```
+
 ## Deploy a new build
 
 1. Commit or `git add` new files.
