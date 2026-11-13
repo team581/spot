@@ -254,15 +254,17 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
     }
 }
 
-/// Keeps known, non-ignored tags and solves when the camera is calibrated.
+/// Keeps known, non-ignored tags and solves, assuming rough intrinsics when the camera is
+/// uncalibrated.
 pub fn estimate(
     processing: &Processing,
     detections: &[Detection],
     size: (u32, u32),
 ) -> (Vec<u32>, Option<Estimate>) {
-    let (Some(calibration), Some(layout)) = (&processing.calibration, &processing.layout) else {
+    let Some(layout) = &processing.layout else {
         return (Vec::new(), None);
     };
+    let calibration = processing.calibration.clone().unwrap_or_else(|| Calibration::assumed(size));
     let tags: Vec<TagObservation> = detections
         .iter()
         .filter(|d| !processing.ignored_tags.contains(&d.id))
@@ -275,7 +277,7 @@ pub fn estimate(
         })
         .collect();
     let used = tags.iter().map(|t| t.id).collect();
-    (used, pose::solve(&tags, calibration, &processing.mount, size))
+    (used, pose::solve(&tags, &calibration, &processing.mount, size))
 }
 
 #[cfg(all(test, not(feature = "jetson")))]
@@ -370,5 +372,24 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn uncalibrated_camera_still_estimates() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/regression");
+        let image = image::open(format!("{dir}/center.jpg")).unwrap().to_luma8();
+        let (width, height) = image.dimensions();
+        let gray = crate::decode::Gray {
+            pixels: crate::decode::Pixels::Host(image.into_raw()),
+            width,
+            height,
+        };
+        let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
+        let processing = Processing { calibration: None, ..processing(false) };
+        let (used, estimate) = estimate(&processing, &detections, (width, height));
+        assert_eq!(used, vec![1]);
+        // The fixture is 2 m away; assumed intrinsics only get the distance roughly right.
+        let distance = estimate.unwrap().average_tag_distance;
+        assert!((1.5..2.5).contains(&distance), "{distance}");
     }
 }

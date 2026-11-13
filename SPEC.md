@@ -71,7 +71,8 @@
   - Soft prior toward flat on the floor (σ 0.1 m height, 5° roll/pitch), so far tags can't pick a physically impossible pose; tags that clearly show a tilt still win
   - Fits all visible tags at once using the robot-to-camera mount
   - Returns a primary and optional alternate candidate, robot disambiguates (ex. by heading)
-- Backend only rejects tags that are unknown, listed in `ignored_tags`, or seen by an uncalibrated camera
+- Backend only rejects tags that are unknown or listed in `ignored_tags`
+  - Uncalibrated cameras still estimate, assuming the Swyft USB camera's factory calibration scaled to the resolution
   - All trust decisions belong to robot code
 
 ### Calibration
