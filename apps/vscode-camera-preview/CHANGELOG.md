@@ -5,12 +5,10 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **vision:** remove recording config
 * **vscode-camera-preview:** preview cameras from spot.toml
 
 ### Features
 
-* **vision:** remove recording config ([2dfb249](https://github.com/team581/spot/commit/2dfb249d8cb115054892767769a59a94de4c5210))
 * **vscode-camera-preview:** preview cameras from spot.toml ([d997223](https://github.com/team581/spot/commit/d99722306561ce46b875ab7598d90965463978a5))
 
 
