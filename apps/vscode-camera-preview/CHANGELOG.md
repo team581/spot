@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.1](https://github.com/team581/spot/compare/camera-preview-v1.0.0...camera-preview-v1.0.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **vscode-camera-preview:** run release ([ef44a61](https://github.com/team581/spot/commit/ef44a61d1ce64036552c2027d4c10bc51a104e7b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 2.0.1
+
 ## [1.0.0](https://github.com/team581/spot/compare/camera-preview-v0.3.2...camera-preview-v1.0.0) (2026-11-13)
 
 

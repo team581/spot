@@ -1,5 +1,5 @@
 {
-	"apps/vscode-camera-preview": "1.0.0",
-	"packages/camera-viewer": "2.0.0",
-	"packages/java-client": "2026.0.0"
+	"apps/vscode-camera-preview": "1.0.1",
+	"packages/camera-viewer": "2.0.1",
+	"packages/java-client": "2026.0.1"
 }
