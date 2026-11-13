@@ -4,7 +4,9 @@
 	"version": "2026.0.0",
 	"frcYear": "2026",
 	"uuid": "aef2be80-9619-425f-9860-6f8fab1f47d7",
-	"mavenUrls": ["https://repo.maven.apache.org/maven2/"],
+	"mavenUrls": [
+		"https://repo.maven.apache.org/maven2/"
+	],
 	"jsonUrl": "https://spot.frc581.com/vendordep.json",
 	"javaDependencies": [
 		{

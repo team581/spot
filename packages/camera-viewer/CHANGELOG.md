@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/team581/spot/compare/camera-viewer-v1.1.1...camera-viewer-v2.0.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **dashboard:** @spot/camera-viewer's field mode takes `cameras` (each camera's mount, color, robot estimate, and used tags). The single-camera `geometry` and `data` state, `Candidate`, and `robotPose` are removed; use `cameras` and `compose`.
+
+### Features
+
+* **dashboard:** add a 3D field view and recording replay ([d9a67ec](https://github.com/team581/spot/commit/d9a67ec48bbb7d4ad0fda2ad606cbc8df7075b24))
+
 ## [1.1.1](https://github.com/team581/spot-2026/compare/camera-viewer-v1.1.0...camera-viewer-v1.1.1) (2026-11-10)
 
 
