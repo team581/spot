@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useConfig, useDevices, useStatus } from '../queries';
 import { useAllDetections } from '../live';
-import { fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { PageTitle, Panel, StateBadge, fmt } from '../components/common';
 import { Field3D } from '../components/Field3D';
 import { LiveView } from '../components/LiveView';
 import { Card } from '@/components/ui/card';
@@ -10,24 +10,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 /** Live estimates, mounts, and seen tags from every camera on the field. */
 function Field() {
-	const view = useConfig().data,
-		config = view?.config,
-		cameras = Object.entries(config?.cameras ?? {}),
-		detections = useAllDetections(cameras.map(([name]) => name));
-	if (!config) return null;
+	const view = useConfig().data;
+	const config = view?.config;
+	const cameras = Object.entries(config?.cameras ?? {});
+	const detections = useAllDetections(cameras.map(([name]) => name));
+	if (!config) {
+		return null;
+	}
 	return (
 		<Panel title="Field">
 			<Field3D
 				field={view.field_layout}
-				cameras={cameras.map(([name, camera]) => ({ name, config: camera, detections: detections.get(name) }))}
+				cameras={cameras.map(([name, camera]) => ({ config: camera, detections: detections.get(name), name }))}
 			/>
 		</Panel>
 	);
 }
 
 export default function Cameras() {
-	const cameras = useStatus().data?.cameras ?? [],
-		unassigned = useDevices().data?.filter((d) => !d.camera) ?? [];
+	const cameras = useStatus().data?.cameras ?? [];
+	const unassigned = useDevices().data?.filter((d) => !d.camera) ?? [];
 	return (
 		<>
 			<PageTitle
@@ -39,7 +41,7 @@ export default function Cameras() {
 			>
 				Cameras
 			</PageTitle>
-			{cameras.length ? (
+			{cameras.length > 0 ? (
 				<div className="grid gap-6 md:grid-cols-2">
 					{cameras.map((c) => (
 						<Link
@@ -69,8 +71,8 @@ export default function Cameras() {
 					</p>
 				</Panel>
 			)}
-			{cameras.length ? <Field /> : null}
-			{unassigned.length ? (
+			{cameras.length > 0 ? <Field /> : null}
+			{unassigned.length > 0 ? (
 				<Panel title="Unassigned devices" action={<Link to="/devices">Assign</Link>}>
 					<Table>
 						<TableHeader>

@@ -8,8 +8,8 @@ void test('webview template keeps nonce-based CSP and escapes asset attributes',
 	const html = renderWebview(template, {
 		cspSource: 'https://vscode-resource.test',
 		nonce: 'nonce-value',
-		stylesheet: 'https://vscode-resource.test/style?x=1&y=2',
 		script: 'https://vscode-resource.test/preview".js',
+		stylesheet: 'https://vscode-resource.test/style?x=1&y=2',
 	});
 	assert.match(html, /script-src 'nonce-nonce-value'/);
 	assert.match(html, /nonce="nonce-value"/);

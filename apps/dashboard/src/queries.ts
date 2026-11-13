@@ -28,8 +28,8 @@ type Edit = (overrides: Overrides) => Overrides;
 export function useEditOverrides() {
 	const configKey = $api.queryOptions('get', '/api/config').queryKey;
 	const mutation = useMutation({
-		scope: { id: 'overrides' },
 		mutationFn: async (edit: Edit) => {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The backend returns JSON overrides validated against the robot config schema.
 			const current = (queryClient.getQueryData<{ overrides: object }>(configKey)?.overrides ?? {}) as Overrides;
 			return (await client.PUT('/api/config/overrides', { body: edit(current) })).data;
 		},
@@ -38,14 +38,16 @@ export function useEditOverrides() {
 			void queryClient.invalidateQueries({ queryKey: $api.queryOptions('get', '/api/status').queryKey });
 			void queryClient.invalidateQueries({ queryKey: $api.queryOptions('get', '/api/devices').queryKey });
 		},
+		scope: { id: 'overrides' },
 	});
 	return {
 		...mutation,
 		/** Sets each `[path, value]` pair; `null` removes the key from the robot config. */
-		set: (changes: [string[], Json][], options?: { onSettled?: () => void }) =>
+		set: (changes: [string[], Json][], options?: { onSettled?: () => void }) => {
 			mutation.mutate(
 				(overrides) => changes.reduce((next, [path, value]) => setOverride(next, path, value), overrides),
 				options,
-			),
+			);
+		},
 	};
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from 'cn';
-import { type FieldCamera as ViewerCamera, quaternion, SpotViewer, type ViewerState } from '@spot/camera-viewer';
+import { SpotViewer, quaternion } from '@spot/camera-viewer';
+import type { FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
 import type { Candidate, Detections } from '../live';
 import { fmt } from './common';
@@ -12,7 +13,7 @@ const TAG_SIZE = 0.1651;
 const PALETTE = ['#2f7fc1', '#d9822b', '#2e9d5b', '#c8467a', '#8a5cc7', '#1f9a96', '#b59a12', '#d4553a'];
 /** A stable color per camera, from its position among the sorted camera names. */
 const cameraColor = (names: string[], name: string) =>
-	PALETTE[Math.max(0, [...names].sort().indexOf(name)) % PALETTE.length]!;
+	PALETTE[Math.max(0, names.toSorted().indexOf(name)) % PALETTE.length];
 
 export interface FieldCamera {
 	name: string;
@@ -22,36 +23,38 @@ export interface FieldCamera {
 
 /** WPILib translation in metres and roll, pitch, yaw in degrees, as the viewer's pose. */
 const pose = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => ({
-	translation: [x, y, z],
 	quaternion: quaternion(yaw, pitch, roll),
+	translation: [x, y, z],
 });
 
 function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
-	const names = cameras.map((c) => c.name),
-		viewerCameras = cameras.map((c): ViewerCamera => ({
-			name: c.name,
-			...pose(c.config.mount ?? {}),
-			color: cameraColor(names, c.name),
-			robot: c.detections?.estimate ? pose(c.detections.estimate.primary) : null,
-			tags: c.detections?.tags.filter((t) => t.used).map((t) => t.id) ?? [],
-		}));
+	const names = cameras.map((c) => c.name);
+	const viewerCameras = cameras.map((c): ViewerCamera => ({
+		name: c.name,
+		...pose(c.config.mount ?? {}),
+		color: cameraColor(names, c.name),
+		robot: c.detections?.estimate ? pose(c.detections.estimate.primary) : null,
+		tags: c.detections?.tags.filter((t) => t.used).map((t) => t.id) ?? [],
+	}));
 	// Without a field layout there is nowhere to put estimates; show the mounts on the robot instead.
-	if (!field) return { mounts: viewerCameras };
+	if (!field) {
+		return { mounts: viewerCameras };
+	}
 	const tags = field.tags.map((t) => ({
-			id: t.id,
-			size: TAG_SIZE,
-			translation: [t.x, t.y, t.z],
-			quaternion: [t.qw, t.qx, t.qy, t.qz],
-		})),
-		length = field.length || Math.max(16.5, ...field.tags.map((t) => t.x)),
-		width = field.width || Math.max(8.1, ...field.tags.map((t) => t.y));
-	return { field: { length, width, tags }, cameras: viewerCameras };
+		id: t.id,
+		quaternion: [t.qw, t.qx, t.qy, t.qz],
+		size: TAG_SIZE,
+		translation: [t.x, t.y, t.z],
+	}));
+	const length = field.length === 0 ? Math.max(16.5, ...field.tags.map((t) => t.x)) : field.length;
+	const width = field.width || Math.max(8.1, ...field.tags.map((t) => t.y));
+	return { cameras: viewerCameras, field: { length, tags, width } };
 }
 
 const median = (values: number[]) => {
-	const sorted = values.toSorted((a, b) => a - b),
-		middle = sorted.length / 2;
-	return sorted.length % 2 ? sorted[Math.floor(middle)]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
+	const sorted = values.toSorted((a, b) => a - b);
+	const middle = sorted.length / 2;
+	return sorted.length % 2 ? sorted[Math.floor(middle)] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
 /** Each camera's robot estimate against the median of all of them; mount errors show up as outliers. */
@@ -59,13 +62,15 @@ function agreement(cameras: FieldCamera[]) {
 	const estimates = cameras.flatMap((c) =>
 		c.detections?.estimate ? [[c.name, c.detections.estimate.primary] as const] : [],
 	);
-	if (estimates.length < 2) return new Map<string, { distance: number; yaw: number }>();
+	if (estimates.length < 2) {
+		return new Map<string, { distance: number; yaw: number }>();
+	}
 	// Unwrap yaws around the first so the median works across ±180°.
-	const first = estimates[0]![1].yaw,
-		yaw = (c: Candidate) => first + ((((c.yaw - first) % 360) + 540) % 360) - 180,
-		x = median(estimates.map(([, c]) => c.x)),
-		y = median(estimates.map(([, c]) => c.y)),
-		heading = median(estimates.map(([, c]) => yaw(c)));
+	const first = estimates[0][1].yaw;
+	const yaw = (c: Candidate) => first + ((((c.yaw - first) % 360) + 540) % 360) - 180;
+	const x = median(estimates.map(([, c]) => c.x));
+	const y = median(estimates.map(([, c]) => c.y));
+	const heading = median(estimates.map(([, c]) => yaw(c)));
 	return new Map(
 		estimates.map(([name, c]) => [name, { distance: Math.hypot(c.x - x, c.y - y), yaw: Math.abs(yaw(c) - heading) }]),
 	);
@@ -84,11 +89,11 @@ export function Field3D({
 	cameras: FieldCamera[];
 	className?: string;
 }) {
-	const canvas = useRef<HTMLCanvasElement>(null),
-		viewer = useRef<SpotViewer>(null),
-		state = useRef<ViewerState>({}),
-		names = cameras.map((c) => c.name),
-		offsets = agreement(cameras);
+	const canvas = useRef<HTMLCanvasElement>(null);
+	const viewer = useRef<SpotViewer>(null);
+	const state = useRef<ViewerState>({});
+	const names = cameras.map((c) => c.name);
+	const offsets = agreement(cameras);
 
 	useEffect(() => {
 		const v = new SpotViewer(canvas.current!, () => state.current);
@@ -123,9 +128,9 @@ export function Field3D({
 			</div>
 			<ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
 				{cameras.map((c) => {
-					const estimate = c.detections?.estimate,
-						used = c.detections?.tags.filter((t) => t.used).length ?? 0,
-						offset = offsets.get(c.name);
+					const estimate = c.detections?.estimate;
+					const used = c.detections?.tags.filter((t) => t.used).length ?? 0;
+					const offset = offsets.get(c.name);
 					return (
 						<li key={c.name} className="flex items-center gap-2">
 							<span className="size-2.5 rounded-full" style={{ background: cameraColor(names, c.name) }} />

@@ -10,8 +10,8 @@ const foxglove = new FoxgloveClient(
 function useTopic<T>(topic: string, decode: (payload: Uint8Array) => T) {
 	const [value, setValue] = useState<T>();
 	useEffect(() => {
-		let latest: Uint8Array | undefined,
-			frame = 0;
+		let frame = 0;
+		let latest: Uint8Array | undefined;
 		const unsubscribe = foxglove.subscribe(topic, (payload) => {
 			latest = payload;
 			frame ||= requestAnimationFrame(() => {
@@ -24,6 +24,7 @@ function useTopic<T>(topic: string, decode: (payload: Uint8Array) => T) {
 			cancelAnimationFrame(frame);
 			setValue(undefined);
 		};
+		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- The animation callback captures decode; changing it must replace the subscription.
 	}, [topic, decode]);
 	return value;
 }
@@ -63,6 +64,7 @@ export interface Detections {
 }
 
 const text = new TextDecoder();
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Spot serializes this topic from the backend Detections schema.
 export const decodeDetections = (payload: Uint8Array) => JSON.parse(text.decode(payload)) as Detections;
 // `foxglove.CompressedImage` keeps the JPEG in field 2.
 export const decodeImage = (payload: Uint8Array) => protobufBytes(payload, 2);
@@ -71,8 +73,8 @@ export const useDetections = (camera: string) => useTopic(`/${camera}/detections
 
 /** The latest detections from each camera, updated at most once per animation frame. */
 export function useAllDetections(cameras: string[]) {
-	const [value, setValue] = useState(new Map<string, Detections>()),
-		key = cameras.join('\n');
+	const [value, setValue] = useState(new Map<string, Detections>());
+	const key = cameras.join('\n');
 	useEffect(() => {
 		const latest = new Map<string, Uint8Array>();
 		let frame = 0;
@@ -84,12 +86,14 @@ export function useAllDetections(cameras: string[]) {
 					latest.set(camera, payload);
 					frame ||= requestAnimationFrame(() => {
 						frame = 0;
-						setValue(new Map([...latest].map(([name, payload]) => [name, decodeDetections(payload)])));
+						setValue(new Map([...latest].map(([name, bytes]) => [name, decodeDetections(bytes)])));
 					});
 				}),
 			);
 		return () => {
-			for (const unsubscribe of unsubscribes) unsubscribe();
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe();
+			}
 			cancelAnimationFrame(frame);
 			setValue(new Map());
 		};
@@ -103,6 +107,7 @@ export interface Charuco {
 	ids: number[];
 	corners: [number, number][];
 }
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Spot serializes this topic from the backend ChArUco schema.
 const decodeCharuco = (payload: Uint8Array) => JSON.parse(text.decode(payload)) as Charuco;
 /** ChArUco board corners, only published while the camera is being calibrated. */
 export const useCharuco = (camera: string) => useTopic(`/${camera}/charuco`, decodeCharuco);
@@ -111,12 +116,15 @@ export const useCharuco = (camera: string) => useTopic(`/${camera}/charuco`, dec
 export function useImage(camera: string) {
 	const jpeg = useTopic(`/${camera}/image`, decodeImage);
 	const url = useMemo(
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Foxglove image bytes are views into WebSocket ArrayBuffers, never SharedArrayBuffers.
 		() => jpeg && URL.createObjectURL(new Blob([jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' })),
 		[jpeg],
 	);
 	useEffect(
 		() => () => {
-			if (url) URL.revokeObjectURL(url);
+			if (url) {
+				URL.revokeObjectURL(url);
+			}
 		},
 		[url],
 	);

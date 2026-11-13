@@ -3,8 +3,9 @@ import { Link, useParams } from '@tanstack/react-router';
 import type { ControlRange } from '../api';
 import type { Json } from '../overrides';
 import { useConfig, useDevices, useEditOverrides, useStatus } from '../queries';
-import { useDetections, type Candidate } from '../live';
-import { DataList, ErrorText, fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { useDetections } from '../live';
+import type { Candidate } from '../live';
+import { DataList, ErrorText, PageTitle, Panel, StateBadge, fmt } from '../components/common';
 import { LiveView } from '../components/LiveView';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -25,13 +26,14 @@ function ControlSlider({
 	onChange: (value: number | null, done: () => void) => void;
 }) {
 	const [draft, setDraft] = useState<number>();
-	if (!range)
+	if (!range) {
 		return (
 			<div className="flex flex-col gap-2">
 				<Label>{label}</Label>
 				<span className="text-sm text-muted-foreground">Not supported by this camera</span>
 			</div>
 		);
+	}
 	const shown = draft ?? value ?? range.default;
 	return (
 		<div className="flex flex-col gap-2">
@@ -48,10 +50,27 @@ function ControlSlider({
 					max={range.max}
 					step={range.step || 1}
 					value={shown}
-					onValueChange={(v) => setDraft(v as number)}
-					onValueCommitted={(v) => onChange(v as number, () => setDraft(undefined))}
+					onValueChange={(v) => {
+						if (typeof v === 'number') {
+							setDraft(v);
+						}
+					}}
+					onValueCommitted={(v) => {
+						if (typeof v === 'number') {
+							onChange(v, () => {
+								setDraft(undefined);
+							});
+						}
+					}}
 				/>
-				<Button variant="outline" size="sm" disabled={value == null} onClick={() => onChange(null, () => {})}>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={value == null}
+					onClick={() => {
+						onChange(null, () => {});
+					}}
+				>
 					Reset
 				</Button>
 			</div>
@@ -60,20 +79,28 @@ function ControlSlider({
 }
 
 function Settings({ name }: { name: string }) {
-	const edit = useEditOverrides(),
-		camera = useConfig().data?.config?.cameras?.[name],
-		device = useDevices().data?.find((d) => d.camera === name),
-		controls = camera?.controls ?? {},
-		mode = camera?.mode ?? '',
-		modes = device?.modes.includes(mode) || !mode ? (device?.modes ?? []) : [mode, ...(device?.modes ?? [])],
-		range = (control: string) => device?.controls.find((c) => c.name === control),
-		set = (key: string[], value: Json, done?: () => void) =>
-			edit.set([[['cameras', name, ...key], value]], { onSettled: done });
+	const edit = useEditOverrides();
+	const camera = useConfig().data?.config?.cameras?.[name];
+	const device = useDevices().data?.find((d) => d.camera === name);
+	const controls = camera?.controls ?? {};
+	const mode = camera?.mode ?? '';
+	const modes = device?.modes.includes(mode) || !mode ? (device?.modes ?? []) : [mode, ...(device?.modes ?? [])];
+	const range = (control: string) => device?.controls.find((c) => c.name === control);
+	const set = (key: string[], value: Json, done?: () => void) => {
+		edit.set([[['cameras', name, ...key], value]], { onSettled: done });
+	};
 	return (
 		<Panel title="Settings">
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="mode">Mode</Label>
-				<NativeSelect id="mode" className="w-full" value={mode} onChange={(e) => set(['mode'], e.target.value)}>
+				<NativeSelect
+					id="mode"
+					className="w-full"
+					value={mode}
+					onChange={(e) => {
+						set(['mode'], e.target.value);
+					}}
+				>
 					{modes.map((m) => (
 						<NativeSelectOption key={m} value={m}>
 							{m}
@@ -88,7 +115,9 @@ function Settings({ name }: { name: string }) {
 					className="w-full"
 					value={controls.auto_exposure ?? ''}
 					disabled={!range('auto_exposure')}
-					onChange={(e) => set(['controls', 'auto_exposure'], e.target.value || null)}
+					onChange={(e) => {
+						set(['controls', 'auto_exposure'], e.target.value || null);
+					}}
 				>
 					<NativeSelectOption value="">Camera default</NativeSelectOption>
 					<NativeSelectOption value="manual">Manual</NativeSelectOption>
@@ -99,13 +128,17 @@ function Settings({ name }: { name: string }) {
 				label="Exposure"
 				range={range('exposure_time_absolute')}
 				value={controls.exposure_time_absolute}
-				onChange={(v, done) => set(['controls', 'exposure_time_absolute'], v, done)}
+				onChange={(v, done) => {
+					set(['controls', 'exposure_time_absolute'], v, done);
+				}}
 			/>
 			<ControlSlider
 				label="Gain"
 				range={range('gain')}
 				value={controls.gain}
-				onChange={(v, done) => set(['controls', 'gain'], v, done)}
+				onChange={(v, done) => {
+					set(['controls', 'gain'], v, done);
+				}}
 			/>
 			<ErrorText error={edit.error} />
 		</Panel>
@@ -118,8 +151,8 @@ const candidate = (c: Candidate | null | undefined) =>
 		: '—';
 
 function Detections({ name }: { name: string }) {
-	const detections = useDetections(name),
-		estimate = detections?.estimate;
+	const detections = useDetections(name);
+	const estimate = detections?.estimate;
 	return (
 		<>
 			<Panel title="Estimate">
@@ -127,8 +160,8 @@ function Detections({ name }: { name: string }) {
 					values={{
 						Primary: candidate(estimate?.primary),
 						Alternate: candidate(estimate?.alternate),
-						'Average tag distance': estimate ? fmt(estimate.average_tag_distance, 2) + ' m' : '—',
-						'Tag area': estimate ? fmt(estimate.tag_area * 100, 2) + '%' : '—',
+						'Average tag distance': estimate ? `${fmt(estimate.average_tag_distance, 2)} m` : '—',
+						'Tag area': estimate ? `${fmt(estimate.tag_area * 100, 2)}%` : '—',
 					}}
 				/>
 			</Panel>
@@ -146,7 +179,7 @@ function Detections({ name }: { name: string }) {
 						</TableHeader>
 						<TableBody>
 							{detections.tags.map((t) => (
-								<TableRow key={t.id + ':' + t.corners.join()}>
+								<TableRow key={`${t.id}:${t.corners.join(',')}`}>
 									<TableCell>{t.id}</TableCell>
 									<TableCell>{t.used ? 'Yes' : 'No'}</TableCell>
 									<TableCell>{t.hamming}</TableCell>
@@ -167,10 +200,10 @@ function Detections({ name }: { name: string }) {
 }
 
 export default function CameraDetail() {
-	const { name } = useParams({ from: '/cameras/$name' }),
-		status = useStatus(),
-		camera = status.data?.cameras.find((c) => c.name === name);
-	if (!camera)
+	const { name } = useParams({ from: '/cameras/$name' });
+	const status = useStatus();
+	const camera = status.data?.cameras.find((c) => c.name === name);
+	if (!camera) {
 		return (
 			<>
 				<PageTitle>{name}</PageTitle>
@@ -179,6 +212,7 @@ export default function CameraDetail() {
 				</p>
 			</>
 		);
+	}
 	return (
 		<>
 			<PageTitle>{name}</PageTitle>

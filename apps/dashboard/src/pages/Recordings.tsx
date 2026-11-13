@@ -24,7 +24,7 @@ export default function Recordings() {
 							{recordings.map((r) => (
 								<TableRow key={r.name}>
 									<TableCell>
-										<a href={'/recordings/' + encodeURIComponent(r.name)} download>
+										<a href={`/recordings/${encodeURIComponent(r.name)}`} download>
 											{r.name}
 										</a>
 									</TableCell>

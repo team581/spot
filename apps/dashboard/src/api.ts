@@ -16,6 +16,8 @@ export const client = createClient<paths>();
 // Failed requests reject with the service's error text, including ones with an empty body.
 client.use({
 	async onResponse({ response }) {
-		if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+		if (!response.ok) {
+			throw new Error((await response.text()) || `HTTP ${response.status}`);
+		}
 	},
 });

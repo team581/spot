@@ -3,6 +3,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+
 export interface Pose {
 	translation: number[];
 	quaternion: number[];
@@ -29,9 +30,9 @@ export interface ViewerState {
 	drivebase?: { visible: boolean; length: number; width: number };
 }
 export function rotate(q: number[], v: number[]): number[] {
-	const n = Math.hypot(...q),
-		[w, x, y, z] = q.map((a) => a / n),
-		[a, b, c] = v;
+	const n = Math.hypot(...q);
+	const [w, x, y, z] = q.map((a) => a / n);
+	const [a, b, c] = v;
 	return [
 		(1 - 2 * (y * y + z * z)) * a + 2 * (x * y - z * w) * b + 2 * (x * z + y * w) * c,
 		2 * (x * y + z * w) * a + (1 - 2 * (x * x + z * z)) * b + 2 * (y * z - x * w) * c,
@@ -39,8 +40,8 @@ export function rotate(q: number[], v: number[]): number[] {
 	];
 }
 export function angles(q: number[]): number[] {
-	const n = Math.hypot(...q),
-		[w, x, y, z] = q.map((v) => v / n);
+	const n = Math.hypot(...q);
+	const [w, x, y, z] = q.map((v) => v / n);
 	return [
 		Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
 		Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x)))),
@@ -48,8 +49,8 @@ export function angles(q: number[]): number[] {
 	].map((v) => (v * 180) / Math.PI);
 }
 export function quaternion(yaw: number, pitch: number, roll: number): number[] {
-	const [z, y, x] = [yaw, pitch, roll].map((v) => (v * Math.PI) / 360),
-		[cz, sz, cy, sy, cx, sx] = [Math.cos(z), Math.sin(z), Math.cos(y), Math.sin(y), Math.cos(x), Math.sin(x)];
+	const [z, y, x] = [yaw, pitch, roll].map((v) => (v * Math.PI) / 360);
+	const [cz, sz, cy, sy, cx, sx] = [Math.cos(z), Math.sin(z), Math.cos(y), Math.sin(y), Math.cos(x), Math.sin(x)];
 	return [
 		cz * cy * cx + sz * sy * sx,
 		cz * cy * sx - sz * sy * cx,
@@ -65,8 +66,8 @@ export function cameraQuaternion(yaw: number, pitch: number, roll: number): numb
 	return quaternion(yaw, pitch, roll);
 }
 function multiply(a: number[], b: number[]) {
-	const [w, x, y, z] = a,
-		[v, i, j, k] = b;
+	const [w, x, y, z] = a;
+	const [v, i, j, k] = b;
 	return [
 		w * v - x * i - y * j - z * k,
 		w * i + x * v + y * k - z * j,
@@ -77,8 +78,8 @@ function multiply(a: number[], b: number[]) {
 /** `child` relative to `parent`, as a pose in `parent`'s frame. */
 export function compose(parent: Pose, child: Pose): Pose {
 	return {
-		translation: rotate(parent.quaternion, child.translation).map((v, i) => v + parent.translation[i]),
 		quaternion: multiply(parent.quaternion, child.quaternion),
+		translation: rotate(parent.quaternion, child.translation).map((v, i) => v + parent.translation[i]),
 	};
 }
 /** A CSS custom property name (without `--`), or any other CSS color. */
@@ -95,8 +96,8 @@ export interface Scene {
 	status: string;
 }
 function posed(parent: THREE.Object3D, pose: Pose): THREE.Group {
-	const group = new THREE.Group(),
-		[w, x, y, z] = pose.quaternion;
+	const group = new THREE.Group();
+	const [w, x, y, z] = pose.quaternion;
 	group.position.fromArray(pose.translation);
 	group.quaternion.set(x, y, z, w).normalize();
 	parent.add(group);
@@ -107,15 +108,17 @@ function lines(parent: THREE.Object3D, geometry: LineSegmentsGeometry, color: Co
 	object.name = color;
 	parent.add(object);
 }
-const segments = (parent: THREE.Object3D, points: number[][], color: Color, width = 1) =>
+const segments = (parent: THREE.Object3D, points: number[][], color: Color, width = 1) => {
 	lines(parent, new LineSegmentsGeometry().setPositions(points.flat()), color, width);
-const loop = (parent: THREE.Object3D, points: number[][], color: Color, width = 1) =>
+};
+const loop = (parent: THREE.Object3D, points: number[][], color: Color, width = 1) => {
 	segments(
 		parent,
 		points.flatMap((p, i) => [p, points[(i + 1) % points.length]]),
 		color,
 		width,
 	);
+};
 const rectangle = (x: number, y: number) => [
 	[-x / 2, -y / 2, 0],
 	[x / 2, -y / 2, 0],
@@ -137,18 +140,20 @@ function box(parent: THREE.Object3D, [x, y, z]: number[], color: Color) {
 	lines(parent, new LineSegmentsGeometry().fromEdgesGeometry(edges), color, 1.5);
 }
 function arrow(parent: THREE.Object3D, direction: number[], text: string, color: Color) {
-	const d = direction.map((v) => v * 0.82),
-		sides = direction[0]
-			? [
-					[d[0], -0.08, d[2]],
-					[d[0], 0.08, d[2]],
-				]
-			: [
-					[d[0] - 0.08, d[1], d[2]],
-					[d[0] + 0.08, d[1], d[2]],
-				];
+	const d = direction.map((v) => v * 0.82);
+	const sides = direction[0]
+		? [
+				[d[0], -0.08, d[2]],
+				[d[0], 0.08, d[2]],
+			]
+		: [
+				[d[0] - 0.08, d[1], d[2]],
+				[d[0] + 0.08, d[1], d[2]],
+			];
 	segments(parent, [[0, 0, 0], direction, ...sides.flatMap((p) => [direction, p])], color, 2);
-	if (text) label(parent, text, direction, color);
+	if (text) {
+		label(parent, text, direction, color);
+	}
 }
 function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string, lens = 'Lens') {
 	const group = posed(parent, pose);
@@ -168,19 +173,23 @@ function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string, 
 }
 /** Builds the scene in WPILib NWU metres. Needs `document` for labels but no WebGL. */
 export function buildScene({ field, cameras, inspection, mounts, selectedName, drivebase }: ViewerState): Scene {
-	const root = new THREE.Group(),
-		arena = !inspection && !mounts ? field : undefined,
-		estimates = arena ? (cameras ?? []).filter((c) => c.robot) : [],
-		// Cameras without an estimate ride on another camera's robot, or one at midfield.
-		reference: Pose = estimates[0]?.robot ?? {
-			translation: arena ? [arena.length / 2, arena.width / 2, 0] : [0, 0, 0],
-			quaternion: [1, 0, 0, 0],
-		};
+	const root = new THREE.Group();
+	const arena = !inspection && !mounts ? field : undefined;
+	const estimates = arena ? (cameras ?? []).filter((c) => c.robot) : [];
+	// Cameras without an estimate ride on another camera's robot, or one at midfield.
+	const reference: Pose = estimates[0]?.robot ?? {
+		quaternion: [1, 0, 0, 0],
+		translation: arena ? [arena.length / 2, arena.width / 2, 0] : [0, 0, 0],
+	};
 	if (arena) {
-		const { length, width } = arena,
-			grid: number[][] = [];
-		for (let x = 1; x < length; x++) grid.push([x, 0, 0], [x, width, 0]);
-		for (let y = 1; y < width; y++) grid.push([0, y, 0], [length, y, 0]);
+		const { length, width } = arena;
+		const grid: number[][] = [];
+		for (let x = 1; x < length; x++) {
+			grid.push([x, 0, 0], [x, width, 0]);
+		}
+		for (let y = 1; y < width; y++) {
+			grid.push([0, y, 0], [length, y, 0]);
+		}
 		segments(root, grid, 'line');
 		loop(
 			root,
@@ -191,8 +200,9 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 		label(root, 'Blue-wall-right origin', [0, 0, 0], 'blue');
 	} else {
 		const grid: number[][] = [];
-		for (let i = -3; i <= 3; i++)
+		for (let i = -3; i <= 3; i++) {
 			grid.push([i * 0.4, -1.2, 0], [i * 0.4, 1.2, 0], [-1.2, i * 0.4, 0], [1.2, i * 0.4, 0]);
+		}
 		segments(root, grid, 'line');
 		const chassis = posed(root, reference);
 		if (
@@ -202,8 +212,10 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 			drivebase.length > 0 &&
 			drivebase.width > 0
 		)
-			// Footprint only: X is length, Y is width. No guessed chassis height.
+		// Footprint only: X is length, Y is width. No guessed chassis height.
+		{
 			loop(chassis, rectangle(drivebase.length, drivebase.width), 'accent-text', 2.5);
+		}
 		arrow(chassis, [0, 0, 0.8], '+Z up', 'muted-foreground');
 		arrow(chassis, [0.95, 0, 0.03], 'Front · +X', 'accent-text');
 		arrow(chassis, [0, 0.65, 0.03], '+Y left', 'muted-foreground');
@@ -216,27 +228,35 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 		}
 	} else if (arena) {
 		const robot = (parent: THREE.Object3D, pose: Pose, color: Color) => {
-				const chassis = posed(parent, pose);
-				box(chassis, [0.9, 0.9, 0.15], color);
-				arrow(chassis, [0.75, 0, 0.15], '', color);
-			},
-			tags = new Map((arena.tags ?? []).map((t) => [t.id, t])),
-			seen = new Map<number, Color>();
-		if (!estimates.length) robot(root, reference, 'muted-foreground');
+			const chassis = posed(parent, pose);
+			box(chassis, [0.9, 0.9, 0.15], color);
+			arrow(chassis, [0.75, 0, 0.15], '', color);
+		};
+		const tags = new Map((arena.tags ?? []).map((t) => [t.id, t]));
+		const seen = new Map<number, Color>();
+		if (estimates.length === 0) {
+			robot(root, reference, 'muted-foreground');
+		}
 		for (const c of cameras ?? []) {
 			const view = compose(c.robot ?? reference, c);
-			if (c.robot) robot(root, c.robot, c.color);
+			if (c.robot) {
+				robot(root, c.robot, c.color);
+			}
 			camera(root, view, c.color, c.name, '');
 			for (const id of c.robot ? c.tags : []) {
 				const tag = tags.get(id);
-				if (!tag) continue;
+				if (!tag) {
+					continue;
+				}
 				segments(root, [view.translation, tag.translation], c.color);
-				if (!seen.has(id)) seen.set(id, c.color);
+				if (!seen.has(id)) {
+					seen.set(id, c.color);
+				}
 			}
 		}
 		for (const tag of tags.values()) {
-			const half = tag.size / 2,
-				color = seen.get(tag.id) ?? 'muted-foreground';
+			const half = tag.size / 2;
+			const color = seen.get(tag.id) ?? 'muted-foreground';
 			loop(
 				posed(root, tag),
 				[
@@ -248,25 +268,28 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 				color,
 				1.5,
 			);
-			label(root, '#' + tag.id, tag.translation, color);
+			label(root, `#${tag.id}`, tag.translation, color);
 		}
 	}
 	return {
-		root,
-		center: estimates.length
-			? [...reference.translation.slice(0, 2), 0.3]
-			: arena
-				? [arena.length / 2, arena.width / 2, 0]
-				: [0, 0, 0.3],
-		extent: arena && !estimates.length ? [arena.length + 2, arena.width + 2] : [3, 3],
+		center:
+			estimates.length > 0
+				? [...reference.translation.slice(0, 2), 0.3]
+				: arena
+					? [arena.length / 2, arena.width / 2, 0]
+					: [0, 0, 0.3],
+		extent: arena && estimates.length === 0 ? [arena.length + 2, arena.width + 2] : [3, 3],
 		focused: estimates.length > 0,
-		status: arena && !estimates.length ? 'No camera sees a tag · mounts shown on a robot at midfield' : '',
+		root,
+		status: arena && estimates.length === 0 ? 'No camera sees a tag · mounts shown on a robot at midfield' : '',
 	};
 }
 function dispose(root: THREE.Object3D) {
 	root.removeFromParent();
 	root.traverse((object) => {
-		if (object instanceof CSS2DObject) object.element.remove();
+		if (object instanceof CSS2DObject) {
+			object.element.remove();
+		}
 		if (object instanceof LineSegments2) {
 			object.geometry.dispose();
 			object.material.dispose();
@@ -274,45 +297,45 @@ function dispose(root: THREE.Object3D) {
 	});
 }
 const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE']);
-const defaultOrbit = () => ({ azimuth: -1.05, elevation: 0.72, zoom: 1, pan: [0, 0, 0] });
+const defaultOrbit = () => ({ azimuth: -1.05, elevation: 0.72, pan: [0, 0, 0], zoom: 1 });
 export class SpotViewer {
 	readonly canvas: HTMLCanvasElement;
-	private provider: () => ViewerState;
+	private readonly provider: () => ViewerState;
 	/** `pan` offsets the orbit target in WPILib NWU metres. */
 	readonly orbit: { azimuth: number; elevation: number; zoom: number; pan: number[] } = defaultOrbit();
 	/** Visible height in metres, so movement speed matches what is on screen. */
 	private span = 3;
 	/** Movement keys held down, by `KeyboardEvent.code`. */
-	private held = new Set<string>();
+	private readonly held = new Set<string>();
 	private frame = 0;
 	private last = 0;
 	private framing = { center: [0, 0, 0], extent: [3, 3] };
 	/** Holds framing on the robot so flickering detections don't move the view. */
 	private focused = false;
 	private drag: number[] | null = null;
-	private listeners: (() => void)[] = [];
-	private resize: ResizeObserver;
-	private renderer: THREE.WebGLRenderer;
-	private labels = new CSS2DRenderer();
-	private status = document.createElement('div');
-	private scene = new THREE.Scene();
-	private camera = new THREE.OrthographicCamera();
+	private readonly listeners: (() => void)[] = [];
+	private readonly resize: ResizeObserver;
+	private readonly renderer: THREE.WebGLRenderer;
+	private readonly labels = new CSS2DRenderer();
+	private readonly status = document.createElement('div');
+	private readonly scene = new THREE.Scene();
+	private readonly camera = new THREE.OrthographicCamera();
 	private content: THREE.Group | null = null;
-	private probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+	private readonly probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
 
 	constructor(canvas: HTMLCanvasElement, provider: () => ViewerState) {
 		this.canvas = canvas;
 		this.provider = provider;
-		this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+		this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas });
 		this.renderer.setPixelRatio(devicePixelRatio);
 		const overlay = this.labels.domElement;
-		Object.assign(overlay.style, { position: 'absolute', pointerEvents: 'none', font: '14px system-ui' });
+		Object.assign(overlay.style, { font: '14px system-ui', pointerEvents: 'none', position: 'absolute' });
 		Object.assign(this.status.style, {
+			color: 'var(--muted-foreground)',
+			fontSize: '13px',
+			left: '16px',
 			position: 'absolute',
 			top: '16px',
-			left: '16px',
-			fontSize: '13px',
-			color: 'var(--muted-foreground)',
 		});
 		overlay.append(this.status);
 		canvas.after(overlay);
@@ -322,7 +345,9 @@ export class SpotViewer {
 			options?: AddEventListenerOptions,
 		) => {
 			canvas.addEventListener(event, handler, options);
-			this.listeners.push(() => canvas.removeEventListener(event, handler, options));
+			this.listeners.push(() => {
+				canvas.removeEventListener(event, handler, options);
+			});
 		};
 		on('pointerdown', (event) => {
 			this.drag = [event.clientX, event.clientY];
@@ -330,7 +355,9 @@ export class SpotViewer {
 			canvas.focus();
 		});
 		on('pointermove', (event) => {
-			if (!this.drag) return;
+			if (!this.drag) {
+				return;
+			}
 			this.orbit.azimuth -= (event.clientX - this.drag[0]) * 0.008;
 			this.orbit.elevation = Math.max(
 				0.12,
@@ -339,10 +366,11 @@ export class SpotViewer {
 			this.drag = [event.clientX, event.clientY];
 			this.draw();
 		});
-		for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'] as const)
+		for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
 			on(event, () => {
 				this.drag = null;
 			});
+		}
 		on(
 			'wheel',
 			(event) => {
@@ -353,7 +381,9 @@ export class SpotViewer {
 			{ passive: false },
 		);
 		on('keydown', (event) => {
-			if (event.metaKey || event.ctrlKey || event.altKey) return;
+			if (event.metaKey || event.ctrlKey || event.altKey) {
+				return;
+			}
 			if (movement.has(event.code)) {
 				event.preventDefault();
 				this.held.add(event.code);
@@ -363,19 +393,37 @@ export class SpotViewer {
 				}
 				return;
 			}
-			if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-'].includes(event.key)) return;
+			if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-'].includes(event.key)) {
+				return;
+			}
 			event.preventDefault();
-			if (event.key === 'ArrowLeft') this.orbit.azimuth -= 0.1;
-			if (event.key === 'ArrowRight') this.orbit.azimuth += 0.1;
-			if (event.key === 'ArrowUp') this.orbit.elevation = Math.min(1.5, this.orbit.elevation + 0.1);
-			if (event.key === 'ArrowDown') this.orbit.elevation = Math.max(0.12, this.orbit.elevation - 0.1);
-			if (event.key === '+' || event.key === '=') this.orbit.zoom = Math.min(5, this.orbit.zoom * 1.1);
-			if (event.key === '-') this.orbit.zoom = Math.max(0.25, this.orbit.zoom / 1.1);
+			if (event.key === 'ArrowLeft') {
+				this.orbit.azimuth -= 0.1;
+			}
+			if (event.key === 'ArrowRight') {
+				this.orbit.azimuth += 0.1;
+			}
+			if (event.key === 'ArrowUp') {
+				this.orbit.elevation = Math.min(1.5, this.orbit.elevation + 0.1);
+			}
+			if (event.key === 'ArrowDown') {
+				this.orbit.elevation = Math.max(0.12, this.orbit.elevation - 0.1);
+			}
+			if (event.key === '+' || event.key === '=') {
+				this.orbit.zoom = Math.min(5, this.orbit.zoom * 1.1);
+			}
+			if (event.key === '-') {
+				this.orbit.zoom = Math.max(0.25, this.orbit.zoom / 1.1);
+			}
 			this.render();
 		});
 		on('keyup', (event) => this.held.delete(event.code));
-		on('blur', () => this.held.clear());
-		this.resize = new ResizeObserver(() => this.render());
+		on('blur', () => {
+			this.held.clear();
+		});
+		this.resize = new ResizeObserver(() => {
+			this.render();
+		});
 		this.resize.observe(canvas);
 	}
 	reset(): void {
@@ -384,12 +432,12 @@ export class SpotViewer {
 		this.draw();
 	}
 	/** Moves continuously while WASD/QE are held: A/D pan, Q/E lower/raise, W/S zoom in/out. */
-	private move = (time: number) => {
-		const seconds = Math.min(0.1, (time - this.last) / 1000),
-			held = (code: string) => (this.held.has(code) ? 1 : 0),
-			right = (held('KeyD') - held('KeyA')) * this.span * seconds,
-			up = (held('KeyE') - held('KeyQ')) * this.span * seconds,
-			a = this.orbit.azimuth;
+	private readonly move = (time: number) => {
+		const seconds = Math.min(0.1, (time - this.last) / 1000);
+		const held = (code: string) => (this.held.has(code) ? 1 : 0);
+		const right = (held('KeyD') - held('KeyA')) * this.span * seconds;
+		const up = (held('KeyE') - held('KeyQ')) * this.span * seconds;
+		const a = this.orbit.azimuth;
 		this.last = time;
 		this.orbit.pan = this.orbit.pan.map((v, i) => v + [-Math.sin(a) * right, Math.cos(a) * right, up][i]);
 		this.orbit.zoom = Math.max(
@@ -397,13 +445,17 @@ export class SpotViewer {
 			Math.min(5, this.orbit.zoom * Math.exp((held('KeyW') - held('KeyS')) * 1.5 * seconds)),
 		);
 		this.render();
-		this.frame = this.held.size ? requestAnimationFrame(this.move) : 0;
+		this.frame = this.held.size > 0 ? requestAnimationFrame(this.move) : 0;
 	};
 	destroy(): void {
 		cancelAnimationFrame(this.frame);
-		for (const remove of this.listeners) remove();
+		for (const remove of this.listeners) {
+			remove();
+		}
 		this.resize.disconnect();
-		if (this.content) dispose(this.content);
+		if (this.content) {
+			dispose(this.content);
+		}
 		this.renderer.dispose();
 		this.labels.domElement.remove();
 	}
@@ -417,19 +469,24 @@ export class SpotViewer {
 	}
 	/** Rebuilds the scene from the provider, then renders. */
 	draw(): void {
-		if (this.content) dispose(this.content);
-		const { root, center, extent, focused, status } = buildScene(this.provider()),
-			styles = getComputedStyle(this.canvas),
-			palette = new Map<string, THREE.Color>();
+		if (this.content) {
+			dispose(this.content);
+		}
+		const { root, center, extent, focused, status } = buildScene(this.provider());
+		const styles = getComputedStyle(this.canvas);
+		const palette = new Map<string, THREE.Color>();
 		this.content = root;
 		this.scene.add(root);
 		root.traverse((object) => {
-			if (!(object instanceof LineSegments2)) return;
-			if (!palette.has(object.name))
+			if (!(object instanceof LineSegments2)) {
+				return;
+			}
+			if (!palette.has(object.name)) {
 				palette.set(
 					object.name,
 					this.color(isProperty(object.name) ? styles.getPropertyValue(`--${object.name}`).trim() : object.name),
 				);
+			}
 			object.material.color.copy(palette.get(object.name)!);
 		});
 		this.status.textContent = status;
@@ -441,36 +498,38 @@ export class SpotViewer {
 	}
 	/** Renders the current scene from the current orbit. */
 	private render(): void {
-		const { canvas, camera, labels } = this,
-			{ center, extent } = this.framing,
-			width = canvas.clientWidth,
-			height = canvas.clientHeight;
-		if (!width || !height) return;
+		const { canvas, camera: viewCamera, labels } = this;
+		const { center, extent } = this.framing;
+		const width = canvas.clientWidth;
+		const height = canvas.clientHeight;
+		if (!width || !height) {
+			return;
+		}
 		this.renderer.setSize(width, height, false);
 		labels.setSize(width, height);
 		Object.assign(labels.domElement.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px` });
 		// Orthographic view of the orbit; the target sits slightly below the middle like a turntable.
-		const { azimuth: a, elevation: e, zoom, pan } = this.orbit,
-			metres = 1 / Math.min(width / extent[0], height / extent[1]),
-			target = new THREE.Vector3().fromArray(center.map((v, i) => v + (pan[i] ?? 0)));
+		const { azimuth: a, elevation: e, zoom, pan } = this.orbit;
+		const metres = 1 / Math.min(width / extent[0], height / extent[1]);
+		const target = new THREE.Vector3().fromArray(center.map((v, i) => v + (pan[i] ?? 0)));
 		this.span = (height * metres) / zoom;
-		Object.assign(camera, {
+		Object.assign(viewCamera, {
+			bottom: -height * 0.44 * metres,
+			far: 200,
 			left: (-width / 2) * metres,
+			near: 0,
 			right: (width / 2) * metres,
 			top: height * 0.56 * metres,
-			bottom: -height * 0.44 * metres,
-			near: 0,
-			far: 200,
 			zoom,
 		});
-		camera.position
+		viewCamera.position
 			.set(Math.cos(e) * Math.cos(a), Math.cos(e) * Math.sin(a), Math.sin(e))
 			.multiplyScalar(100)
 			.add(target);
-		camera.up.set(-Math.sin(e) * Math.cos(a), -Math.sin(e) * Math.sin(a), Math.cos(e));
-		camera.lookAt(target);
-		camera.updateProjectionMatrix();
-		this.renderer.render(this.scene, camera);
-		labels.render(this.scene, camera);
+		viewCamera.up.set(-Math.sin(e) * Math.cos(a), -Math.sin(e) * Math.sin(a), Math.cos(e));
+		viewCamera.lookAt(target);
+		viewCamera.updateProjectionMatrix();
+		this.renderer.render(this.scene, viewCamera);
+		labels.render(this.scene, viewCamera);
 	}
 }

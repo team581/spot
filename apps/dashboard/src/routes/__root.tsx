@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createRootRoute, Link, Outlet, useLocation, useMatchRoute } from '@tanstack/react-router';
+import { Link, Outlet, createRootRoute, useLocation, useMatchRoute } from '@tanstack/react-router';
 import {
 	BookOpen,
 	Camera,
@@ -34,25 +34,28 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { TooltipProvider } from '@/components/ui/tooltip';
 /** Close the mobile navigation sheet after following one of its links. */
 function CloseMobileSidebar() {
-	const { setOpenMobile } = useSidebar(),
-		pathname = useLocation({ select: (location) => location.pathname });
-	useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
+	const { setOpenMobile } = useSidebar();
+	const pathname = useLocation({ select: (location) => location.pathname });
+	useEffect(() => {
+		setOpenMobile(false);
+		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- Close after navigation even though the callback does not read the path.
+	}, [pathname, setOpenMobile]);
 	return null;
 }
 export const Route = createRootRoute({ component: Root });
 const pages = [
-	{ to: '/calibration', label: 'Calibration', icon: Crosshair },
-	{ to: '/config', label: 'Config', icon: FileCog },
-	{ to: '/network', label: 'Network', icon: NetworkIcon },
-	{ to: '/system', label: 'System', icon: Server },
+	{ icon: Crosshair, label: 'Calibration', to: '/calibration' },
+	{ icon: FileCog, label: 'Config', to: '/config' },
+	{ icon: NetworkIcon, label: 'Network', to: '/network' },
+	{ icon: Server, label: 'System', to: '/system' },
 	// `/recordings/` serves the recording files themselves.
-	{ to: '/downloads', label: 'Recordings', icon: HardDrive },
+	{ icon: HardDrive, label: 'Recordings', to: '/downloads' },
 ] as const;
 function Root() {
-	const { data: status, isError } = useStatus(),
-		matchRoute = useMatchRoute(),
-		// The docs pane fills the content area and has its own layout.
-		docs = Boolean(matchRoute({ to: '/help/$' }));
+	const { data: status, isError } = useStatus();
+	const matchRoute = useMatchRoute();
+	// The docs pane fills the content area and has its own layout.
+	const docs = Boolean(matchRoute({ to: '/help/$' }));
 	return (
 		<TooltipProvider>
 			<SidebarProvider defaultOpen={matchMedia('(min-width: 1150px)').matches}>
@@ -85,7 +88,7 @@ function Root() {
 											{status.cameras.map((c) => (
 												<SidebarMenuSubItem key={c.name}>
 													<SidebarMenuSubButton
-														isActive={Boolean(matchRoute({ to: '/cameras/$name', params: { name: c.name } }))}
+														isActive={Boolean(matchRoute({ params: { name: c.name }, to: '/cameras/$name' }))}
 														render={<Link to="/cameras/$name" params={{ name: c.name }} />}
 													>
 														<span>{c.name}</span>
@@ -99,7 +102,7 @@ function Root() {
 								{pages.map((item) => (
 									<SidebarMenuItem key={item.to}>
 										<SidebarMenuButton
-											isActive={Boolean(matchRoute({ to: item.to, fuzzy: true }))}
+											isActive={Boolean(matchRoute({ fuzzy: true, to: item.to }))}
 											tooltip={item.label}
 											render={<Link to={item.to} />}
 										>
@@ -125,7 +128,7 @@ function Root() {
 						<ThemeMenu />
 						<SidebarTrigger className="max-md:hidden" />
 						<small className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-							{status ? 'Spot ' + status.version : 'Spot'}
+							{status ? `Spot ${status.version}` : 'Spot'}
 						</small>
 					</SidebarFooter>
 				</Sidebar>

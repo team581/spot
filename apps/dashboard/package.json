@@ -12,7 +12,7 @@
 		"lint": "vp lint",
 		"lint:fix": "vp lint --fix",
 		"test": "vp test",
-		"generate:api": "cargo run -q --manifest-path ../vision/Cargo.toml -- openapi | pnpm dlx --package=openapi-typescript@7.13.0 --package=typescript@5.9.3 openapi-typescript --default-non-nullable=false -o src/api.gen.ts && vp fmt src/api.gen.ts"
+		"generate:api": "cargo run -q --manifest-path ../vision/Cargo.toml -- openapi | pnpm dlx --package=openapi-typescript@7.13.0 --package=typescript@5.9.3 openapi-typescript --default-non-nullable=false -o src/api.gen.ts && vp lint --fix src/api.gen.ts && vp fmt src/api.gen.ts"
 	},
 	"dependencies": {
 		"@base-ui/react": "1.9.0",

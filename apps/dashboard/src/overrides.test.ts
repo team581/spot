@@ -1,5 +1,15 @@
 import { expect, test } from 'vite-plus/test';
-import { diffOverrides, overridesFor, setOverride } from './overrides';
+import { diffOverrides, overridesFor, parseOverrides, setOverride } from './overrides';
+
+test('parseOverrides accepts nested config values and rejects TOML-only values', () => {
+	expect(parseOverrides('ignored_tags = [3]\n[cameras.front]\nrequired = true\nmount = { x = 0.5 }')).toEqual({
+		ignored_tags: [3],
+		cameras: { front: { required: true, mount: { x: 0.5 } } },
+	});
+	expect(() => parseOverrides('value = 2026-11-12')).toThrow('JSON-compatible');
+	expect(() => parseOverrides('values = [1, inf]')).toThrow('JSON-compatible');
+	expect(() => parseOverrides('[cameras.front]\ngain = nan')).toThrow('JSON-compatible');
+});
 
 test('setOverride sets nested values without touching siblings or the input', () => {
 	const overrides = { ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1 } } } };

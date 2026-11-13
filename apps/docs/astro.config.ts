@@ -33,38 +33,15 @@ const embedded = `if (window.top !== window.self) {
 }`;
 
 export default defineConfig({
-	site: 'https://spot.frc581.com',
 	base,
-	trailingSlash: 'always',
-	outDir: jetson ? '../../dist/jetson-docs' : '../../dist/docs',
-	markdown: {
-		processor: satteri({
-			features: { rawHtml: true },
-			mdastPlugins: [
-				{
-					name: 'pele',
-					code(node) {
-						if (node.lang !== 'mermaid') return;
-						const { svg } = render(node.value, { idPrefix: `pele-${node.position?.start.offset}` });
-						return { type: 'html', value: `<div class="diagram">${svg}</div>` };
-					},
-				},
-			],
-		}),
-	},
 	integrations: [
 		starlight({
-			title: 'Spot documentation',
+			customCss: ['./src/styles/diagrams.css', './src/styles/embedded.css'],
 			description: "Team 581's Jetson vision system: setup, calibration, and robot integration.",
 			favicon: '/favicon.svg',
-			logo: { src: './src/assets/logo.svg' },
-			social: [
-				...(jetson ? [{ icon: 'left-arrow' as const, label: 'Dashboard', href: '/' }] : []),
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot' },
-			],
-			plugins: [team581Theme()],
-			customCss: ['./src/styles/diagrams.css', './src/styles/embedded.css'],
 			head: jetson ? [{ tag: 'script', content: embedded }] : [],
+			logo: { src: './src/assets/logo.svg' },
+			plugins: [team581Theme()],
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
 				{
@@ -87,7 +64,32 @@ export default defineConfig({
 				},
 				{ label: 'Explanation', items: ['explanation/pose-estimates', 'explanation/config'] },
 			],
+			social: [
+				...(jetson ? [{ icon: 'left-arrow' as const, label: 'Dashboard', href: '/' }] : []),
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot' },
+			],
+			title: 'Spot documentation',
 		}),
 		mdx(),
 	],
+	markdown: {
+		processor: satteri({
+			features: { rawHtml: true },
+			mdastPlugins: [
+				{
+					code(node) {
+						if (node.lang !== 'mermaid') {
+							return undefined;
+						}
+						const { svg } = render(node.value, { idPrefix: `pele-${node.position?.start.offset}` });
+						return { type: 'html', value: `<div class="diagram">${svg}</div>` };
+					},
+					name: 'pele',
+				},
+			],
+		}),
+	},
+	outDir: jetson ? '../../dist/jetson-docs' : '../../dist/docs',
+	site: 'https://spot.frc581.com',
+	trailingSlash: 'always',
 });

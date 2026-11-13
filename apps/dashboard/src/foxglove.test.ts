@@ -13,22 +13,22 @@ test('parseMessageData splits the header from the payload', () => {
 test('protobufBytes finds CompressedImage data after other fields', () => {
 	const jpeg = Array.from({ length: 200 }, (_, i) => i);
 	const message = new Uint8Array([
-		// timestamp = { sec: 300 }
+		// Timestamp = { sec: 300 }
 		0x0a,
 		0x03,
 		0x08,
 		0xac,
 		0x02,
-		// frame_id = "f", out of field order
+		// Frame_id = "f", out of field order
 		0x22,
 		0x01,
 		0x66,
-		// data, with a two-byte length varint
+		// Data, with a two-byte length varint
 		0x12,
 		0xc8,
 		0x01,
 		...jpeg,
-		// format = "jpeg"
+		// Format = "jpeg"
 		0x1a,
 		0x04,
 		0x6a,

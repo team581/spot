@@ -310,9 +310,7 @@ export interface components {
 		};
 		CameraConfig: {
 			/** @description Calibrations keyed by resolution, for example `1280x800`. */
-			calibrations?: {
-				[key: string]: components['schemas']['Calibration'];
-			};
+			calibrations?: Record<string, components['schemas']['Calibration']>;
 			controls?: components['schemas']['Controls'];
 			/** @description Capture mode as `WIDTHxHEIGHT@FPS`. */
 			mode?: components['schemas']['Mode'];
@@ -363,9 +361,7 @@ export interface components {
 			/** @description Robot TOML with overrides applied, ready to copy into robot code. */
 			merged: string;
 			/** @description Dashboard overrides: a deep-partial config where `null` removes a key. */
-			overrides: {
-				[key: string]: unknown;
-			};
+			overrides: Record<string, unknown>;
 			/** @description The robot's TOML, live or cached from the last connection. */
 			robot_config?: string | null;
 			/** @description Whether the robot config came from the robot during this connection. */
@@ -520,9 +516,7 @@ export interface components {
 		/** @description Spot's configuration, owned by robot code and sent as TOML over NetworkTables. */
 		RobotConfig: {
 			/** @description Cameras keyed by name. Names appear in NetworkTables topics. */
-			cameras?: {
-				[key: string]: components['schemas']['CameraConfig'];
-			};
+			cameras?: Record<string, components['schemas']['CameraConfig']>;
 			/** @description Tag IDs that are never used for pose estimation. */
 			ignored_tags?: number[];
 		};
@@ -619,9 +613,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'image/svg+xml': string;
 				};
@@ -640,17 +632,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['CalibrationView'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -669,17 +657,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['CalibrationView'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -698,9 +682,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			204: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content?: never;
 			};
 		};
@@ -717,17 +699,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['CalibrationView'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -746,17 +724,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['CalibrationView'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -773,9 +747,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['ConfigView'];
 				};
@@ -792,25 +764,19 @@ export interface operations {
 		/** @description Deep-partial config; null removes a key */
 		requestBody: {
 			content: {
-				'application/json': {
-					[key: string]: unknown;
-				};
+				'application/json': Record<string, unknown>;
 			};
 		};
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['ConfigView'];
 				};
 			};
 			/** @description The merged config is invalid */
 			422: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -827,9 +793,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['DeviceStatus'][];
 				};
@@ -846,17 +810,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['NetworkStatus'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -877,17 +837,13 @@ export interface operations {
 		};
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['NetworkStatus'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -904,17 +860,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['NetworkStatus'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -931,17 +883,13 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['NetworkStatus'];
 				};
 			};
 			409: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'text/plain': string;
 				};
@@ -958,9 +906,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['Recording'][];
 				};
@@ -977,9 +923,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['Settings'];
 				};
@@ -1000,9 +944,7 @@ export interface operations {
 		};
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['Settings'];
 				};
@@ -1019,9 +961,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['Status'];
 				};
@@ -1038,9 +978,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: {
-				headers: {
-					[name: string]: unknown;
-				};
+				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['SystemStatus'];
 				};

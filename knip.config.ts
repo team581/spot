@@ -11,11 +11,11 @@ const config: KnipConfig = {
 			ignoreIssues: { 'src/components/ui/**': ['exports'] },
 		},
 		'apps/docs': {},
-		'packages/camera-viewer': {},
 		'apps/vscode-camera-preview': {
 			entry: ['test/*.cjs'],
 			project: ['*.{ts,mts,cjs}', 'media/*.ts', 'test/**/*.cjs'],
 		},
+		'packages/camera-viewer': {},
 	},
 };
 

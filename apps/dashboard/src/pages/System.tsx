@@ -1,19 +1,21 @@
 import { useStatus, useSystem } from '../queries';
-import { DataList, ErrorText, fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { DataList, ErrorText, PageTitle, Panel, StateBadge, fmt } from '../components/common';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const percent = (value: number | null | undefined) => (value == null ? '—' : fmt(value, 0) + '%');
+const percent = (value: number | null | undefined) => (value == null ? '—' : `${fmt(value, 0)}%`);
 
 function uptime(seconds: number | null | undefined) {
-	if (seconds == null) return '—';
-	const h = Math.floor(seconds / 3600),
-		m = Math.floor((seconds % 3600) / 60);
+	if (seconds == null) {
+		return '—';
+	}
+	const h = Math.floor(seconds / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
 	return h ? `${h} h ${m} min` : `${m} min`;
 }
 
 export default function System() {
-	const { data: system, error } = useSystem(),
-		cameras = useStatus().data?.cameras ?? [];
+	const { data: system, error } = useSystem();
+	const cameras = useStatus().data?.cameras ?? [];
 	return (
 		<>
 			<PageTitle>System</PageTitle>
@@ -26,14 +28,14 @@ export default function System() {
 							GPU: percent(system?.gpu_percent),
 							Memory: percent(system?.memory_percent),
 							Disk: percent(system?.disk_percent),
-							Fan: system?.fan_rpm == null ? '—' : fmt(system.fan_rpm, 0) + ' RPM',
+							Fan: system?.fan_rpm == null ? '—' : `${fmt(system.fan_rpm, 0)} RPM`,
 							Uptime: uptime(system?.uptime_s),
 						}}
 					/>
 				</Panel>
 				<Panel title="Temperatures">
 					{system?.temperatures.length ? (
-						<DataList values={Object.fromEntries(system.temperatures.map((t) => [t.name, fmt(t.celsius) + ' °C']))} />
+						<DataList values={Object.fromEntries(system.temperatures.map((t) => [t.name, `${fmt(t.celsius)} °C`]))} />
 					) : (
 						<p className="text-sm text-muted-foreground">No temperature sensors</p>
 					)}

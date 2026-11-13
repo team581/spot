@@ -5,7 +5,11 @@ const { parseConfig } = require('../config.ts');
 const { previewMount } = require('../media/cameras.ts');
 // Robot-frame axes of WPILib's Java `new Rotation3d(roll, pitch, yaw)`, in degrees.
 const rotations = require('./fixtures/wpilib-rotations.json');
-const close = (a, b) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`));
+
+const close = (a, b) =>
+	a.forEach((v, i) => {
+		assert.ok(Math.abs(v - b[i]) < 1e-10, `${a} != ${b}`);
+	});
 const mount = (fields) => previewMount(parseConfig(`[cameras.camera]\nmount = { ${fields} }`)[0]);
 
 void test('spot.toml roll, pitch and yaw rotate the camera like WPILib Rotation3d', () => {
@@ -16,8 +20,9 @@ void test('spot.toml roll, pitch and yaw rotate the camera like WPILib Rotation3
 			[1, 0, 0],
 			[0, 1, 0],
 			[0, 0, 1],
-		].entries())
+		].entries()) {
 			close(rotate(quaternion, axis), worldAxes[i]);
+		}
 	}
 });
 

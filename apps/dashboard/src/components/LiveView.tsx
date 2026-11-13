@@ -1,5 +1,6 @@
 import { cn } from 'cn';
-import { type Detections, useDetections, useImage } from '../live';
+import { useDetections, useImage } from '../live';
+import type { Detections } from '../live';
 
 /** The camera's live image with tag outlines, green where the tag contributed to the pose. */
 export function LiveView({ camera, className }: { camera: string; className?: string }) {
@@ -32,7 +33,7 @@ export function CameraImage({
 						const [x, y] = tag.corners[3] ?? [0, 0];
 						const color = tag.used ? '#79d6a5' : '#edc06c';
 						return (
-							<g key={tag.id + ':' + tag.corners.join()}>
+							<g key={`${tag.id}:${tag.corners.join(',')}`}>
 								<polygon
 									points={tag.corners.join(' ')}
 									fill="none"

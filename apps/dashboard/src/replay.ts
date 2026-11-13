@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { McapIndexedReader, type IReadable } from '@mcap/core';
+import { McapIndexedReader } from '@mcap/core';
+import type { IReadable } from '@mcap/core';
 import type { FieldView, RobotConfig } from './api';
-import { type Detections, decodeDetections, decodeImage } from './live';
+import { decodeDetections, decodeImage } from './live';
+import type { Detections } from './live';
 
 /** Values in log time order. Times are nanoseconds, as recorded. */
 interface Series<T> {
@@ -11,12 +13,15 @@ interface Series<T> {
 
 /** The index of the last time at or before `time`, or -1. */
 function latestAt(times: number[], time: number) {
-	let low = 0,
-		high = times.length;
+	let low = 0;
+	let high = times.length;
 	while (low < high) {
 		const middle = (low + high) >>> 1;
-		if (times[middle]! <= time) low = middle + 1;
-		else high = middle;
+		if (times[middle] <= time) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
 	}
 	return low - 1;
 }
@@ -29,23 +34,29 @@ export function valueAt<T>(series: Series<T>, time: number) {
 function httpReadable(url: string, size: bigint): IReadable {
 	const cache = new Map<string, Promise<Uint8Array>>();
 	return {
-		size: async () => size,
 		read(offset, length) {
-			if (length === 0n) return Promise.resolve(new Uint8Array());
+			if (length === 0n) {
+				return Promise.resolve(new Uint8Array());
+			}
 			const key = `${offset}:${length}`;
 			let data = cache.get(key);
 			if (!data) {
 				data = fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1n}` } }).then(async (response) => {
-					if (response.status !== 206) throw new Error(`Could not read the recording: HTTP ${response.status}`);
+					if (response.status !== 206) {
+						throw new Error(`Could not read the recording: HTTP ${response.status}`);
+					}
 					return new Uint8Array(await response.arrayBuffer());
 				});
 				data.catch(() => cache.delete(key));
 			}
 			cache.delete(key);
 			cache.set(key, data);
-			if (cache.size > 48) cache.delete(cache.keys().next().value!);
+			if (cache.size > 48) {
+				cache.delete(cache.keys().next().value!);
+			}
 			return data;
 		},
+		size: async () => size,
 	};
 }
 
@@ -67,39 +78,42 @@ export interface Replay {
  */
 async function openReplay(url: string): Promise<Replay> {
 	const head = await fetch(url, { method: 'HEAD' });
-	if (!head.ok) throw new Error(`Could not open the recording: HTTP ${head.status}`);
+	if (!head.ok) {
+		throw new Error(`Could not open the recording: HTTP ${head.status}`);
+	}
 	const reader = await McapIndexedReader.Initialize({
-			readable: httpReadable(url, BigInt(head.headers.get('content-length') ?? 0)),
-			messageIndexCacheSizeBytes: 8_000_000,
-		}),
-		topics = [...new Set([...reader.channelsById.values()].map((c) => c.topic))],
-		cameras = topics
-			.filter((t) => t.endsWith('/detections'))
-			.map((t) => t.slice(1, -'/detections'.length))
-			.sort(),
-		detections = new Map(cameras.map((c) => [c, { times: [], values: [] } as Series<Uint8Array>])),
-		configs: Series<RobotConfig> = { times: [], values: [] },
-		fields: Series<FieldView> = { times: [], values: [] },
-		text = new TextDecoder(),
-		wanted = topics.filter((t) => t.endsWith('/detections') || t === '/spot/config' || t === '/spot/field');
+		messageIndexCacheSizeBytes: 8_000_000,
+		readable: httpReadable(url, BigInt(head.headers.get('content-length') ?? 0)),
+	});
+	const topics = [...new Set([...reader.channelsById.values()].map((c) => c.topic))];
+	const cameras = topics
+		.filter((t) => t.endsWith('/detections'))
+		.map((t) => t.slice(1, -'/detections'.length))
+		.toSorted();
+	const detections = new Map(cameras.map((c): [string, Series<Uint8Array>] => [c, { times: [], values: [] }]));
+	const configs: Series<RobotConfig> = { times: [], values: [] };
+	const fields: Series<FieldView> = { times: [], values: [] };
+	const text = new TextDecoder();
+	const wanted = topics.filter((t) => t.endsWith('/detections') || t === '/spot/config' || t === '/spot/field');
 	for await (const message of reader.readMessages({ topics: wanted })) {
-		const topic = reader.channelsById.get(message.channelId)!.topic,
-			time = Number(message.logTime),
-			series =
-				topic === '/spot/config'
-					? configs
-					: topic === '/spot/field'
-						? fields
-						: detections.get(topic.slice(1, -'/detections'.length));
+		const { topic } = reader.channelsById.get(message.channelId)!;
+		const time = Number(message.logTime);
+		const series =
+			topic === '/spot/config'
+				? configs
+				: topic === '/spot/field'
+					? fields
+					: detections.get(topic.slice(1, -'/detections'.length));
 		series?.times.push(time);
 		series?.values.push(series === configs || series === fields ? JSON.parse(text.decode(message.data)) : message.data);
 	}
 	const firsts = [...detections.values()].flatMap((s) => s.times.slice(0, 1));
 	return {
 		// Cameras start within moments of each other; open once they all have, unless one is late.
-		start: firsts.length
-			? Math.min(Math.max(...firsts), Math.min(...firsts) + 1e9)
-			: Number(reader.statistics?.messageStartTime ?? 0n),
+		start:
+			firsts.length > 0
+				? Math.min(Math.max(...firsts), Math.min(...firsts) + 1e9)
+				: Number(reader.statistics?.messageStartTime ?? 0n),
 		end: Number(reader.statistics?.messageEndTime ?? 0n),
 		cameras,
 		detections,
@@ -107,12 +121,13 @@ async function openReplay(url: string): Promise<Replay> {
 		fields,
 		async image(camera, time) {
 			for await (const message of reader.readMessages({
-				topics: [`/${camera}/image`],
-				startingAt: BigInt(Math.max(0, Math.round(time - 1e9))),
 				endingAt: BigInt(Math.round(time)),
 				reverse: true,
-			}))
+				startingAt: BigInt(Math.max(0, Math.round(time - 1e9))),
+				topics: [`/${camera}/image`],
+			})) {
 				return { time: Number(message.logTime), jpeg: decodeImage(message.data) ?? new Uint8Array() };
+			}
 			return undefined;
 		},
 	};
@@ -120,12 +135,16 @@ async function openReplay(url: string): Promise<Replay> {
 
 /** The camera's detections at `time`: exactly then, or the latest within half a second. */
 export function detectionsAt(replay: Replay, camera: string, time: number, exact = false): Detections | undefined {
-	const series = replay.detections.get(camera),
-		index = series ? latestAt(series.times, time) : -1;
-	if (!series || index < 0) return undefined;
-	const at = series.times[index]!;
-	if (exact ? at !== time : time - at > 0.5e9) return undefined;
-	return decodeDetections(series.values[index]!);
+	const series = replay.detections.get(camera);
+	const index = series ? latestAt(series.times, time) : -1;
+	if (!series || index < 0) {
+		return undefined;
+	}
+	const at = series.times[index];
+	if (exact ? at !== time : time - at > 0.5e9) {
+		return undefined;
+	}
+	return decodeDetections(series.values[index]);
 }
 
 export function useReplay(url: string) {
@@ -133,8 +152,17 @@ export function useReplay(url: string) {
 	useEffect(() => {
 		let current = true;
 		openReplay(url).then(
-			(replay) => current && setState({ url, replay }),
-			(error: Error) => current && setState({ url, error }),
+			(replay) => {
+				if (current) {
+					setState({ replay, url });
+				}
+				return undefined;
+			},
+			(error: Error) => {
+				if (current) {
+					setState({ error, url });
+				}
+			},
 		);
 		return () => {
 			current = false;
@@ -150,41 +178,51 @@ interface Frame {
 
 /** Each camera's image at `time`. Requests run one batch at a time, skipping to the latest time. */
 export function useReplayImages(replay: Replay | undefined, time: number) {
-	const [frames, setFrames] = useState<{ images: Map<string, Frame>; error?: Error }>({ images: new Map() }),
-		wanted = useRef(time),
-		busy = useRef(false),
-		urls = useRef<string[]>([]);
+	const [frames, setFrames] = useState<{ images: Map<string, Frame>; error?: Error }>({ images: new Map() });
+	const wanted = useRef(time);
+	const busy = useRef(false);
+	const urls = useRef<string[]>([]);
 	useEffect(
 		() => () => {
-			for (const url of urls.current) URL.revokeObjectURL(url);
+			for (const url of urls.current) {
+				URL.revokeObjectURL(url);
+			}
 			urls.current = [];
 		},
+		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- Changing recordings must revoke the previous recording's blob URLs.
 		[replay],
 	);
 	useEffect(() => {
 		wanted.current = time;
-		if (!replay || busy.current) return;
+		if (!replay || busy.current) {
+			return;
+		}
 		busy.current = true;
 		void (async () => {
 			let fetched: number | undefined;
 			try {
 				while (fetched !== wanted.current) {
-					const at = (fetched = wanted.current),
-						results = await Promise.all(replay.cameras.map((camera) => replay.image(camera, at))),
-						images = new Map<string, Frame>(),
-						previous = urls.current;
+					const at = (fetched = wanted.current);
+					const results = await Promise.all(replay.cameras.map((camera) => replay.image(camera, at)));
+					const images = new Map<string, Frame>();
+					const previous = urls.current;
 					urls.current = [];
 					results.forEach((result, i) => {
-						if (!result) return;
+						if (!result) {
+							return;
+						}
+						// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCAP reads use ArrayBuffers created by the HTTP reader, never SharedArrayBuffers.
 						const url = URL.createObjectURL(new Blob([result.jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' }));
 						urls.current.push(url);
-						images.set(replay.cameras[i]!, { time: result.time, url });
+						images.set(replay.cameras[i], { time: result.time, url });
 					});
 					setFrames({ images });
-					for (const url of previous) URL.revokeObjectURL(url);
+					for (const url of previous) {
+						URL.revokeObjectURL(url);
+					}
 				}
 			} catch (error) {
-				setFrames((frames) => ({ ...frames, error: error as Error }));
+				setFrames((previous) => ({ ...previous, error: error instanceof Error ? error : new Error(String(error)) }));
 			} finally {
 				busy.current = false;
 			}

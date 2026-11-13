@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { parse } from 'smol-toml';
-import { diffOverrides, overridesFor, type Json, type Overrides } from '../overrides';
+import { diffOverrides, overridesFor, parseOverrides } from '../overrides';
+import type { Json, Overrides } from '../overrides';
 import { useConfig, useEditOverrides } from '../queries';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -19,7 +19,7 @@ const show = (value: Json | undefined) =>
 
 function robotConfig(toml: string | null | undefined) {
 	try {
-		return toml ? (parse(toml) as Json) : undefined;
+		return toml ? parseOverrides(toml) : undefined;
 	} catch {
 		// The rejection reason is shown with the config error.
 		return undefined;
@@ -27,8 +27,8 @@ function robotConfig(toml: string | null | undefined) {
 }
 
 function Merged({ toml }: { toml: string }) {
-	const area = useRef<HTMLTextAreaElement>(null),
-		[copied, setCopied] = useState('');
+	const area = useRef<HTMLTextAreaElement>(null);
+	const [copied, setCopied] = useState('');
 	const copy = async () => {
 		try {
 			await navigator.clipboard.writeText(toml);
@@ -56,7 +56,9 @@ function Merged({ toml }: { toml: string }) {
 				ref={area}
 				readOnly
 				value={toml}
-				onFocus={(e) => e.target.select()}
+				onFocus={(e) => {
+					e.target.select();
+				}}
 				className="min-h-80 font-mono text-xs"
 			/>
 		</Panel>
@@ -64,18 +66,23 @@ function Merged({ toml }: { toml: string }) {
 }
 
 function Paste({ robot, edit }: { robot: Json | undefined; edit: ReturnType<typeof useEditOverrides> }) {
-	const [text, setText] = useState(''),
-		[error, setError] = useState<Error | null>(null);
+	const [text, setText] = useState('');
+	const [error, setError] = useState<Error | null>(null);
 	const apply = () => {
 		let target: Overrides;
 		try {
-			target = parse(text) as Overrides;
-		} catch (e) {
-			setError(e as Error);
+			target = parseOverrides(text);
+		} catch (error_) {
+			setError(error_ instanceof Error ? error_ : new Error(String(error_)));
 			return;
 		}
 		setError(null);
-		edit.mutate(() => overridesFor(robot, target), { onSuccess: () => setText(''), onError: setError });
+		edit.mutate(() => overridesFor(robot, target), {
+			onError: setError,
+			onSuccess: () => {
+				setText('');
+			},
+		});
 	};
 	return (
 		<Panel
@@ -91,7 +98,9 @@ function Paste({ robot, edit }: { robot: Json | undefined; edit: ReturnType<type
 			</p>
 			<Textarea
 				value={text}
-				onChange={(e) => setText(e.target.value)}
+				onChange={(e) => {
+					setText(e.target.value);
+				}}
 				placeholder="Paste a spot.toml"
 				className="min-h-40 font-mono text-xs"
 			/>
@@ -101,10 +110,11 @@ function Paste({ robot, edit }: { robot: Json | undefined; edit: ReturnType<type
 }
 
 export default function Config() {
-	const { data: view, error } = useConfig(),
-		edit = useEditOverrides(),
-		robot = robotConfig(view?.robot_config),
-		differences = diffOverrides(robot, (view?.overrides ?? {}) as Overrides);
+	const { data: view, error } = useConfig();
+	const edit = useEditOverrides();
+	const robot = robotConfig(view?.robot_config);
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The backend returns JSON overrides validated against the robot config schema.
+	const differences = diffOverrides(robot, (view?.overrides ?? {}) as Overrides);
 	return (
 		<>
 			<PageTitle>Config</PageTitle>
@@ -133,14 +143,18 @@ export default function Config() {
 					<Button
 						variant="destructive"
 						size="sm"
-						disabled={!differences.length || edit.isPending}
-						onClick={() => confirm('Discard all dashboard overrides?') && edit.mutate(() => ({}))}
+						disabled={differences.length === 0 || edit.isPending}
+						onClick={() => {
+							if (confirm('Discard all dashboard overrides?')) {
+								edit.mutate(() => ({}));
+							}
+						}}
 					>
 						Discard overrides
 					</Button>
 				}
 			>
-				{differences.length ? (
+				{differences.length > 0 ? (
 					<Table>
 						<TableHeader>
 							<TableRow>

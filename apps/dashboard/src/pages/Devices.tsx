@@ -22,16 +22,20 @@ function Assign({
 	shared: boolean;
 	edit: ReturnType<typeof useEditOverrides>;
 }) {
-	const [name, setName] = useState(d.camera ?? ''),
-		camera = name.trim();
+	const [name, setName] = useState(d.camera ?? '');
+	const camera = name.trim();
 	const assign = () => {
 		const changes: [string[], Json][] = [[['cameras', camera, 'serial'], d.serial!]];
 		// The port only tells apart cameras that share a serial.
-		if (shared) changes.push([['cameras', camera, 'port'], d.port!]);
-		else if (cameras[camera]?.port != null) changes.push([['cameras', camera, 'port'], null]);
+		if (shared) {
+			changes.push([['cameras', camera, 'port'], d.port!]);
+		} else if (cameras[camera]?.port != null) {
+			changes.push([['cameras', camera, 'port'], null]);
+		}
 		// New cameras default to a mode this device may not support.
-		if (!cameras[camera] && !d.modes.includes(defaultMode) && d.modes[0])
+		if (!cameras[camera] && !d.modes.includes(defaultMode) && d.modes[0]) {
 			changes.push([['cameras', camera, 'mode'], d.modes[0]]);
+		}
 		edit.set(changes);
 	};
 	return (
@@ -47,7 +51,9 @@ function Assign({
 				placeholder="Camera name"
 				list="camera-names"
 				value={name}
-				onChange={(e) => setName(e.target.value)}
+				onChange={(e) => {
+					setName(e.target.value);
+				}}
 			/>
 			<Button type="submit" variant="outline" disabled={!camera || !d.serial || (shared && !d.port) || edit.isPending}>
 				Assign
@@ -57,11 +63,11 @@ function Assign({
 }
 
 export default function Devices() {
-	const devices = useDevices().data ?? [],
-		cameras = useConfig().data?.config?.cameras ?? {},
-		edit = useEditOverrides(),
-		serials = devices.map((d) => d.serial).filter(Boolean),
-		shared = new Set(serials.filter((s, i) => serials.indexOf(s) !== i));
+	const devices = useDevices().data ?? [];
+	const cameras = useConfig().data?.config?.cameras ?? {};
+	const edit = useEditOverrides();
+	const serials = devices.map((d) => d.serial).filter(Boolean);
+	const shared = new Set(serials.filter((s, i) => serials.indexOf(s) !== i));
 	return (
 		<>
 			<PageTitle>Devices</PageTitle>
@@ -70,7 +76,7 @@ export default function Devices() {
 				cameras that share a serial are also told apart by USB port, so keep those in the same ports. Assignments are
 				saved as overrides until the robot config matches.
 			</p>
-			{shared.size ? (
+			{shared.size > 0 ? (
 				<Alert>
 					<TriangleAlert className="text-warning!" />
 					<AlertDescription>
@@ -80,7 +86,7 @@ export default function Devices() {
 				</Alert>
 			) : null}
 			<Panel>
-				{devices.length ? (
+				{devices.length > 0 ? (
 					<Table>
 						<TableHeader>
 							<TableRow>

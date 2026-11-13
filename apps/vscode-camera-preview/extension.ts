@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { promises as fs, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { parseConfig, type PreviewCamera } from './config';
+import { parseConfig } from './config';
+import type { PreviewCamera } from './config';
 import { renderWebview } from './webview';
 
 const configName = 'spot.toml';
@@ -12,18 +13,23 @@ export function activate(context: vscode.ExtensionContext) {
 	const suppressed = new Set<string>();
 	function open(uri?: vscode.Uri, automatic = false) {
 		uri ??= vscode.window.activeTextEditor?.document.uri;
-		if (!uri || uri.scheme !== 'file' || path.basename(uri.fsPath) !== configName || !vscode.workspace.isTrusted)
+		if (!uri || uri.scheme !== 'file' || path.basename(uri.fsPath) !== configName || !vscode.workspace.isTrusted) {
 			return;
+		}
 		const config = uri.fsPath;
-		if (automatic && suppressed.has(config)) return;
+		if (automatic && suppressed.has(config)) {
+			return;
+		}
 		if (panels.has(config)) {
-			if (!automatic) panels.get(config)!.reveal(vscode.ViewColumn.Beside, true);
+			if (!automatic) {
+				panels.get(config)!.reveal(vscode.ViewColumn.Beside, true);
+			}
 			return;
 		}
 		const panel = vscode.window.createWebviewPanel(
 			'spotCameraPreview',
 			'Spot Cameras',
-			{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+			{ preserveFocus: true, viewColumn: vscode.ViewColumn.Beside },
 			{
 				enableScripts: true,
 				localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
@@ -36,24 +42,25 @@ export function activate(context: vscode.ExtensionContext) {
 		panel.webview.html = renderWebview(readFileSync(path.join(context.extensionPath, 'media/preview.html'), 'utf8'), {
 			cspSource: panel.webview.cspSource,
 			nonce,
-			stylesheet: asset('preview.css'),
 			script: asset('preview.bundle.js'),
+			stylesheet: asset('preview.css'),
 		});
-		let disposed = false,
-			latest: PreviewCamera[] | undefined;
+		let disposed = false;
+		let latest: PreviewCamera[] | undefined;
 		const status = (text: string) => !disposed && void panel.webview.postMessage({ status: text });
 		async function load() {
 			try {
 				latest = parseConfig(await fs.readFile(config, 'utf8'));
 				const dirty = vscode.workspace.textDocuments.some((d) => d.uri.fsPath === config && d.isDirty);
-				if (!disposed)
+				if (!disposed) {
 					void panel.webview.postMessage({
 						cameras: latest,
 						status: dirty ? `Unsaved changes · showing saved ${configName}` : `Current · saved ${configName}`,
 					});
-			} catch (e) {
+				}
+			} catch (error) {
 				status(
-					`${latest ? 'Showing last valid preview' : `Cannot preview ${configName}`} · ${e instanceof Error ? e.message : String(e)}`,
+					`${latest ? 'Showing last valid preview' : `Cannot preview ${configName}`} · ${error instanceof Error ? error.message : String(error)}`,
 				);
 			}
 		}
@@ -66,13 +73,20 @@ export function activate(context: vscode.ExtensionContext) {
 			watcher.onDidCreate(load),
 			watcher.onDidDelete(load),
 			vscode.workspace.onDidChangeTextDocument(({ document }) => {
-				if (document.uri.fsPath !== config) return;
+				if (document.uri.fsPath !== config) {
+					return;
+				}
 				// Saving reloads through the watcher; reverting needs a reload to clear the unsaved status.
-				if (document.isDirty) status(`Unsaved changes · showing saved ${configName}`);
-				else void load();
+				if (document.isDirty) {
+					status(`Unsaved changes · showing saved ${configName}`);
+				} else {
+					void load();
+				}
 			}),
 			panel.webview.onDidReceiveMessage((message: { type?: string }) => {
-				if (message.type === 'ready' || message.type === 'refresh') void load();
+				if (message.type === 'ready' || message.type === 'refresh') {
+					void load();
+				}
 			}),
 		];
 		panel.onDidDispose(() => {
@@ -82,10 +96,15 @@ export function activate(context: vscode.ExtensionContext) {
 			suppressed.add(config);
 		});
 	}
-	context.subscriptions.push(vscode.commands.registerCommand('spot.previewCameras', (uri?: vscode.Uri) => open(uri)));
+	context.subscriptions.push(
+		vscode.commands.registerCommand('spot.previewCameras', (uri?: vscode.Uri) => {
+			open(uri);
+		}),
+	);
 	const auto = (editor?: vscode.TextEditor) => {
-		if (editor && vscode.workspace.getConfiguration().get('spot.cameraPreview.autoOpen', true))
+		if (editor && vscode.workspace.getConfiguration().get('spot.cameraPreview.autoOpen', true)) {
 			open(editor.document.uri, true);
+		}
 	};
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(auto));
 	auto(vscode.window.activeTextEditor);

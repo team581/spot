@@ -9,8 +9,8 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 
 function SettingsForm({ settings }: { settings: Settings }) {
-	const [team, setTeam] = useState(settings.team?.toString() ?? ''),
-		[server, setServer] = useState(settings.nt_server ?? '');
+	const [team, setTeam] = useState(settings.team?.toString() ?? '');
+	const [server, setServer] = useState(settings.nt_server ?? '');
 	const save = useSaveSettings();
 	return (
 		<form
@@ -18,13 +18,21 @@ function SettingsForm({ settings }: { settings: Settings }) {
 			onSubmit={(e) => {
 				e.preventDefault();
 				save.mutate({
-					body: { ...settings, team: team.trim() ? Number(team) : null, nt_server: server.trim() || null },
+					body: { ...settings, nt_server: server.trim() || null, team: team.trim() ? Number(team) : null },
 				});
 			}}
 		>
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="team">Team number</Label>
-				<Input id="team" inputMode="numeric" pattern="[0-9]*" value={team} onChange={(e) => setTeam(e.target.value)} />
+				<Input
+					id="team"
+					inputMode="numeric"
+					pattern="[0-9]*"
+					value={team}
+					onChange={(e) => {
+						setTeam(e.target.value);
+					}}
+				/>
 			</div>
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="nt-server">NetworkTables server</Label>
@@ -32,7 +40,9 @@ function SettingsForm({ settings }: { settings: Settings }) {
 					id="nt-server"
 					placeholder="Robot address from the team number"
 					value={server}
-					onChange={(e) => setServer(e.target.value)}
+					onChange={(e) => {
+						setServer(e.target.value);
+					}}
 				/>
 			</div>
 			<div className="flex items-center gap-3">
@@ -52,8 +62,8 @@ function EthernetForm({
 	network: NetworkStatus;
 	apply: (mode: AddressMode, address: string) => void;
 }) {
-	const [mode, setMode] = useState(network.mode),
-		[address, setAddress] = useState(network.address);
+	const [mode, setMode] = useState(network.mode);
+	const [address, setAddress] = useState(network.address);
 	return (
 		<form
 			className="flex flex-col gap-4"
@@ -68,7 +78,12 @@ function EthernetForm({
 					id="mode"
 					className="w-full"
 					value={mode}
-					onChange={(e) => setMode(e.target.value as AddressMode)}
+					onChange={(e) => {
+						const { value } = e.target;
+						if (value === 'automatic' || value === 'static') {
+							setMode(value);
+						}
+					}}
 				>
 					<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
 					<NativeSelectOption value="static">Static</NativeSelectOption>
@@ -81,7 +96,9 @@ function EthernetForm({
 						id="address"
 						placeholder="10.5.81.11/24"
 						value={address}
-						onChange={(e) => setAddress(e.target.value)}
+						onChange={(e) => {
+							setAddress(e.target.value);
+						}}
 					/>
 				</div>
 			) : null}
@@ -94,21 +111,24 @@ function EthernetForm({
 	);
 }
 
+const onSuccess = (data: NetworkStatus) =>
+	queryClient.setQueryData($api.queryOptions('get', '/api/network').queryKey, data);
+
 function Ethernet() {
 	const { data: network, error } = useNetwork();
-	const onSuccess = (data: NetworkStatus) =>
-		queryClient.setQueryData($api.queryOptions('get', '/api/network').queryKey, data);
-	const apply = $api.useMutation('post', '/api/network', { onSuccess }),
-		confirm = $api.useMutation('post', '/api/network/confirm', { onSuccess }),
-		revert = $api.useMutation('post', '/api/network/revert', { onSuccess });
-	if (!network) return <Panel title="Ethernet">{error ? <ErrorText error={error} /> : 'Loading…'}</Panel>;
-	const pending = network.pending;
+	const apply = $api.useMutation('post', '/api/network', { onSuccess });
+	const confirm = $api.useMutation('post', '/api/network/confirm', { onSuccess });
+	const revert = $api.useMutation('post', '/api/network/revert', { onSuccess });
+	if (!network) {
+		return <Panel title="Ethernet">{error ? <ErrorText error={error} /> : 'Loading…'}</Panel>;
+	}
+	const { pending } = network;
 	return (
 		<Panel title="Ethernet">
 			<DataList
 				values={{
 					Link: network.connected ? 'Connected' : 'No cable',
-					Addressing: network.mode === 'static' ? 'Static ' + network.address : 'Automatic',
+					Addressing: network.mode === 'static' ? `Static ${network.address}` : 'Automatic',
 					Addresses: network.addresses.join(', ') || '—',
 					'Maintenance address': network.maintenance_address,
 				}}
@@ -116,17 +136,28 @@ function Ethernet() {
 			{pending ? (
 				<Alert>
 					<AlertTitle>
-						Trying {pending.mode === 'static' ? 'static ' + pending.address : 'automatic addressing'}
+						Trying {pending.mode === 'static' ? `static ${pending.address}` : 'automatic addressing'}
 					</AlertTitle>
 					<AlertDescription>
 						Rolls back in {pending.remaining_s} s unless confirmed. If this page stops responding, reconnect at{' '}
 						{network.maintenance_address}.
 					</AlertDescription>
 					<AlertAction className="flex gap-2">
-						<Button size="sm" onClick={() => confirm.mutate({})}>
+						<Button
+							size="sm"
+							onClick={() => {
+								confirm.mutate({});
+							}}
+						>
 							Confirm
 						</Button>
-						<Button size="sm" variant="outline" onClick={() => revert.mutate({})}>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => {
+								revert.mutate({});
+							}}
+						>
 							Revert
 						</Button>
 					</AlertAction>
@@ -135,7 +166,9 @@ function Ethernet() {
 				<EthernetForm
 					key={network.mode + network.address}
 					network={network}
-					apply={(mode, address) => apply.mutate({ body: mode === 'static' ? { mode, address } : { mode } })}
+					apply={(mode, address) => {
+						apply.mutate({ body: mode === 'static' ? { address, mode } : { mode } });
+					}}
 				/>
 			)}
 			<ErrorText error={apply.error ?? confirm.error ?? revert.error} />

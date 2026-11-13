@@ -3,20 +3,27 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parse, type DefaultTreeAdapterMap } from 'parse5';
+import { parse } from 'parse5';
+import type { DefaultTreeAdapterMap } from 'parse5';
 
 type Element = DefaultTreeAdapterMap['element'];
 type Node = DefaultTreeAdapterMap['node'];
 
 function* elements(node: Node): Generator<Element> {
-	if ('tagName' in node) yield node;
+	if ('tagName' in node) {
+		yield node;
+	}
 	if ('childNodes' in node) {
-		for (const child of node.childNodes) yield* elements(child);
+		for (const child of node.childNodes) {
+			yield* elements(child);
+		}
 	}
 }
 
 function textContent(node: Node): string {
-	if ('value' in node) return node.value;
+	if ('value' in node) {
+		return node.value;
+	}
 	return 'childNodes' in node ? node.childNodes.map(textContent).join('') : '';
 }
 
@@ -29,7 +36,7 @@ await Promise.all(
 	).map(async ([target, base]) => {
 		const output = fileURLToPath(new URL(`../../../dist/${target}/`, import.meta.url));
 		const documents = new Map<string, Element[]>();
-		for (const file of readdirSync(output, { recursive: true }) as string[]) {
+		for (const file of readdirSync(output, { encoding: 'utf8', recursive: true })) {
 			if (file.endsWith('.html')) {
 				documents.set(file, [...elements(parse(readFileSync(join(output, file), 'utf8')))]);
 			}
@@ -53,15 +60,19 @@ await Promise.all(
 			for (const [file, nodes] of documents) {
 				for (const node of nodes) {
 					for (const attr of node.attrs.filter(({ name }) => name === 'href' || name === 'src')) {
-						const target = new URL(attr.value, `https://docs.test${base}${file.replace(/index\.html$/, '')}`);
-						if (target.origin !== 'https://docs.test') continue;
-						if (base === '/docs/' && node.tagName === 'a' && attr.value === '/') continue;
-						assert.ok(target.pathname.startsWith(base), `Link escapes docs base: ${attr.value} in ${file}`);
-						const path = decodeURIComponent(target.pathname).slice(base.length);
-						const targetFile = target.pathname.endsWith('/') ? `${path}index.html` : path;
+						const destination = new URL(attr.value, `https://docs.test${base}${file.replace(/index\.html$/, '')}`);
+						if (destination.origin !== 'https://docs.test') {
+							continue;
+						}
+						if (base === '/docs/' && node.tagName === 'a' && attr.value === '/') {
+							continue;
+						}
+						assert.ok(destination.pathname.startsWith(base), `Link escapes docs base: ${attr.value} in ${file}`);
+						const path = decodeURIComponent(destination.pathname).slice(base.length);
+						const targetFile = destination.pathname.endsWith('/') ? `${path}index.html` : path;
 						assert.ok(existsSync(join(output, targetFile)), `Missing ${attr.value} in ${file}`);
-						if (target.hash && documents.has(targetFile)) {
-							const id = decodeURIComponent(target.hash.slice(1));
+						if (destination.hash && documents.has(targetFile)) {
+							const id = decodeURIComponent(destination.hash.slice(1));
 							assert.ok(
 								documents
 									.get(targetFile)!
