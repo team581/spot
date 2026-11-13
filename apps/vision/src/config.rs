@@ -292,6 +292,31 @@ impl RobotConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldLayout {
     pub tags: BTreeMap<u32, Isometry3<f64>>,
+    /// Field length and width in meters, zero when the layout omits them.
+    pub size: (f64, f64),
+}
+
+/// A field layout for the dashboard's 3D view.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct FieldView {
+    /// Meters along +X.
+    pub length: f64,
+    /// Meters along +Y.
+    pub width: f64,
+    pub tags: Vec<FieldTag>,
+}
+
+/// A tag's field pose: meters, and a quaternion with +X out of the tag's face.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct FieldTag {
+    pub id: u32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub qw: f64,
+    pub qx: f64,
+    pub qy: f64,
+    pub qz: f64,
 }
 
 impl FieldLayout {
@@ -299,6 +324,13 @@ impl FieldLayout {
         #[derive(Deserialize)]
         struct Layout {
             tags: Vec<Tag>,
+            #[serde(default)]
+            field: Option<Size>,
+        }
+        #[derive(Deserialize)]
+        struct Size {
+            length: f64,
+            width: f64,
         }
         #[derive(Deserialize)]
         struct Tag {
@@ -347,7 +379,21 @@ impl FieldLayout {
                 return Err(format!("field layout: tag {} is listed twice", tag.id));
             }
         }
-        Ok(FieldLayout { tags })
+        let size = layout.field.map_or((0.0, 0.0), |f| (f.length, f.width));
+        Ok(FieldLayout { tags, size })
+    }
+
+    pub fn view(&self) -> FieldView {
+        let tags = self
+            .tags
+            .iter()
+            .map(|(id, pose)| {
+                let t = pose.translation.vector;
+                let q = pose.rotation;
+                FieldTag { id: *id, x: t.x, y: t.y, z: t.z, qw: q.w, qx: q.i, qy: q.j, qz: q.k }
+            })
+            .collect();
+        FieldView { length: self.size.0, width: self.size.1, tags }
     }
 }
 

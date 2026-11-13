@@ -32,10 +32,17 @@ manual exposures to limit motion blur.
 ## Mount
 
 Measure each `mount` from the robot origin on the floor to the camera, in meters on
-WPILib axes (+X forward, +Y left, +Z up); positive pitch points the lens down. Check
-mounts in [Foxglove](#recordings-and-foxglove)'s 3D panel, where each camera's estimate, mount, and
-image appear with the field tags. The [VS Code extension](../vscode-camera-preview/)
-previews mounts from `spot.toml`.
+WPILib axes (+X forward, +Y left, +Z up); positive pitch points the lens down.
+
+Check mounts in the **Field** view on the **Cameras** page. It needs the field layout from
+robot code. Each camera draws its robot estimate in its own color, the camera on that robot
+with an arrow out of the lens and a post out of the top, and lines to the tags it used.
+With correct mounts and calibrations, the robots overlap. Drag to orbit, and scroll or use
+W/S to zoom and A/D/Q/E to pan. The legend shows each camera's distance and
+heading from the median estimate, and its height off the floor, which should be near zero.
+A camera that disagrees has a wrong mount or calibration. Cameras without an estimate are
+drawn on another camera's robot, or on a gray robot at midfield. The
+[VS Code extension](../vscode-camera-preview/) previews mounts from `spot.toml`.
 
 ## Calibrate
 
@@ -58,13 +65,14 @@ until robot code matches them, then Spot removes them. The **Config** page lists
 every override against the robot value and shows the merged `spot.toml` to copy into
 robot code.
 
-## Recordings and Foxglove
+## Recordings
 
-Spot keeps a rolling buffer and saves MCAP recordings around each enable; download
-them from **Recordings** and open them in [Foxglove](https://foxglove.dev/). For live
-data, connect Foxglove to `ws://spot.local:5801`. Recordings contain camera images,
-tag detections, estimates, camera status, the effective configuration, and service
-logs.
+Spot keeps a rolling buffer and saves MCAP recordings around each enable. On
+**Recordings**, choose **Replay** to step through a recording in the Field view, with each
+camera's images and tag outlines. Space plays and pauses. Recordings contain camera images,
+tag detections, estimates, camera status, the effective configuration and field layout, and
+service logs. Spot's estimates are also NetworkTables values, so robot logs that record
+NetworkTables show them in AdvantageScope next to the rest of the robot's data.
 
 ## Check on hardware
 

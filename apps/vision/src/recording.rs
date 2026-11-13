@@ -1,8 +1,9 @@
-//! Foxglove logging: a live WebSocket server and MCAP recordings from a rolling buffer.
+//! Logging for the dashboard: a live WebSocket server and MCAP recordings from a rolling buffer.
 //!
-//! Everything is logged to one Foxglove context. An MCAP writer on that context rotates
-//! every few seconds into a buffer directory. Segments around robot enables, or requested
-//! with `saveRecording`, are merged into a recording; the rest age out.
+//! Everything is logged to one Foxglove SDK context, whose WebSocket server feeds the
+//! dashboard's live views. An MCAP writer on that context rotates every few seconds into a
+//! buffer directory. Segments around robot enables, or requested with `saveRecording`, are
+//! merged into a recording; the rest age out. The dashboard replays recordings.
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::File;
@@ -10,15 +11,10 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use foxglove::messages::{
-    CameraCalibration, Color, CompressedImage, CubePrimitive, FrameTransform, FrameTransforms,
-    ImageAnnotations, Log, Point2, PointsAnnotation, Pose, Quaternion, SceneEntity, SceneUpdate,
-    TextAnnotation, TextPrimitive, Timestamp, Vector3,
-};
+use foxglove::messages::{CompressedImage, Log, Timestamp};
 use foxglove::{
     Channel, Context, McapWriteOptions, McapWriter, McapWriterHandle, RawChannel, Schema,
 };
-use nalgebra::{Isometry3, Matrix3, Rotation3, UnitQuaternion};
 use serde::Serialize;
 use serde_json::json;
 use utoipa::ToSchema;
@@ -53,8 +49,6 @@ struct Active {
 
 struct CameraChannels {
     image: Channel<CompressedImage>,
-    annotations: Channel<ImageAnnotations>,
-    calibration: Channel<CameraCalibration>,
     detections: Arc<RawChannel>,
     charuco: Arc<RawChannel>,
     last_image_us: Option<i64>,
@@ -81,8 +75,7 @@ pub struct Recorder {
     state: Mutex<State>,
     status: Arc<RawChannel>,
     config: Arc<RawChannel>,
-    transforms: Channel<FrameTransforms>,
-    field: Channel<SceneUpdate>,
+    field: Arc<RawChannel>,
     log: Channel<Log>,
 }
 
@@ -117,18 +110,6 @@ fn nanos(us: i64) -> u64 {
     us.max(0) as u64 * 1_000
 }
 
-fn pose(isometry: &Isometry3<f64>) -> (Vector3, Quaternion) {
-    let t = isometry.translation.vector;
-    let q = isometry.rotation;
-    (Vector3 { x: t.x, y: t.y, z: t.z }, Quaternion { x: q.i, y: q.j, z: q.k, w: q.w })
-}
-
-/// Rotation from WPILib camera axes to the optical axes Foxglove expects for images.
-fn optical() -> UnitQuaternion<f64> {
-    let wpilib_from_optical = Matrix3::new(0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0);
-    UnitQuaternion::from_rotation_matrix(&Rotation3::from_matrix_unchecked(wpilib_from_optical))
-}
-
 impl Recorder {
     pub fn new(state_dir: &Path) -> Arc<Self> {
         let dir = state_dir.join("recordings");
@@ -141,8 +122,7 @@ impl Recorder {
             nt: OnceLock::new(),
             status: json_channel(&context, "/spot/status", "spot.Status"),
             config: json_channel(&context, "/spot/config", "spot.Config"),
-            transforms: context.channel_builder("/tf").build(),
-            field: context.channel_builder("/field").build(),
+            field: json_channel(&context, "/spot/field", "spot.Field"),
             log: context.channel_builder("/log").build(),
             context,
             dir,
@@ -187,7 +167,7 @@ impl Recorder {
         &self.dir
     }
 
-    /// Records the effective config, field layout, mounts, and calibrations.
+    /// Records the effective config and field layout.
     pub fn set_config(&self, config: &RobotConfig, layout: Option<Arc<FieldLayout>>) {
         let mut state = self.state.lock().unwrap();
         state.config = Some((config.clone(), layout));
@@ -196,97 +176,17 @@ impl Recorder {
 
     /// Logs messages that every segment must start with.
     fn log_latched(&self, state: &mut State, now_us: i64) {
-        let Some((config, layout)) = state.config.clone() else { return };
+        let Some((config, layout)) = &state.config else { return };
         let time = nanos(now_us);
-        log_json(&self.config, &serde_json::to_vec(&config).unwrap(), time);
-        let mut transforms = Vec::new();
-        for (name, camera) in &config.cameras {
-            let channels = self.camera(state, name);
-            let (translation, rotation) = pose(
-                &(camera.mount.isometry() * Isometry3::from_parts(Default::default(), optical())),
-            );
-            transforms.push(FrameTransform {
-                timestamp: timestamp(now_us),
-                parent_frame_id: format!("{name}_robot"),
-                child_frame_id: name.clone(),
-                translation: Some(translation),
-                rotation: Some(rotation),
-            });
-            if let Some(k) = camera.calibration() {
-                channels.calibration.log_with_time(
-                    &CameraCalibration {
-                        timestamp: timestamp(now_us),
-                        frame_id: name.clone(),
-                        width: camera.mode.width,
-                        height: camera.mode.height,
-                        distortion_model: "plumb_bob".into(),
-                        d: k.distortion.to_vec(),
-                        k: vec![k.fx, 0.0, k.cx, 0.0, k.fy, k.cy, 0.0, 0.0, 1.0],
-                        r: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-                        p: vec![k.fx, 0.0, k.cx, 0.0, 0.0, k.fy, k.cy, 0.0, 0.0, 0.0, 1.0, 0.0],
-                    },
-                    time,
-                );
-            }
-        }
-        self.transforms.log_with_time(&FrameTransforms { transforms }, time);
+        log_json(&self.config, &serde_json::to_vec(config).unwrap(), time);
         if let Some(layout) = layout {
-            let color = Color { r: 0.1, g: 0.1, b: 0.1, a: 1.0 };
-            let cubes = layout
-                .tags
-                .values()
-                .map(|tag| {
-                    let (position, orientation) = pose(tag);
-                    CubePrimitive {
-                        pose: Some(Pose {
-                            position: Some(position),
-                            orientation: Some(orientation),
-                        }),
-                        size: Some(Vector3 {
-                            x: 0.01,
-                            y: crate::pose::TAG_SIZE,
-                            z: crate::pose::TAG_SIZE,
-                        }),
-                        color: Some(color),
-                    }
-                })
-                .collect();
-            let texts = layout
-                .tags
-                .iter()
-                .map(|(id, tag)| {
-                    let (position, orientation) = pose(tag);
-                    TextPrimitive {
-                        pose: Some(Pose {
-                            position: Some(position),
-                            orientation: Some(orientation),
-                        }),
-                        billboard: true,
-                        font_size: 14.0,
-                        scale_invariant: true,
-                        color: Some(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
-                        text: id.to_string(),
-                    }
-                })
-                .collect();
-            let entity = SceneEntity {
-                timestamp: timestamp(now_us),
-                frame_id: "field".into(),
-                id: "tags".into(),
-                cubes,
-                texts,
-                ..Default::default()
-            };
-            self.field
-                .log_with_time(&SceneUpdate { entities: vec![entity], ..Default::default() }, time);
+            log_json(&self.field, &serde_json::to_vec(&layout.view()).unwrap(), time);
         }
     }
 
     fn camera<'a>(&self, state: &'a mut State, name: &str) -> &'a mut CameraChannels {
         state.cameras.entry(name.to_string()).or_insert_with(|| CameraChannels {
             image: self.context.channel_builder(format!("/{name}/image")).build(),
-            annotations: self.context.channel_builder(format!("/{name}/annotations")).build(),
-            calibration: self.context.channel_builder(format!("/{name}/calibration")).build(),
             detections: json_channel(
                 &self.context,
                 &format!("/{name}/detections"),
@@ -355,46 +255,6 @@ impl Recorder {
                 },
                 time,
             );
-            let green = Color { r: 0.2, g: 0.9, b: 0.3, a: 1.0 };
-            let gray = Color { r: 0.6, g: 0.6, b: 0.6, a: 1.0 };
-            let annotations = ImageAnnotations {
-                timestamp: timestamp(time_us),
-                points: result
-                    .detections
-                    .iter()
-                    .map(|d| PointsAnnotation {
-                        timestamp: timestamp(time_us),
-                        r#type: 2,
-                        points: d.corners.iter().map(|[x, y]| Point2 { x: *x, y: *y }).collect(),
-                        outline_color: Some(if result.used_tags.contains(&d.id) {
-                            green
-                        } else {
-                            gray
-                        }),
-                        thickness: 3.0,
-                        ..Default::default()
-                    })
-                    .collect(),
-                texts: result
-                    .detections
-                    .iter()
-                    .map(|d| {
-                        let x = d.corners.iter().map(|c| c[0]).sum::<f64>() / 4.0;
-                        let y = d.corners.iter().map(|c| c[1]).sum::<f64>() / 4.0;
-                        TextAnnotation {
-                            timestamp: timestamp(time_us),
-                            position: Some(Point2 { x, y }),
-                            text: d.id.to_string(),
-                            font_size: 24.0,
-                            text_color: Some(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
-                            background_color: Some(Color { r: 0.0, g: 0.0, b: 0.0, a: 0.6 }),
-                            ..Default::default()
-                        }
-                    })
-                    .collect(),
-                ..Default::default()
-            };
-            channels.annotations.log_with_time(&annotations, time);
         }
 
         if let Some(view) = &result.charuco {
@@ -405,18 +265,6 @@ impl Recorder {
                 "corners": view.corners,
             });
             log_json(&channels.charuco, &serde_json::to_vec(&message).unwrap(), time);
-        }
-
-        if let Some(estimate) = &result.estimate {
-            let (translation, rotation) = pose(&estimate.primary.pose);
-            let transform = FrameTransform {
-                timestamp: timestamp(time_us),
-                parent_frame_id: "field".into(),
-                child_frame_id: format!("{}_robot", result.camera),
-                translation: Some(translation),
-                rotation: Some(rotation),
-            };
-            self.transforms.log_with_time(&FrameTransforms { transforms: vec![transform] }, time);
         }
     }
 
@@ -616,6 +464,11 @@ fn local_time() -> String {
     )
 }
 
+/// Topics that are logged at the start of each segment and needed from the start of a recording.
+const LATCHED: &[&str] = &["/spot/config", "/spot/field"];
+
+/// Writes everything but images first, so a replay can load those small chunks without reading
+/// the images. Latched messages from before `start` are kept.
 fn merge(inputs: &[PathBuf], output: &Path, start: u64, end: u64) -> anyhow::Result<()> {
     let temporary = output.with_extension("mcap.tmp");
     let mut writer = mcap::WriteOptions::new()
@@ -624,53 +477,63 @@ fn merge(inputs: &[PathBuf], output: &Path, start: u64, end: u64) -> anyhow::Res
     let mut schemas: HashMap<(String, Vec<u8>), u16> = HashMap::new();
     let mut channels: HashMap<(String, u16), u16> = HashMap::new();
     let mut sequence = 0;
-    for input in inputs {
-        let bytes = std::fs::read(input)?;
-        for message in mcap::MessageStream::new(&bytes)? {
-            let Ok(message) = message else { break };
-            if !(start..=end).contains(&message.log_time) {
-                continue;
-            }
-            let schema_id = match &message.channel.schema {
-                Some(schema) => {
-                    let key = (schema.name.clone(), schema.data.to_vec());
-                    match schemas.get(&key) {
-                        Some(id) => *id,
-                        None => {
-                            let id =
-                                writer.add_schema(&schema.name, &schema.encoding, &schema.data)?;
-                            schemas.insert(key, id);
-                            id
+    let inputs = inputs.iter().map(std::fs::read).collect::<Result<Vec<_>, _>>()?;
+    for images in [false, true] {
+        for bytes in &inputs {
+            for message in mcap::MessageStream::new(bytes)? {
+                let Ok(message) = message else { break };
+                let image = message.channel.topic.ends_with("/image");
+                let wanted = (start..=end).contains(&message.log_time)
+                    || (message.log_time < start && LATCHED.contains(&&*message.channel.topic));
+                if image != images || !wanted {
+                    continue;
+                }
+                let schema_id = match &message.channel.schema {
+                    Some(schema) => {
+                        let key = (schema.name.clone(), schema.data.to_vec());
+                        match schemas.get(&key) {
+                            Some(id) => *id,
+                            None => {
+                                let id = writer.add_schema(
+                                    &schema.name,
+                                    &schema.encoding,
+                                    &schema.data,
+                                )?;
+                                schemas.insert(key, id);
+                                id
+                            }
                         }
                     }
-                }
-                None => 0,
-            };
-            let key = (message.channel.topic.clone(), schema_id);
-            let channel_id = match channels.get(&key) {
-                Some(id) => *id,
-                None => {
-                    let id = writer.add_channel(
-                        schema_id,
-                        &message.channel.topic,
-                        &message.channel.message_encoding,
-                        &BTreeMap::new(),
-                    )?;
-                    channels.insert(key, id);
-                    id
-                }
-            };
-            sequence += 1;
-            writer.write_to_known_channel(
-                &mcap::records::MessageHeader {
-                    channel_id,
-                    sequence,
-                    log_time: message.log_time,
-                    publish_time: message.publish_time,
-                },
-                &message.data,
-            )?;
+                    None => 0,
+                };
+                let key = (message.channel.topic.clone(), schema_id);
+                let channel_id = match channels.get(&key) {
+                    Some(id) => *id,
+                    None => {
+                        let id = writer.add_channel(
+                            schema_id,
+                            &message.channel.topic,
+                            &message.channel.message_encoding,
+                            &BTreeMap::new(),
+                        )?;
+                        channels.insert(key, id);
+                        id
+                    }
+                };
+                sequence += 1;
+                writer.write_to_known_channel(
+                    &mcap::records::MessageHeader {
+                        channel_id,
+                        sequence,
+                        log_time: message.log_time,
+                        publish_time: message.publish_time,
+                    },
+                    &message.data,
+                )?;
+            }
         }
+        // Ends the chunk so images start in their own.
+        writer.flush()?;
     }
     writer.finish()?;
     drop(writer);
@@ -740,5 +603,60 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogLayer {
             line: metadata.line().unwrap_or_default(),
         });
         LOGGING.set(false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn segment(path: &Path, messages: &[(&str, u64)]) {
+        let mut writer = mcap::Writer::new(BufWriter::new(File::create(path).unwrap())).unwrap();
+        let mut channels = HashMap::new();
+        for (topic, time) in messages {
+            let channel = *channels
+                .entry(*topic)
+                .or_insert_with(|| writer.add_channel(0, topic, "json", &BTreeMap::new()).unwrap());
+            let header = mcap::records::MessageHeader {
+                channel_id: channel,
+                sequence: 0,
+                log_time: *time,
+                publish_time: *time,
+            };
+            writer.write_to_known_channel(&header, b"{}").unwrap();
+        }
+        writer.finish().unwrap();
+    }
+
+    #[test]
+    fn merge_keeps_latched_messages_and_writes_images_last() {
+        let dir = std::env::temp_dir().join(format!("spot-merge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (a, b, output) = (dir.join("a.mcap"), dir.join("b.mcap"), dir.join("out.mcap"));
+        segment(
+            &a,
+            &[("/spot/config", 0), ("/c/image", 5), ("/c/detections", 5), ("/c/detections", 15)],
+        );
+        segment(
+            &b,
+            &[("/spot/config", 20), ("/c/image", 25), ("/c/detections", 25), ("/c/detections", 40)],
+        );
+
+        merge(&[a, b], &output, 10, 30).unwrap();
+
+        let bytes = std::fs::read(&output).unwrap();
+        let messages: Vec<_> = mcap::MessageStream::new(&bytes)
+            .unwrap()
+            .map(|m| m.map(|m| (m.channel.topic.clone(), m.log_time)).unwrap())
+            .collect();
+        let expected = [
+            ("/spot/config", 0),
+            ("/c/detections", 15),
+            ("/spot/config", 20),
+            ("/c/detections", 25),
+            ("/c/image", 25),
+        ];
+        assert_eq!(messages, expected.map(|(topic, time)| (topic.to_string(), time)));
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

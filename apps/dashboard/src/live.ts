@@ -63,11 +63,39 @@ export interface Detections {
 }
 
 const text = new TextDecoder();
-const decodeJson = (payload: Uint8Array) => JSON.parse(text.decode(payload)) as Detections;
+export const decodeDetections = (payload: Uint8Array) => JSON.parse(text.decode(payload)) as Detections;
 // `foxglove.CompressedImage` keeps the JPEG in field 2.
-const decodeImage = (payload: Uint8Array) => protobufBytes(payload, 2);
+export const decodeImage = (payload: Uint8Array) => protobufBytes(payload, 2);
 
-export const useDetections = (camera: string) => useTopic(`/${camera}/detections`, decodeJson);
+export const useDetections = (camera: string) => useTopic(`/${camera}/detections`, decodeDetections);
+
+/** The latest detections from each camera, updated at most once per animation frame. */
+export function useAllDetections(cameras: string[]) {
+	const [value, setValue] = useState(new Map<string, Detections>()),
+		key = cameras.join('\n');
+	useEffect(() => {
+		const latest = new Map<string, Uint8Array>();
+		let frame = 0;
+		const unsubscribes = key
+			.split('\n')
+			.filter(Boolean)
+			.map((camera) =>
+				foxglove.subscribe(`/${camera}/detections`, (payload) => {
+					latest.set(camera, payload);
+					frame ||= requestAnimationFrame(() => {
+						frame = 0;
+						setValue(new Map([...latest].map(([name, payload]) => [name, decodeDetections(payload)])));
+					});
+				}),
+			);
+		return () => {
+			for (const unsubscribe of unsubscribes) unsubscribe();
+			cancelAnimationFrame(frame);
+			setValue(new Map());
+		};
+	}, [key]);
+	return value;
+}
 
 export interface Charuco {
 	width: number;

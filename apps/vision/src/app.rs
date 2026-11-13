@@ -13,7 +13,7 @@ use utoipa::ToSchema;
 use crate::calibration::{self, Board, Charuco, Solution, View};
 use crate::camera::{Device, Discovery};
 use crate::clock::monotonic_us;
-use crate::config::{CameraConfig, FieldLayout, Mode, RobotConfig};
+use crate::config::{CameraConfig, FieldLayout, FieldView, Mode, RobotConfig};
 use crate::nt::{self, Nt, NtValue};
 use crate::overrides;
 use crate::pipeline::{Camera, FrameResult, Processing, Sink, Target};
@@ -492,7 +492,11 @@ impl App {
         ConfigView {
             robot_config: inner.robot_config.clone(),
             robot_config_live: inner.robot_config_live,
-            field_layout: inner.field_layout.is_some(),
+            field_layout: inner
+                .effective
+                .as_ref()
+                .and_then(|e| e.layout.as_ref())
+                .map(|l| l.view()),
             overrides: inner.overrides.clone(),
             merged: inner.merged.clone(),
             config: inner.effective.as_ref().map(|e| e.config.clone()),
@@ -745,7 +749,8 @@ pub struct ConfigView {
     pub robot_config: Option<String>,
     /// Whether the robot config came from the robot during this connection.
     pub robot_config_live: bool,
-    pub field_layout: bool,
+    /// The running field layout.
+    pub field_layout: Option<FieldView>,
     /// Dashboard overrides: a deep-partial config where `null` removes a key.
     #[schema(value_type = HashMap<String, serde_json::Value>)]
     pub overrides: Map<String, Value>,

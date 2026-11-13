@@ -17,6 +17,7 @@ import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as SystemRouteImport } from './routes/system'
 import { Route as CamerasNameRouteImport } from './routes/cameras.$name'
+import { Route as DownloadsNameRouteImport } from './routes/downloads_.$name'
 import { Route as HelpSplatRouteImport } from './routes/help.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +60,11 @@ const CamerasNameRoute = CamerasNameRouteImport.update({
   path: '/cameras/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DownloadsNameRoute = DownloadsNameRouteImport.update({
+  id: '/downloads_/$name',
+  path: '/downloads/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpSplatRoute = HelpSplatRouteImport.update({
   id: '/help/$',
   path: '/help/$',
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/cameras/$name': typeof CamerasNameRoute
+  '/downloads/$name': typeof DownloadsNameRoute
   '/help/$': typeof HelpSplatRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/cameras/$name': typeof CamerasNameRoute
+  '/downloads/$name': typeof DownloadsNameRoute
   '/help/$': typeof HelpSplatRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/network': typeof NetworkRoute
   '/system': typeof SystemRoute
   '/cameras/$name': typeof CamerasNameRoute
+  '/downloads_/$name': typeof DownloadsNameRoute
   '/help/$': typeof HelpSplatRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/system'
     | '/cameras/$name'
+    | '/downloads/$name'
     | '/help/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/system'
     | '/cameras/$name'
+    | '/downloads/$name'
     | '/help/$'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/system'
     | '/cameras/$name'
+    | '/downloads_/$name'
     | '/help/$'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +156,7 @@ export interface RootRouteChildren {
   NetworkRoute: typeof NetworkRoute
   SystemRoute: typeof SystemRoute
   CamerasNameRoute: typeof CamerasNameRoute
+  DownloadsNameRoute: typeof DownloadsNameRoute
   HelpSplatRoute: typeof HelpSplatRoute
 }
 
@@ -205,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CamerasNameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/downloads_/$name': {
+      id: '/downloads_/$name'
+      path: '/downloads/$name'
+      fullPath: '/downloads/$name'
+      preLoaderRoute: typeof DownloadsNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help/$': {
       id: '/help/$'
       path: '/help/$'
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   NetworkRoute: NetworkRoute,
   SystemRoute: SystemRoute,
   CamerasNameRoute: CamerasNameRoute,
+  DownloadsNameRoute: DownloadsNameRoute,
   HelpSplatRoute: HelpSplatRoute,
 }
 export const routeTree = rootRouteImport

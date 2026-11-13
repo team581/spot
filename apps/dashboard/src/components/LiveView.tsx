@@ -1,10 +1,21 @@
 import { cn } from 'cn';
-import { useDetections, useImage } from '../live';
+import { type Detections, useDetections, useImage } from '../live';
 
 /** The camera's live image with tag outlines, green where the tag contributed to the pose. */
 export function LiveView({ camera, className }: { camera: string; className?: string }) {
-	const image = useImage(camera),
-		d = useDetections(camera);
+	return <CameraImage image={useImage(camera)} detections={useDetections(camera)} className={className} />;
+}
+
+/** A camera image with tag outlines, green where the tag contributed to the pose. */
+export function CameraImage({
+	image,
+	detections: d,
+	className,
+}: {
+	image: string | undefined;
+	detections: Detections | undefined;
+	className?: string;
+}) {
 	return (
 		<div
 			className={cn('relative overflow-hidden rounded-md bg-feed', className)}

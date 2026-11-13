@@ -1,10 +1,29 @@
 import { Link } from '@tanstack/react-router';
-import { useDevices, useStatus } from '../queries';
+import { useConfig, useDevices, useStatus } from '../queries';
+import { useAllDetections } from '../live';
 import { fmt, PageTitle, Panel, StateBadge } from '../components/common';
+import { Field3D } from '../components/Field3D';
 import { LiveView } from '../components/LiveView';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+/** Live estimates, mounts, and seen tags from every camera on the field. */
+function Field() {
+	const view = useConfig().data,
+		config = view?.config,
+		cameras = Object.entries(config?.cameras ?? {}),
+		detections = useAllDetections(cameras.map(([name]) => name));
+	if (!config) return null;
+	return (
+		<Panel title="Field">
+			<Field3D
+				field={view.field_layout}
+				cameras={cameras.map(([name, camera]) => ({ name, config: camera, detections: detections.get(name) }))}
+			/>
+		</Panel>
+	);
+}
 
 export default function Cameras() {
 	const cameras = useStatus().data?.cameras ?? [],
@@ -50,6 +69,7 @@ export default function Cameras() {
 					</p>
 				</Panel>
 			)}
+			{cameras.length ? <Field /> : null}
 			{unassigned.length ? (
 				<Panel title="Unassigned devices" action={<Link to="/devices">Assign</Link>}>
 					<Table>

@@ -10,13 +10,19 @@ export interface Pose {
 export interface Mount extends Pose {
 	name: string;
 }
-export interface Candidate extends Pose {
-	error_px?: number;
+/** A camera on the field: its robot-to-camera mount, plus what it currently sees. */
+export interface FieldCamera extends Mount {
+	/** Any CSS color, used for this camera's robot, body, and tag lines. */
+	color: string;
+	/** The robot's field pose estimated from this camera, or null without one. */
+	robot: Pose | null;
+	/** IDs of the tags the estimate used. */
+	tags: number[];
 }
 export interface ViewerState {
-	geometry?: Pose | null;
 	field?: { length: number; width: number; tags?: (Pose & { id: number; size: number })[] };
-	data?: { stale: boolean; candidates?: Candidate[]; tags: { id: number }[] };
+	/** Shown on `field`: each camera's robot estimate, mount, and the tags it used. */
+	cameras?: FieldCamera[];
 	inspection?: boolean;
 	mounts?: Mount[];
 	selectedName?: string;
@@ -68,18 +74,16 @@ function multiply(a: number[], b: number[]) {
 		w * k + x * j - y * i + z * v,
 	];
 }
-export function robotPose(camera: Pose, mount: Pose): Pose {
-	const q = mount.quaternion,
-		inverse = [q[0], -q[1], -q[2], -q[3]],
-		rotation = multiply(camera.quaternion, inverse),
-		offset = rotate(rotation, mount.translation);
+/** `child` relative to `parent`, as a pose in `parent`'s frame. */
+export function compose(parent: Pose, child: Pose): Pose {
 	return {
-		translation: camera.translation.map((v, i) => v - offset[i]),
-		quaternion: rotation,
+		translation: rotate(parent.quaternion, child.translation).map((v, i) => v + parent.translation[i]),
+		quaternion: multiply(parent.quaternion, child.quaternion),
 	};
 }
-/** CSS custom property (without `--`) that colors a line or label. */
-type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'warning';
+/** A CSS custom property name (without `--`), or any other CSS color. */
+type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'warning' | (string & {});
+const isProperty = (color: string) => /^[\w-]+$/.test(color);
 export interface Scene {
 	/** Lines are named by their color; labels are `CSS2DObject`s. */
 	root: THREE.Group;
@@ -121,7 +125,7 @@ const rectangle = (x: number, y: number) => [
 function label(parent: THREE.Object3D, text: string, p: number[], color: Color) {
 	const element = document.createElement('div');
 	element.textContent = text;
-	element.style.color = `var(--${color})`;
+	element.style.color = isProperty(color) ? `var(--${color})` : color;
 	element.style.paddingBottom = '8px';
 	const object = new CSS2DObject(element);
 	object.center.set(0.5, 1);
@@ -144,12 +148,12 @@ function arrow(parent: THREE.Object3D, direction: number[], text: string, color:
 					[d[0] + 0.08, d[1], d[2]],
 				];
 	segments(parent, [[0, 0, 0], direction, ...sides.flatMap((p) => [direction, p])], color, 2);
-	label(parent, text, direction, color);
+	if (text) label(parent, text, direction, color);
 }
-function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string) {
+function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string, lens = 'Lens') {
 	const group = posed(parent, pose);
 	box(group, [0.18, 0.14, 0.12], color);
-	arrow(group, [0.7, 0, 0], 'Lens', color);
+	arrow(group, [0.7, 0, 0], lens, color);
 	segments(
 		group,
 		[
@@ -163,18 +167,15 @@ function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string) 
 	return group;
 }
 /** Builds the scene in WPILib NWU metres. Needs `document` for labels but no WebGL. */
-export function buildScene({ geometry, field, data, inspection, mounts, selectedName, drivebase }: ViewerState): Scene {
+export function buildScene({ field, cameras, inspection, mounts, selectedName, drivebase }: ViewerState): Scene {
 	const root = new THREE.Group(),
-		current = data && !data.stale && data.candidates?.length,
-		candidates = current ? data!.candidates! : [],
-		selected = candidates.reduce<Candidate | null>(
-			(a, b) => (!a || (b.error_px ?? NaN) < (a.error_px ?? NaN) ? b : a),
-			null,
-		),
-		// Live previews stay on the field so flickering detections don't swap scenes.
 		arena = !inspection && !mounts ? field : undefined,
-		world = arena && selected ? { selected, field: arena } : null,
-		pose = world && geometry ? robotPose(world.selected, geometry) : null;
+		estimates = arena ? (cameras ?? []).filter((c) => c.robot) : [],
+		// Cameras without an estimate ride on another camera's robot, or one at midfield.
+		reference: Pose = estimates[0]?.robot ?? {
+			translation: arena ? [arena.length / 2, arena.width / 2, 0] : [0, 0, 0],
+			quaternion: [1, 0, 0, 0],
+		};
 	if (arena) {
 		const { length, width } = arena,
 			grid: number[][] = [];
@@ -193,12 +194,8 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 		for (let i = -3; i <= 3; i++)
 			grid.push([i * 0.4, -1.2, 0], [i * 0.4, 1.2, 0], [-1.2, i * 0.4, 0], [1.2, i * 0.4, 0]);
 		segments(root, grid, 'line');
-	}
-	// Without a current field pose there is nowhere to place the robot on the field.
-	if (!arena || world) {
-		const chassis = posed(root, pose ?? { translation: [0, 0, 0], quaternion: [1, 0, 0, 0] });
-		if (!mounts) box(chassis, [1, 0.8, 0.15], 'muted-foreground');
-		else if (
+		const chassis = posed(root, reference);
+		if (
 			drivebase?.visible &&
 			Number.isFinite(drivebase.length) &&
 			Number.isFinite(drivebase.width) &&
@@ -218,17 +215,28 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
 	} else if (arena) {
-		for (const candidate of candidates)
-			camera(
-				root,
-				candidate,
-				candidate === selected ? 'blue' : 'warning',
-				candidate === selected ? 'Selected camera' : 'Alternate camera',
-			);
-		const seen = new Set(world ? data!.tags.map((t) => t.id) : []);
-		for (const tag of arena.tags || []) {
+		const robot = (parent: THREE.Object3D, pose: Pose, color: Color) => {
+				const chassis = posed(parent, pose);
+				box(chassis, [0.9, 0.9, 0.15], color);
+				arrow(chassis, [0.75, 0, 0.15], '', color);
+			},
+			tags = new Map((arena.tags ?? []).map((t) => [t.id, t])),
+			seen = new Map<number, Color>();
+		if (!estimates.length) robot(root, reference, 'muted-foreground');
+		for (const c of cameras ?? []) {
+			const view = compose(c.robot ?? reference, c);
+			if (c.robot) robot(root, c.robot, c.color);
+			camera(root, view, c.color, c.name, '');
+			for (const id of c.robot ? c.tags : []) {
+				const tag = tags.get(id);
+				if (!tag) continue;
+				segments(root, [view.translation, tag.translation], c.color);
+				if (!seen.has(id)) seen.set(id, c.color);
+			}
+		}
+		for (const tag of tags.values()) {
 			const half = tag.size / 2,
-				visible = seen.has(tag.id);
+				color = seen.get(tag.id) ?? 'muted-foreground';
 			loop(
 				posed(root, tag),
 				[
@@ -237,32 +245,22 @@ export function buildScene({ geometry, field, data, inspection, mounts, selected
 					[0, half, half],
 					[0, -half, half],
 				],
-				visible ? 'good' : 'muted-foreground',
+				color,
 				1.5,
 			);
-			if (world && visible) {
-				segments(root, [world.selected.translation, tag.translation], 'good');
-				label(root, '#' + tag.id, tag.translation, 'good');
-			}
+			label(root, '#' + tag.id, tag.translation, color);
 		}
-	} else if (geometry) camera(root, geometry, 'blue', 'Camera · robot NWU');
+	}
 	return {
 		root,
-		center: world
-			? [...(pose ?? world.selected).translation.slice(0, 2), 0.3]
+		center: estimates.length
+			? [...reference.translation.slice(0, 2), 0.3]
 			: arena
 				? [arena.length / 2, arena.width / 2, 0]
 				: [0, 0, 0.3],
-		extent: arena && !world ? [arena.length + 2, arena.width + 2] : [3, 3],
-		focused: !!world,
-		status:
-			!geometry && !mounts
-				? 'Camera geometry unavailable'
-				: !mounts && !inspection && !current
-					? arena
-						? 'No current field pose'
-						: 'No current field pose · camera mount shown'
-					: '',
+		extent: arena && !estimates.length ? [arena.length + 2, arena.width + 2] : [3, 3],
+		focused: estimates.length > 0,
+		status: arena && !estimates.length ? 'No camera sees a tag · mounts shown on a robot at midfield' : '',
 	};
 }
 function dispose(root: THREE.Object3D) {
@@ -428,7 +426,10 @@ export class SpotViewer {
 		root.traverse((object) => {
 			if (!(object instanceof LineSegments2)) return;
 			if (!palette.has(object.name))
-				palette.set(object.name, this.color(styles.getPropertyValue(`--${object.name}`).trim()));
+				palette.set(
+					object.name,
+					this.color(isProperty(object.name) ? styles.getPropertyValue(`--${object.name}`).trim() : object.name),
+				);
 			object.material.color.copy(palette.get(object.name)!);
 		});
 		this.status.textContent = status;

@@ -359,7 +359,7 @@ export interface components {
 			config?: components['schemas']['RobotConfig'] | null;
 			/** @description Why the latest config was rejected. */
 			error?: string | null;
-			field_layout: boolean;
+			field_layout?: components['schemas']['FieldView'] | null;
 			/** @description Robot TOML with overrides applied, ready to copy into robot code. */
 			merged: string;
 			/** @description Dashboard overrides: a deep-partial config where `null` removes a key. */
@@ -416,6 +416,39 @@ export interface components {
 		 * @enum {string}
 		 */
 		Dictionary: '4x4_50' | '4x4_100' | '5x5_50' | '5x5_100' | '6x6_50' | '6x6_250';
+		/** @description A tag's field pose: meters, and a quaternion with +X out of the tag's face. */
+		FieldTag: {
+			/** Format: int32 */
+			id: number;
+			/** Format: double */
+			qw: number;
+			/** Format: double */
+			qx: number;
+			/** Format: double */
+			qy: number;
+			/** Format: double */
+			qz: number;
+			/** Format: double */
+			x: number;
+			/** Format: double */
+			y: number;
+			/** Format: double */
+			z: number;
+		};
+		/** @description A field layout for the dashboard's 3D view. */
+		FieldView: {
+			/**
+			 * Format: double
+			 * @description Meters along +X.
+			 */
+			length: number;
+			tags: components['schemas']['FieldTag'][];
+			/**
+			 * Format: double
+			 * @description Meters along +Y.
+			 */
+			width: number;
+		};
 		/** @example 1280x800@120 */
 		Mode: string;
 		/**

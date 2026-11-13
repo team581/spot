@@ -1,0 +1,157 @@
+import { useEffect, useRef } from 'react';
+import { cn } from 'cn';
+import { type FieldCamera as ViewerCamera, quaternion, SpotViewer, type ViewerState } from '@spot/camera-viewer';
+import type { CameraConfig, FieldView } from '../api';
+import type { Candidate, Detections } from '../live';
+import { fmt } from './common';
+import { Button } from '@/components/ui/button';
+
+/** FRC AprilTag (36h11) edge length in meters, across the outer black border. */
+const TAG_SIZE = 0.1651;
+
+const PALETTE = ['#2f7fc1', '#d9822b', '#2e9d5b', '#c8467a', '#8a5cc7', '#1f9a96', '#b59a12', '#d4553a'];
+/** A stable color per camera, from its position among the sorted camera names. */
+const cameraColor = (names: string[], name: string) =>
+	PALETTE[Math.max(0, [...names].sort().indexOf(name)) % PALETTE.length]!;
+
+export interface FieldCamera {
+	name: string;
+	config: CameraConfig;
+	detections: Detections | undefined;
+}
+
+/** WPILib translation in metres and roll, pitch, yaw in degrees, as the viewer's pose. */
+const pose = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => ({
+	translation: [x, y, z],
+	quaternion: quaternion(yaw, pitch, roll),
+});
+
+function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
+	const names = cameras.map((c) => c.name),
+		viewerCameras = cameras.map((c): ViewerCamera => ({
+			name: c.name,
+			...pose(c.config.mount ?? {}),
+			color: cameraColor(names, c.name),
+			robot: c.detections?.estimate ? pose(c.detections.estimate.primary) : null,
+			tags: c.detections?.tags.filter((t) => t.used).map((t) => t.id) ?? [],
+		}));
+	// Without a field layout there is nowhere to put estimates; show the mounts on the robot instead.
+	if (!field) return { mounts: viewerCameras };
+	const tags = field.tags.map((t) => ({
+			id: t.id,
+			size: TAG_SIZE,
+			translation: [t.x, t.y, t.z],
+			quaternion: [t.qw, t.qx, t.qy, t.qz],
+		})),
+		length = field.length || Math.max(16.5, ...field.tags.map((t) => t.x)),
+		width = field.width || Math.max(8.1, ...field.tags.map((t) => t.y));
+	return { field: { length, width, tags }, cameras: viewerCameras };
+}
+
+const median = (values: number[]) => {
+	const sorted = values.toSorted((a, b) => a - b),
+		middle = sorted.length / 2;
+	return sorted.length % 2 ? sorted[Math.floor(middle)]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
+};
+
+/** Each camera's robot estimate against the median of all of them; mount errors show up as outliers. */
+function agreement(cameras: FieldCamera[]) {
+	const estimates = cameras.flatMap((c) =>
+		c.detections?.estimate ? [[c.name, c.detections.estimate.primary] as const] : [],
+	);
+	if (estimates.length < 2) return new Map<string, { distance: number; yaw: number }>();
+	// Unwrap yaws around the first so the median works across ±180°.
+	const first = estimates[0]![1].yaw,
+		yaw = (c: Candidate) => first + ((((c.yaw - first) % 360) + 540) % 360) - 180,
+		x = median(estimates.map(([, c]) => c.x)),
+		y = median(estimates.map(([, c]) => c.y)),
+		heading = median(estimates.map(([, c]) => yaw(c)));
+	return new Map(
+		estimates.map(([name, c]) => [name, { distance: Math.hypot(c.x - x, c.y - y), yaw: Math.abs(yaw(c) - heading) }]),
+	);
+}
+
+/**
+ * The field with each camera's robot estimate in the camera's color, its body on that robot, and
+ * lines to the tags it used. The robots overlap when mounts and calibrations agree.
+ */
+export function Field3D({
+	field,
+	cameras,
+	className,
+}: {
+	field: FieldView | null | undefined;
+	cameras: FieldCamera[];
+	className?: string;
+}) {
+	const canvas = useRef<HTMLCanvasElement>(null),
+		viewer = useRef<SpotViewer>(null),
+		state = useRef<ViewerState>({}),
+		names = cameras.map((c) => c.name),
+		offsets = agreement(cameras);
+
+	useEffect(() => {
+		const v = new SpotViewer(canvas.current!, () => state.current);
+		viewer.current = v;
+		return () => {
+			v.destroy();
+			viewer.current = null;
+		};
+	}, []);
+	useEffect(() => {
+		state.current = viewerState(field, cameras);
+		viewer.current?.draw();
+	});
+
+	return (
+		<div className={cn('flex flex-col gap-3', className)}>
+			<div className="relative overflow-hidden rounded-md border">
+				<canvas
+					ref={canvas}
+					tabIndex={0}
+					aria-label="3D field view. Drag to orbit, scroll or W/S to zoom, A/D/Q/E to pan."
+					className="block aspect-video max-h-[70vh] min-h-72 w-full touch-none outline-none"
+				/>
+				<Button
+					size="sm"
+					variant="secondary"
+					className="absolute top-2 right-2"
+					onClick={() => viewer.current?.reset()}
+				>
+					Reset view
+				</Button>
+			</div>
+			<ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+				{cameras.map((c) => {
+					const estimate = c.detections?.estimate,
+						used = c.detections?.tags.filter((t) => t.used).length ?? 0,
+						offset = offsets.get(c.name);
+					return (
+						<li key={c.name} className="flex items-center gap-2">
+							<span className="size-2.5 rounded-full" style={{ background: cameraColor(names, c.name) }} />
+							<strong className="font-medium">{c.name}</strong>
+							<span className="text-muted-foreground">
+								{estimate
+									? [
+											`${used} ${used === 1 ? 'tag' : 'tags'}`,
+											offset ? `Δ ${fmt(offset.distance * 100, 0)} cm, ${fmt(offset.yaw)}°` : null,
+											`z ${fmt(estimate.primary.z * 100, 0)} cm`,
+										]
+											.filter(Boolean)
+											.join(' · ')
+									: c.detections
+										? 'No estimate'
+										: 'No data'}
+							</span>
+						</li>
+					);
+				})}
+			</ul>
+			{field ? null : (
+				<p className="text-sm text-muted-foreground">
+					No field layout from robot code, so mounts are shown on the robot without estimates.
+				</p>
+			)}
+		</div>
+	);
+}

@@ -123,7 +123,7 @@ export default function Config() {
 							: view?.robot_config
 								? 'Cached from the last robot connection'
 								: 'None received',
-						'Field layout': view?.field_layout ? 'Received' : 'None received',
+						'Field layout': view?.field_layout ? `${view.field_layout.tags.length} tags` : 'None',
 					}}
 				/>
 			</Panel>

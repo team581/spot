@@ -16,7 +16,7 @@
 - Authentication or access control of any kind
 - Support bundle, diagnostics recording
 - Calibration history, holdout validation, rational distortion model
-- Offline MCAP replay (deferred until needed)
+- Re-running the pipeline on recorded MCAP (deferred until needed)
 
 ## Hardware
 
@@ -89,17 +89,22 @@
 - Static site written in TypeScript + React
 - Docs via Astro, also embedded in the dashboard
 - HTTP API described by OpenAPI generated from Rust types, with a generated TypeScript client
-- Live camera views use the Foxglove WebSocket channels (see [Recording](#recording))
+- Live camera views use the Foxglove SDK's WebSocket server (see [Recording](#recording))
+- Bring-up needs no other tools: the dashboard covers tuning, calibration, mount checks, and recording review
 - Pages
   - Camera grid with tag overlays
-  - Camera detail: mode, exposure, gain, detections table
+  - 3D field view
+    - Field tags, each camera's robot estimate, the camera on that robot, lines drawn to tags
+=  - Camera detail: mode, exposure, gain, detections table
   - Camera naming (assign port/serial to a camera name)
   - Calibration
   - Config: overrides diff against robot config, copy merged TOML, paste TOML to replace it as overrides
   - Network: team number, DHCP/static IP, NT server override
     - Changes are applied by a root helper with trial → confirm → automatic rollback
   - System: CPU, GPU, temperature, per-camera FPS
-  - Recordings download
+  - Recordings
+    - Download as MCAP
+    - Replay in the browser (3D field view + camera images with overlays)
   - Docs
 
 ## Robot integration
@@ -157,12 +162,13 @@
 ## Recording
 
 - MCAP via the Foxglove Rust SDK
-  - The same log calls feed a live Foxglove WebSocket server
-  - Mount/pose debugging is done in Foxglove's 3D panel (camera transforms, field tags, estimates, annotated images)
+  - The same log calls feed the dashboard's live views over the SDK's WebSocket server
+  - Replayed in the dashboard
 - Contents
   - Per-camera passthrough JPEGs, FPS capped by config (default 30)
   - Tag detections (corners, IDs) and estimates at full rate
-  - Camera status, effective config (at start and on every change), service logs
+  - Camera status, effective config and field layout (at start and on every change), service logs
+- Merged recordings put everything but images first, in their own chunks, so replay loads them without reading images
 - Rolling on-disk buffer of short segments, similar to Limelight Rewind
   - Segments from ~5 s before enable to ~5 s after disable are kept as a recording, based on `FMSControlData` (works with a Driver Station alone)
   - `saveRecording` keeps the last N seconds

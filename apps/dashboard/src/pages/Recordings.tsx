@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useRecordings } from '../queries';
 import { ErrorText, PageTitle, Panel } from '../components/common';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,6 +17,7 @@ export default function Recordings() {
 								<TableHead>Name</TableHead>
 								<TableHead className="text-right">Size</TableHead>
 								<TableHead>Finished</TableHead>
+								<TableHead />
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -28,6 +30,11 @@ export default function Recordings() {
 									</TableCell>
 									<TableCell className="text-right">{(r.bytes / 1e6).toFixed(1)} MB</TableCell>
 									<TableCell>{new Date(r.modified * 1000).toLocaleString()}</TableCell>
+									<TableCell className="text-right">
+										<Link to="/downloads/$name" params={{ name: r.name }}>
+											Replay
+										</Link>
+									</TableCell>
 								</TableRow>
 							))}
 						</TableBody>
