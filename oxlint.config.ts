@@ -1,6 +1,7 @@
 import { defineConfig } from 'oxlint';
 // Shared by oxlint, the oxc editor extension, and `vp lint` through the root Vite+ config.
 export default defineConfig({
+	plugins: ['typescript', 'unicorn', 'oxc', 'react', 'import', 'promise', 'vitest'],
 	categories: {
 		correctness: 'error',
 		perf: 'error',
@@ -15,6 +16,8 @@ export default defineConfig({
 		'apps/dashboard/src/routeTree.gen.ts',
 	],
 	rules: {
+		// The dashboard uses the automatic JSX runtime.
+		'react/react-in-jsx-scope': 'off',
 		'no-await-in-loop': 'off',
 		'no-unused-expressions': [
 			'error',

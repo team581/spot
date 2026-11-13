@@ -1,10 +1,10 @@
 export type Preference = 'Auto' | 'Light' | 'Dark';
-const choices: Preference[] = ['Auto', 'Light', 'Dark'];
+const choices = new Set<Preference>(['Auto', 'Light', 'Dark']);
 export function createTheme(storage: Pick<Storage, 'getItem' | 'setItem'>, media: MediaQueryList, root: HTMLElement) {
 	let preference: Preference = 'Auto';
 	try {
 		const saved = storage.getItem('spot-theme');
-		if (choices.includes(saved as Preference)) preference = saved as Preference;
+		if (choices.has(saved as Preference)) preference = saved as Preference;
 	} catch {}
 	const listeners = new Set<() => void>();
 	const apply = () => {
