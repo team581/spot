@@ -57,17 +57,17 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ env.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-        run: nix shell --inputs-from path:. nixpkgs#awscli2 --command bash tools/upload-jetson-installer.sh
-      - name: Share private download links
-        if: ${{ github.ref_name == github.event.repository.default_branch }}
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: installer-downloads
-          path: dist/installer/downloads.html
-          if-no-files-found: error
-          retention-days: 7
+        shell: nix shell --inputs-from path:. nixpkgs#awscli2 --command bash -euo pipefail {0}
+        # Replacing fixed keys retains only the latest uploaded build.
+        run: |
+          aws s3 cp result/iso/*.iso "s3://$R2_BUCKET/latest/spot-installer.iso" \
+            --only-show-errors --cache-control no-store
+          sha256sum < result/iso/*.iso | sed 's/-$/spot-installer.iso/' |
+            aws s3 cp - "s3://$R2_BUCKET/latest/spot-installer.iso.sha256" \
+              --content-type text/plain --cache-control no-store
       - name: Share branch installer
         if: ${{ github.ref_name != github.event.repository.default_branch }}
         uses: actions/upload-artifact@v7.0.2
