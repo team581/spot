@@ -7,7 +7,7 @@
 #include <new>
 #include <vector>
 
-#include <opencv2/calib3d.hpp>
+#include <opencv2/calib.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/objdetect/charuco_detector.hpp>
 

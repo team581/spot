@@ -5,8 +5,10 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/autofix.yml':
         - 'autofix-ci/action@v1.3.4'
+        - 'determinatesystems/nix-installer-action@v23'
         - 'jdx/mise-action@v5.2.8'
         - 'useblacksmith/checkout@v1.8.2'
+        - 'useblacksmith/stickydisk@v1.7.2'
         - 'voidzero-dev/setup-vp@v1.22.0'
     '.github/workflows/ci.yml':
         - 'actions/setup-java@v6.1.0'

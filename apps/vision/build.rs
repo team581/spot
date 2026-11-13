@@ -10,10 +10,11 @@ fn main() {
 
 /// ChArUco detection and calibration through OpenCV, found with pkg-config.
 fn charuco() {
-    let opencv =
-        pkg_config::Config::new().cargo_metadata(false).probe("opencv4").unwrap_or_else(|e| {
-            panic!("OpenCV 4 not found ({e})")
-        });
+    let opencv = pkg_config::Config::new()
+        .cargo_metadata(false)
+        .atleast_version("5.1")
+        .probe("opencv5")
+        .unwrap_or_else(|e| panic!("OpenCV 5.1 or newer not found ({e})"));
     let mut build = cc::Build::new();
     build.cpp(true).std("c++17").file("cpp/shim/charuco.cpp").warnings(false);
     for path in &opencv.include_paths {
@@ -24,7 +25,7 @@ fn charuco() {
         println!("cargo:rustc-link-search=native={}", path.display());
     }
     for library in
-        ["opencv_objdetect", "opencv_calib3d", "opencv_imgcodecs", "opencv_imgproc", "opencv_core"]
+        ["opencv_objdetect", "opencv_calib", "opencv_imgcodecs", "opencv_imgproc", "opencv_core"]
     {
         println!("cargo:rustc-link-lib=dylib={library}");
     }

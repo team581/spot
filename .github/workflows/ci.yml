@@ -91,6 +91,9 @@ jobs:
 
   application:
     name: Rust application
+    concurrency:
+      group: opencv-cache-${{ github.repository }}-x86_64-linux
+      queue: max
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 15
     steps:
@@ -101,7 +104,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/vision
-      - run: sudo apt-get install -y libclang-dev libopencv-dev
+      - run: sudo apt-get install -y libclang-dev pkg-config
+      - name: Mount OpenCV cache
+        uses: useblacksmith/stickydisk@v1.7.2
+        with:
+          key: ${{ github.repository }}-opencv-cache-x86_64-linux
+          path: /nix
+          commit: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+      - name: Prepare Nix installation
+        run: sudo rm -f /nix/receipt.json
+      - uses: DeterminateSystems/nix-installer-action@v23
+        id: nix
+        with:
+          extra-conf: |
+            keep-derivations = true
+            keep-outputs = true
+      - name: Install OpenCV
+        run: |
+          root=/nix/var/nix/gcroots/spot-ci/opencv
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
+          nix build path:.#opencv --cores 4 --max-jobs 2 --out-link "$root"
+          echo "PKG_CONFIG_PATH=$root/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$root/lib" >> "$GITHUB_ENV"
       - run: cargo fmt --manifest-path apps/vision/Cargo.toml --check
       - run: cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --manifest-path apps/vision/Cargo.toml --locked
@@ -113,6 +137,12 @@ jobs:
           pnpm --filter spot-dashboard generate:api
           pnpm --filter spot-docs generate:schema
           git diff --exit-code apps/dashboard/src/api.gen.ts apps/docs/public/spot-config.schema.json
+      - name: Garbage collect the OpenCV cache
+        if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+        run: sudo "$(command -v nix-store)" --gc
+      - name: Stop Nix before unmounting the cache
+        if: ${{ always() && steps.nix.outcome == 'success' }}
+        run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service
 
   java:
     name: Java client

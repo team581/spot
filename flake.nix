@@ -83,6 +83,7 @@
         {
           default = packages.spot;
           spot-vision = packages.spot;
+          opencv = packages.opencv;
           web = packages.web;
           jetson-deploy = pkgs.writeShellApplication {
             name = "jetson-deploy";

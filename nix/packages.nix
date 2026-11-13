@@ -1,6 +1,7 @@
 { inputs, pkgs }:
 let
   inherit (pkgs) lib;
+  opencv = pkgs.callPackage ./opencv.nix { };
   jetson = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64;
   # Headers and decoder classes for the NVJPG engine (Jetson Multimedia API).
   jetsonMultimediaApi =
@@ -111,7 +112,7 @@ let
       pkgs.autoAddDriverRunpath
     ];
     buildInputs = [
-      pkgs.opencv
+      opencv
     ]
     ++ lib.optionals jetson [
       pkgs.cudaPackages.cuda_cudart
@@ -129,5 +130,5 @@ let
   };
 in
 {
-  inherit spot web;
+  inherit spot web opencv;
 }

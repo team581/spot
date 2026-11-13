@@ -5,7 +5,7 @@ description: Run Spot locally, check changes, and test builds on hardware.
 
 ## Set up
 
-The vision service links OpenCV 4, found with pkg-config.4
+The vision service requires OpenCV 5.1 or newer, found with pkg-config as `opencv5`.
 
 On macOS, install it with [Homebrew](https://brew.sh/) from the repository root:
 
