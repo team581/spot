@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
@@ -249,8 +250,6 @@ export class SpotViewer {
 	private readonly provider: () => ViewerState;
 	/** `pan` offsets the orbit target in WPILib NWU metres. */
 	readonly orbit: { azimuth: number; elevation: number; zoom: number; pan: number[] } = defaultOrbit();
-	/** Visible height in metres, so movement speed matches what is on screen. */
-	private span = 3;
 	/** Movement keys held down, by `KeyboardEvent.code`. */
 	private readonly held = new Set<string>();
 	private frame = 0;
@@ -258,7 +257,6 @@ export class SpotViewer {
 	private framing = { center: [0, 0, 0], extent: [3, 3] };
 	/** Holds framing on the robot so flickering detections don't move the view. */
 	private focused = false;
-	private drag: number[] | null = null;
 	private readonly listeners: (() => void)[] = [];
 	private readonly resize: ResizeObserver;
 	private readonly renderer: THREE.WebGLRenderer;
@@ -266,6 +264,7 @@ export class SpotViewer {
 	private readonly status = document.createElement('div');
 	private readonly scene = new THREE.Scene();
 	private readonly camera = new THREE.OrthographicCamera();
+	private readonly controls: OrbitControls;
 	private content: THREE.Group | null = null;
 	private readonly probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
 
@@ -274,6 +273,21 @@ export class SpotViewer {
 		this.provider = provider;
 		this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas });
 		this.renderer.setPixelRatio(devicePixelRatio);
+		this.camera.up.set(0, 0, 1);
+		this.controls = new OrbitControls(this.camera, canvas);
+		this.controls.minPolarAngle = 0;
+		this.controls.maxPolarAngle = Math.PI / 2;
+		this.controls.minZoom = 0.25;
+		this.controls.maxZoom = 5;
+		this.controls.addEventListener('change', () => {
+			Object.assign(this.orbit, {
+				azimuth: this.controls.getAzimuthalAngle() - Math.PI / 2,
+				elevation: Math.PI / 2 - this.controls.getPolarAngle(),
+				pan: this.controls.target.clone().sub(new THREE.Vector3().fromArray(this.framing.center)).toArray(),
+				zoom: this.camera.zoom,
+			});
+			this.render();
+		});
 		const overlay = this.labels.domElement;
 		Object.assign(overlay.style, { font: '14px system-ui', pointerEvents: 'none', position: 'absolute' });
 		Object.assign(this.status.style, {
@@ -295,37 +309,9 @@ export class SpotViewer {
 				canvas.removeEventListener(event, handler, options);
 			});
 		};
-		on('pointerdown', (event) => {
-			this.drag = [event.clientX, event.clientY];
-			canvas.setPointerCapture(event.pointerId);
+		on('pointerdown', () => {
 			canvas.focus();
 		});
-		on('pointermove', (event) => {
-			if (!this.drag) {
-				return;
-			}
-			this.orbit.azimuth -= (event.clientX - this.drag[0]) * 0.008;
-			this.orbit.elevation = Math.max(
-				0.12,
-				Math.min(1.5, this.orbit.elevation + (event.clientY - this.drag[1]) * 0.008),
-			);
-			this.drag = [event.clientX, event.clientY];
-			this.draw();
-		});
-		for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
-			on(event, () => {
-				this.drag = null;
-			});
-		}
-		on(
-			'wheel',
-			(event) => {
-				event.preventDefault();
-				this.orbit.zoom = Math.max(0.25, Math.min(5, this.orbit.zoom * Math.exp(-event.deltaY * 0.001)));
-				this.render();
-			},
-			{ passive: false },
-		);
 		on('keydown', (event) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) {
 				return;
@@ -344,24 +330,23 @@ export class SpotViewer {
 			}
 			event.preventDefault();
 			if (event.key === 'ArrowLeft') {
-				this.orbit.azimuth -= 0.1;
+				this.controls.rotateLeft(0.1);
 			}
 			if (event.key === 'ArrowRight') {
-				this.orbit.azimuth += 0.1;
+				this.controls.rotateLeft(-0.1);
 			}
 			if (event.key === 'ArrowUp') {
-				this.orbit.elevation = Math.min(1.5, this.orbit.elevation + 0.1);
+				this.controls.rotateUp(0.1);
 			}
 			if (event.key === 'ArrowDown') {
-				this.orbit.elevation = Math.max(0.12, this.orbit.elevation - 0.1);
+				this.controls.rotateUp(-0.1);
 			}
 			if (event.key === '+' || event.key === '=') {
-				this.orbit.zoom = Math.min(5, this.orbit.zoom * 1.1);
+				this.controls.dollyIn(1 / 1.1);
 			}
 			if (event.key === '-') {
-				this.orbit.zoom = Math.max(0.25, this.orbit.zoom / 1.1);
+				this.controls.dollyOut(1 / 1.1);
 			}
-			this.render();
 		});
 		on('keyup', (event) => this.held.delete(event.code));
 		on('blur', () => {
@@ -381,16 +366,14 @@ export class SpotViewer {
 	private readonly move = (time: number) => {
 		const seconds = Math.min(0.1, (time - this.last) / 1000);
 		const held = (code: string) => (this.held.has(code) ? 1 : 0);
-		const right = (held('KeyD') - held('KeyA')) * this.span * seconds;
-		const up = (held('KeyE') - held('KeyQ')) * this.span * seconds;
-		const a = this.orbit.azimuth;
+		const right = (held('KeyD') - held('KeyA')) * this.canvas.clientHeight * seconds;
+		const span = (this.camera.top - this.camera.bottom) / this.camera.zoom;
+		const up = (held('KeyE') - held('KeyQ')) * span * seconds;
 		this.last = time;
-		this.orbit.pan = this.orbit.pan.map((v, i) => v + [-Math.sin(a) * right, Math.cos(a) * right, up][i]);
-		this.orbit.zoom = Math.max(
-			0.25,
-			Math.min(5, this.orbit.zoom * Math.exp((held('KeyW') - held('KeyS')) * 1.5 * seconds)),
-		);
-		this.render();
+		this.camera.position.z += up;
+		this.controls.target.z += up;
+		this.controls.pan(-right, 0);
+		this.controls.dollyIn(Math.exp(-(held('KeyW') - held('KeyS')) * 1.5 * seconds));
 		this.frame = this.held.size > 0 ? requestAnimationFrame(this.move) : 0;
 	};
 	destroy(): void {
@@ -399,6 +382,7 @@ export class SpotViewer {
 			remove();
 		}
 		this.resize.disconnect();
+		this.controls.dispose();
 		if (this.content) {
 			dispose(this.content);
 		}
@@ -440,12 +424,20 @@ export class SpotViewer {
 			this.framing = { center, extent };
 			this.focused = focused;
 		}
+		const { azimuth, elevation, pan, zoom } = this.orbit;
+		this.controls.target.fromArray(this.framing.center).add(new THREE.Vector3().fromArray(pan));
+		this.camera.position
+			.set(100, 0, 0)
+			.applyEuler(new THREE.Euler(0, -elevation, azimuth, 'ZYX'))
+			.add(this.controls.target);
+		this.camera.zoom = zoom;
+		this.controls.update();
 		this.render();
 	}
 	/** Renders the current scene from the current orbit. */
 	private render(): void {
 		const { canvas, camera: viewCamera, labels } = this;
-		const { center, extent } = this.framing;
+		const { extent } = this.framing;
 		const width = canvas.clientWidth;
 		const height = canvas.clientHeight;
 		if (!width || !height) {
@@ -455,10 +447,7 @@ export class SpotViewer {
 		labels.setSize(width, height);
 		Object.assign(labels.domElement.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px` });
 		// Orthographic view of the orbit; the target sits slightly below the middle like a turntable.
-		const { azimuth: a, elevation: e, zoom, pan } = this.orbit;
 		const metres = 1 / Math.min(width / extent[0], height / extent[1]);
-		const target = new THREE.Vector3().fromArray(center.map((v, i) => v + (pan[i] ?? 0)));
-		this.span = (height * metres) / zoom;
 		Object.assign(viewCamera, {
 			bottom: -height * 0.44 * metres,
 			far: 200,
@@ -466,14 +455,7 @@ export class SpotViewer {
 			near: 0,
 			right: (width / 2) * metres,
 			top: height * 0.56 * metres,
-			zoom,
 		});
-		viewCamera.position
-			.set(Math.cos(e) * Math.cos(a), Math.cos(e) * Math.sin(a), Math.sin(e))
-			.multiplyScalar(100)
-			.add(target);
-		viewCamera.up.set(-Math.sin(e) * Math.cos(a), -Math.sin(e) * Math.sin(a), Math.cos(e));
-		viewCamera.lookAt(target);
 		viewCamera.updateProjectionMatrix();
 		this.renderer.render(this.scene, viewCamera);
 		labels.render(this.scene, viewCamera);
