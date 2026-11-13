@@ -26,6 +26,7 @@ export default function System() {
 							GPU: percent(system?.gpu_percent),
 							Memory: percent(system?.memory_percent),
 							Disk: percent(system?.disk_percent),
+							Fan: system?.fan_rpm == null ? '—' : fmt(system.fan_rpm, 0) + ' RPM',
 							Uptime: uptime(system?.uptime_s),
 						}}
 					/>
@@ -37,6 +38,13 @@ export default function System() {
 						<p className="text-sm text-muted-foreground">No temperature sensors</p>
 					)}
 				</Panel>
+				{system?.power.length ? (
+					<Panel title="Power">
+						<DataList
+							values={Object.fromEntries(system.power.map((r) => [r.name, `${fmt(r.volts, 2)} V · ${fmt(r.watts)} W`]))}
+						/>
+					</Panel>
+				) : null}
 				<Panel title="Cameras" className="lg:col-span-2">
 					<Table>
 						<TableHeader>

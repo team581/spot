@@ -1,4 +1,4 @@
-//! CPU, memory, GPU, and temperature readings from procfs and sysfs.
+//! CPU, memory, GPU, temperature, fan, and power readings from procfs and sysfs.
 
 use std::sync::Mutex;
 
@@ -14,6 +14,10 @@ pub struct SystemStatus {
     pub gpu_percent: Option<f64>,
     pub disk_percent: Option<f64>,
     pub temperatures: Vec<Temperature>,
+    /// Jetson fan speed, which drops to zero if the fan fails.
+    pub fan_rpm: Option<f64>,
+    /// Power rails measured by the Jetson module's INA3221 monitor.
+    pub power: Vec<PowerRail>,
     pub uptime_s: Option<f64>,
 }
 
@@ -23,13 +27,20 @@ pub struct Temperature {
     pub celsius: f64,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct PowerRail {
+    pub name: String,
+    pub volts: f64,
+    pub watts: f64,
+}
+
 const GPU_LOAD: &str = "/sys/devices/platform/bus@0/17000000.gpu/load";
 
 /// Keeps the previous CPU counters to report use between readings.
 #[derive(Default)]
 pub struct System(Mutex<Option<(u64, u64)>>);
 
-fn read(path: &str) -> Option<String> {
+fn read(path: impl AsRef<std::path::Path>) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
@@ -58,14 +69,38 @@ impl System {
             .flatten()
             .filter_map(|entry| {
                 let path = entry.ok()?.path();
-                let name = read(path.join("type").to_str()?)?.trim().to_string();
-                let millidegrees: f64 = read(path.join("temp").to_str()?)?.trim().parse().ok()?;
+                let name = read(path.join("type"))?.trim().to_string();
+                let millidegrees: f64 = read(path.join("temp"))?.trim().parse().ok()?;
                 // Unpopulated Jetson zones report -40 °C or less.
                 (millidegrees > -40_000.0)
                     .then(|| Temperature { name, celsius: millidegrees / 1000.0 })
             })
             .collect();
         temperatures.sort_by(|a, b| a.name.cmp(&b.name));
+        let hwmons: Vec<std::path::PathBuf> = std::fs::read_dir("/sys/class/hwmon")
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| Some(entry.ok()?.path()))
+            .collect();
+        let number = |path: std::path::PathBuf| -> Option<f64> { read(path)?.trim().parse().ok() };
+        // The fan tachometer is the hwmon with an `rpm` reading.
+        let fan = hwmons.iter().find_map(|h| number(h.join("rpm")));
+        let power = hwmons
+            .iter()
+            .filter(|h| read(h.join("name")).is_some_and(|n| n.trim() == "ina3221"))
+            .flat_map(|h| {
+                (1..=3).filter_map(move |channel| {
+                    let name = read(h.join(format!("in{channel}_label")))?.trim().to_string();
+                    let millivolts = number(h.join(format!("in{channel}_input")))?;
+                    let milliamps = number(h.join(format!("curr{channel}_input")))?;
+                    Some(PowerRail {
+                        name,
+                        volts: millivolts / 1000.0,
+                        watts: millivolts * milliamps / 1e6,
+                    })
+                })
+            })
+            .collect();
         let uptime = read("/proc/uptime").and_then(|u| u.split_whitespace().next()?.parse().ok());
         SystemStatus {
             cpu_percent: cpu,
@@ -73,6 +108,8 @@ impl System {
             gpu_percent: gpu,
             disk_percent: disk_percent(disk),
             temperatures,
+            fan_rpm: fan,
+            power,
             uptime_s: uptime,
         }
     }

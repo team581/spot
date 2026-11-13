@@ -499,6 +499,13 @@ export interface components {
 			 */
 			remaining_s: number;
 		};
+		PowerRail: {
+			name: string;
+			/** Format: double */
+			volts: number;
+			/** Format: double */
+			watts: number;
+		};
 		Recording: {
 			/** Format: int64 */
 			bytes: number;
@@ -567,11 +574,18 @@ export interface components {
 			disk_percent?: number | null;
 			/**
 			 * Format: double
+			 * @description Jetson fan speed, which drops to zero if the fan fails.
+			 */
+			fan_rpm?: number | null;
+			/**
+			 * Format: double
 			 * @description Jetson GPU load.
 			 */
 			gpu_percent?: number | null;
 			/** Format: double */
 			memory_percent?: number | null;
+			/** @description Power rails measured by the Jetson module's INA3221 monitor. */
+			power: components['schemas']['PowerRail'][];
 			temperatures: components['schemas']['Temperature'][];
 			/** Format: double */
 			uptime_s?: number | null;
