@@ -80,9 +80,9 @@ mavenPublishing {
 			}
 		}
 		scm {
-			url = 'https://github.com/team581/spot-2026'
-			connection = 'scm:git:https://github.com/team581/spot-2026.git'
-			developerConnection = 'scm:git:ssh://git@github.com/team581/spot-2026.git'
+			url = 'https://github.com/team581/spot'
+			connection = 'scm:git:https://github.com/team581/spot.git'
+			developerConnection = 'scm:git:ssh://git@github.com/team581/spot.git'
 		}
 	}
 }

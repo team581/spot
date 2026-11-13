@@ -59,7 +59,7 @@ export default defineConfig({
 			favicon: '/favicon.svg',
 			social: [
 				...(jetson ? [{ icon: 'left-arrow' as const, label: 'Dashboard', href: '/' }] : []),
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot-2026' },
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot' },
 			],
 			plugins: [team581Theme()],
 			customCss: ['./src/styles/diagrams.css', './src/styles/embedded.css'],

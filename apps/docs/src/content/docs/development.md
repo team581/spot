@@ -62,5 +62,5 @@ Run `pnpm --filter spot-docs dev` to preview at <http://127.0.0.1:5814>.
 builds the same content under `/docs/` for the installed appliance.
 
 Commit conventions are defined in
-[hk.pkl](https://github.com/team581/spot-2026/blob/main/hk.pkl); releases are managed by
-[Release Please](https://github.com/team581/spot-2026/blob/main/.github/workflows/release-please.yml).
+[hk.pkl](https://github.com/team581/spot/blob/main/hk.pkl); releases are managed by
+[Release Please](https://github.com/team581/spot/blob/main/.github/workflows/release-please.yml).
