@@ -35,7 +35,8 @@
 	"dependencies": {
 		"@spot/camera-viewer": "workspace:*",
 		"smol-toml": "1.9.1",
-		"three": "0.187.0"
+		"three": "0.187.0",
+		"zod": "4.6.7"
 	},
 	"devDependencies": {
 		"@types/node": "26.6.6",

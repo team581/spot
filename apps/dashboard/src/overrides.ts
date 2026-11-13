@@ -1,32 +1,19 @@
 import { parse } from 'smol-toml';
+import { z } from 'zod';
 
-export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+export type Json = z.infer<ReturnType<typeof z.json>>;
 /** A deep-partial robot config: objects merge key by key, `null` removes a key, other values replace. */
 export type Overrides = Record<string, Json>;
 
-const isJson = (value: unknown): value is Json => {
-	if (Array.isArray(value)) {
-		return value.every(isJson);
-	}
-	if (typeof value === 'object' && value !== null) {
-		const prototype = Object.getPrototypeOf(value);
-		return (prototype === null || prototype === Object.prototype) && Object.values(value).every(isJson);
-	}
-	return (
-		value === null ||
-		typeof value === 'string' ||
-		typeof value === 'boolean' ||
-		(typeof value === 'number' && Number.isFinite(value))
-	);
-};
+const overridesSchema = z.record(z.string(), z.json());
 
 /** Parse the JSON-compatible TOML values accepted by Spot's config API. */
 export function parseOverrides(text: string): Overrides {
-	const value: unknown = parse(text);
-	if (!isJson(value) || typeof value !== 'object' || value === null || Array.isArray(value)) {
+	const result = overridesSchema.safeParse(parse(text));
+	if (!result.success) {
 		throw new Error('Config values must be JSON-compatible: dates and non-finite numbers are not supported.');
 	}
-	return value;
+	return result.data;
 }
 
 const isObject = (value: Json | undefined): value is Record<string, Json> =>

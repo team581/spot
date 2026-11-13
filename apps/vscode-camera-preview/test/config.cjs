@@ -47,17 +47,19 @@ void test('a config without cameras previews no cameras', () => {
 
 void test('malformed configs give readable errors naming the bad key', () => {
 	const cases = {
-		'[cameras.front]\ncontrols = { exposure = 5 }': /^cameras\.front\.controls has unknown key "exposure"/,
-		'[cameras.front]\ncontrols = { gain = true }': /^cameras\.front\.controls\.gain must be a string or number/,
-		'[cameras.front]\ncontrols = { gain = {} }': /^cameras\.front\.controls\.gain must be a string or number/,
-		'[cameras.front]\nmode = "1280x800"': /^cameras\.front\.mode must look like 1280x800@120/,
-		'[cameras.front]\nmount = { pitch_deg = 10 }': /^cameras\.front\.mount has unknown key "pitch_deg"/,
-		'[cameras.front]\nmount = { x = "0.3" }': /^cameras\.front\.mount\.x must be a number/,
+		'[cameras.front]\ncontrols = { exposure = 5 }': /Unrecognized key: "exposure"[^]*cameras\.front\.controls/,
+		'[cameras.front]\ncontrols = { gain = true }': /must be a string or number[^]*cameras\.front\.controls\.gain/,
+		'[cameras.front]\ncontrols = { gain = {} }': /must be a string or number[^]*cameras\.front\.controls\.gain/,
+		'[cameras.front]\nmode = "1280x800"': /must look like 1280x800@120[^]*cameras\.front\.mode/,
+		'[cameras.front]\nmount = { pitch_deg = 10 }': /Unrecognized key: "pitch_deg"[^]*cameras\.front\.mount/,
+		'[cameras.front]\nmount = { x = "0.3" }': /expected number[^]*cameras\.front\.mount\.x/,
+		'[cameras.front]\nmount = { x = inf }': /cameras\.front\.mount\.x/,
+		'[cameras.front]\nmount = 2026-11-12': /cameras\.front\.mount/,
 		'[cameras.front]\nmount = { x = }': /invalid value[^]*2: +mount/,
-		'[cameras.front]\nmout = { x = 1 }': /^cameras\.front has unknown key "mout"/,
-		'[cameras.front]\nrequired = "yes"': /^cameras\.front\.required must be a boolean/,
-		'cameras = 3': /^cameras must be a table/,
-		'cameras.front = "usb1"': /^cameras\.front must be a table/,
+		'[cameras.front]\nmout = { x = 1 }': /Unrecognized key: "mout"[^]*cameras\.front/,
+		'[cameras.front]\nrequired = "yes"': /expected boolean[^]*cameras\.front\.required/,
+		'cameras = 3': /expected record[^]*cameras/,
+		'cameras.front = "usb1"': /expected record[^]*cameras\.front/,
 	};
 	for (const [text, message] of Object.entries(cases)) {
 		assert.throws(() => parseConfig(text), { message }, text);

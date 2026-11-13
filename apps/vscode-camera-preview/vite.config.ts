@@ -18,6 +18,6 @@ export default defineConfig({
 		target: 'node20',
 		dts: false,
 		// The VSIX ships without node_modules.
-		deps: { alwaysBundle: ['smol-toml'], neverBundle: ['vscode'] },
+		deps: { alwaysBundle: ['smol-toml', 'zod'], neverBundle: ['vscode'] },
 	},
 });
