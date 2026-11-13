@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { McapIndexedReader } from '@mcap/core';
 import type { IReadable } from '@mcap/core';
 import type { FieldView, RobotConfig } from './api';
@@ -31,10 +32,11 @@ export function valueAt<T>(series: Series<T>, time: number) {
 }
 
 /** Reads byte ranges over HTTP, keeping recent ones since playback rereads the same chunks. */
-function httpReadable(url: string, size: bigint): IReadable {
+function httpReadable(url: string, size: bigint): IReadable<AbortSignal> {
 	const cache = new Map<string, Promise<Uint8Array>>();
 	return {
-		read(offset, length) {
+		read(offset, length, signal) {
+			signal?.throwIfAborted();
 			if (length === 0n) {
 				return Promise.resolve(new Uint8Array());
 			}
@@ -43,7 +45,10 @@ function httpReadable(url: string, size: bigint): IReadable {
 				cache.get(key) ??
 				(async () => {
 					try {
-						const response = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1n}` } });
+						const response = await fetch(url, {
+							headers: { Range: `bytes=${offset}-${offset + length - 1n}` },
+							signal,
+						});
 						if (response.status !== 206) {
 							throw new Error(`Could not read the recording: HTTP ${response.status}`);
 						}
@@ -80,14 +85,15 @@ export interface Replay {
  * Opens a recording without downloading it. Everything but images loads up front; Spot writes
  * those messages before the images, so this reads only the start of the file.
  */
-async function openReplay(url: string): Promise<Replay> {
-	const head = await fetch(url, { method: 'HEAD' });
+async function openReplay(url: string, signal: AbortSignal): Promise<Replay> {
+	const head = await fetch(url, { method: 'HEAD', signal });
 	if (!head.ok) {
 		throw new Error(`Could not open the recording: HTTP ${head.status}`);
 	}
 	const reader = await McapIndexedReader.Initialize({
 		messageIndexCacheSizeBytes: 8_000_000,
 		readable: httpReadable(url, BigInt(head.headers.get('content-length') ?? 0)),
+		readOptions: signal,
 	});
 	const topics = [...new Set([...reader.channelsById.values()].map((c) => c.topic))];
 	const cameras = topics
@@ -99,7 +105,7 @@ async function openReplay(url: string): Promise<Replay> {
 	const fields: Series<FieldView> = { times: [], values: [] };
 	const text = new TextDecoder();
 	const wanted = topics.filter((t) => t.endsWith('/detections') || t === '/spot/config' || t === '/spot/field');
-	for await (const message of reader.readMessages({ topics: wanted })) {
+	for await (const message of reader.readMessages({ topics: wanted, readOptions: signal })) {
 		const { topic } = reader.channelsById.get(message.channelId)!;
 		const time = Number(message.logTime);
 		const series =
@@ -152,26 +158,14 @@ export function detectionsAt(replay: Replay, camera: string, time: number, exact
 }
 
 export function useReplay(url: string) {
-	const [state, setState] = useState<{ url?: string; replay?: Replay; error?: Error }>({});
-	useEffect(() => {
-		let current = true;
-		void (async () => {
-			try {
-				const replay = await openReplay(url);
-				if (current) {
-					setState({ replay, url });
-				}
-			} catch (error) {
-				if (current) {
-					setState({ error: error instanceof Error ? error : new Error(String(error)), url });
-				}
-			}
-		})();
-		return () => {
-			current = false;
-		};
-	}, [url]);
-	return state.url === url ? state : {};
+	return useQuery({
+		queryKey: ['replay', url],
+		queryFn: ({ signal }) => openReplay(url, signal),
+		// Keep the reader stable during playback and release its buffers when leaving the page.
+		staleTime: Infinity,
+		gcTime: 0,
+		structuralSharing: false,
+	});
 }
 
 interface Frame {

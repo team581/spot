@@ -135,7 +135,7 @@ function Player({ replay }: { replay: Replay }) {
 export default function ReplayPage() {
 	const { name } = useParams({ from: '/downloads_/$name' });
 	const url = `/recordings/${encodeURIComponent(name)}`;
-	const { replay, error } = useReplay(url);
+	const { data: replay, error } = useReplay(url);
 	return (
 		<>
 			<PageTitle
