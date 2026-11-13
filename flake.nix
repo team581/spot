@@ -108,6 +108,22 @@
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           installer = (installerFor system).config.system.build.isoImage;
         }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          # Remote builder VM for building the Linux outputs on macOS.
+          linux-builder = pkgs.darwin.linux-builder.override {
+            modules = [
+              # Only change the host-side VM settings, so the guest system stays
+              # cached and the builder doesn't need a Linux builder to build.
+              {
+                virtualisation.cores = 8;
+                virtualisation.darwin-builder = {
+                  memorySize = 16 * 1024;
+                  diskSize = 40 * 1024;
+                };
+              }
+            ];
+          };
+        }
       );
       apps = forSystems (system: {
         deploy = {

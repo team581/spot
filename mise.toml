@@ -46,12 +46,25 @@ description = "Build and test a NixOS generation on Spot without changing its bo
 run = "nix run .#deploy -- test"
 
 [tasks."jetson:installer"]
-description = "Build the ARM64 installer in Docker and export the ISO to dist/installer"
+description = "Build the ARM64 installer and copy the ISO to dist/installer"
 run = """
-docker buildx build --platform linux/arm64 \\
-  --file tools/jetson-installer.Dockerfile \\
-  --output type=local,dest=dist/installer .
+if [ "$(uname)" = Darwin ]; then bash tools/linux-builder.sh; fi
+iso=$(nix build -L --no-link --print-out-paths path:.#packages.aarch64-linux.installer)
+mkdir -p dist/installer
+install -m 644 "$iso"/iso/*.iso dist/installer/spot-installer.iso
 """
+
+[tasks."linux-builder"]
+description = "Start the VM that builds Linux outputs on macOS"
+run = "bash tools/linux-builder.sh"
+
+[tasks."linux-builder:setup"]
+description = "Configure Nix on macOS to build Linux outputs with the linux-builder VM"
+run = "bash tools/linux-builder-setup.sh"
+
+[tasks."linux-builder:stop"]
+description = "Shut down the linux-builder VM"
+run = "bash tools/linux-builder.sh stop"
 
 [tasks.format]
 run = [

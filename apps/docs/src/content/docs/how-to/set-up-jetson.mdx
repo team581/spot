@@ -31,15 +31,32 @@ To build one from another commit, run the **Jetson offline installer** workflow 
 <Tabs>
   <TabItem label="macOS">
 
-    Start a Docker-compatible Linux runtime with Buildx, giving it at least 8 CPUs and 16 GiB of RAM.
-    Free at least 60 GiB on the Mac's disk; the VM's own free-space report doesn't reflect it.
+    Nix sends the Linux builds to a NixOS VM, which uses 8 CPUs, 16 GiB of RAM, and up to 40 GiB of disk.
+    Free at least 60 GiB on the Mac's disk.
+
+    With [Nix](https://nixos.org/download/) installed, configure it to use the VM once.
+    This asks for your password:
+
+    ```sh
+    mise run linux-builder:setup
+    ```
+
     From the repository root, run:
 
     ```sh
     mise run jetson:installer
     ```
 
+    This starts the VM in the background if it isn't running.
+    The first start asks for your password to install the VM's SSH key.
     The image is written to `dist/installer/spot-installer.iso`.
+
+    The VM keeps running after the build.
+    To shut it down, run:
+
+    ```sh
+    mise run linux-builder:stop
+    ```
 
   </TabItem>
   <TabItem label="ARM Linux with Nix">
