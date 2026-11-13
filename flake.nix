@@ -116,24 +116,6 @@
         };
       });
       formatter = forSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
-      # OpenCV and pkg-config for building the vision service outside Nix.
-      devShells = forSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          default = pkgs.mkShellNoCC {
-            packages = [
-              pkgs.opencv
-              pkgs.pkg-config
-            ];
-            env = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-              LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-            };
-          };
-        }
-      );
       checks = forSystems (system: {
         application = self.packages.${system}.spot-vision;
       });

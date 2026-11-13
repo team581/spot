@@ -5,14 +5,20 @@ description: Run Spot locally, check changes, and test builds on hardware.
 
 ## Set up
 
-Install [mise](https://mise.jdx.dev/) and [Nix](https://nixos.org/download/), then run from the repository root:
+The vision service links OpenCV 4, found with pkg-config.4
+
+On macOS, install it with [Homebrew](https://brew.sh/) from the repository root:
+
+```sh
+brew bundle
+```
+
+Then install [mise](https://mise.jdx.dev/) and run from the repository root:
 
 ```sh
 mise install
 mise run setup
 ```
-
-The vision service links OpenCV, which comes from the Nix shell, so Cargo commands run inside `nix develop`.
 
 ## Run locally
 
@@ -42,7 +48,7 @@ mise run test
 
 ## Change the HTTP API or `spot.toml` format
 
-Regenerate the TypeScript client and the config schema, inside `nix develop`:
+Regenerate the TypeScript client and the config schema:
 
 ```sh
 pnpm --filter spot-dashboard generate:api

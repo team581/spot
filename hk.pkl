@@ -102,9 +102,7 @@ steps {
         "apps/vision/build.rs",
         "apps/vision/cpp/**",
       )
-    // OpenCV comes from the Nix shell.
-    check =
-      "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings"
+    check = "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings"
   }
   ["spotless"] {
     glob = List("packages/java-client/**/*.{java,gradle}")

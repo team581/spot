@@ -13,7 +13,7 @@ run = [
   "pnpm install --frozen-lockfile",
   "pnpm build",
   "pnpm build:jetson",
-  "nix develop -c cargo build --manifest-path apps/vision/Cargo.toml",
+  "cargo build --manifest-path apps/vision/Cargo.toml",
   "hk install --mise",
 ]
 
@@ -24,7 +24,7 @@ depends = ["dev:backend", "dev:dashboard"]
 [tasks."dev:backend"]
 description = "Run the vision service with the regression images as cameras"
 run = """
-nix develop -c cargo run --manifest-path apps/vision/Cargo.toml -- run --state-dir .spot-dev \
+cargo run --manifest-path apps/vision/Cargo.toml -- run --state-dir .spot-dev \
   --listen 127.0.0.1:5808 --replay apps/vision/tests/data/regression --docs-dir dist/jetson-docs
 """
 
@@ -71,18 +71,18 @@ run = [
 run = [
   "pnpm lint",
   "pnpm knip",
-  "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings",
+  "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings",
 ]
 
 [tasks."lint:fix"]
-run = ["pnpm lint:fix", "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --fix --allow-dirty"]
+run = ["pnpm lint:fix", "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --fix --allow-dirty"]
 
 [tasks.typecheck]
 run = ["pnpm check"]
 
 [tasks.test]
 run = [
-  "nix develop -c cargo test --manifest-path apps/vision/Cargo.toml",
+  "cargo test --manifest-path apps/vision/Cargo.toml",
   "pnpm test",
   "./gradlew test",
 ]

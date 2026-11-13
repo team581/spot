@@ -12,7 +12,7 @@ fn main() {
 fn charuco() {
     let opencv =
         pkg_config::Config::new().cargo_metadata(false).probe("opencv4").unwrap_or_else(|e| {
-            panic!("OpenCV 4 not found ({e}); install it or build inside `nix develop`")
+            panic!("OpenCV 4 not found ({e})")
         });
     let mut build = cc::Build::new();
     build.cpp(true).std("c++17").file("cpp/shim/charuco.cpp").warnings(false);
