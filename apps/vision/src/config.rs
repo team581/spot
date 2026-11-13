@@ -163,6 +163,28 @@ pub struct Calibration {
     pub rms: Option<f64>,
 }
 
+impl Calibration {
+    /// Rough intrinsics for an uncalibrated camera: Swyft's published 1280x800 factory
+    /// calibration for its USB camera, scaled to the frame size.
+    pub fn assumed((width, height): (u32, u32)) -> Self {
+        let (sx, sy) = (width as f64 / 1280.0, height as f64 / 800.0);
+        Self {
+            fx: 799.4949524650956 * sx,
+            fy: 799.8320596652597 * sy,
+            cx: 644.0110163765805 * sx,
+            cy: 447.8047664027805 * sy,
+            distortion: [
+                -0.08158965422395571,
+                0.08184871658046705,
+                0.00036991351895525955,
+                0.0006269072380960263,
+                -0.062389853780706106,
+            ],
+            rms: None,
+        }
+    }
+}
+
 /// A capture mode, written `WIDTHxHEIGHT@FPS`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mode {

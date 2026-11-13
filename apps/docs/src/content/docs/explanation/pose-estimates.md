@@ -10,7 +10,8 @@ Each estimate comes from one frame of one camera, with no smoothing over time an
 Robot code already has a pose estimator that fuses odometry, gyro, and vision with proper timing; doing a second, weaker version of that on the Jetson would only hide information from it.
 
 The same reasoning puts every trust decision in robot code.
-Spot drops a tag only when it isn't in the field layout, is in `ignored_tags`, or was seen by an uncalibrated camera.
+Spot drops a tag only when it isn't in the field layout or is in `ignored_tags`.
+An uncalibrated camera still publishes estimates using the Swyft USB camera's factory calibration, so expect them to be less accurate, especially for other camera models.
 It doesn't reject estimates for being far away, ambiguous, or off the field.
 Instead each estimate carries what robot code needs to judge it: reprojection error, tag count, distance, and image area.
 Tuning standard deviations from those is robot code's job, where it can be changed and logged with the rest of the robot.

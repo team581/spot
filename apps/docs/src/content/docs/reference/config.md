@@ -73,7 +73,7 @@ mount = { x = 0.3, y = -0.25, z = 0.2, roll = 0.0, pitch = 15.0, yaw = -30.0 }
 ### `calibrations`
 
 Pinhole intrinsics with OpenCV's five-coefficient distortion model, as produced by the dashboard.
-A camera uses the calibration matching its `mode`'s resolution; without one it is `uncalibrated` and its estimates aren't published.
+A camera uses the calibration matching its `mode`'s resolution; without one it is `uncalibrated` and its estimates use the Swyft USB camera's factory calibration, scaled to the resolution.
 
 | Key          | Type             | Description                                                    |
 | ------------ | ---------------- | -------------------------------------------------------------- |
