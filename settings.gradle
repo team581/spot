@@ -1,0 +1,4 @@
+rootProject.name = 'spot'
+
+include 'java-client'
+project(':java-client').projectDir = file('packages/java-client')

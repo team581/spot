@@ -153,8 +153,8 @@
 
 ### Client library
 
-- Java library in the robot code monorepo for now, vendordep longer term
-- Struct definitions, publishes config + field layout, per-camera estimate subscribers
+- Java vendordep in `packages/java-client`
+- Struct definitions, publishes config + field layout, per-camera estimate callbacks
   - Expands the tag ID bitmask into an `int[]`
 - No trust policy, that stays in robot code
 

@@ -4,6 +4,7 @@
 .venv/
 build/
 target/
+.gradle/
 /.spot-dev/
 dist/
 hs_err_pid*.log

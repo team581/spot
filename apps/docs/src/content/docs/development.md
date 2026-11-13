@@ -36,6 +36,17 @@ pnpm --filter spot-dashboard generate:api
 pnpm --filter spot-docs generate:schema
 ```
 
+The Java client's tests check its structs against `apps/vision/src/structs.rs`, so
+change both together. To try a local build in robot code, install it into WPILib's
+offline Maven repository and copy `apps/docs/public/vendordep.json` to the robot
+project's `vendordeps/Spot.json`:
+
+```sh
+./gradlew publishAllPublicationsToWpilibRepository
+```
+
+Release Please publishes it to Maven Central as `com.team581:spot`.
+
 The Jetson build (`jetson` feature: NVJPG decoding and the detector's GPU stage) only builds
 for `aarch64-linux` through Nix, for example on the Jetson with
 `nix run .#deploy -- test`. Run hardware checks on the Jetson.

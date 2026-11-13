@@ -14,6 +14,24 @@
 		"packages/camera-viewer": {
 			"component": "camera-viewer",
 			"pull-request-title-pattern": "chore(camera-viewer): release ${version}"
+		},
+		"packages/java-client": {
+			"component": "java-client",
+			"release-type": "simple",
+			"initial-version": "2026.0.0",
+			"pull-request-title-pattern": "chore(java-client): release ${version}",
+			"extra-files": [
+				{
+					"type": "json",
+					"path": "/apps/docs/public/vendordep.json",
+					"jsonpath": "$.version"
+				},
+				{
+					"type": "json",
+					"path": "/apps/docs/public/vendordep.json",
+					"jsonpath": "$.javaDependencies[0].version"
+				}
+			]
 		}
 	}
 }

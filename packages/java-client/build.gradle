@@ -1,0 +1,110 @@
+import com.vanniktech.maven.publish.DeploymentValidation
+import org.gradle.internal.os.OperatingSystem
+
+plugins {
+	id 'java-library'
+	id 'edu.wpi.first.GradleRIO' version '2026.2.1'
+	id 'com.diffplug.spotless' version '8.11.0'
+	id 'com.vanniktech.maven.publish' version '0.37.0'
+}
+
+version = providers.fileContents(layout.projectDirectory.file('version.txt')).asText.get().trim()
+
+repositories {
+	mavenCentral()
+}
+
+tasks.withType(Jar).configureEach {
+	from(file('LICENSE')) {
+		into 'META-INF'
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 17
+}
+
+javadoc {
+	options {
+		docTitle = 'Spot Javadoc'
+		addStringOption('Xdoclint:all,-missing', '-quiet')
+		links 'https://docs.oracle.com/en/java/javase/17/docs/api/', 'https://github.wpilib.org/allwpilib/docs/release/java/'
+	}
+}
+
+dependencies {
+	// Robot projects provide WPILib.
+	compileOnly wpi.java.deps.wpilib()
+
+	testImplementation wpi.java.deps.wpilib()
+	nativeDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.desktop)
+	nativeRelease wpi.java.deps.wpilibJniRelease(wpi.platforms.desktop)
+	testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Extracts WPILib's desktop JNI libraries for the NetworkTables tests.
+wpi.java.configureTestTasks(test)
+
+test {
+	useJUnitPlatform()
+	// The struct schemas Spot publishes, checked against the Java definitions.
+	def structs = file('../../apps/vision/src/structs.rs')
+	inputs.file(structs)
+	systemProperty 'spot.structs', structs.path
+}
+
+mavenPublishing {
+	coordinates('com.team581', 'spot', project.version.toString())
+	publishToMavenCentral(false, DeploymentValidation.VALIDATED)
+	// Releases are signed in CI; local builds publish unsigned to WPILib's offline repo.
+	if (providers.gradleProperty('signingInMemoryKey').isPresent()) {
+		signAllPublications()
+	}
+
+	pom {
+		name = 'Spot'
+		description = "Robot client for Team 581's Spot AprilTag vision service."
+		url = 'https://spot.frc581.com'
+		licenses {
+			license {
+				name = 'MIT License'
+				url = 'https://opensource.org/license/mit/'
+			}
+		}
+		developers {
+			developer {
+				id = 'team581'
+				name = 'Team 581'
+				url = 'https://github.com/team581'
+			}
+		}
+		scm {
+			url = 'https://github.com/team581/spot-2026'
+			connection = 'scm:git:https://github.com/team581/spot-2026.git'
+			developerConnection = 'scm:git:ssh://git@github.com/team581/spot-2026.git'
+		}
+	}
+}
+
+publishing {
+	repositories {
+		// WPILib's offline Maven repo, which robot projects search for vendordeps.
+		maven {
+			name = 'wpilib'
+			def home = OperatingSystem.current().isWindows() ? System.getenv('PUBLIC') : System.getProperty('user.home')
+			url = file("${home}/wpilib/2026/maven")
+		}
+	}
+}
+
+spotless {
+	java {
+		googleJavaFormat('2.0.0')
+	}
+	groovyGradle {
+		target '*.gradle'
+		greclipse()
+		leadingSpacesToTabs()
+	}
+}

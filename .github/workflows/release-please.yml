@@ -29,6 +29,8 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs['apps/vscode-camera-preview--release_created'] }}
       tag_name: ${{ steps.release.outputs['apps/vscode-camera-preview--tag_name'] }}
+      java_client_release_created: ${{ steps.release.outputs['packages/java-client--release_created'] }}
+      java_client_tag_name: ${{ steps.release.outputs['packages/java-client--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -85,3 +87,41 @@ jobs:
       - name: Publish to VS Code Marketplace
         working-directory: apps/vscode-camera-preview
         run: pnpm exec vsce publish --oidc --packagePath "$VSIX" --skip-duplicate
+
+  publish-java-client:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.java_client_release_created == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2604
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: useblacksmith/checkout@v1
+        with:
+          ref: ${{ needs.release-please.outputs.java_client_tag_name }}
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - run: ./gradlew build plainJavadocJar
+      - name: Check Maven Central
+        id: central
+        run: |
+          version="$(cat packages/java-client/version.txt)"
+          http_status="$(curl --head --silent --show-error --connect-timeout 10 --max-time 60 \
+            --output /dev/null --write-out '%{http_code}' \
+            "https://repo.maven.apache.org/maven2/com/team581/spot/$version/spot-$version.jar")"
+          case "$http_status" in
+            200) echo 'published=true' >> "$GITHUB_OUTPUT" ;;
+            404) echo 'published=false' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected Maven Central response: $http_status" >&2; exit 1 ;;
+          esac
+      - name: Publish to Maven Central
+        if: steps.central.outputs.published != 'true'
+        run: ./gradlew publishAndReleaseToMavenCentral
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}

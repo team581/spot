@@ -31,6 +31,28 @@ is rejected and the last valid one keeps running.
 
 Team number, IP address, and the NetworkTables server are set on the Jetson, not here.
 
+## Java client
+
+Install the Spot vendordep from `https://spot.frc581.com/vendordep.json` with
+**WPILib: Manage Vendor Libraries** → **Install new library (online)**.
+
+```java
+var spot = new Spot(
+    Files.readString(Filesystem.getDeployDirectory().toPath().resolve("spot.toml")),
+    AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField));
+spot.camera("front").onEstimate(sample -> drivetrain.addVisionMeasurement(
+    sample.estimate().primary().pose().toPose2d(),
+    Utils.fpgaToCurrentTime(sample.timestampSeconds()),
+    stdDevs));
+```
+
+`onEstimate` runs its callback on the NetworkTables listener thread as each
+estimate arrives, so the callback must be thread-safe. CTRE's
+`SwerveDrivetrain.addVisionMeasurement` is; WPILib's pose estimators are not.
+
+`spot.status()` and `camera.status()` are empty while Spot is disconnected, and
+`spot.error()` explains a non-ready state.
+
 ## Mounts and pose estimates
 
 `mount` is the robot-to-camera transform: meters on WPILib axes (+X forward, +Y left,

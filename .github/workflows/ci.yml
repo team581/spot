@@ -113,3 +113,16 @@ jobs:
           pnpm --filter spot-dashboard generate:api
           pnpm --filter spot-docs generate:schema
           git diff --exit-code apps/dashboard/src/api.gen.ts apps/docs/public/spot-config.schema.json
+
+  java:
+    name: Java client
+    runs-on: blacksmith-4vcpu-ubuntu-2604
+    timeout-minutes: 10
+    steps:
+      - uses: useblacksmith/checkout@v1
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - run: ./gradlew build plainJavadocJar generatePomFileForMavenPublication

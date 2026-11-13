@@ -7,7 +7,15 @@ hooks {
     steps {
       ["conventional-commit"] = (Builtins.check_conventional_commit) {
         allowed_scopes =
-          List("camera-viewer", "dashboard", "docs", "nix", "vision", "vscode-camera-preview")
+          List(
+            "camera-viewer",
+            "dashboard",
+            "docs",
+            "java-client",
+            "nix",
+            "vision",
+            "vscode-camera-preview",
+          )
       }
     }
   }
@@ -97,5 +105,10 @@ steps {
     // OpenCV comes from the Nix shell.
     check =
       "nix develop -c cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings"
+  }
+  ["spotless"] {
+    glob = List("packages/java-client/**/*.{java,gradle}")
+    check = "./gradlew spotlessCheck"
+    fix = "./gradlew spotlessApply"
   }
 }
