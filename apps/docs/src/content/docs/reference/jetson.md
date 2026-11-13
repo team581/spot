@@ -51,10 +51,10 @@ Log times are NT server time.
 
 Each recording holds:
 
-- Camera images, at most [`recording.image_fps`](../config/#recording) per camera
+- Camera images, at most 30 per second per camera
 - Tag detections and estimates, at full rate
 - Camera status
 - The effective config and field layout, at start and on each change
 - Service logs
 
-The oldest recordings are deleted once disk usage passes [`recording.max_disk_usage_percent`](../config/#recording).
+The oldest recordings are deleted once disk usage passes 80%.

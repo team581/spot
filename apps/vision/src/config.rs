@@ -17,47 +17,9 @@ pub struct RobotConfig {
     /// Tag IDs that are never used for pose estimation.
     #[serde(default)]
     pub ignored_tags: Vec<u32>,
-    #[serde(default)]
-    pub recording: RecordingConfig,
     /// Cameras keyed by name. Names appear in NetworkTables topics.
     #[serde(default)]
     pub cameras: BTreeMap<String, CameraConfig>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RecordingConfig {
-    /// Record MCAP files of matches and robot enables.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// Maximum rate of camera images stored per camera.
-    #[serde(default = "default_image_fps")]
-    #[schemars(range(min = 0.0))]
-    pub image_fps: f64,
-    /// Delete the oldest recordings once the disk is fuller than this percentage.
-    #[serde(default = "default_disk_usage")]
-    #[schemars(range(min = 1.0, max = 99.0))]
-    pub max_disk_usage_percent: f64,
-}
-
-impl Default for RecordingConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            image_fps: default_image_fps(),
-            max_disk_usage_percent: default_disk_usage(),
-        }
-    }
-}
-
-fn default_true() -> bool {
-    true
-}
-fn default_image_fps() -> f64 {
-    30.0
-}
-fn default_disk_usage() -> f64 {
-    80.0
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, ToSchema)]

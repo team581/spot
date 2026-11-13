@@ -510,20 +510,6 @@ export interface components {
 			/** @description File name, downloadable from `/recordings/<name>`. */
 			name: string;
 		};
-		RecordingConfig: {
-			/** @description Record MCAP files of matches and robot enables. */
-			enabled?: boolean;
-			/**
-			 * Format: double
-			 * @description Maximum rate of camera images stored per camera.
-			 */
-			image_fps?: number;
-			/**
-			 * Format: double
-			 * @description Delete the oldest recordings once the disk is fuller than this percentage.
-			 */
-			max_disk_usage_percent?: number;
-		};
 		/** @description Spot's configuration, owned by robot code and sent as TOML over NetworkTables. */
 		RobotConfig: {
 			/** @description Cameras keyed by name. Names appear in NetworkTables topics. */
@@ -532,7 +518,6 @@ export interface components {
 			};
 			/** @description Tag IDs that are never used for pose estimation. */
 			ignored_tags?: number[];
-			recording?: components['schemas']['RecordingConfig'];
 		};
 		/** @description Jetson-local settings, kept out of the robot config. */
 		Settings: {

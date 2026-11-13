@@ -28,6 +28,10 @@ use crate::pipeline::FrameResult;
 const SEGMENT_US: i64 = 2_000_000;
 const PREROLL_US: i64 = 5_000_000;
 const POSTROLL_US: i64 = 5_000_000;
+/// Maximum rate of camera images stored per camera.
+const IMAGE_FPS: f64 = 30.0;
+/// Delete the oldest recordings once the disk is fuller than this percentage.
+const MAX_DISK_USAGE_PERCENT: f64 = 80.0;
 const ENABLED: i64 = 0x01;
 const FMS_ATTACHED: i64 = 0x10;
 
@@ -195,11 +199,10 @@ impl Recorder {
         })
     }
 
-    /// Logs a processed frame: detections every frame, images at the configured rate.
+    /// Logs a processed frame: detections every frame, images at up to `IMAGE_FPS`.
     pub fn frame(&self, result: &FrameResult) {
         let time_us = self.log_time(result.monotonic_us);
         let mut state = self.state.lock().unwrap();
-        let image_fps = state.config.as_ref().map_or(30.0, |(c, _)| c.recording.image_fps);
         let channels = self.camera(&mut state, result.camera);
         let time = nanos(time_us);
         let tags: Vec<_> = result
@@ -241,8 +244,8 @@ impl Recorder {
 
         let due = channels
             .last_image_us
-            .is_none_or(|last| (time_us - last) as f64 >= 1e6 / image_fps * 0.9);
-        if image_fps > 0.0 && due {
+            .is_none_or(|last| (time_us - last) as f64 >= 1e6 / IMAGE_FPS * 0.9);
+        if due {
             channels.last_image_us = Some(time_us);
             channels.image.log_with_time(
                 &CompressedImage {
@@ -294,7 +297,7 @@ impl Recorder {
             state.synced = synced;
         }
         state.last_us = now_us;
-        let recording = state.config.as_ref().is_some_and(|(c, _)| c.recording.enabled);
+        let recording = state.config.is_some();
         if !recording {
             self.close_segment(&mut state, now_us);
             state.active = None;
@@ -380,7 +383,6 @@ impl Recorder {
             }
             output = self.dir.join(format!("{name}_{n}.mcap"));
         }
-        let limit = state.config.as_ref().map_or(80.0, |(c, _)| c.recording.max_disk_usage_percent);
         let dir = self.dir.clone();
         std::thread::spawn(move || {
             match merge(&inputs, &output, nanos(start_us), nanos(end_us)) {
@@ -388,7 +390,7 @@ impl Recorder {
                 Err(error) => tracing::error!(%error, "could not save recording"),
             }
             let _ = std::fs::remove_dir_all(staging);
-            prune(&dir, limit);
+            prune(&dir);
         });
         self.rotate(state, end_us);
     }
@@ -531,8 +533,8 @@ fn merge(inputs: &[PathBuf], output: &Path, start: u64, end: u64) -> anyhow::Res
     Ok(())
 }
 
-/// Deletes the oldest recordings while the disk is fuller than `limit` percent.
-fn prune(dir: &Path, limit: f64) {
+/// Deletes the oldest recordings while the disk is fuller than `MAX_DISK_USAGE_PERCENT`.
+fn prune(dir: &Path) {
     let usage = || crate::system::disk_percent(dir);
     let mut files: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(dir)
         .into_iter()
@@ -546,7 +548,7 @@ fn prune(dir: &Path, limit: f64) {
         .collect();
     files.sort();
     for (_, path) in files {
-        if usage().is_none_or(|u| u <= limit) {
+        if usage().is_none_or(|u| u <= MAX_DISK_USAGE_PERCENT) {
             break;
         }
         tracing::info!(recording = %path.display(), "deleting old recording to free space");

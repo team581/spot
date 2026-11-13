@@ -6,8 +6,6 @@ void test('cameras keyed by name become preview cameras with schema defaults', (
 	const cameras = parseConfig(`
 #:schema https://spot.frc581.com/spot-config.schema.json
 ignored_tags = [3]
-[recording]
-image_fps = 30
 [cameras.front]
 serial = "ABC123"
 required = true

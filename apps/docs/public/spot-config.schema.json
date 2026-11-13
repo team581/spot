@@ -21,14 +21,6 @@
 				"format": "uint32",
 				"minimum": 0
 			}
-		},
-		"recording": {
-			"$ref": "#/$defs/RecordingConfig",
-			"default": {
-				"enabled": true,
-				"image_fps": 30.0,
-				"max_disk_usage_percent": 80.0
-			}
 		}
 	},
 	"additionalProperties": false,
@@ -190,32 +182,6 @@
 					"type": "number",
 					"format": "double",
 					"default": 0.0
-				}
-			},
-			"additionalProperties": false
-		},
-		"RecordingConfig": {
-			"type": "object",
-			"properties": {
-				"enabled": {
-					"description": "Record MCAP files of matches and robot enables.",
-					"type": "boolean",
-					"default": true
-				},
-				"image_fps": {
-					"description": "Maximum rate of camera images stored per camera.",
-					"type": "number",
-					"format": "double",
-					"default": 30.0,
-					"minimum": 0.0
-				},
-				"max_disk_usage_percent": {
-					"description": "Delete the oldest recordings once the disk is fuller than this percentage.",
-					"type": "number",
-					"format": "double",
-					"default": 80.0,
-					"maximum": 99.0,
-					"minimum": 1.0
 				}
 			},
 			"additionalProperties": false

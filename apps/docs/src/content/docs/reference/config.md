@@ -15,16 +15,7 @@ An invalid config is rejected, the last valid one keeps running, and the reason 
 | Key            | Type         | Default | Description                                                    |
 | -------------- | ------------ | ------- | -------------------------------------------------------------- |
 | `ignored_tags` | array of int | `[]`    | Tag IDs never used for pose estimation.                        |
-| `recording`    | table        |         | See [`[recording]`](#recording).                               |
 | `cameras`      | table        | `{}`    | Cameras keyed by name. See [`[cameras.<name>]`](#camerasname). |
-
-## `[recording]`
-
-| Key                      | Type  | Default | Description                                                  |
-| ------------------------ | ----- | ------- | ------------------------------------------------------------ |
-| `enabled`                | bool  | `true`  | Record matches and robot enables.                            |
-| `image_fps`              | float | `30`    | Most camera images stored per camera per second. At least 0. |
-| `max_disk_usage_percent` | float | `80`    | Delete the oldest recordings above this disk usage. 1 to 99. |
 
 ## `[cameras.<name>]`
 

@@ -114,7 +114,7 @@
 - Robot code loads TOML config as a string and exposes it via NT
   - Spot backend reads the config and uses that
   - JSON Schema published at <https://spot.frc581.com/> for editor validation
-  - Includes cameras (name, `serial`/`port`, `required`, mode, controls, mount, calibrations), `ignored_tags`, recording settings
+  - Includes cameras (name, `serial`/`port`, `required`, mode, controls, mount, calibrations), `ignored_tags`
 - Last robot config is cached on the Jetson for bench use without a robot
 - Team number, IP, and NT server are Jetson-local settings, not robot config
 - Overrides can be made via dashboard
@@ -164,14 +164,14 @@
   - The same log calls feed the dashboard's live views over the SDK's WebSocket server
   - Replayed in the dashboard
 - Contents
-  - Per-camera passthrough JPEGs, FPS capped by config (default 30)
+  - Per-camera passthrough JPEGs, capped at 30 FPS
   - Tag detections (corners, IDs) and estimates at full rate
   - Camera status, effective config and field layout (at start and on every change), service logs
 - Merged recordings put everything but images first, in their own chunks, so replay loads them without reading images
 - Rolling on-disk buffer of short segments, long enough for the pre-enable lead-in
   - Segments from ~5 s before enable to ~5 s after disable are kept as a recording, based on `FMSControlData` (works with a Driver Station alone)
   - Named by event + match when FMS is attached, otherwise by time
-  - Oldest recordings deleted above a disk usage threshold
+  - Oldest recordings deleted above 80% disk usage
 - Log time is NT server time, the same time base as WPILOG
   - Wall clock only used for filenames and metadata
 
