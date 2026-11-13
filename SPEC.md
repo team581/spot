@@ -95,7 +95,7 @@
   - Camera detail: mode, exposure, gain, detections table
   - Camera naming (assign port/serial to a camera name)
   - Calibration
-  - Config: overrides diff against robot config, copy merged TOML
+  - Config: overrides diff against robot config, copy merged TOML, paste TOML to replace it as overrides
   - Network: team number, DHCP/static IP, NT server override
     - Changes are applied by a root helper with trial → confirm → automatic rollback
   - System: CPU, GPU, temperature, per-camera FPS

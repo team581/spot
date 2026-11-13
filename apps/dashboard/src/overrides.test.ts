@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test';
-import { diffOverrides, setOverride } from './overrides';
+import { diffOverrides, overridesFor, setOverride } from './overrides';
 
 test('setOverride sets nested values without touching siblings or the input', () => {
 	const overrides = { ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1 } } } };
@@ -25,4 +25,13 @@ test('diffOverrides pairs leaf overrides with robot values', () => {
 		{ path: 'cameras.front.controls.gain', before: 5, after: 7 },
 		{ path: 'cameras.back.serial', before: undefined, after: 'B' },
 	]);
+});
+
+test('overridesFor removes robot keys missing from the target', () => {
+	const robot = { ignored_tags: [3], cameras: { front: { serial: 'A', required: true }, back: { serial: 'B' } } };
+	const target = { cameras: { front: { serial: 'C' } } };
+	expect(overridesFor(robot, target)).toEqual({
+		ignored_tags: null,
+		cameras: { back: null, front: { required: null, serial: 'C' } },
+	});
 });

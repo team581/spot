@@ -27,3 +27,15 @@ export function diffOverrides(robot: Json | undefined, overrides: Overrides, pre
 		return isObject(after) ? diffOverrides(before, after, path + '.') : [{ path, before, after }];
 	});
 }
+
+/** Returns overrides that turn the robot config into `target`. Spot prunes the ones the robot config already matches. */
+export function overridesFor(robot: Json | undefined, target: Overrides): Overrides {
+	const removed = isObject(robot) ? Object.keys(robot).filter((key) => !(key in target)) : [];
+	return Object.fromEntries([
+		...removed.map((key) => [key, null]),
+		...Object.entries(target).map(([key, value]) => {
+			const before = isObject(robot) ? robot[key] : undefined;
+			return [key, isObject(value) && isObject(before) ? overridesFor(before, value) : value];
+		}),
+	]);
+}

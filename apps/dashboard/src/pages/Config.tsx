@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { parse } from 'smol-toml';
-import { diffOverrides, type Json, type Overrides } from '../overrides';
+import { diffOverrides, overridesFor, type Json, type Overrides } from '../overrides';
 import { useConfig, useEditOverrides } from '../queries';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -63,10 +63,48 @@ function Merged({ toml }: { toml: string }) {
 	);
 }
 
+function Paste({ robot, edit }: { robot: Json | undefined; edit: ReturnType<typeof useEditOverrides> }) {
+	const [text, setText] = useState(''),
+		[error, setError] = useState<Error | null>(null);
+	const apply = () => {
+		let target: Overrides;
+		try {
+			target = parse(text) as Overrides;
+		} catch (e) {
+			setError(e as Error);
+			return;
+		}
+		setError(null);
+		edit.mutate(() => overridesFor(robot, target), { onSuccess: () => setText(''), onError: setError });
+	};
+	return (
+		<Panel
+			title="Paste config"
+			action={
+				<Button size="sm" disabled={!text.trim() || edit.isPending} onClick={apply}>
+					Apply
+				</Button>
+			}
+		>
+			<p className="text-sm text-muted-foreground">
+				Replace the config with TOML. It's saved as overrides, so discarding them returns to the robot config.
+			</p>
+			<Textarea
+				value={text}
+				onChange={(e) => setText(e.target.value)}
+				placeholder="Paste a spot.toml"
+				className="min-h-40 font-mono text-xs"
+			/>
+			<ErrorText error={error} />
+		</Panel>
+	);
+}
+
 export default function Config() {
 	const { data: view, error } = useConfig(),
 		edit = useEditOverrides(),
-		differences = diffOverrides(robotConfig(view?.robot_config), (view?.overrides ?? {}) as Overrides);
+		robot = robotConfig(view?.robot_config),
+		differences = diffOverrides(robot, (view?.overrides ?? {}) as Overrides);
 	return (
 		<>
 			<PageTitle>Config</PageTitle>
@@ -127,6 +165,7 @@ export default function Config() {
 				<ErrorText error={edit.error} />
 			</Panel>
 			{view ? <Merged toml={view.merged} /> : null}
+			<Paste robot={robot} edit={edit} />
 		</>
 	);
 }
