@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/team581/spot/compare/camera-preview-v1.0.1...camera-preview-v1.1.0) (2026-11-13)
+
+
+### Features
+
+* add Spot logo ([4976076](https://github.com/team581/spot/commit/4976076a79b48d5598ba252342c01a6d04c6a135))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 2.0.1
+
 ## [1.0.1](https://github.com/team581/spot/compare/camera-preview-v1.0.0...camera-preview-v1.0.1) (2026-11-13)
 
 
