@@ -1,0 +1,111 @@
+---
+title: Set up a new Jetson
+description: Install Spot on a Jetson Orin Nano and get it publishing estimates to robot code.
+---
+
+import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide takes a Jetson Orin Nano in a **Seeed reComputer Robotics J401** carrier from a blank drive to publishing estimates to robot code.
+Installing erases the target drive.
+
+:::danger
+Never flash NVIDIA developer-kit firmware onto the J401.
+Spot's installer leaves the board's firmware alone.
+:::
+
+## Get the installer image
+
+<LinkButton href="https://downloads.spot.frc581.com/latest/spot-installer.iso" icon="download">
+	Download the latest installer
+</LinkButton>
+
+Download its checksum from the same place, [`spot-installer.iso.sha256`](https://downloads.spot.frc581.com/latest/spot-installer.iso.sha256), and verify the image:
+
+```sh
+shasum -a 256 -c spot-installer.iso.sha256
+```
+
+Only the latest build from `main` is kept.
+To build one from another commit, run the **Jetson offline installer** workflow in GitHub Actions, or build it yourself:
+
+<Tabs>
+  <TabItem label="macOS">
+
+    Start a Docker-compatible Linux runtime with Buildx, giving it at least 8 CPUs and 16 GiB of RAM.
+    Free at least 60 GiB on the Mac's disk; the VM's own free-space report doesn't reflect it.
+    From the repository root, run:
+
+    ```sh
+    mise run jetson:installer
+    ```
+
+    The image is written to `dist/installer/spot-installer.iso`.
+
+  </TabItem>
+  <TabItem label="ARM Linux with Nix">
+
+    ```sh
+    nix build path:.#installer
+    ```
+
+    The image is written to `result/iso/`.
+
+  </TabItem>
+</Tabs>
+
+Write the image to a USB drive.
+
+## Install
+
+1. Boot the Jetson from the USB drive.
+2. Partition the target drive with a FAT32 EFI partition labeled `SPOT_EFI` and an ext4 root partition labeled `SPOT_ROOT`.
+   For an NVMe drive:
+
+   ```sh
+   sudo parted /dev/nvme0n1 -- mklabel gpt mkpart ESP fat32 1MiB 1GiB set 1 esp on mkpart root ext4 1GiB 100%
+   sudo mkfs.fat -F 32 -n SPOT_EFI /dev/nvme0n1p1
+   sudo mkfs.ext4 -L SPOT_ROOT /dev/nvme0n1p2
+   ```
+
+3. Mount them and install:
+
+   ```sh
+   sudo mount /dev/disk/by-label/SPOT_ROOT /mnt
+   sudo mount --mkdir /dev/disk/by-label/SPOT_EFI /mnt/boot
+   sudo spot-install --root /mnt
+   ```
+
+4. Remove the USB drive and reboot.
+
+Spot starts on boot.
+
+## Connect to the robot
+
+1. Plug in the cameras and connect the Jetson to the robot's network.
+2. Open [spot.local](http://spot.local) from a laptop on the robot network.
+   If mDNS doesn't resolve, use [10.5.81.11](http://10.5.81.11).
+3. Turn on the robot.
+   Robot code with the Spot vendordep publishes `spot.toml` and the field layout on startup.
+4. On **Config**, check that **Source** shows the robot config as **Live from the robot**.
+
+Spot looks for robot code at `10.5.81.2`.
+For a simulator or another team number, see [Change Spot's network settings](../change-network/).
+
+## Set up the cameras
+
+If the robot's `spot.toml` already lists these cameras, such as when replacing a Jetson, they start on their own with their saved calibrations.
+Cameras that share a serial must go back in the same USB ports.
+Skip to [Check the result](#check-the-result).
+
+Otherwise, for each camera:
+
+1. [Add the camera](../add-camera/).
+2. [Calibrate it](../calibrate/).
+
+Then [copy the dashboard changes into `spot.toml`](../save-dashboard-changes/), fill in each camera's `mount`, and deploy robot code.
+
+## Check the result
+
+1. Check that the dashboard shows no status banner, which means Spot is `ready`, and that every camera on **Cameras** is streaming.
+   A banner names the problem.
+2. [Check the mounts](../add-camera/#check-a-mount) in the **Field** view.

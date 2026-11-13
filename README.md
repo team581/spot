@@ -1,9 +1,6 @@
-# Spot Vision
+# Spot
 
-Team 581's Jetson AprilTag service and camera tools.
+Team 581's AprilTag vision system for the Jetson Orin Nano.
 
-[Documentation](https://spot.frc581.com/) ·
-[Development](https://spot.frc581.com/development/) ·
-[Jetson setup](https://spot.frc581.com/operator/deployment/)
-
-Documentation source: [apps/docs/src/content/docs](apps/docs/src/content/docs).
+Docs: <https://spot.frc581.com/> (source in [apps/docs/src/content/docs](apps/docs/src/content/docs)).
+To work on Spot, see [Work on Spot](https://spot.frc581.com/how-to/develop/).

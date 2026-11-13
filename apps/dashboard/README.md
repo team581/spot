@@ -1,4 +1,4 @@
 # Spot dashboard
 
-See [development](https://spot.frc581.com/development/) and
-[camera setup](https://spot.frc581.com/operator/cameras/).
+Spot's web dashboard, served by the vision service.
+See [Work on Spot](https://spot.frc581.com/how-to/develop/).

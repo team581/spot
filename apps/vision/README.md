@@ -1,4 +1,4 @@
 # Spot vision service
 
-See [development](https://spot.frc581.com/development/) and
-[camera setup](https://spot.frc581.com/operator/cameras/).
+The service that runs on the Jetson: capture, tag detection, pose estimation, NetworkTables, and the HTTP API.
+See [Work on Spot](https://spot.frc581.com/how-to/develop/).
