@@ -71,18 +71,23 @@ impl Lens {
         )
     }
 
-    /// A pixel as it would appear without distortion.
-    pub fn undistort(&self, p: Vec2) -> Vec2 {
+    /// A pixel as it would appear without distortion, or `None` where the distortion model
+    /// can't be inverted, as past a fold near the edge of a poorly fit calibration.
+    pub fn undistort(&self, p: Vec2) -> Option<Vec2> {
         let (x0, y0) = ((p.x - self.cx) / self.fx, (p.y - self.cy) / self.fy);
         let (mut x, mut y) = (x0, y0);
-        // Fixed-point iteration, as OpenCV's undistortPoints; a few steps suffice for the
-        // sub-pixel shifts along one edge.
-        for _ in 0..5 {
+        // Fixed-point iteration, as OpenCV's undistortPoints, until the point distorts back to
+        // within a thousandth of a pixel of where it was seen.
+        for _ in 0..20 {
             let (dx, dy) = self.distort_normalized(x, y);
-            x += x0 - dx;
-            y += y0 - dy;
+            let (ex, ey) = (x0 - dx, y0 - dy);
+            if (ex * self.fx).hypot(ey * self.fy) < 1e-3 {
+                return Some(Vec2::new(self.fx * x + self.cx, self.fy * y + self.cy));
+            }
+            x += ex;
+            y += ey;
         }
-        Vec2::new(self.fx * x + self.cx, self.fy * y + self.cy)
+        None
     }
 
     /// An undistorted pixel where the camera sees it.
@@ -225,9 +230,18 @@ mod tests {
             distortion: [-0.1, 0.03, 0.001, -0.002, 0.0],
         };
         for p in [Vec2::new(10.0, 20.0), Vec2::new(640.0, 400.0), Vec2::new(1270.0, 790.0)] {
-            let q = lens.distort(lens.undistort(p));
+            let q = lens.distort(lens.undistort(p).unwrap());
             assert!((q - p).length() < 0.01, "{p:?} {q:?}");
         }
+    }
+
+    #[test]
+    fn lens_rejects_points_past_the_fold() {
+        // Radial distance peaks at 0.62 (normalized), so nothing distorts to 0.8.
+        let lens =
+            Lens { fx: 500.0, fy: 500.0, cx: 0.0, cy: 0.0, distortion: [0.0, 0.0, 0.0, 0.0, -1.0] };
+        assert!(lens.undistort(Vec2::new(250.0, 0.0)).is_some());
+        assert!(lens.undistort(Vec2::new(400.0, 0.0)).is_none());
     }
 
     #[test]

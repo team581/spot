@@ -268,6 +268,8 @@ pub fn estimate(
     let tags: Vec<TagObservation> = detections
         .iter()
         .filter(|d| !processing.ignored_tags.contains(&d.id))
+        // Corners past where the lens model inverts would corrupt the fit.
+        .filter(|d| d.corners.iter().all(|&p| pose::undistort(p, &calibration).is_some()))
         .filter_map(|d| {
             Some(TagObservation {
                 id: d.id,

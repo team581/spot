@@ -97,7 +97,7 @@ fn fit_side(
     // Under lens distortion the edge is straight only in undistorted space.
     if let Some(lens) = lens {
         for (p, _) in points.iter_mut() {
-            *p = lens.undistort(*p);
+            *p = lens.undistort(*p)?;
         }
     }
     // Start from the line through two measurements that most others agree with, so stray

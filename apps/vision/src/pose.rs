@@ -54,8 +54,9 @@ pub fn tag_corners(tag: &Isometry3<f64>, size: f64) -> [Point3<f64>; 4] {
     [(-h, -h), (h, -h), (h, h), (-h, h)].map(|(y, z)| tag * Point3::new(0.0, y, z))
 }
 
-/// Undistorts a pixel to normalized pinhole coordinates (OpenCV's iterative method).
-pub fn undistort(pixel: [f64; 2], k: &Calibration) -> Vector2<f64> {
+/// Undistorts a pixel to normalized pinhole coordinates (OpenCV's iterative method), or
+/// `None` where the distortion model can't be inverted.
+pub fn undistort(pixel: [f64; 2], k: &Calibration) -> Option<Vector2<f64>> {
     let [k1, k2, p1, p2, k3] = k.distortion;
     let x0 = (pixel[0] - k.cx) / k.fx;
     let y0 = (pixel[1] - k.cy) / k.fy;
@@ -65,10 +66,14 @@ pub fn undistort(pixel: [f64; 2], k: &Calibration) -> Vector2<f64> {
         let radial = 1.0 + r2 * (k1 + r2 * (k2 + r2 * k3));
         let dx = 2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x);
         let dy = p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y;
+        let (ex, ey) = (x * radial + dx - x0, y * radial + dy - y0);
+        if (ex * k.fx).hypot(ey * k.fy) < 1e-3 {
+            return Some(Vector2::new(x, y));
+        }
         x = (x0 - dx) / radial;
         y = (y0 - dy) / radial;
     }
-    Vector2::new(x, y)
+    None
 }
 
 /// WPILib camera axes (+X forward, +Y left, +Z up) to optical axes (+X right, +Y down, +Z forward).
@@ -221,7 +226,10 @@ pub fn solve(
     }
     let problem = Problem {
         field: tags.iter().flat_map(|t| t.field.map(|p| p.coords)).collect(),
-        image: tags.iter().flat_map(|t| t.pixels.map(|p| undistort(p, calibration))).collect(),
+        image: tags
+            .iter()
+            .flat_map(|t| t.pixels.map(|p| undistort(p, calibration)))
+            .collect::<Option<_>>()?,
         mount_rotation: OPTICAL * mount.rotation.to_rotation_matrix().matrix().transpose(),
         mount_offset: mount.translation.vector,
         focal: Vector2::new(calibration.fx, calibration.fy),
