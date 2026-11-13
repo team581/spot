@@ -90,6 +90,7 @@
 	"extensionKind": [
 		"workspace"
 	],
+	"icon": "icon.png",
 	"engines": {
 		"vscode": "1.145.0"
 	},

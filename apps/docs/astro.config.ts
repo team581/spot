@@ -57,6 +57,7 @@ export default defineConfig({
 			title: 'Spot documentation',
 			description: "Team 581's Jetson vision system: setup, calibration, and robot integration.",
 			favicon: '/favicon.svg',
+			logo: { src: './src/assets/logo.svg' },
 			social: [
 				...(jetson ? [{ icon: 'left-arrow' as const, label: 'Dashboard', href: '/' }] : []),
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/team581/spot' },

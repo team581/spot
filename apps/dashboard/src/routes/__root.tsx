@@ -62,7 +62,7 @@ function Root() {
 						<SidebarMenu>
 							<SidebarMenuItem>
 								<SidebarMenuButton size="lg" render={<Link to="/" />}>
-									<img src="/blazing-bulldogs.svg" alt="Blazing Bulldogs" className="size-8 object-contain" />
+									<img src="/logo.svg" alt="" className="size-8 object-contain" />
 									<span className="font-heading text-xl font-semibold">Spot</span>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
