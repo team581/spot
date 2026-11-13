@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.0](https://github.com/team581/spot/compare/camera-preview-v0.3.2...camera-preview-v1.0.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vscode-camera-preview:** preview cameras from spot.toml
+
+### Features
+
+* **vscode-camera-preview:** preview cameras from spot.toml ([d997223](https://github.com/team581/spot/commit/d99722306561ce46b875ab7598d90965463978a5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 2.0.0
+
 ## [0.3.2](https://github.com/team581/spot-2026/compare/camera-preview-v0.3.1...camera-preview-v0.3.2) (2026-11-10)
 
 
