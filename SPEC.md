@@ -95,7 +95,7 @@
   - Camera grid with tag overlays
   - 3D field view
     - Field tags, each camera's robot estimate, the camera on that robot, lines drawn to tags
-=  - Camera detail: mode, exposure, gain, detections table
+  - Camera detail: mode, exposure, gain, detections table
   - Camera naming (assign port/serial to a camera name)
   - Calibration
   - Config: overrides diff against robot config, copy merged TOML, paste TOML to replace it as overrides
