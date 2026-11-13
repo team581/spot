@@ -291,7 +291,7 @@ impl App {
             let processing = Processing {
                 calibration: camera.calibration().cloned(),
                 mount: camera.mount.isometry(),
-                tag_size: config.tag_size,
+                tag_size: crate::pose::TAG_SIZE,
                 ignored_tags: config.ignored_tags.clone(),
                 layout: effective.layout.clone(),
                 charuco: inner.sessions.get(name).map(|s| s.charuco.clone()),

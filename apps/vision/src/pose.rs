@@ -46,6 +46,9 @@ pub struct Estimate {
 
 /// Field positions of a tag's corners in detector order: bottom-left, bottom-right,
 /// top-right, top-left as seen facing the tag. WPILib tag frames point +X out of the face.
+/// FRC AprilTag (36h11) edge length in meters, measured across the outer black border.
+pub const TAG_SIZE: f64 = 0.1651;
+
 pub fn tag_corners(tag: &Isometry3<f64>, size: f64) -> [Point3<f64>; 4] {
     let h = size / 2.0;
     [(-h, -h), (h, -h), (h, h), (-h, h)].map(|(y, z)| tag * Point3::new(0.0, y, z))
@@ -337,7 +340,7 @@ mod tests {
     }
 
     fn observe(id: u32, tag: Isometry3<f64>, camera: &Isometry3<f64>) -> TagObservation {
-        let field = tag_corners(&tag, 0.1651);
+        let field = tag_corners(&tag, TAG_SIZE);
         TagObservation { id, pixels: field.map(|p| project(&p, camera, &calibration())), field }
     }
 

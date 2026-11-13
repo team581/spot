@@ -2,9 +2,9 @@ import { expect, test } from 'vite-plus/test';
 import { diffOverrides, setOverride } from './overrides';
 
 test('setOverride sets nested values without touching siblings or the input', () => {
-	const overrides = { tag_size: 0.2, cameras: { front: { serial: 'A', mount: { x: 1 } } } };
+	const overrides = { ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1 } } } };
 	const next = setOverride(overrides, ['cameras', 'front', 'mount', 'y'], 2);
-	expect(next).toEqual({ tag_size: 0.2, cameras: { front: { serial: 'A', mount: { x: 1, y: 2 } } } });
+	expect(next).toEqual({ ignored_tags: [3], cameras: { front: { serial: 'A', mount: { x: 1, y: 2 } } } });
 	expect(overrides.cameras.front.mount).toEqual({ x: 1 });
 });
 

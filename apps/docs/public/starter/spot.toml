@@ -1,8 +1,5 @@
 #:schema https://spot.frc581.com/spot-config.schema.json
 
-# Tag edge length in meters, across the outer black border.
-tag_size = 0.1651
-
 [cameras.front]
 serial = "CHANGE-ME"
 required = true

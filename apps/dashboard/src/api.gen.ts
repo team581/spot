@@ -500,11 +500,6 @@ export interface components {
 			/** @description Tag IDs that are never used for pose estimation. */
 			ignored_tags?: number[];
 			recording?: components['schemas']['RecordingConfig'];
-			/**
-			 * Format: double
-			 * @description AprilTag edge length in meters, measured across the outer black border.
-			 */
-			tag_size?: number;
 		};
 		/** @description Jetson-local settings, kept out of the robot config. */
 		Settings: {

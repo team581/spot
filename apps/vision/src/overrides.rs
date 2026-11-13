@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn merge_keeps_comments_and_edits_nested_tables() {
-        let robot = "# Spot\ntag_size = 0.1651\n\n[cameras.front]\nserial = \"A\" # left\nmount = { x = 0.2, pitch = 10 }\n";
+        let robot = "# Spot\nignored_tags = [3]\n\n[cameras.front]\nserial = \"A\" # left\nmount = { x = 0.2, pitch = 10 }\n";
         let merged = merge(
             robot,
             &object(json!({

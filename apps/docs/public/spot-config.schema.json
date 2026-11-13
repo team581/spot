@@ -29,13 +29,6 @@
 				"image_fps": 30.0,
 				"max_disk_usage_percent": 80.0
 			}
-		},
-		"tag_size": {
-			"description": "AprilTag edge length in meters, measured across the outer black border.",
-			"type": "number",
-			"format": "double",
-			"default": 0.1651,
-			"minimum": 0.0
 		}
 	},
 	"additionalProperties": false,

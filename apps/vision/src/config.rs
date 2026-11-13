@@ -14,10 +14,6 @@ use utoipa::ToSchema;
 #[serde(deny_unknown_fields)]
 #[schemars(title = "Spot configuration")]
 pub struct RobotConfig {
-    /// AprilTag edge length in meters, measured across the outer black border.
-    #[serde(default = "default_tag_size")]
-    #[schemars(range(min = 0.0))]
-    pub tag_size: f64,
     /// Tag IDs that are never used for pose estimation.
     #[serde(default)]
     pub ignored_tags: Vec<u32>,
@@ -26,10 +22,6 @@ pub struct RobotConfig {
     /// Cameras keyed by name. Names appear in NetworkTables topics.
     #[serde(default)]
     pub cameras: BTreeMap<String, CameraConfig>,
-}
-
-fn default_tag_size() -> f64 {
-    0.1651
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, ToSchema)]
@@ -255,9 +247,6 @@ impl RobotConfig {
     /// Checks the rules that the schema cannot express.
     fn validate(&self) -> Result<(), String> {
         let mut errors = Vec::new();
-        if self.tag_size.is_nan() || self.tag_size <= 0.0 {
-            errors.push("tag_size must be positive".to_string());
-        }
         let mut selectors = BTreeSet::new();
         for (name, camera) in &self.cameras {
             let at = format!("cameras.{name}");

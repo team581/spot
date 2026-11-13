@@ -288,7 +288,7 @@ mod tests {
         let (roll, cx, cy, p1, p2) =
             if rotated { (180, 639, 399, -0.006, 0.008) } else { (0, 640, 400, 0.006, -0.008) };
         let config = RobotConfig::parse(&format!(
-            "tag_size = 0.3\n[cameras.front]\nserial = \"front\"\nmount = {{ z = 0.6, roll = {roll} }}\n\
+            "[cameras.front]\nserial = \"front\"\nmount = {{ z = 0.6, roll = {roll} }}\n\
              [cameras.front.calibrations.1280x800]\nfx = 700\nfy = 700\ncx = {cx}\ncy = {cy}\n\
              distortion = [-0.18, 0.04, {p1}, {p2}, 0.01]\n"
         ))
@@ -299,7 +299,8 @@ mod tests {
         Processing {
             calibration: camera.calibration().cloned(),
             mount: camera.mount.isometry(),
-            tag_size: config.tag_size,
+            // The fixtures were rendered with larger tags than FRC uses.
+            tag_size: 0.3,
             ignored_tags: Vec::new(),
             layout: Some(Arc::new(FieldLayout::parse(&layout).unwrap())),
             charuco: None,

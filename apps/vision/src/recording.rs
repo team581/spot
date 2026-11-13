@@ -242,7 +242,11 @@ impl Recorder {
                             position: Some(position),
                             orientation: Some(orientation),
                         }),
-                        size: Some(Vector3 { x: 0.01, y: config.tag_size, z: config.tag_size }),
+                        size: Some(Vector3 {
+                            x: 0.01,
+                            y: crate::pose::TAG_SIZE,
+                            z: crate::pose::TAG_SIZE,
+                        }),
                         color: Some(color),
                     }
                 })

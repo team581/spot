@@ -38,7 +38,7 @@ fn processing(config: &RobotConfig, layout: &Arc<FieldLayout>, size: (u32, u32))
     Processing {
         calibration: camera.and_then(|c| c.calibrations.get(&resolution).cloned()),
         mount: camera.map(|c| c.mount.isometry()).unwrap_or_default(),
-        tag_size: config.tag_size,
+        tag_size: crate::pose::TAG_SIZE,
         ignored_tags: config.ignored_tags.clone(),
         layout: Some(layout.clone()),
         charuco: None,

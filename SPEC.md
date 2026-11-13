@@ -109,7 +109,7 @@
 - Robot code loads TOML config as a string and exposes it via NT
   - Spot backend reads the config and uses that
   - JSON Schema published at <https://spot.frc581.com/> for editor validation
-  - Includes cameras (name, `serial`/`port`, `required`, mode, controls, mount, calibrations), tag size, `ignored_tags`, recording settings
+  - Includes cameras (name, `serial`/`port`, `required`, mode, controls, mount, calibrations), `ignored_tags`, recording settings
 - Last robot config is cached on the Jetson for bench use without a robot
 - Team number, IP, and NT server are Jetson-local settings, not robot config
 - Overrides can be made via dashboard

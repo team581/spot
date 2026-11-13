@@ -5,7 +5,6 @@ const { parseConfig } = require('../config.ts');
 void test('cameras keyed by name become preview cameras with schema defaults', () => {
 	const cameras = parseConfig(`
 #:schema https://spot.frc581.com/spot-config.schema.json
-tag_size = 0.1651
 ignored_tags = [3]
 [recording]
 image_fps = 30
@@ -44,7 +43,7 @@ port = "usb1"
 });
 
 void test('a config without cameras previews no cameras', () => {
-	assert.deepEqual(parseConfig('tag_size = 0.1651'), []);
+	assert.deepEqual(parseConfig('ignored_tags = [3]'), []);
 	assert.deepEqual(parseConfig(''), []);
 });
 
