@@ -70,6 +70,10 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
+      - name: Check generated Protobuf bindings
+        run: |
+          pnpm --filter spot-dashboard generate:protobuf
+          git diff --exit-code -- apps/dashboard/src/gen
       - run: pnpm check
       - parallel:
           - run: pnpm format
