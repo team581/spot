@@ -1,6 +1,6 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { parseConfig } = require('../config.ts');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseConfig } from '../config.ts';
 
 void test('cameras keyed by name become preview cameras with schema defaults', () => {
 	const cameras = parseConfig(`

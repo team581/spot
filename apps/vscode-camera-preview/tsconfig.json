@@ -3,11 +3,14 @@
 		"target": "ES2023",
 		"module": "ESNext",
 		"outDir": "out",
+		"noEmit": true,
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"types": ["node", "vscode"],
-		"moduleResolution": "Bundler"
+		"moduleResolution": "Bundler",
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true
 	},
-	"include": ["extension.ts", "config.ts", "webview.ts"]
+	"include": ["extension.ts", "config.ts", "webview.ts", "test/**/*.ts"]
 }

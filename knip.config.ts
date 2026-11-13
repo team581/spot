@@ -12,8 +12,8 @@ const config: KnipConfig = {
 		},
 		'apps/docs': {},
 		'apps/vscode-camera-preview': {
-			entry: ['test/*.cjs'],
-			project: ['*.{ts,mts,cjs}', 'media/*.ts', 'test/**/*.cjs'],
+			entry: ['test/*.test.ts'],
+			project: ['*.{ts,mts,cjs}', 'media/*.ts', 'test/**/*.ts'],
 		},
 		'packages/camera-viewer': {},
 	},

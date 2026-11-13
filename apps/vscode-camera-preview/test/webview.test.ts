@@ -1,10 +1,10 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
-const { renderWebview } = require('../webview.ts');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { renderWebview } from '../webview.ts';
 
 void test('webview template keeps nonce-based CSP and escapes asset attributes', () => {
-	const template = readFileSync(require.resolve('../media/preview.html'), 'utf8');
+	const template = readFileSync(new URL('../media/preview.html', import.meta.url), 'utf8');
 	const html = renderWebview(template, {
 		cspSource: 'https://vscode-resource.test',
 		nonce: 'nonce-value',
