@@ -20,42 +20,6 @@ export function parseMessageData(data: ArrayBuffer) {
 	};
 }
 
-/** Returns the first length-delimited protobuf field numbered `field`. */
-export function protobufBytes(message: Uint8Array, field: number) {
-	let i = 0;
-	const varint = () => {
-		let byte;
-		let scale = 1;
-		let value = 0;
-		do {
-			byte = message[i++] ?? 0;
-			value += (byte & 0x7f) * scale;
-			scale *= 128;
-		} while (byte & 0x80);
-		return value;
-	};
-	while (i < message.length) {
-		const key = varint();
-		const wire = key % 8;
-		if (wire === 0) {
-			varint();
-		} else if (wire === 1) {
-			i += 8;
-		} else if (wire === 5) {
-			i += 4;
-		} else if (wire === 2) {
-			const length = varint();
-			if (Math.floor(key / 8) === field) {
-				return message.subarray(i, i + length);
-			}
-			i += length;
-		} else {
-			return undefined;
-		}
-	}
-	return undefined;
-}
-
 export class FoxgloveClient {
 	readonly #url: string;
 	#ws: WebSocket | undefined;

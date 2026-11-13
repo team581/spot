@@ -5,6 +5,8 @@ packages:
 # VSIX packaging does not sign extensions; skip the optional signing binary setup.
 allowBuilds:
   '@vscode/vsce-sign': false
+  # Buf's platform binary works without its postinstall validation.
+  '@bufbuild/buf': false
 
 # Vite+ aliases Vite to its versioned core package.
 peerDependencyRules:

@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { McapIndexedReader } from '@mcap/core';
 import type { IReadable } from '@mcap/core';
 import type { FieldView, RobotConfig } from './api';
-import { decodeDetections, decodeImage } from './live';
+import { decodeDetections } from './live';
+import { decodeImage } from './image';
 import type { Detections } from './live';
 
 /** Values in log time order. Times are nanoseconds, as recorded. */
@@ -136,7 +137,7 @@ async function openReplay(url: string, signal: AbortSignal): Promise<Replay> {
 				startingAt: BigInt(Math.max(0, Math.round(time - 1e9))),
 				topics: [`/${camera}/image`],
 			})) {
-				return { time: Number(message.logTime), jpeg: decodeImage(message.data) ?? new Uint8Array() };
+				return { time: Number(message.logTime), jpeg: decodeImage(message.data) };
 			}
 			return undefined;
 		},

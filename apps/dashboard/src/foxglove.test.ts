@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test';
-import { parseMessageData, protobufBytes } from './foxglove';
+import { parseMessageData } from './foxglove';
 
 test('parseMessageData splits the header from the payload', () => {
 	const frame = new Uint8Array([0x01, 7, 0, 0, 0, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0xaa, 0xbb]);
@@ -8,34 +8,4 @@ test('parseMessageData splits the header from the payload', () => {
 	expect(message.logTime).toBe(256n);
 	expect([...message.payload]).toStrictEqual([0xaa, 0xbb]);
 	expect(parseMessageData(new Uint8Array([0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).buffer)).toBeUndefined();
-});
-
-test('protobufBytes finds CompressedImage data after other fields', () => {
-	const jpeg = Array.from({ length: 200 }, (_, i) => i);
-	const message = new Uint8Array([
-		// Timestamp = { sec: 300 }
-		0x0a,
-		0x03,
-		0x08,
-		0xac,
-		0x02,
-		// Frame_id = "f", out of field order
-		0x22,
-		0x01,
-		0x66,
-		// Data, with a two-byte length varint
-		0x12,
-		0xc8,
-		0x01,
-		...jpeg,
-		// Format = "jpeg"
-		0x1a,
-		0x04,
-		0x6a,
-		0x70,
-		0x65,
-		0x67,
-	]);
-	expect([...protobufBytes(message, 2)!]).toStrictEqual(jpeg);
-	expect(protobufBytes(message, 5)).toBeUndefined();
 });

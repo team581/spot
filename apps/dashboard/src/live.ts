@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FoxgloveClient, protobufBytes } from './foxglove';
+import { FoxgloveClient } from './foxglove';
+import { decodeImage } from './image';
 
 // The dev server proxies the socket so `dev:jetson` reaches Spot's server too.
 const foxglove = new FoxgloveClient(
@@ -66,8 +67,6 @@ export interface Detections {
 const text = new TextDecoder();
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Spot serializes this topic from the backend Detections schema.
 export const decodeDetections = (payload: Uint8Array) => JSON.parse(text.decode(payload)) as Detections;
-// `foxglove.CompressedImage` keeps the JPEG in field 2.
-export const decodeImage = (payload: Uint8Array) => protobufBytes(payload, 2);
 
 export const useDetections = (camera: string) => useTopic(`/${camera}/detections`, decodeDetections);
 

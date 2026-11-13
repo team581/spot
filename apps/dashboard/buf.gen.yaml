@@ -1,0 +1,8 @@
+version: v2
+# Schema from foxglove/foxglove-sdk, tag sdk/v0.30.0 (the backend's SDK version).
+inputs:
+  - directory: proto
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt: target=ts
