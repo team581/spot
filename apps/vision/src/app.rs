@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -13,7 +14,10 @@ use utoipa::ToSchema;
 use crate::calibration::{self, Board, Charuco, Solution, View};
 use crate::camera::{Device, Discovery};
 use crate::clock::monotonic_us;
-use crate::config::{CameraConfig, FieldLayout, FieldView, Mode, RobotConfig};
+use crate::config::{CameraConfig, FieldLayout, FieldView, RobotConfig};
+use crate::health::{
+    self, CameraSnapshot, CameraState, CameraStatus, Frames, SpotSnapshot, SpotState,
+};
 use crate::nt::{self, Nt, NtValue};
 use crate::overrides;
 use crate::pipeline::{Camera, FrameResult, Sink, Target};
@@ -22,46 +26,6 @@ use crate::recording::Recorder;
 use crate::structs::Writer;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// Spot's most fundamental problem, in order of precedence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SpotState {
-    Ready = 0,
-    WaitingForTimeSync = 1,
-    WaitingForConfig = 2,
-    InvalidConfig = 3,
-    MissingCamera = 4,
-    UncalibratedCamera = 5,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CameraState {
-    Streaming = 0,
-    Disconnected = 1,
-    DuplicateSerial = 2,
-    Uncalibrated = 3,
-    FallingBehind = 4,
-}
-
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CameraStatus {
-    pub name: String,
-    pub state: CameraState,
-    pub required: bool,
-    pub mode: Mode,
-    pub calibrated: bool,
-    /// Device node of the matched camera.
-    pub device: Option<String>,
-    /// Frames processed per second.
-    pub fps: f64,
-    /// Frames captured per second.
-    pub capture_fps: f64,
-    /// Frames dropped since the camera started because processing fell behind.
-    pub dropped_frames: u64,
-    pub error: Option<String>,
-}
 
 /// Jetson-local settings, kept out of the robot config.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -120,7 +84,7 @@ struct Inner {
     devices: Vec<Device>,
     cameras: BTreeMap<String, Camera>,
     statuses: Vec<CameraStatus>,
-    rates: HashMap<String, (Instant, u64, u64, u64)>,
+    health: health::Cameras,
     fms: Fms,
     sessions: HashMap<String, Session>,
 }
@@ -190,7 +154,7 @@ impl App {
                 devices: Vec::new(),
                 cameras: BTreeMap::new(),
                 statuses: Vec::new(),
-                rates: HashMap::new(),
+                health: health::Cameras::default(),
                 fms: Fms::default(),
                 sessions: HashMap::new(),
             }),
@@ -282,7 +246,6 @@ impl App {
         let Some(effective) = inner.effective.clone() else { return };
         let config = &effective.config;
         inner.cameras.retain(|name, _| config.cameras.contains_key(name));
-        inner.rates.retain(|name, _| config.cameras.contains_key(name));
         for (name, camera) in &config.cameras {
             let target = Target {
                 device: resolve(&inner.devices, camera).ok(),
@@ -312,111 +275,40 @@ impl App {
             inner.devices = devices;
             self.reconcile(&mut inner);
         }
-        let now = Instant::now();
-        let mut statuses = Vec::new();
-        if let Some(effective) = inner.effective.clone() {
+        let inner = &mut *inner;
+        let mut snapshots = Vec::new();
+        if let Some(effective) = &inner.effective {
             for (name, config) in &effective.config.cameras {
                 let Some(camera) = inner.cameras.get(name) else { continue };
                 let counters = camera.counters();
-                let load =
-                    |c: &std::sync::atomic::AtomicU64| c.load(std::sync::atomic::Ordering::Relaxed);
-                let totals =
-                    (load(&counters.captured), load(&counters.processed), load(&counters.dropped));
-                let streaming = camera.streaming();
-                let camera_error = camera.error();
-                let (since, captured, processed, dropped) =
-                    *inner.rates.entry(name.clone()).or_insert((now, totals.0, totals.1, totals.2));
-                let elapsed = now.duration_since(since).as_secs_f64();
-                let (capture_fps, fps, dropping) = if elapsed > 0.0 {
-                    let captured = totals.0.saturating_sub(captured);
-                    let dropped = totals.2.saturating_sub(dropped);
-                    (
-                        captured as f64 / elapsed,
-                        totals.1.saturating_sub(processed) as f64 / elapsed,
-                        dropped * 20 > captured,
-                    )
-                } else {
-                    (0.0, 0.0, false)
-                };
-                if elapsed >= 1.0 {
-                    inner.rates.insert(name.clone(), (now, totals.0, totals.1, totals.2));
-                }
-                let resolved = resolve(&inner.devices, config);
-                let calibrated = config.calibration().is_some();
-                let (state, error) = match &resolved {
-                    Err((state, error)) => (*state, Some(error.clone())),
-                    Ok(_) if !streaming => {
-                        (CameraState::Disconnected, camera_error.or(Some("Starting".into())))
-                    }
-                    Ok(_) if !calibrated => (
-                        CameraState::Uncalibrated,
-                        camera_error.or_else(|| {
-                            Some(format!("No calibration for {}", config.mode.resolution()))
-                        }),
-                    ),
-                    Ok(_) if dropping => (CameraState::FallingBehind, camera_error),
-                    Ok(_) => (CameraState::Streaming, camera_error),
-                };
-                statuses.push(CameraStatus {
-                    name: name.clone(),
-                    state,
-                    required: config.required,
-                    mode: config.mode,
-                    calibrated,
-                    device: resolved.ok().map(|d| d.path),
-                    fps,
-                    capture_fps,
-                    dropped_frames: totals.2,
-                    error,
+                let load = |c: &AtomicU64| c.load(Ordering::Relaxed);
+                snapshots.push(CameraSnapshot {
+                    name,
+                    config,
+                    device: resolve(&inner.devices, config),
+                    streaming: camera.streaming(),
+                    error: camera.error(),
+                    frames: Frames {
+                        captured: load(&counters.captured),
+                        processed: load(&counters.processed),
+                        dropped: load(&counters.dropped),
+                    },
                 });
             }
         }
-        inner.statuses = statuses;
+        inner.statuses = inner.health.statuses(Instant::now(), snapshots);
         let _ = sd_notify::notify(&[sd_notify::NotifyState::Watchdog]);
     }
 
     fn state(&self, inner: &Inner) -> (SpotState, String) {
-        let nt = self.nt();
-        if !nt.synced() {
-            let servers = self.servers.borrow().join(", ");
-            let error = if servers.is_empty() {
-                "Set a team number or NetworkTables server".into()
-            } else {
-                format!("Connecting to NetworkTables at {servers}")
-            };
-            return (SpotState::WaitingForTimeSync, error);
-        }
-        if inner.robot_config.is_none() {
-            return (
-                SpotState::WaitingForConfig,
-                "Robot has not published /Spot/inputs/config".into(),
-            );
-        }
-        if inner.field_layout.is_none() {
-            return (
-                SpotState::WaitingForConfig,
-                "Robot has not published /Spot/inputs/fieldLayout".into(),
-            );
-        }
-        if let Some(error) = &inner.config_error {
-            return (SpotState::InvalidConfig, error.clone());
-        }
-        let required = || inner.statuses.iter().filter(|s| s.required);
-        let missing: Vec<String> = required()
-            .filter(|s| matches!(s.state, CameraState::Disconnected | CameraState::DuplicateSerial))
-            .map(|s| format!("{}: {}", s.name, s.error.as_deref().unwrap_or("disconnected")))
-            .collect();
-        if !missing.is_empty() {
-            return (SpotState::MissingCamera, missing.join("; "));
-        }
-        let uncalibrated: Vec<String> = required()
-            .filter(|s| s.state == CameraState::Uncalibrated)
-            .map(|s| format!("{}: no calibration for {}", s.name, s.mode.resolution()))
-            .collect();
-        if !uncalibrated.is_empty() {
-            return (SpotState::UncalibratedCamera, uncalibrated.join("; "));
-        }
-        (SpotState::Ready, String::new())
+        health::spot_state(&SpotSnapshot {
+            synced: self.nt().synced(),
+            servers: &self.servers.borrow(),
+            has_config: inner.robot_config.is_some(),
+            has_field_layout: inner.field_layout.is_some(),
+            config_error: inner.config_error.as_deref(),
+            cameras: &inner.statuses,
+        })
     }
 
     fn publish_status(&self) {

@@ -8,6 +8,7 @@ mod clock;
 mod config;
 mod corpus;
 mod decode;
+mod health;
 mod network;
 mod nt;
 mod overrides;
