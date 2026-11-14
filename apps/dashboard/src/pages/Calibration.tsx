@@ -1,12 +1,14 @@
 import { useState } from 'react';
+import { useForm, useSelector } from '@tanstack/react-form';
+import { z } from 'zod';
 import type { Settings } from '../api';
 import { $api, queryClient, useEditOverrides, useSaveSettings, useSettings, useStatus } from '../queries';
 import { useCharuco, useImage } from '../live';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { fmt } from '../format';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import type { components } from '../api.gen';
 
@@ -18,99 +20,139 @@ const sessionKey = (camera: string) =>
 	$api.queryOptions('get', '/api/calibration/{camera}', cameraParams(camera)).queryKey;
 const setSession = (data: Session) => queryClient.setQueryData(sessionKey(data.camera), data);
 
+const count = z.string().trim().regex(/^\d+$/, 'Enter a whole number.').transform(Number);
+const millimeters = z
+	.string()
+	.trim()
+	.regex(/^\d*\.?\d+$/, 'Enter a size in millimeters.')
+	.transform((mm) => Number(mm) / 1000);
+/** The board form takes sizes in millimeters, and the service in meters. */
+const boardSchema = z.object({
+	dictionary: z.enum(dictionaries),
+	squares_x: count,
+	squares_y: count,
+	square_size: millimeters,
+	marker_size: millimeters,
+}) satisfies z.ZodType<Board>;
+
 function BoardForm({ settings }: { settings: Settings }) {
 	const board = settings.calibration_board;
-	const [draft, setDraft] = useState({
-		dictionary: board.dictionary,
-		marker_mm: String(board.marker_size * 1000),
-		square_mm: String(board.square_size * 1000),
-		squares_x: String(board.squares_x),
-		squares_y: String(board.squares_y),
-	});
 	const [failedPreview, setFailedPreview] = useState({ preview: '', error: '' });
 	const save = useSaveSettings();
-	const draftBoard: Board = {
-		dictionary: draft.dictionary,
-		marker_size: Number(draft.marker_mm) / 1000,
-		square_size: Number(draft.square_mm) / 1000,
-		squares_x: Number(draft.squares_x),
-		squares_y: Number(draft.squares_y),
-	};
-	const preview = `/api/calibration/board.png?${new URLSearchParams(
-		Object.entries(draftBoard).map(([key, value]) => [key, String(value)]),
-	).toString()}`;
-	const field = (key: 'squares_x' | 'squares_y' | 'square_mm' | 'marker_mm', label: string) => (
-		<div className="flex flex-col gap-2">
-			<Label htmlFor={key}>{label}</Label>
-			<Input
-				id={key}
-				inputMode="decimal"
-				value={draft[key]}
-				onChange={(e) => {
-					setDraft({ ...draft, [key]: e.target.value });
-				}}
-			/>
-		</div>
+	const form = useForm({
+		defaultValues: {
+			dictionary: board.dictionary,
+			squares_x: String(board.squares_x),
+			squares_y: String(board.squares_y),
+			square_size: String(board.square_size * 1000),
+			marker_size: String(board.marker_size * 1000),
+		},
+		validators: { onSubmit: boardSchema },
+		onSubmit: ({ value }) => {
+			save.mutate({ body: { ...settings, calibration_board: boardSchema.parse(value) } });
+		},
+	});
+	const draft = boardSchema.safeParse(useSelector(form.store, (state) => state.values));
+	const preview = draft.success
+		? `/api/calibration/board.png?${new URLSearchParams(
+				Object.entries(draft.data).map(([key, value]) => [key, String(value)]),
+			).toString()}`
+		: undefined;
+	// oxlint-disable-next-line unicorn/consistent-function-scoping -- It renders `form.Field`, which the rule misses in JSX.
+	const numberField = (
+		name: 'squares_x' | 'squares_y' | 'square_size' | 'marker_size',
+		label: string,
+		inputMode: 'numeric' | 'decimal',
+	) => (
+		<form.Field name={name}>
+			{(field) => {
+				const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+				return (
+					<Field data-invalid={isInvalid}>
+						<FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+						<Input
+							id={field.name}
+							name={field.name}
+							inputMode={inputMode}
+							value={field.state.value}
+							onBlur={field.handleBlur}
+							onChange={(e) => {
+								field.handleChange(e.target.value);
+							}}
+							aria-invalid={isInvalid}
+						/>
+						{isInvalid ? <FieldError errors={field.state.meta.errors} /> : null}
+					</Field>
+				);
+			}}
+		</form.Field>
 	);
 	return (
 		<form
-			className="flex flex-col gap-4"
 			onSubmit={(e) => {
 				e.preventDefault();
-				save.mutate({ body: { ...settings, calibration_board: draftBoard } });
+				void form.handleSubmit();
 			}}
 		>
-			<div className="grid grid-cols-2 gap-3">
-				{field('squares_x', 'Squares across')}
-				{field('squares_y', 'Squares down')}
-				{field('square_mm', 'Square size (mm)')}
-				{field('marker_mm', 'Marker size (mm)')}
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="dictionary">Dictionary</Label>
-				<NativeSelect
-					id="dictionary"
-					value={draft.dictionary}
-					onChange={(e) => {
-						const dictionary = dictionaries.find((d) => d === e.target.value);
-						if (dictionary) {
-							setDraft({ ...draft, dictionary });
-						}
-					}}
-				>
-					{dictionaries.map((d) => (
-						<NativeSelectOption key={d} value={d}>
-							{d.toUpperCase()}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
-			</div>
-			{failedPreview.preview === preview ? (
-				<ErrorText error={failedPreview.error} />
-			) : (
-				<img
-					src={preview}
-					alt="Board preview"
-					className="w-full rounded-md bg-white p-2"
-					onError={async () => {
-						let error = "Couldn't load the board preview.";
-						try {
-							const response = await fetch(preview);
-							if (!response.ok) {
-								error = await response.text();
-							}
-						} catch {}
-						setFailedPreview({ preview, error });
-					}}
-				/>
-			)}
-			<p className="text-sm text-muted-foreground">
-				Enter your board's measured sizes, and check that the preview matches it before saving.
-			</p>
-			<Button type="submit" className="self-start" disabled={save.isPending}>
-				Save board
-			</Button>
-			<ErrorText error={save.error} />
+			<FieldGroup>
+				<div className="grid grid-cols-2 gap-3">
+					{numberField('squares_x', 'Squares across', 'numeric')}
+					{numberField('squares_y', 'Squares down', 'numeric')}
+					{numberField('square_size', 'Square size (mm)', 'decimal')}
+					{numberField('marker_size', 'Marker size (mm)', 'decimal')}
+				</div>
+				<form.Field name="dictionary">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor={field.name}>Dictionary</FieldLabel>
+							<NativeSelect
+								id={field.name}
+								name={field.name}
+								value={field.state.value}
+								onBlur={field.handleBlur}
+								onChange={(e) => {
+									const dictionary = dictionaries.find((d) => d === e.target.value);
+									if (dictionary) {
+										field.handleChange(dictionary);
+									}
+								}}
+							>
+								{dictionaries.map((d) => (
+									<NativeSelectOption key={d} value={d}>
+										{d.toUpperCase()}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+					)}
+				</form.Field>
+				{preview === undefined ? null : failedPreview.preview === preview ? (
+					<ErrorText error={failedPreview.error} />
+				) : (
+					<img
+						src={preview}
+						alt="Board preview"
+						className="w-full rounded-md bg-white p-2"
+						onError={async () => {
+							let error = "Couldn't load the board preview.";
+							try {
+								const response = await fetch(preview);
+								if (!response.ok) {
+									error = await response.text();
+								}
+							} catch {}
+							setFailedPreview({ preview, error });
+						}}
+					/>
+				)}
+				<p className="text-sm text-muted-foreground">
+					Enter your board's measured sizes, and check that the preview matches it before saving.
+				</p>
+				<Button type="submit" className="self-start" disabled={save.isPending}>
+					Save board
+				</Button>
+				<ErrorText error={save.error} />
+			</FieldGroup>
 		</form>
 	);
 }

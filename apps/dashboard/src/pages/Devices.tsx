@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useForm, useSelector } from '@tanstack/react-form';
 import { TriangleAlert } from 'lucide-react';
 import type { CameraConfig, DeviceStatus } from '../api';
 import type { Json } from '../overrides';
@@ -22,9 +22,14 @@ function Assign({
 	shared: boolean;
 	edit: ReturnType<typeof useEditOverrides>;
 }) {
-	const [name, setName] = useState(d.camera ?? '');
-	const camera = name.trim();
-	const assign = () => {
+	const form = useForm({
+		defaultValues: { name: d.camera ?? '' },
+		onSubmit: ({ value }) => {
+			assign(value.name.trim());
+		},
+	});
+	const name = useSelector(form.store, (state) => state.values.name).trim();
+	const assign = (camera: string) => {
 		const changes: [string[], Json][] = [[['cameras', camera, 'serial'], d.serial!]];
 		// The port only tells apart cameras that share a serial.
 		if (shared) {
@@ -43,19 +48,26 @@ function Assign({
 			className="flex flex-wrap gap-2"
 			onSubmit={(e) => {
 				e.preventDefault();
-				assign();
+				void form.handleSubmit();
 			}}
 		>
-			<Input
-				className="w-40"
-				placeholder="Camera name"
-				list="camera-names"
-				value={name}
-				onChange={(e) => {
-					setName(e.target.value);
-				}}
-			/>
-			<Button type="submit" variant="outline" disabled={!camera || !d.serial || (shared && !d.port) || edit.isPending}>
+			<form.Field name="name">
+				{(field) => (
+					<Input
+						className="w-40"
+						name={field.name}
+						aria-label="Camera name"
+						placeholder="Camera name"
+						list="camera-names"
+						value={field.state.value}
+						onBlur={field.handleBlur}
+						onChange={(e) => {
+							field.handleChange(e.target.value);
+						}}
+					/>
+				)}
+			</form.Field>
+			<Button type="submit" variant="outline" disabled={!name || !d.serial || (shared && !d.port) || edit.isPending}>
 				Assign
 			</Button>
 		</form>

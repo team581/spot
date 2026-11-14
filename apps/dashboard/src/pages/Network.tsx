@@ -1,60 +1,105 @@
-import { useState } from 'react';
+import { useForm, useSelector } from '@tanstack/react-form';
+import { z } from 'zod';
 import type { AddressMode, NetworkStatus, Settings } from '../api';
 import { $api, queryClient, useNetwork, useSaveSettings, useSettings } from '../queries';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 
+const settingsSchema = z.object({
+	team: z
+		.string()
+		.trim()
+		.regex(/^\d*$/, 'Enter a team number, or leave it blank.')
+		.transform((team) => (team ? Number(team) : null)),
+	server: z
+		.string()
+		.trim()
+		.transform((server) => server || null),
+});
+
 function SettingsForm({ settings }: { settings: Settings }) {
-	// react-doctor-disable-next-line react-doctor/rerender-lazy-state-init -- Formatting the team number is cheap.
-	const [team, setTeam] = useState(settings.team?.toString() ?? '');
-	const [server, setServer] = useState(settings.nt_server ?? '');
 	const save = useSaveSettings();
+	const form = useForm({
+		defaultValues: { team: settings.team?.toString() ?? '', server: settings.nt_server ?? '' },
+		validators: { onSubmit: settingsSchema },
+		onSubmit: ({ value }) => {
+			const { team, server } = settingsSchema.parse(value);
+			save.mutate({ body: { ...settings, nt_server: server, team } });
+		},
+	});
 	return (
 		<form
-			className="flex flex-col gap-4"
 			onSubmit={(e) => {
 				e.preventDefault();
-				save.mutate({
-					body: { ...settings, nt_server: server.trim() || null, team: team.trim() ? Number(team) : null },
-				});
+				void form.handleSubmit();
 			}}
 		>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="team">Team number</Label>
-				<Input
-					id="team"
-					inputMode="numeric"
-					pattern="[0-9]*"
-					value={team}
-					onChange={(e) => {
-						setTeam(e.target.value);
+			<FieldGroup>
+				<form.Field name="team">
+					{(field) => {
+						const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+						return (
+							<Field data-invalid={isInvalid}>
+								<FieldLabel htmlFor={field.name}>Team number</FieldLabel>
+								<Input
+									id={field.name}
+									name={field.name}
+									inputMode="numeric"
+									value={field.state.value}
+									onBlur={field.handleBlur}
+									onChange={(e) => {
+										field.handleChange(e.target.value);
+									}}
+									aria-invalid={isInvalid}
+								/>
+								{isInvalid ? <FieldError errors={field.state.meta.errors} /> : null}
+							</Field>
+						);
 					}}
-				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="nt-server">NetworkTables server</Label>
-				<Input
-					id="nt-server"
-					placeholder="Robot address from the team number"
-					value={server}
-					onChange={(e) => {
-						setServer(e.target.value);
+				</form.Field>
+				<form.Field name="server">
+					{(field) => {
+						const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+						return (
+							<Field data-invalid={isInvalid}>
+								<FieldLabel htmlFor={field.name}>NetworkTables server</FieldLabel>
+								<Input
+									id={field.name}
+									name={field.name}
+									placeholder="Robot address from the team number"
+									value={field.state.value}
+									onBlur={field.handleBlur}
+									onChange={(e) => {
+										field.handleChange(e.target.value);
+									}}
+									aria-invalid={isInvalid}
+								/>
+								{isInvalid ? <FieldError errors={field.state.meta.errors} /> : null}
+							</Field>
+						);
 					}}
-				/>
-			</div>
-			<div className="flex items-center gap-3">
-				<Button type="submit" disabled={save.isPending}>
-					Save
-				</Button>
-				<ErrorText error={save.error} />
-			</div>
+				</form.Field>
+				<Field orientation="horizontal">
+					<Button type="submit" disabled={save.isPending}>
+						Save
+					</Button>
+					<ErrorText error={save.error} />
+				</Field>
+			</FieldGroup>
 		</form>
 	);
 }
+
+const ethernetSchema = z
+	.object({ mode: z.enum(['automatic', 'static']), address: z.string().trim() })
+	.refine(({ mode, address }) => mode === 'automatic' || z.ipv4().safeParse(address).success, {
+		message: 'Enter an IPv4 address, like 10.5.81.12.',
+		path: ['address'],
+	});
 
 function EthernetForm({
 	network,
@@ -63,51 +108,74 @@ function EthernetForm({
 	network: NetworkStatus;
 	apply: (mode: AddressMode, address: string) => void;
 }) {
-	const [mode, setMode] = useState(network.mode);
-	const [address, setAddress] = useState(network.address);
+	const form = useForm({
+		defaultValues: { mode: network.mode, address: network.address },
+		validators: { onSubmit: ethernetSchema },
+		onSubmit: ({ value }) => {
+			const { mode, address } = ethernetSchema.parse(value);
+			apply(mode, address);
+		},
+	});
+	const mode = useSelector(form.store, (state) => state.values.mode);
 	return (
 		<form
-			className="flex flex-col gap-4"
 			onSubmit={(e) => {
 				e.preventDefault();
-				apply(mode, address.trim());
+				void form.handleSubmit();
 			}}
 		>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="mode">Addressing</Label>
-				<NativeSelect
-					id="mode"
-					className="w-full"
-					value={mode}
-					onChange={(e) => {
-						const { value } = e.target;
-						if (value === 'automatic' || value === 'static') {
-							setMode(value);
-						}
-					}}
-				>
-					<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
-					<NativeSelectOption value="static">Static</NativeSelectOption>
-				</NativeSelect>
-			</div>
-			{mode === 'static' ? (
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="address">Static address</Label>
-					<Input
-						id="address"
-						placeholder="10.5.81.12"
-						value={address}
-						onChange={(e) => {
-							setAddress(e.target.value);
+			<FieldGroup>
+				<form.Field name="mode">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor={field.name}>Addressing</FieldLabel>
+							<NativeSelect
+								id={field.name}
+								name={field.name}
+								className="w-full"
+								value={field.state.value}
+								onBlur={field.handleBlur}
+								onChange={(e) => {
+									const { value } = e.target;
+									if (value === 'automatic' || value === 'static') {
+										field.handleChange(value);
+									}
+								}}
+							>
+								<NativeSelectOption value="automatic">Automatic (DHCP)</NativeSelectOption>
+								<NativeSelectOption value="static">Static</NativeSelectOption>
+							</NativeSelect>
+						</Field>
+					)}
+				</form.Field>
+				{mode === 'static' ? (
+					<form.Field name="address">
+						{(field) => {
+							const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+							return (
+								<Field data-invalid={isInvalid}>
+									<FieldLabel htmlFor={field.name}>Static address</FieldLabel>
+									<Input
+										id={field.name}
+										name={field.name}
+										placeholder="10.5.81.12"
+										value={field.state.value}
+										onBlur={field.handleBlur}
+										onChange={(e) => {
+											field.handleChange(e.target.value);
+										}}
+										aria-invalid={isInvalid}
+									/>
+									{isInvalid ? <FieldError errors={field.state.meta.errors} /> : null}
+								</Field>
+							);
 						}}
-					/>
-				</div>
-			) : null}
-			<div>
-				<Button type="submit" disabled={mode === 'static' && !address.trim()}>
-					Try change
-				</Button>
-			</div>
+					</form.Field>
+				) : null}
+				<Field orientation="horizontal">
+					<Button type="submit">Try change</Button>
+				</Field>
+			</FieldGroup>
 		</form>
 	);
 }
