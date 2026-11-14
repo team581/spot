@@ -1,13 +1,11 @@
 [tools]
 hk = "2.12.0"
-java = "temurin-21"
 pkl = "0.32.2"
-rust = { version = "1.99.1", components = "clippy,rustfmt" }
 shellcheck = "0.11.0"
 shfmt = "3.14.1"
 
 [settings]
-idiomatic_version_file_enable_tools = ["node", "pnpm"]
+idiomatic_version_file_enable_tools = ["java", "node", "pnpm", "rust"]
 
 [tasks.setup]
 description = "Install the JS workspace, bundle the dashboard and docs, and build the vision service"
