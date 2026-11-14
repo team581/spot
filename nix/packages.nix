@@ -119,12 +119,12 @@ let
     '';
   };
   # nvcc needs the host compiler that CUDA supports.
-  buildRustPackage =
-    if jetson then
-      pkgs.rustPlatform.buildRustPackage.override { stdenv = pkgs.cudaPackages.backendStdenv; }
-    else
-      pkgs.rustPlatform.buildRustPackage;
-  spot = buildRustPackage {
+  craneLib = (inputs.crane.mkLib pkgs).overrideScope (
+    _: _: {
+      stdenvSelector = p: if jetson then p.cudaPackages.backendStdenv else p.stdenv;
+    }
+  );
+  rustArgs = {
     pname = "spot-vision";
     version = "2026.0.0";
     src = lib.fileset.toSource {
@@ -140,8 +140,9 @@ let
         ]
       );
     };
-    cargoLock.lockFile = ../apps/vision/Cargo.lock;
-    buildFeatures = lib.optionals jetson [ "jetson" ];
+    cargoExtraArgs = lib.concatStringsSep " " (
+      [ "--locked" ] ++ lib.optionals jetson [ "--features jetson" ]
+    );
     nativeBuildInputs = [
       pkgs.rustPlatform.bindgenHook
       pkgs.pkg-config
@@ -165,8 +166,15 @@ let
     };
     # CI runs the tests; Jetson tests would also need the GPU.
     doCheck = false;
-    meta.mainProgram = "spot-vision";
   };
+  spot = craneLib.buildPackage (
+    rustArgs
+    // {
+      # Dependencies build separately, so changing Spot's source reuses them.
+      cargoArtifacts = craneLib.buildDepsOnly rustArgs;
+      meta.mainProgram = "spot-vision";
+    }
+  );
 in
 {
   inherit spot web opencv;
