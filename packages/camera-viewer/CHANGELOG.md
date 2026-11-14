@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0](https://github.com/team581/spot/compare/camera-viewer-v2.0.1...camera-viewer-v2.1.0) (2026-11-14)
+
+
+### Features
+
+* **camera-viewer:** draw cameras with their 3D model ([6fb0b5c](https://github.com/team581/spot/commit/6fb0b5c3cbf04f0e9e7144143c558f506e2aea2b))
+* **dashboard:** show camera images in the 3D field view ([7f9afb3](https://github.com/team581/spot/commit/7f9afb3a41d55d795498a13437395baaee2393f1))
+* **dashboard:** undistort camera images in the 3D field view ([17ace1c](https://github.com/team581/spot/commit/17ace1c2e6993596ccefaf5d2c924901078832e6))
+
 ## [2.0.1](https://github.com/team581/spot/compare/camera-viewer-v2.0.0...camera-viewer-v2.0.1) (2026-11-13)
 
 
