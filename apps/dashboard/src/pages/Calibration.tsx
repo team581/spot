@@ -13,8 +13,6 @@ import type { components } from '../api.gen';
 type Board = components['schemas']['Board'];
 type Session = components['schemas']['CalibrationView'];
 const dictionaries: Board['dictionary'][] = ['4x4_50', '4x4_100', '4x4_250', '5x5_50', '5x5_100', '6x6_50', '6x6_250'];
-/** Coverage hint grid: cells with a captured corner count as covered. */
-const GRID = 6;
 const cameraParams = (camera: string) => ({ params: { path: { camera } } });
 const sessionKey = (camera: string) =>
 	$api.queryOptions('get', '/api/calibration/{camera}', cameraParams(camera)).queryKey;
@@ -110,39 +108,33 @@ function BoardForm({ settings }: { settings: Settings }) {
 	);
 }
 
-/** Live image with the detected board corners, captured corners, and coverage of the image. */
+/** Captured corners, one per small patch of the image, marked by whether their area is covered. */
+function capturedDots(session: Session, width: number, height: number) {
+	const { cells } = session.coverage;
+	const dots = new Map<string, { x: number; y: number; covered: boolean }>();
+	for (const [x, y] of session.frames.flatMap((f) => f.corners)) {
+		const key = `${Math.floor((x / width) * 96)},${Math.floor((y / height) * 60)}`;
+		const row = cells[Math.floor((y / height) * cells.length)] ?? [];
+		if (!dots.has(key)) {
+			dots.set(key, { x, y, covered: (row[Math.floor((x / width) * row.length)] ?? 0) >= 1 });
+		}
+	}
+	return [...dots.values()];
+}
+
+/** Live image with the detected board corners, and captured corners colored by coverage. */
 function CalibrationView({ session }: { session: Session }) {
 	const image = useImage(session.camera);
 	const charuco = useCharuco(session.camera);
 	const width = session.width ?? charuco?.width ?? 1280;
 	const height = session.height ?? charuco?.height ?? 800;
-	const covered = new Set(
-		session.frames.flatMap((f) =>
-			f.corners.map(([x, y]) => Math.floor((x / width) * GRID) + GRID * Math.floor((y / height) * GRID)),
-		),
-	);
 	return (
 		<div className="relative overflow-hidden rounded-md bg-feed" style={{ aspectRatio: `${width} / ${height}` }}>
 			{image ? <img src={image} alt="" className="absolute inset-0 size-full object-contain" /> : null}
 			<svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 size-full">
-				{Array.from({ length: GRID * GRID }, (_, i) => (
-					<rect
-						key={i}
-						x={((i % GRID) * width) / GRID}
-						y={(Math.floor(i / GRID) * height) / GRID}
-						width={width / GRID}
-						height={height / GRID}
-						fill={covered.has(i) ? 'transparent' : '#edc06c'}
-						fillOpacity={0.35}
-						stroke="#ffffff"
-						strokeOpacity={0.15}
-					/>
+				{capturedDots(session, width, height).map(({ x, y, covered }) => (
+					<circle key={`${x},${y}`} cx={x} cy={y} r={width / 250} fill={covered ? '#79d6a5' : '#edc06c'} />
 				))}
-				{session.frames.flatMap((f, i) =>
-					f.corners.map(([x, y], j) => (
-						<circle key={`${i}-${f.ids[j]}`} cx={x} cy={y} r={width / 250} fill="#8ab4f8" />
-					)),
-				)}
 				{charuco?.corners.map(([x, y], i) => (
 					<circle
 						key={charuco.ids[i]}
@@ -150,7 +142,7 @@ function CalibrationView({ session }: { session: Session }) {
 						cy={y}
 						r={width / 120}
 						fill="none"
-						stroke="#2fb36b"
+						stroke="#8ab4f8"
 						strokeWidth={3}
 						vectorEffect="non-scaling-stroke"
 					/>
@@ -162,32 +154,42 @@ function CalibrationView({ session }: { session: Session }) {
 
 function SessionPanel({ session }: { session: Session }) {
 	const overrides = useEditOverrides();
-	const capture = $api.useMutation('post', '/api/calibration/{camera}/capture', { onSuccess: setSession });
+	const capturing = $api.useMutation('put', '/api/calibration/{camera}/capturing', { onSuccess: setSession });
 	const solve = $api.useMutation('post', '/api/calibration/{camera}/solve', { onSuccess: setSession });
 	const stop = $api.useMutation('delete', '/api/calibration/{camera}', {
 		onSuccess: () => {
 			queryClient.removeQueries({ queryKey: sessionKey(session.camera) });
 		},
 	});
-	const busy = capture.isPending || solve.isPending;
+	const busy = capturing.isPending || solve.isPending;
 	const { solution } = session;
 	const resolution = `${session.width}x${session.height}`;
-	const enough = session.latest.corners.length >= session.min_corners;
+	const progress = Math.round(session.coverage.progress * 100);
 	return (
 		<div className="flex flex-col gap-4">
 			<CalibrationView session={session} />
-			<p className="text-sm text-muted-foreground">
-				Corners in view: {session.latest.corners.length} · Captured views: {session.frames.length} of at least{' '}
-				{session.min_frames}. Shaded areas have no captured corners yet; cover the edges and corners.
-			</p>
+			<div className="flex flex-col gap-2">
+				<p role="status" className="text-sm font-medium">
+					{session.capturing ? session.reason || 'Show the board to the camera' : 'Capture paused'}
+				</p>
+				<div className="h-2 overflow-hidden rounded-full bg-muted">
+					<div className="h-full bg-success" style={{ width: `${progress}%` }} />
+				</div>
+				<p className="text-sm text-muted-foreground">
+					Coverage: {progress}% · Captured views: {session.frames.length} of at least {session.min_frames}. Views are
+					captured as you move the board. Dots turn from yellow to green once an area has views at varied distances and
+					tilts; keep filling yellow and empty areas, especially the edges and corners.
+				</p>
+			</div>
 			<div className="flex flex-wrap gap-3">
 				<Button
-					disabled={!enough || busy}
+					variant={session.capturing ? 'outline' : 'default'}
+					disabled={busy}
 					onClick={() => {
-						capture.mutate(cameraParams(session.camera));
+						capturing.mutate({ ...cameraParams(session.camera), body: !session.capturing });
 					}}
 				>
-					Capture view
+					{session.capturing ? 'Pause capture' : 'Resume capture'}
 				</Button>
 				<Button
 					variant="outline"
@@ -207,7 +209,7 @@ function SessionPanel({ session }: { session: Session }) {
 					End session
 				</Button>
 			</div>
-			<ErrorText error={capture.error ?? solve.error} />
+			<ErrorText error={capturing.error ?? solve.error} />
 			{solution ? (
 				<Panel title={solution.accepted ? 'Calibration ready' : 'Calibration error is too high'}>
 					<DataList
@@ -236,7 +238,7 @@ function SessionPanel({ session }: { session: Session }) {
 						</Button>
 					) : (
 						<p className="text-sm text-muted-foreground">
-							Capture sharper views at more distances and angles, then solve again.
+							Resume capture for sharper views at more distances and tilts, then solve again.
 						</p>
 					)}
 					<ErrorText error={overrides.error} />
@@ -285,8 +287,8 @@ export default function Calibration() {
 						) : (
 							<>
 								<p className="text-sm text-muted-foreground">
-									Calibrate at the mode the camera will run in. Hold the board flat and sharp, and capture views at
-									varied distances and tilts.
+									Calibrate at the mode the camera will run in. Once started, views are captured automatically as you
+									move the board, so keep it flat and move it slowly.
 								</p>
 								<Button
 									className="self-start"

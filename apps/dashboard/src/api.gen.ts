@@ -40,7 +40,7 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/api/calibration/{camera}/capture': {
+	'/api/calibration/{camera}/capturing': {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -48,9 +48,9 @@ export interface paths {
 			cookie?: never;
 		};
 		get?: never;
-		put?: never;
-		/** Keeps the board corners visible in the latest frame. */
-		post: operations['capture_calibration'];
+		/** Pauses or resumes capturing views automatically as the board moves. */
+		put: operations['set_capturing'];
+		post?: never;
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -286,6 +286,9 @@ export interface components {
 		CalibrationView: {
 			board: components['schemas']['Board'];
 			camera: string;
+			/** @description Whether views are captured automatically as the board moves. */
+			capturing: boolean;
+			coverage: components['schemas']['Coverage'];
 			/** @description Captured views. */
 			frames: components['schemas']['View'][];
 			/** Format: int32 */
@@ -298,9 +301,9 @@ export interface components {
 			 */
 			max_rms: number;
 			/** Format: int32 */
-			min_corners: number;
-			/** Format: int32 */
 			min_frames: number;
+			/** @description Why the latest view wasn't captured. */
+			reason: string;
 			solution?: components['schemas']['Solution'] | null;
 			/**
 			 * Format: int32
@@ -390,6 +393,19 @@ export interface components {
 			exposure_time_absolute?: number | null;
 			/** Format: int32 */
 			gain?: number | null;
+		};
+		/** @description How well the captured views cover the image. */
+		Coverage: {
+			/**
+			 * @description Scores from 0 to 1 for a grid over the image, by row. An area scores 1 once it has
+			 *     enough views of the board at varied distances and tilts.
+			 */
+			cells: number[][];
+			/**
+			 * Format: double
+			 * @description Mean of the cell scores.
+			 */
+			progress: number;
 		};
 		/** @description A physical camera. */
 		Device: {
@@ -705,7 +721,7 @@ export interface operations {
 			};
 		};
 	};
-	capture_calibration: {
+	set_capturing: {
 		parameters: {
 			query?: never;
 			header?: never;
@@ -714,7 +730,11 @@ export interface operations {
 			};
 			cookie?: never;
 		};
-		requestBody?: never;
+		requestBody: {
+			content: {
+				'text/plain': boolean;
+			};
+		};
 		responses: {
 			200: {
 				headers: Record<string, unknown>;

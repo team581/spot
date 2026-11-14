@@ -35,7 +35,7 @@ fn router() -> OpenApiRouter<Arc<App>> {
         .routes(routes!(system))
         .routes(routes!(board))
         .routes(routes!(calibration, start_calibration, stop_calibration))
-        .routes(routes!(capture_calibration))
+        .routes(routes!(set_capturing))
         .routes(routes!(solve_calibration))
         .routes(routes!(network_status, apply_network))
         .routes(routes!(confirm_network))
@@ -184,10 +184,14 @@ async fn stop_calibration(State(app): AppState, Path(camera): Path<String>) -> S
     StatusCode::NO_CONTENT
 }
 
-/// Keeps the board corners visible in the latest frame.
-#[utoipa::path(post, path = "/api/calibration/{camera}/capture", params(("camera" = String, Path)), responses((status = 200, body = CalibrationView), (status = 409, body = String)))]
-async fn capture_calibration(State(app): AppState, Path(camera): Path<String>) -> CalibrationReply {
-    app.capture_calibration(&camera).map(Json).map_err(conflict)
+/// Pauses or resumes capturing views automatically as the board moves.
+#[utoipa::path(put, path = "/api/calibration/{camera}/capturing", params(("camera" = String, Path)), request_body = bool, responses((status = 200, body = CalibrationView), (status = 409, body = String)))]
+async fn set_capturing(
+    State(app): AppState,
+    Path(camera): Path<String>,
+    Json(capturing): Json<bool>,
+) -> CalibrationReply {
+    app.set_capturing(&camera, capturing).map(Json).map_err(conflict)
 }
 
 /// Solves for intrinsics from the captured views. Apply the result as an override.

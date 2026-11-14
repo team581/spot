@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 use tokio::sync::watch;
 use utoipa::ToSchema;
 
-use crate::calibration::{self, Board, Charuco, Solution, View};
+use crate::calibration::{self, Board, Charuco, Coverage, Solution, View};
 use crate::camera::{Device, Discovery};
 use crate::clock::monotonic_us;
 use crate::config::{CameraConfig, FieldLayout, FieldView, RobotConfig};
@@ -92,7 +92,28 @@ struct Session {
     size: Option<(u32, u32)>,
     latest: View,
     frames: Vec<View>,
+    coverage: Coverage,
+    /// Whether views are captured automatically as the board moves.
+    capturing: bool,
+    /// Why the latest view wasn't captured.
+    reason: String,
     solution: Option<Solution>,
+}
+
+impl Session {
+    /// Captures the latest view when it adds coverage.
+    fn auto_capture(&mut self) {
+        let Some(size) = self.size else { return };
+        match self.coverage.skip_reason(&self.latest, &self.frames, size) {
+            Some(reason) => self.reason = reason,
+            None => {
+                self.frames.push(self.latest.clone());
+                self.coverage = Coverage::new(&self.frames, &self.board, size);
+                self.solution = None;
+                self.reason = "Captured a view".into();
+            }
+        }
+    }
 }
 
 pub struct App {
@@ -443,6 +464,9 @@ impl App {
             size: None,
             latest: View::default(),
             frames: Vec::new(),
+            coverage: Coverage::default(),
+            capturing: true,
+            reason: String::new(),
             solution: None,
         };
         inner.sessions.insert(camera.to_string(), session);
@@ -461,37 +485,33 @@ impl App {
             height: session.size.map(|s| s.1),
             frames: session.frames.clone(),
             latest: session.latest.clone(),
+            coverage: session.coverage.clone(),
+            capturing: session.capturing,
+            reason: session.reason.clone(),
             solution: session.solution.clone(),
             min_frames: calibration::MIN_FRAMES as u32,
-            min_corners: calibration::MIN_CORNERS as u32,
             max_rms: calibration::MAX_RMS,
         })
     }
 
-    /// Keeps the board corners from the latest frame.
-    pub fn capture_calibration(&self, camera: &str) -> Result<CalibrationView, String> {
+    /// Pauses or resumes capturing views automatically.
+    pub fn set_capturing(&self, camera: &str, capturing: bool) -> Result<CalibrationView, String> {
         {
             let mut inner = self.inner.lock().unwrap();
             let session =
                 inner.sessions.get_mut(camera).ok_or("This camera is not being calibrated")?;
-            if session.latest.corners.len() < calibration::MIN_CORNERS {
-                return Err(format!(
-                    "Only {} board corners are visible; at least {} are needed",
-                    session.latest.corners.len(),
-                    calibration::MIN_CORNERS
-                ));
-            }
-            session.frames.push(session.latest.clone());
-            session.solution = None;
+            session.capturing = capturing;
         }
         self.calibration(camera)
     }
 
     pub fn solve_calibration(&self, camera: &str) -> Result<CalibrationView, String> {
         let (board, frames, size) = {
-            let inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock().unwrap();
             let session =
-                inner.sessions.get(camera).ok_or("This camera is not being calibrated")?;
+                inner.sessions.get_mut(camera).ok_or("This camera is not being calibrated")?;
+            // New views would discard the solution before it can be applied.
+            session.capturing = false;
             (session.board.clone(), session.frames.clone(), session.size.ok_or("No frames yet")?)
         };
         // A separate board, so the camera keeps detecting while this solves.
@@ -545,6 +565,9 @@ impl Sink for App {
         {
             session.size = Some((result.width, result.height));
             session.latest = view.clone();
+            if session.capturing {
+                session.auto_capture();
+            }
         }
         let Some(estimate) = &result.estimate else { return };
         let topic = format!("/Spot/outputs/cameras/{}/estimate", result.camera);
@@ -640,9 +663,13 @@ pub struct CalibrationView {
     pub frames: Vec<View>,
     /// Board corners in the most recent frame.
     pub latest: View,
+    pub coverage: Coverage,
+    /// Whether views are captured automatically as the board moves.
+    pub capturing: bool,
+    /// Why the latest view wasn't captured.
+    pub reason: String,
     pub solution: Option<Solution>,
     pub min_frames: u32,
-    pub min_corners: u32,
     /// RMS error in pixels above which a solution is not accepted.
     pub max_rms: f64,
 }

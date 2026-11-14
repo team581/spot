@@ -8,12 +8,20 @@ Camera intrinsic calibration with a ChArUco board, run on the Jetson and guided 
 
 ### Requirement: On-device ChArUco calibration
 
-Calibration SHALL run on the Jetson from the dashboard, using a ChArUco board, with live board detection and a coverage hint showing which areas of the image still need views.
+Calibration SHALL run on the Jetson from the dashboard, using a ChArUco board, with live board detection.
+Spot SHALL capture views automatically while capture is on, and SHALL score how well the views cover each area of the image.
+An area SHALL count as covered only once it has several distinct views that vary in apparent size and tilt; sliding or rolling the board doesn't make a view distinct.
 
 #### Scenario: Capturing views
 
-- **WHEN** a user captures views during calibration
-- **THEN** the dashboard shows the detected board live and shades the image areas not yet covered
+- **WHEN** a session is capturing and the board has moved enough since the last captured view
+- **THEN** Spot captures the view, unless nearly all of its corners are in areas already covered
+- **AND** the dashboard shows captured corners in yellow, or green once their area is covered, along with overall coverage
+
+#### Scenario: Solving pauses capture
+
+- **WHEN** a user solves
+- **THEN** capture pauses, so new views don't discard the solution before it's applied
 
 ### Requirement: Solve quality gates
 
