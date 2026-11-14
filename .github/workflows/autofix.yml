@@ -28,7 +28,7 @@ jobs:
       - uses: useblacksmith/checkout@v1.8.2
       - uses: jdx/mise-action@v5.2.8
         with:
-          install_args: hk pkl rust
+          install_args: hk pkl rust shfmt
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -61,7 +61,7 @@ jobs:
         continue-on-error: true
       - run: pnpm --filter spot-docs generate:schema
         continue-on-error: true
-      - run: hk fix --all --step pkl-format --step oxfmt --step vp-lint --step oxlint --step cargo-fmt
+      - run: hk fix --all --step pkl-format --step oxfmt --step vp-lint --step oxlint --step cargo-fmt --step shfmt
         continue-on-error: true
       - name: Run autofix.ci
         uses: autofix-ci/action@v1.3.4

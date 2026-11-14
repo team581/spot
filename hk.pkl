@@ -110,6 +110,14 @@ steps {
     fix =
       "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --locked --fix --allow-dirty -- -D warnings"
   }
+  ["shfmt"] = (Builtins.shfmt) {
+    // Gradle generates the wrapper script.
+    exclude = List("gradlew")
+  }
+  ["shellcheck"] = (Builtins.shellcheck) {
+    depends = "shfmt"
+    exclude = List("gradlew")
+  }
   ["spotless"] {
     glob = List("packages/java-client/**/*.{java,gradle}")
     check = "./gradlew spotlessCheck"

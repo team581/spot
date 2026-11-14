@@ -28,6 +28,17 @@ jobs:
           install_args: hk pkl
       - run: hk check --all --step pkl-format --step hk-validate
 
+  shell:
+    name: Shell scripts
+    runs-on: blacksmith-4vcpu-ubuntu-2604
+    timeout-minutes: 5
+    steps:
+      - uses: useblacksmith/checkout@v1.8.2
+      - uses: jdx/mise-action@v5.2.8
+        with:
+          install_args: hk shellcheck shfmt
+      - run: hk check --all --step shfmt --step shellcheck
+
   nix:
     name: Nix package (aarch64-linux)
     concurrency:
