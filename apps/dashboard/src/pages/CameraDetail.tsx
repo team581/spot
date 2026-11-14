@@ -4,7 +4,7 @@ import type { ControlRange } from '../api';
 import type { Json } from '../overrides';
 import { useConfig, useDevices, useEditOverrides, useStatus } from '../queries';
 import { useDetections } from '../live';
-import type { Candidate } from '../live';
+import type { Candidate } from '../detections';
 import { DataList, ErrorText, PageTitle, Panel, StateBadge, fmt } from '../components/common';
 import { LiveView } from '../components/LiveView';
 import { Button } from '@/components/ui/button';

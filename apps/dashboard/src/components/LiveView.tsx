@@ -1,6 +1,6 @@
 import { cn } from 'cn';
 import { useDetections, useImage } from '../live';
-import type { Detections } from '../live';
+import type { Detections } from '../detections';
 
 /** The camera's live image with tag outlines, green where the tag contributed to the pose. */
 export function LiveView({ camera, className }: { camera: string; className?: string }) {

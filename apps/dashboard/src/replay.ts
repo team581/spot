@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { McapIndexedReader } from '@mcap/core';
 import type { IReadable } from '@mcap/core';
 import type { FieldView, RobotConfig } from './api';
-import { decodeDetections } from './live';
+import { decodeDetections } from './detections';
 import { decodeImage } from './image';
-import type { Detections } from './live';
+import type { Detections } from './detections';
 
 /** Values in log time order. Times are nanoseconds, as recorded. */
 interface Series<T> {
@@ -82,18 +82,23 @@ export interface Replay {
 	image: (camera: string, time: number) => Promise<{ time: number; jpeg: Uint8Array } | undefined>;
 }
 
-/**
- * Opens a recording without downloading it. Everything but images loads up front; Spot writes
- * those messages before the images, so this reads only the start of the file.
- */
+/** Opens a recording over HTTP without downloading it. */
 async function openReplay(url: string, signal: AbortSignal): Promise<Replay> {
 	const head = await fetch(url, { method: 'HEAD', signal });
 	if (!head.ok) {
 		throw new Error(`Could not open the recording: HTTP ${head.status}`);
 	}
+	return openRecording(httpReadable(url, BigInt(head.headers.get('content-length') ?? 0)), signal);
+}
+
+/**
+ * Opens a recording. Everything but images loads up front; Spot writes those messages before the
+ * images, so this reads only the start of the file and its index.
+ */
+export async function openRecording(readable: IReadable<AbortSignal>, signal?: AbortSignal): Promise<Replay> {
 	const reader = await McapIndexedReader.Initialize({
 		messageIndexCacheSizeBytes: 8_000_000,
-		readable: httpReadable(url, BigInt(head.headers.get('content-length') ?? 0)),
+		readable,
 		readOptions: signal,
 	});
 	const topics = [...new Set([...reader.channelsById.values()].map((c) => c.topic))];

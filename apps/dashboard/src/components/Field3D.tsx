@@ -3,7 +3,7 @@ import { cn } from 'cn';
 import { SpotViewer } from '@spot/camera-viewer';
 import type { FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
-import type { Candidate, Detections } from '../live';
+import type { Candidate, Detections } from '../detections';
 import { fmt } from './common';
 import { Button } from '@/components/ui/button';
 
