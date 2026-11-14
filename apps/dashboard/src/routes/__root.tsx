@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useStatus } from '../queries';
 import { Revision, commitDate, stateLabel } from '../components/common';
-import { ThemeMenu } from '../components/ThemeMenu';
 import {
 	Sidebar,
 	SidebarContent,
@@ -126,7 +125,6 @@ function Root() {
 						</SidebarGroup>
 					</SidebarContent>
 					<SidebarFooter>
-						<ThemeMenu />
 						<SidebarTrigger className="max-md:hidden" />
 						<small className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
 							Spot

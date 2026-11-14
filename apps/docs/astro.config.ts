@@ -7,7 +7,7 @@ import { render } from 'pele';
 
 const jetson = process.env.DOCS_TARGET === 'jetson';
 const base = jetson ? '/docs/' : '/';
-// The Jetson dashboard shows these pages in a pane; follow its theme and open other pages outside the pane.
+// The Jetson dashboard shows these pages in a pane; follow the system theme and open other pages outside the pane.
 const embedded = `if (window.top !== window.self) {
 	const root = document.documentElement;
 	root.dataset.embedded = '';
@@ -15,17 +15,11 @@ const embedded = `if (window.top !== window.self) {
 	const transitions = document.createElement('style');
 	transitions.textContent = '@view-transition { navigation: auto; }';
 	document.head.append(transitions);
-	const sync = () => {
-		let preference = 'auto';
-		try {
-			preference = (localStorage.getItem('spot-theme') || 'auto').toLowerCase();
-			localStorage.setItem('starlight-theme', preference === 'auto' ? '' : preference);
-		} catch {}
-		root.dataset.theme =
-			preference === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : preference;
-	};
-	sync();
-	addEventListener('storage', (event) => event.key === 'spot-theme' && sync());
+	// The dashboard follows the system theme, so drop any theme saved from the docs site.
+	try {
+		localStorage.removeItem('starlight-theme');
+	} catch {}
+	root.dataset.theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 	document.addEventListener('click', (event) => {
 		const link = event.target instanceof Element && event.target.closest('a[href]');
 		if (link && !link.href.startsWith(location.origin + '${base}')) link.target = '_top';

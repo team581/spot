@@ -1,4 +1,4 @@
-/* The dashboard's docs pane already provides the site title, dashboard link, and theme menu. */
+/* The dashboard's docs pane already provides the site title and dashboard link, and follows the system theme. */
 :root[data-embedded] .title-wrapper,
 :root[data-embedded] .right-group,
 :root[data-embedded] .mobile-preferences {

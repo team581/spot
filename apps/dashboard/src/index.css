@@ -4,9 +4,6 @@
 @import '@fontsource-variable/ibm-plex-sans';
 @import '@fontsource-variable/source-sans-3';
 
-/* theme.ts sets data-theme from the saved preference or the system scheme. */
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
-
 /* Brand maroon from team581/pit-display theme-colors.ts (#591616). */
 :root {
 	color-scheme: light;
@@ -54,43 +51,45 @@
 }
 
 /* Dark roles follow the pit display's Material dark scheme. */
-:root[data-theme='dark'] {
-	color-scheme: dark;
-	--background: #191111;
-	--foreground: #efdfdd;
-	--card: #261e1d;
-	--card-foreground: #efdfdd;
-	--popover: #261e1d;
-	--popover-foreground: #efdfdd;
-	--primary: #7a2622;
-	--primary-foreground: #ffdad6;
-	--secondary: #312827;
-	--secondary-foreground: #efdfdd;
-	--muted: #312827;
-	--muted-foreground: #dac1bf;
-	--accent: #3d2a28;
-	--accent-foreground: #ffdad6;
-	--destructive: #ffb4ab;
-	--border: #544241;
-	--input: #544241;
-	--ring: #a0807d;
-	--chart-1: #ffdad6;
-	--chart-2: #ffb4ab;
-	--chart-3: #c26a63;
-	--chart-4: #8f3530;
-	--chart-5: #591616;
-	--sidebar: #261e1d;
-	--sidebar-foreground: #efdfdd;
-	--sidebar-primary: #7a2622;
-	--sidebar-primary-foreground: #ffdad6;
-	--sidebar-accent: #312827;
-	--sidebar-accent-foreground: #efdfdd;
-	--sidebar-border: #544241;
-	--sidebar-ring: #a0807d;
-	--success: #79d6a5;
-	--warning: #edc06c;
-	--info: #a3c9fe;
-	--accent-text: #ffb4ab;
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+		--background: #191111;
+		--foreground: #efdfdd;
+		--card: #261e1d;
+		--card-foreground: #efdfdd;
+		--popover: #261e1d;
+		--popover-foreground: #efdfdd;
+		--primary: #7a2622;
+		--primary-foreground: #ffdad6;
+		--secondary: #312827;
+		--secondary-foreground: #efdfdd;
+		--muted: #312827;
+		--muted-foreground: #dac1bf;
+		--accent: #3d2a28;
+		--accent-foreground: #ffdad6;
+		--destructive: #ffb4ab;
+		--border: #544241;
+		--input: #544241;
+		--ring: #a0807d;
+		--chart-1: #ffdad6;
+		--chart-2: #ffb4ab;
+		--chart-3: #c26a63;
+		--chart-4: #8f3530;
+		--chart-5: #591616;
+		--sidebar: #261e1d;
+		--sidebar-foreground: #efdfdd;
+		--sidebar-primary: #7a2622;
+		--sidebar-primary-foreground: #ffdad6;
+		--sidebar-accent: #312827;
+		--sidebar-accent-foreground: #efdfdd;
+		--sidebar-border: #544241;
+		--sidebar-ring: #a0807d;
+		--success: #79d6a5;
+		--warning: #edc06c;
+		--info: #a3c9fe;
+		--accent-text: #ffb4ab;
+	}
 }
 
 @theme inline {

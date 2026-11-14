@@ -31,7 +31,7 @@ export default function Docs() {
 		});
 	};
 	return (
-		// oxlint-disable-next-line react/iframe-missing-sandbox -- Our bundled docs use scripts and same-origin access to synchronize navigation and theme.
+		// oxlint-disable-next-line react/iframe-missing-sandbox -- Our bundled docs use scripts and same-origin access to synchronize navigation.
 		<iframe
 			ref={frame}
 			title="Documentation"
