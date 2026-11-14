@@ -18,13 +18,15 @@ export interface Pose {
 	pitch?: number;
 	yaw?: number;
 }
-/** A camera frame and the pinhole intrinsics, in its pixels, that place it in front of the camera. */
+/** A camera frame and the intrinsics, in its pixels, that place it in front of the camera. */
 export interface CameraImage {
 	bitmap: ImageBitmap;
 	fx: number;
 	fy: number;
 	cx: number;
 	cy: number;
+	/** OpenCV's `[k1, k2, p1, p2, k3]`. */
+	distortion: number[];
 }
 /** A camera and its robot-to-camera transform. */
 export interface Mount {
@@ -76,6 +78,8 @@ type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'wa
 const TAG_SIZE = 0.1651;
 /** Metres in front of a camera to draw its image. */
 const IMAGE_DISTANCE = 0.5;
+/** Columns and rows of the grid an image is drawn on, enough to follow its lens distortion. */
+const IMAGE_GRID = [32, 20];
 interface Placed {
 	position: THREE.Vector3;
 	quaternion: THREE.Quaternion;
@@ -185,31 +189,72 @@ function arrow(parent: THREE.Object3D, direction: number[], text: string, color:
 		label(parent, text, direction, color);
 	}
 }
-/** The image on a plane in front of the camera, with lines from the lens to its corners. */
-function view(parent: THREE.Object3D, { bitmap, fx, fy, cx, cy }: CameraImage, color: Color) {
+/**
+ * Where pixel (u, v) points, as normalized image coordinates with the lens distortion undone by
+ * fixed-point iteration, as OpenCV's `undistortPoints`.
+ */
+function ray(u: number, v: number, { fx, fy, cx, cy, distortion }: CameraImage) {
+	const [k1 = 0, k2 = 0, p1 = 0, p2 = 0, k3 = 0] = distortion;
+	const [x0, y0] = [(u - cx) / fx, (v - cy) / fy];
+	let [x, y] = [x0, y0];
+	for (let i = 0; i < 20; i++) {
+		const r2 = x * x + y * y;
+		const radial = 1 + r2 * (k1 + r2 * (k2 + r2 * k3));
+		[x, y] = [
+			(x0 - 2 * p1 * x * y - p2 * (r2 + 2 * x * x)) / radial,
+			(y0 - p1 * (r2 + 2 * y * y) - 2 * p2 * x * y) / radial,
+		];
+	}
+	return [x, y];
+}
+/** The undistorted image on a plane in front of the camera, with lines from the lens to its corners. */
+function view(parent: THREE.Object3D, image: CameraImage, color: Color) {
+	const { bitmap } = image;
+	const [columns, rows] = IMAGE_GRID;
 	const d = IMAGE_DISTANCE;
-	// The lens looks along +X; image right is -Y and image down is -Z.
-	const corner = (u: number, v: number) => [d, ((cx - u) / fx) * d, ((cy - v) / fy) * d];
-	const corners = [
-		corner(0, 0),
-		corner(bitmap.width, 0),
-		corner(bitmap.width, bitmap.height),
-		corner(0, bitmap.height),
-	];
+	const positions: number[][] = [];
+	const uvs: number[] = [];
+	for (let j = 0; j <= rows; j++) {
+		for (let i = 0; i <= columns; i++) {
+			const [x, y] = ray((i / columns) * bitmap.width, (j / rows) * bitmap.height, image);
+			// The lens looks along +X; image right is -Y and image down is -Z.
+			positions.push([d, -x * d, -y * d]);
+			uvs.push(i / columns, j / rows);
+		}
+	}
+	const at = (i: number, j: number) => j * (columns + 1) + i;
+	const indices: number[] = [];
+	for (let j = 0; j < rows; j++) {
+		for (let i = 0; i < columns; i++) {
+			indices.push(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i, j + 1));
+		}
+	}
 	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners.flat(), 3));
-	geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
-	geometry.setIndex([0, 1, 2, 0, 2, 3]);
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions.flat(), 3));
+	geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+	geometry.setIndex(indices);
 	const texture = new THREE.Texture(bitmap);
 	// ImageBitmaps upload top row first, so v = 0 is the top of the image.
 	texture.flipY = false;
 	texture.colorSpace = THREE.SRGBColorSpace;
 	texture.needsUpdate = true;
 	parent.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })));
-	loop(parent, corners, color, 1.5);
+	// Clockwise around the image's edge from its top left corner.
+	const edge = [
+		...Array.from({ length: columns }, (_, i) => at(i, 0)),
+		...Array.from({ length: rows }, (_, j) => at(columns, j)),
+		...Array.from({ length: columns }, (_, i) => at(columns - i, rows)),
+		...Array.from({ length: rows }, (_, j) => at(0, rows - j)),
+	];
+	loop(
+		parent,
+		edge.map((k) => positions[k]),
+		color,
+		1.5,
+	);
 	segments(
 		parent,
-		corners.flatMap((p) => [[0, 0, 0], p]),
+		[at(0, 0), at(columns, 0), at(columns, rows), at(0, rows)].flatMap((k) => [[0, 0, 0], positions[k]]),
 		color,
 	);
 }

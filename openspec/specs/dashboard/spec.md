@@ -17,7 +17,7 @@ The dashboard SHALL cover camera assignment, tuning, calibration, mount checks, 
 
 ### Requirement: Camera views
 
-The dashboard SHALL show a camera grid with tag overlays, and a 3D field view showing field tags, each camera's robot estimate, the camera on that robot, lines to its tags, and the camera's latest image in front of it, placed with its calibration or, without one, the intrinsics Spot assumes for uncalibrated cameras.
+The dashboard SHALL show a camera grid with tag overlays, and a 3D field view showing field tags, each camera's robot estimate, the camera on that robot, lines to its tags, and the camera's latest image in front of it, undistorted and placed with its calibration or, without one, the intrinsics Spot assumes for uncalibrated cameras.
 
 #### Scenario: Checking a mount
 

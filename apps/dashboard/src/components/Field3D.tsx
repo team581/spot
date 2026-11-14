@@ -16,7 +16,7 @@ export interface FieldCamera {
 	name: string;
 	config: CameraConfig;
 	detections: Detections | undefined;
-	/** Drawn in front of the camera, placed with its calibration at the image's size or Spot's assumed one. */
+	/** Drawn in front of the camera, undistorted and placed with its calibration at the image's size or Spot's assumed one. */
 	image: ImageBitmap | undefined;
 }
 
@@ -28,6 +28,9 @@ function assumed(width: number, height: number) {
 		cy: 447.8047664027805 * sy,
 		fx: 799.4949524650956 * sx,
 		fy: 799.8320596652597 * sy,
+		distortion: [
+			-0.08158965422395571, 0.08184871658046705, 0.00036991351895525955, 0.0006269072380960263, -0.062389853780706106,
+		],
 	};
 }
 
@@ -36,9 +39,9 @@ function cameraImage({ config, image }: FieldCamera): CameraImage | undefined {
 	if (!image?.width) {
 		return undefined;
 	}
-	const { cx, cy, fx, fy } =
+	const { cx, cy, fx, fy, distortion } =
 		config.calibrations?.[`${image.width}x${image.height}`] ?? assumed(image.width, image.height);
-	return { bitmap: image, cx, cy, fx, fy };
+	return { bitmap: image, cx, cy, fx, fy, distortion };
 }
 
 function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
