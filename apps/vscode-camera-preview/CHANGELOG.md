@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/team581/spot/compare/camera-preview-v1.1.0...camera-preview-v1.2.0) (2026-11-14)
+
+
+### Features
+
+* **camera-viewer:** draw cameras with their 3D model ([6fb0b5c](https://github.com/team581/spot/commit/6fb0b5c3cbf04f0e9e7144143c558f506e2aea2b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @spot/camera-viewer bumped to 2.1.0
+
 ## [1.1.0](https://github.com/team581/spot/compare/camera-preview-v1.0.1...camera-preview-v1.1.0) (2026-11-13)
 
 
