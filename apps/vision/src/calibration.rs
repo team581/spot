@@ -97,13 +97,20 @@ pub struct Solution {
 }
 
 /// How well the captured views cover the image.
-#[derive(Debug, Clone, Default, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Coverage {
     /// Scores from 0 to 1 for a grid over the image, by row. An area scores 1 once it has
     /// enough views of the board at varied distances and tilts.
     pub cells: Vec<Vec<f64>>,
     /// Mean of the cell scores.
     pub progress: f64,
+}
+
+impl Default for Coverage {
+    /// No views yet: every cell scores 0.
+    fn default() -> Self {
+        Coverage { cells: vec![vec![0.0; GRID]; GRID], progress: 0.0 }
+    }
 }
 
 impl Coverage {
@@ -597,6 +604,8 @@ mod tests {
                 views.push(project(&board, camera, flat, nalgebra::Vector3::new(x, y, 0.6)));
             }
         }
+        // A new session captures the first view it sees.
+        assert_eq!(Coverage::default().skip_reason(&views[0], &[], SIZE), None);
         let coverage = Coverage::new(&views, &board, SIZE);
         assert_eq!(coverage.progress, 0.0);
         assert!(coverage.skip_reason(&views[8], &views, SIZE).unwrap().starts_with("Move"));
