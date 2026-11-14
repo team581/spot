@@ -1,6 +1,5 @@
 import { SpotViewer } from '@spot/camera-viewer';
 import type { PreviewCamera } from '../config';
-import { previewMount } from './cameras';
 
 interface Drivebase {
 	visible: boolean;
@@ -28,8 +27,8 @@ const drivebase: Drivebase = { lengthIn: 30, visible: true, widthIn: 30, ...save
 const canvas = document.querySelector('canvas')!;
 const viewer = new SpotViewer(canvas, () => ({
 	drivebase: { length: drivebase.lengthIn * 0.0254, visible: drivebase.visible, width: drivebase.widthIn * 0.0254 },
-	inspection: true,
-	mounts: (cameras ?? []).filter((c) => !hidden.has(c.name)).map(previewMount),
+	kind: 'robot',
+	mounts: (cameras ?? []).filter((c) => !hidden.has(c.name)).map((c) => ({ name: c.name, pose: c.mount })),
 	selectedName: selected,
 }));
 if (saved?.orbit) {

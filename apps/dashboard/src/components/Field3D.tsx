@@ -1,15 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { cn } from 'cn';
 import { SpotViewer } from '@spot/camera-viewer';
-import { Euler, MathUtils, Quaternion, Vector3 } from 'three';
 import type { FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
 import type { Candidate, Detections } from '../live';
 import { fmt } from './common';
 import { Button } from '@/components/ui/button';
-
-/** FRC AprilTag (36h11) edge length in meters, across the outer black border. */
-const TAG_SIZE = 0.1651;
 
 const PALETTE = ['#2f7fc1', '#d9822b', '#2e9d5b', '#c8467a', '#8a5cc7', '#1f9a96', '#b59a12', '#d4553a'];
 /** A stable color per camera, from its position among the sorted camera names. */
@@ -22,36 +18,17 @@ export interface FieldCamera {
 	detections: Detections | undefined;
 }
 
-/** WPILib translation in metres and roll, pitch, yaw in degrees, as the viewer's pose. */
-const pose = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => ({
-	quaternion: new Quaternion().setFromEuler(
-		new Euler(MathUtils.degToRad(roll), MathUtils.degToRad(pitch), MathUtils.degToRad(yaw), 'ZYX'),
-	),
-	position: new Vector3(x, y, z),
-});
-
 function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
 	const names = cameras.map((c) => c.name);
 	const viewerCameras = cameras.map((c): ViewerCamera => ({
 		name: c.name,
-		...pose(c.config.mount ?? {}),
+		pose: c.config.mount ?? {},
 		color: cameraColor(names, c.name),
-		robot: c.detections?.estimate ? pose(c.detections.estimate.primary) : null,
+		robot: c.detections?.estimate?.primary ?? null,
 		tags: c.detections?.tags.filter((t) => t.used).map((t) => t.id) ?? [],
 	}));
 	// Without a field layout there is nowhere to put estimates; show the mounts on the robot instead.
-	if (!field) {
-		return { mounts: viewerCameras };
-	}
-	const tags = field.tags.map((t) => ({
-		id: t.id,
-		quaternion: new Quaternion(t.qx, t.qy, t.qz, t.qw).normalize(),
-		size: TAG_SIZE,
-		position: new Vector3(t.x, t.y, t.z),
-	}));
-	const length = field.length === 0 ? Math.max(16.5, ...field.tags.map((t) => t.x)) : field.length;
-	const width = field.width || Math.max(8.1, ...field.tags.map((t) => t.y));
-	return { cameras: viewerCameras, field: { length, tags, width } };
+	return field ? { kind: 'field', field, cameras: viewerCameras } : { kind: 'robot', mounts: viewerCameras };
 }
 
 const median = (values: number[]) => {
@@ -94,7 +71,7 @@ export function Field3D({
 }) {
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const viewer = useRef<SpotViewer>(null);
-	const state = useRef<ViewerState>({});
+	const state = useRef<ViewerState>({ kind: 'robot', mounts: [] });
 	const names = cameras.map((c) => c.name);
 	const offsets = agreement(cameras);
 

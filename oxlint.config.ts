@@ -25,8 +25,8 @@ export default defineConfig({
 	},
 	overrides: [
 		{
-			// The docs and extension use node:test; only the dashboard uses Vitest.
-			files: ['apps/dashboard/src/**/*.test.ts'],
+			// The docs and extension use node:test; the dashboard and camera viewer use Vitest.
+			files: ['apps/dashboard/src/**/*.test.ts', 'packages/camera-viewer/test/**/*.test.ts'],
 			plugins: ['vitest'],
 			rules: {
 				'vitest/prefer-importing-vitest-globals': 'error',

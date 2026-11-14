@@ -5,33 +5,70 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 
+/** WPILib translation in metres and `Rotation3d(roll, pitch, yaw)` in degrees; omitted values are 0. */
 export interface Pose {
-	position: THREE.Vector3;
-	quaternion: THREE.Quaternion;
+	x?: number;
+	y?: number;
+	z?: number;
+	roll?: number;
+	pitch?: number;
+	yaw?: number;
 }
-export interface Mount extends Pose {
+/** A camera and its robot-to-camera transform. */
+export interface Mount {
 	name: string;
+	pose: Pose;
+	/** Any CSS color; robot views default to muted, or blue when selected. */
+	color?: string;
 }
-/** A camera on the field: its robot-to-camera mount, plus what it currently sees. */
+/** A camera on the field: its mount, plus what it currently sees. */
 export interface FieldCamera extends Mount {
-	/** Any CSS color, used for this camera's robot, body, and tag lines. */
+	/** Used for this camera's robot, body, and tag lines. */
 	color: string;
 	/** The robot's field pose estimated from this camera, or null without one. */
 	robot: Pose | null;
 	/** IDs of the tags the estimate used. */
 	tags: number[];
 }
-export interface ViewerState {
-	field?: { length: number; width: number; tags?: (Pose & { id: number; size: number })[] };
-	/** Shown on `field`: each camera's robot estimate, mount, and the tags it used. */
-	cameras?: FieldCamera[];
-	inspection?: boolean;
-	mounts?: Mount[];
-	selectedName?: string;
-	drivebase?: { visible: boolean; length: number; width: number };
+/** A WPILib field layout tag: its centre in metres and its rotation as a quaternion. */
+export interface FieldTag {
+	id: number;
+	x: number;
+	y: number;
+	z: number;
+	qw: number;
+	qx: number;
+	qy: number;
+	qz: number;
 }
+export type ViewerState =
+	| {
+			/** The field with each camera's robot estimate, mount, and the tags it used. */
+			kind: 'field';
+			/** Metres; 0 fits the field to its tags. */
+			field: { length: number; width: number; tags: FieldTag[] };
+			cameras: FieldCamera[];
+	  }
+	| {
+			/** Camera mounts on a robot at the origin. */
+			kind: 'robot';
+			mounts: Mount[];
+			selectedName?: string;
+			drivebase?: { visible: boolean; length: number; width: number };
+	  };
 /** A CSS custom property name (without `--`), or any other CSS color. */
 type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'warning' | (string & {});
+/** FRC AprilTag (36h11) edge length in metres, across the outer black border. */
+const TAG_SIZE = 0.1651;
+interface Placed {
+	position: THREE.Vector3;
+	quaternion: THREE.Quaternion;
+}
+const radians = THREE.MathUtils.degToRad;
+const placed = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }: Pose): Placed => ({
+	position: new THREE.Vector3(x, y, z),
+	quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(radians(roll), radians(pitch), radians(yaw), 'ZYX')),
+});
 const isProperty = (color: string) => /^[\w-]+$/.test(color);
 export interface Scene {
 	/** Lines are named by their color; labels are `CSS2DObject`s. */
@@ -43,7 +80,7 @@ export interface Scene {
 	focused: boolean;
 	status: string;
 }
-function posed(parent: THREE.Object3D, pose: Pose): THREE.Group {
+function posed(parent: THREE.Object3D, pose: Placed): THREE.Group {
 	const group = new THREE.Group();
 	group.position.copy(pose.position);
 	group.quaternion.copy(pose.quaternion);
@@ -102,7 +139,7 @@ function arrow(parent: THREE.Object3D, direction: number[], text: string, color:
 		label(parent, text, direction, color);
 	}
 }
-function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string, lens = 'Lens') {
+function camera(parent: THREE.Object3D, pose: Placed, color: Color, name: string, lens = 'Lens') {
 	const group = posed(parent, pose);
 	box(group, [0.18, 0.14, 0.12], color);
 	arrow(group, [0.7, 0, 0], lens, color);
@@ -119,15 +156,22 @@ function camera(parent: THREE.Object3D, pose: Pose, color: Color, name: string, 
 	return group;
 }
 /** Builds the scene in WPILib NWU metres. Needs `document` for labels but no WebGL. */
-export function buildScene({ field, cameras, inspection, mounts, selectedName, drivebase }: ViewerState): Scene {
+export function buildScene(state: ViewerState): Scene {
 	const root = new THREE.Group();
-	const arena = !inspection && !mounts ? field : undefined;
-	const estimates = arena ? (cameras ?? []).filter((c) => c.robot) : [];
-	// Cameras without an estimate ride on another camera's robot, or one at midfield.
-	const reference: Pose = estimates[0]?.robot ?? {
-		quaternion: new THREE.Quaternion(),
-		position: arena ? new THREE.Vector3(arena.length / 2, arena.width / 2, 0) : new THREE.Vector3(),
+	const field = state.kind === 'field' ? state.field : undefined;
+	const arena = field && {
+		length: field.length > 0 ? field.length : Math.max(16.5, ...field.tags.map((t) => t.x)),
+		width: field.width > 0 ? field.width : Math.max(8.1, ...field.tags.map((t) => t.y)),
 	};
+	const cameras = state.kind === 'field' ? state.cameras : [];
+	const estimates = cameras.filter((c) => c.robot);
+	// Cameras without an estimate ride on another camera's robot, or one at midfield.
+	const reference: Placed = estimates[0]?.robot
+		? placed(estimates[0].robot)
+		: {
+				quaternion: new THREE.Quaternion(),
+				position: arena ? new THREE.Vector3(arena.length / 2, arena.width / 2, 0) : new THREE.Vector3(),
+			};
 	if (arena) {
 		const { length, width } = arena;
 		const grid: number[][] = [];
@@ -152,6 +196,7 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 		}
 		segments(root, grid, 'line');
 		const chassis = posed(root, reference);
+		const drivebase = state.kind === 'robot' ? state.drivebase : undefined;
 		if (
 			drivebase?.visible &&
 			Number.isFinite(drivebase.length) &&
@@ -167,28 +212,38 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 		arrow(chassis, [0.95, 0, 0.03], 'Front · +X', 'accent-text');
 		arrow(chassis, [0, 0.65, 0.03], '+Y left', 'muted-foreground');
 	}
-	if (mounts) {
-		for (const mount of mounts) {
-			const group = camera(root, mount, mount.name === selectedName ? 'blue' : 'muted-foreground', mount.name);
+	if (state.kind === 'robot') {
+		for (const mount of state.mounts) {
+			const color = mount.color ?? (mount.name === state.selectedName ? 'blue' : 'muted-foreground');
+			const group = camera(root, placed(mount.pose), color, mount.name);
 			arrow(group, [0, 0.25, 0], '+Y', 'good');
 			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
-	} else if (arena) {
+	} else if (field) {
 		const robot = (chassis: THREE.Object3D, color: Color) => {
 			box(chassis, [0.9, 0.9, 0.15], color);
 			arrow(chassis, [0.75, 0, 0.15], '', color);
 		};
-		const tags = new Map((arena.tags ?? []).map((t) => [t.id, t]));
+		const tags = new Map(
+			field.tags.map((t) => [
+				t.id,
+				{
+					id: t.id,
+					position: new THREE.Vector3(t.x, t.y, t.z),
+					quaternion: new THREE.Quaternion(t.qx, t.qy, t.qz, t.qw).normalize(),
+				},
+			]),
+		);
 		const seen = new Map<number, Color>();
 		if (estimates.length === 0) {
 			robot(posed(root, reference), 'muted-foreground');
 		}
-		for (const c of cameras ?? []) {
-			const chassis = posed(root, c.robot ?? reference);
+		for (const c of cameras) {
+			const chassis = posed(root, c.robot ? placed(c.robot) : reference);
 			if (c.robot) {
 				robot(chassis, c.color);
 			}
-			const body = camera(chassis, c, c.color, c.name, '');
+			const body = camera(chassis, placed(c.pose), c.color, c.name, '');
 			const position = body.getWorldPosition(new THREE.Vector3());
 			for (const id of c.robot ? c.tags : []) {
 				const tag = tags.get(id);
@@ -202,7 +257,7 @@ export function buildScene({ field, cameras, inspection, mounts, selectedName, d
 			}
 		}
 		for (const tag of tags.values()) {
-			const half = tag.size / 2;
+			const half = TAG_SIZE / 2;
 			const color = seen.get(tag.id) ?? 'muted-foreground';
 			loop(
 				posed(root, tag),
