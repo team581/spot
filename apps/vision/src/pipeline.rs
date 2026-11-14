@@ -5,14 +5,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
-use nalgebra::Isometry3;
-
-use crate::calibration::{Charuco, View};
+use crate::apriltag::Tag;
+use crate::calibration::View;
 use crate::camera::{self, Device, Frame};
-use crate::config::{Calibration, Controls, FieldLayout, Mode};
-use crate::decode::Decoder;
-use crate::detect::{Detection, Detector};
-use crate::pose::{self, Estimate, TagObservation};
+use crate::config::{Controls, Mode};
+use crate::pose::Estimate;
+use crate::processor::{Processing, Processor};
 
 /// What to capture.
 #[derive(Clone, PartialEq)]
@@ -22,24 +20,13 @@ pub struct Target {
     pub controls: Controls,
 }
 
-/// How to turn detections into an estimate.
-pub struct Processing {
-    pub calibration: Option<Calibration>,
-    pub mount: Isometry3<f64>,
-    pub tag_size: f64,
-    pub ignored_tags: Vec<u32>,
-    pub layout: Option<Arc<FieldLayout>>,
-    /// Detects a ChArUco board while the camera is being calibrated.
-    pub charuco: Option<Arc<Mutex<Charuco>>>,
-}
-
 pub struct FrameResult<'a> {
     pub camera: &'a str,
     pub monotonic_us: i64,
     pub jpeg: &'a [u8],
     pub width: u32,
     pub height: u32,
-    pub detections: &'a [Detection],
+    pub detections: &'a [Tag],
     /// Tags used for the estimate.
     pub used_tags: Vec<u32>,
     pub estimate: Option<Estimate>,
@@ -189,8 +176,7 @@ fn capture_loop(shared: &Shared) {
 }
 
 fn process_loop(shared: &Shared, sink: &dyn Sink) {
-    let mut decoder = None;
-    let mut detector: Option<Detector> = None;
+    let mut processor = Processor::default();
     while !shared.stop.load(Ordering::Relaxed) {
         let frame = {
             let mut slot = shared.slot.lock().unwrap();
@@ -205,43 +191,19 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
             }
         };
         let processing = shared.processing.lock().unwrap().clone();
-        let result = (|| -> anyhow::Result<()> {
-            if decoder.is_none() {
-                decoder = Some(Decoder::new()?);
-            }
-            let gray = decoder.as_mut().unwrap().decode(&frame.jpeg)?;
-            let size = (gray.width, gray.height);
-            let calibration = processing.calibration.as_ref();
-            if detector.as_ref().is_none_or(|d| !d.matches(size, calibration)) {
-                detector = Some(Detector::new(gray.width, gray.height, calibration)?);
-            }
-            let detector = detector.as_mut().unwrap();
-            let detections = detector.detect(&gray)?;
-            let (used_tags, estimate) =
-                estimate(&processing, &detections, (gray.width, gray.height));
-            let charuco = match &processing.charuco {
-                Some(charuco) => Some(
-                    charuco
-                        .lock()
-                        .unwrap()
-                        .detect(detector.host_pixels(&gray), gray.width, gray.height)
-                        .map_err(|e| anyhow::anyhow!("ChArUco: {e}"))?,
-                ),
-                None => None,
-            };
+        let result = processor.process(&frame.jpeg, &processing).map(|processed| {
             sink.frame(&FrameResult {
                 camera: &shared.name,
                 monotonic_us: frame.monotonic_us,
                 jpeg: &frame.jpeg,
-                width: gray.width,
-                height: gray.height,
-                detections: &detections,
-                used_tags,
-                estimate,
-                charuco,
+                width: processed.width,
+                height: processed.height,
+                detections: &processed.detections,
+                used_tags: processed.used_tags,
+                estimate: processed.estimate,
+                charuco: processed.charuco,
             });
-            Ok(())
-        })();
+        });
         shared.counters.processed.fetch_add(1, Ordering::Relaxed);
         let error = result.err().map(|e| format!("{e:#}"));
         let mut last = shared.process_error.lock().unwrap();
@@ -251,147 +213,5 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
             }
             *last = error;
         }
-    }
-}
-
-/// Keeps known, non-ignored tags and solves, assuming rough intrinsics when the camera is
-/// uncalibrated.
-pub fn estimate(
-    processing: &Processing,
-    detections: &[Detection],
-    size: (u32, u32),
-) -> (Vec<u32>, Option<Estimate>) {
-    let Some(layout) = &processing.layout else {
-        return (Vec::new(), None);
-    };
-    let calibration = processing.calibration.clone().unwrap_or_else(|| Calibration::assumed(size));
-    let tags: Vec<TagObservation> = detections
-        .iter()
-        .filter(|d| !processing.ignored_tags.contains(&d.id))
-        // Corners past where the lens model inverts would corrupt the fit.
-        .filter(|d| d.corners.iter().all(|&p| pose::undistort(p, &calibration).is_some()))
-        .filter_map(|d| {
-            Some(TagObservation {
-                id: d.id,
-                pixels: d.corners,
-                field: pose::tag_corners(layout.tags.get(&d.id)?, processing.tag_size),
-            })
-        })
-        .collect();
-    let used = tags.iter().map(|t| t.id).collect();
-    (used, pose::solve(&tags, &calibration, &processing.mount, size))
-}
-
-#[cfg(all(test, not(feature = "jetson")))]
-mod tests {
-    use super::*;
-    use crate::config::RobotConfig;
-
-    /// The camera that rendered the fixtures; `rotated.jpg` was rendered upside down.
-    fn processing(rotated: bool) -> Processing {
-        let (roll, cx, cy, p1, p2) =
-            if rotated { (180, 639, 399, -0.006, 0.008) } else { (0, 640, 400, 0.006, -0.008) };
-        let config = RobotConfig::parse(&format!(
-            "[cameras.front]\nserial = \"front\"\nmount = {{ z = 0.6, roll = {roll} }}\n\
-             [cameras.front.calibrations.1280x800]\nfx = 700\nfy = 700\ncx = {cx}\ncy = {cy}\n\
-             distortion = [-0.18, 0.04, {p1}, {p2}, 0.01]\n"
-        ))
-        .unwrap();
-        let camera = &config.cameras["front"];
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/regression");
-        let layout = std::fs::read_to_string(format!("{dir}/layout.json")).unwrap();
-        Processing {
-            calibration: camera.calibration().cloned(),
-            mount: camera.mount.isometry(),
-            // The fixtures were rendered with larger tags than FRC uses.
-            tag_size: 0.3,
-            ignored_tags: Vec::new(),
-            layout: Some(Arc::new(FieldLayout::parse(&layout).unwrap())),
-            charuco: None,
-        }
-    }
-
-    #[test]
-    fn regression_images_produce_expected_poses() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/regression");
-        let manifest: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("{dir}/manifest.json")).unwrap())
-                .unwrap();
-        for case in manifest["cases"].as_array().unwrap() {
-            let name = case["name"].as_str().unwrap();
-            let image = image::open(format!("{dir}/{}", case["image"].as_str().unwrap()))
-                .unwrap()
-                .to_luma8();
-            let (width, height) = image.dimensions();
-            let gray = crate::decode::Gray {
-                pixels: crate::decode::Pixels::Host(image.into_raw()),
-                width,
-                height,
-            };
-            let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
-            let mut ids: Vec<u32> = detections.iter().map(|d| d.id).collect();
-            ids.sort();
-            let expected: Vec<u32> = case["tags"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|t| t["id"].as_u64().unwrap() as u32)
-                .collect();
-            assert_eq!(ids, expected, "{name}");
-            let (_, estimate) = estimate(
-                &processing(case["rotated"].as_bool().unwrap_or(false)),
-                &detections,
-                (width, height),
-            );
-            let Some(translation) = case["robot_translation_m"].as_array() else {
-                assert!(estimate.is_none(), "{name}");
-                continue;
-            };
-            let estimate = estimate.unwrap_or_else(|| panic!("{name}: no estimate"));
-            let pose = estimate.primary.pose;
-            let truth = nalgebra::Vector3::new(
-                translation[0].as_f64().unwrap(),
-                translation[1].as_f64().unwrap(),
-                translation[2].as_f64().unwrap(),
-            );
-            let q = case["robot_quaternion_wxyz"].as_array().unwrap();
-            let q: Vec<f64> = q.iter().map(|v| v.as_f64().unwrap()).collect();
-            let rotation = nalgebra::UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(
-                q[0], q[1], q[2], q[3],
-            ));
-            let translation_error = (pose.translation.vector - truth).norm();
-            let rotation_error = pose.rotation.angle_to(&rotation).to_degrees();
-            assert!(
-                translation_error < case["max_translation_error_m"].as_f64().unwrap(),
-                "{name}: {pose}"
-            );
-            assert!(
-                rotation_error < case["max_rotation_error_deg"].as_f64().unwrap(),
-                "{name}: {pose}"
-            );
-            assert!(
-                estimate.primary.error < case["max_reprojection_error_px"].as_f64().unwrap(),
-                "{name}"
-            );
-        }
-    }
-
-    #[test]
-    fn uncalibrated_camera_still_estimates() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/regression");
-        let image = image::open(format!("{dir}/center.jpg")).unwrap().to_luma8();
-        let (width, height) = image.dimensions();
-        let gray = crate::decode::Gray {
-            pixels: crate::decode::Pixels::Host(image.into_raw()),
-            width,
-            height,
-        };
-        let detections = Detector::new(width, height, None).unwrap().detect(&gray).unwrap();
-        let processing = Processing { calibration: None, ..processing(false) };
-        let (used, estimate) = estimate(&processing, &detections, (width, height));
-        assert_eq!(used, vec![1]);
-        // The fixture is 2 m away; assumed intrinsics only get the distance roughly right.
-        let distance = estimate.unwrap().average_tag_distance;
-        assert!((1.5..2.5).contains(&distance), "{distance}");
     }
 }

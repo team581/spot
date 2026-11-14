@@ -16,7 +16,8 @@ use crate::clock::monotonic_us;
 use crate::config::{CameraConfig, FieldLayout, FieldView, Mode, RobotConfig};
 use crate::nt::{self, Nt, NtValue};
 use crate::overrides;
-use crate::pipeline::{Camera, FrameResult, Processing, Sink, Target};
+use crate::pipeline::{Camera, FrameResult, Sink, Target};
+use crate::processor::Processing;
 use crate::recording::Recorder;
 use crate::structs::Writer;
 
@@ -289,12 +290,8 @@ impl App {
                 controls: camera.controls.clone(),
             };
             let processing = Processing {
-                calibration: camera.calibration().cloned(),
-                mount: camera.mount.isometry(),
-                tag_size: crate::pose::TAG_SIZE,
-                ignored_tags: config.ignored_tags.clone(),
-                layout: effective.layout.clone(),
                 charuco: inner.sessions.get(name).map(|s| s.charuco.clone()),
+                ..Processing::new(camera, config, effective.layout.clone())
             };
             match inner.cameras.get(name) {
                 Some(running) => running.configure(target, processing),

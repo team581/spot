@@ -6,10 +6,8 @@ use std::time::Instant;
 
 use anyhow::Context;
 
-use crate::config::{FieldLayout, RobotConfig};
-use crate::decode::Decoder;
-use crate::detect::Detector;
-use crate::pipeline::{self, Processing};
+use crate::config::{FieldLayout, Mode, RobotConfig};
+use crate::processor::{Processing, Processor};
 
 #[derive(clap::Args)]
 pub struct Bench {
@@ -32,17 +30,14 @@ pub struct Bench {
 /// Milliseconds for decode, detect, pose, and the whole frame.
 type Sample = [f64; 4];
 
-fn processing(config: &RobotConfig, layout: &Arc<FieldLayout>, size: (u32, u32)) -> Processing {
-    let camera = config.cameras.values().next();
-    let resolution = format!("{}x{}", size.0, size.1);
-    Processing {
-        calibration: camera.and_then(|c| c.calibrations.get(&resolution).cloned()),
-        mount: camera.map(|c| c.mount.isometry()).unwrap_or_default(),
-        tag_size: crate::pose::TAG_SIZE,
-        ignored_tags: config.ignored_tags.clone(),
-        layout: Some(layout.clone()),
-        charuco: None,
-    }
+fn processing(
+    config: &RobotConfig,
+    layout: &Arc<FieldLayout>,
+    size: (u32, u32),
+) -> anyhow::Result<Processing> {
+    let mut camera = config.cameras.values().next().context("the config has no cameras")?.clone();
+    camera.mode = Mode { width: size.0, height: size.1, ..camera.mode };
+    Ok(Processing::new(&camera, config, Some(layout.clone())))
 }
 
 fn run(
@@ -50,32 +45,32 @@ fn run(
     setup: Option<&(RobotConfig, Arc<FieldLayout>)>,
     iterations: usize,
 ) -> anyhow::Result<(Vec<Sample>, usize, bool)> {
-    let mut decoder = Decoder::new()?;
     let size = crate::decode::dimensions(jpeg)?;
-    let processing = setup.map(|(config, layout)| processing(config, layout, size));
-    let calibration = processing.as_ref().and_then(|p| p.calibration.as_ref());
-    let mut detector = Detector::new(size.0, size.1, calibration)?;
+    let processing = match setup {
+        Some((config, layout)) => processing(config, layout, size)?,
+        None => Processing {
+            calibration: None,
+            mount: Default::default(),
+            tag_size: crate::pose::TAG_SIZE,
+            ignored_tags: Vec::new(),
+            layout: None,
+            charuco: None,
+        },
+    };
+    let mut processor = Processor::default();
     let mut samples = Vec::with_capacity(iterations);
     let (mut tags, mut solved) = (0, false);
     // The first frames warm up allocations and GPU kernels.
     for i in 0..iterations + 5 {
         let start = Instant::now();
-        let gray = decoder.decode(jpeg)?;
-        let decoded = Instant::now();
-        let detections = detector.detect(&gray)?;
-        let detected = Instant::now();
-        let estimate = processing.as_ref().and_then(|p| pipeline::estimate(p, &detections, size).1);
-        let done = Instant::now();
-        let ms = |a: Instant, b: Instant| (b - a).as_secs_f64() * 1e3;
-        tags = detections.len();
-        solved = estimate.is_some();
+        let processed = processor.process(jpeg, &processing)?;
+        let frame = start.elapsed();
+        let ms = |d: std::time::Duration| d.as_secs_f64() * 1e3;
+        tags = processed.detections.len();
+        solved = processed.estimate.is_some();
         if i >= 5 {
-            samples.push([
-                ms(start, decoded),
-                ms(decoded, detected),
-                ms(detected, done),
-                ms(start, done),
-            ]);
+            let t = &processed.timings;
+            samples.push([ms(t.decode), ms(t.detect), ms(t.pose), ms(frame)]);
         }
     }
     Ok((samples, tags, solved))
