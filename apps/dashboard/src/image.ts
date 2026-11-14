@@ -12,6 +12,7 @@ export function useCloseReplaced(bitmaps: ImageBitmap[]) {
 	const shown = useRef<ImageBitmap[]>([]);
 	useEffect(() => {
 		for (const bitmap of shown.current) {
+			// react-doctor-disable-next-line react-doctor/js-set-map-lookups, react-doctor/no-pass-data-to-parent -- There is one bitmap per camera, and closing them passes nothing to the parent.
 			if (!bitmaps.includes(bitmap)) {
 				bitmap.close();
 			}

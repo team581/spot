@@ -90,6 +90,7 @@ export class FoxgloveClient {
 			}
 		} else if (message.op === 'unadvertise') {
 			for (const [topic, id] of this.#channels) {
+				// react-doctor-disable-next-line react-doctor/js-set-map-lookups -- Unadvertise messages list a few channels.
 				if (message.channelIds.includes(id)) {
 					this.#channels.delete(topic);
 					this.#topics.delete(this.#subscriptions.get(topic)!);

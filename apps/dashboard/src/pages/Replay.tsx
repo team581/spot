@@ -141,6 +141,7 @@ export default function ReplayPage() {
 		<>
 			<PageTitle
 				action={
+					// react-doctor-disable-next-line react-doctor/anchor-has-content -- The button renders its children into the anchor.
 					<Button variant="outline" render={<a href={url} download />}>
 						<Download />
 						Download

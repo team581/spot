@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 
 function SettingsForm({ settings }: { settings: Settings }) {
+	// react-doctor-disable-next-line react-doctor/rerender-lazy-state-init -- Formatting the team number is cheap.
 	const [team, setTeam] = useState(settings.team?.toString() ?? '');
 	const [server, setServer] = useState(settings.nt_server ?? '');
 	const save = useSaveSettings();

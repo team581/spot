@@ -201,6 +201,7 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- Changing recordings must revoke the previous recording's blob URLs.
 		[replay],
 	);
+	// react-doctor-disable-next-line react-doctor/no-set-state-after-await-in-effect -- Players remount for each recording, and React ignores updates after unmount.
 	useEffect(() => {
 		wanted.current = time;
 		if (!replay || busy.current) {
@@ -223,6 +224,7 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 							// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCAP reads use ArrayBuffers created by the HTTP reader, never SharedArrayBuffers.
 							const blob = new Blob([result.jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' });
 							const bitmap = await createImageBitmap(blob).catch(() => undefined);
+							// react-doctor-disable-next-line react-doctor/no-create-object-url-without-revoke -- `held` tracks these URLs so `revoke` can release them.
 							return { bitmap, time: result.time, url: URL.createObjectURL(blob) };
 						}),
 					);

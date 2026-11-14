@@ -50,6 +50,7 @@ const pages = [
 	// `/recordings/` serves the recording files themselves.
 	{ icon: HardDrive, label: 'Recordings', to: '/downloads' },
 ] as const;
+// react-doctor-disable-next-line react-doctor/no-high-complexity-react-function -- The sidebar is one flat layout of small conditional renders.
 function Root() {
 	const { data: status, isError } = useStatus();
 	const matchRoute = useMatchRoute();
