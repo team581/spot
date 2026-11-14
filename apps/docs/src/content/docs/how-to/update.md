@@ -21,10 +21,10 @@ stateDiagram-v2
 
 1. Commit or `git add` new files.
    Nix ignores untracked files.
-2. Build on the Jetson and start the new system without making it the boot default:
+2. Build the new system and start it on the Jetson without making it the boot default:
 
    ```sh
-   nix run .#deploy -- test
+   mise run jetson:deploy
    ```
 
 3. Check that Spot reports `ready` and that every camera is streaming, on the dashboard or with:
@@ -36,7 +36,7 @@ stateDiagram-v2
 4. Make it the boot default, without changing the checkout in between:
 
    ```sh
-   nix run .#deploy -- switch
+   mise run jetson:deploy switch
    ```
 
 ## Undo a test deploy

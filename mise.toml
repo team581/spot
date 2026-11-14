@@ -42,8 +42,12 @@ description = "SSH to Spot using the repository's shared maintenance key"
 run = "bash tools/jetson-ssh.sh"
 
 [tasks."jetson:deploy"]
-description = "Build and test a NixOS generation on Spot without changing its boot default"
-run = "nix run .#deploy -- test"
+description = "Build a NixOS generation and test it on Spot, or switch Spot's boot default to it"
+usage = 'arg "[mode]" help="nixos-rebuild action, such as test or switch" default="test"'
+run = """
+if [ "$(uname)" = Darwin ]; then bash tools/linux-builder.sh; fi
+nix run .#deploy -- "$usage_mode"
+"""
 
 [tasks."jetson:installer"]
 description = "Build the ARM64 installer and copy the ISO to dist/installer"

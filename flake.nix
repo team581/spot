@@ -99,9 +99,7 @@
               export NIX_SSHOPTS="-i $key -o IdentitiesOnly=yes"
               host="team581@''${SPOT_HOST:-10.5.81.11}"
               if [ "$#" -eq 0 ]; then set -- test; fi
-              nixos-rebuild "$@" --flake "$PWD#spot" \
-                --build-host "$host" \
-                --target-host "$host" --sudo
+              nixos-rebuild "$@" --flake "$PWD#spot" --target-host "$host" --sudo
             '';
           };
         }
