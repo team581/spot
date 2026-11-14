@@ -1,5 +1,20 @@
 schema: spec-driven
 
+context: |
+  Spot is Team 581's AprilTag vision system: a Jetson Orin Nano 8GB on a Seeed reComputer J401, with Swyft USB cameras (OV9281 global shutter, mono, USB 2.0 UVC, MJPEG only, 1280x800 at 120 FPS).
+  The vision service is one monolithic Rust process that captures, detects, estimates, publishes to NetworkTables, records, and serves the dashboard. C/C++ is only allowed in thin FFI shims (detector, hardware APIs).
+  Spot talks to robot code only through NetworkTables and leans on NT4 for things like timestamps instead of adding its own protocol primitives.
+  Spot favors robustness and a small feature set over flexibility. Proposals must not add these without explicitly revisiting the decision:
+  - CSI cameras or YUYV/raw formats
+  - Cross-camera fusion or temporal filtering on the Jetson
+  - Dynamic robot-to-Spot tag selection, or any other robot-to-Spot commands
+  - More than one Spot per robot
+  - Authentication or access control
+  - Support bundles or diagnostics recording
+  - Calibration history, holdout validation, or the rational distortion model
+  - Re-running the pipeline on recorded MCAP
+  Behavior changes must update the user docs in apps/docs/src/content/docs.
+
 # Project context (optional)
 # Add only constraints that should guide OpenSpec artifacts and workflows.
 # Include constraints an agent cannot infer by reading the code.
