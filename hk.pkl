@@ -31,23 +31,21 @@ steps {
   ["oxfmt"] = (Builtins.oxfmt) {
     prefix = List("pnpm", "exec")
     // Match the existing workspace formatting scope.
-    glob =
-      List(
-        "package.json",
-        "release-please-config.json",
-        ".release-please-manifest.json",
-        "pnpm-workspace.yaml",
-        "knip.config.ts",
-        "vite.config.ts",
-        "oxfmt.config.ts",
-        "oxlint.config.ts",
-        ".vscode/**",
-        ".github/**",
-        "apps/dashboard/**",
-        "apps/docs/**",
-        "apps/vscode-camera-preview/**",
-        "packages/camera-viewer/**",
-      )
+    exclude =
+      super.exclude
+        + List(
+          ".agents/**",
+          ".claude/**",
+          "AGENTS.md",
+          "README.md",
+          "apps/vision/**",
+          "mise.toml",
+          "netlify.toml",
+          "nix/**",
+          "openspec/**",
+          "packages/java-client/**",
+          "renovate.json",
+        )
   }
   ["vp-lint"] = (Builtins.vp_lint) {
     prefix = List("pnpm", "exec")
