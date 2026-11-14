@@ -61,16 +61,6 @@ struct Effective {
     layout: Option<Arc<FieldLayout>>,
 }
 
-/// Latest `/FMSInfo` values.
-#[derive(Debug, Clone, Default)]
-pub struct Fms {
-    pub control: i64,
-    pub event: String,
-    pub match_type: i64,
-    pub match_number: i64,
-    pub replay: i64,
-}
-
 struct Inner {
     settings: Settings,
     robot_config: Option<String>,
@@ -85,7 +75,6 @@ struct Inner {
     cameras: BTreeMap<String, Camera>,
     statuses: Vec<CameraStatus>,
     health: health::Cameras,
-    fms: Fms,
     sessions: HashMap<String, Session>,
 }
 
@@ -155,7 +144,6 @@ impl App {
                 cameras: BTreeMap::new(),
                 statuses: Vec::new(),
                 health: health::Cameras::default(),
-                fms: Fms::default(),
                 sessions: HashMap::new(),
             }),
         });
@@ -316,7 +304,7 @@ impl App {
         let now = monotonic_us();
         let inner = self.inner.lock().unwrap();
         let (state, error) = self.state(&inner);
-        self.recorder.tick(&inner.fms);
+        self.recorder.tick();
         let mut status = Writer::default();
         status.chars(VERSION, 16).u8(state as u8).bool(!inner.overrides.is_empty());
         nt.publish("/Spot/outputs/status", "struct:SpotStatus", NtValue::Raw(status.0), now);
@@ -577,18 +565,8 @@ impl nt::Handler for Arc<App> {
                 }
             }
             _ => {
-                let Some(key) = topic.strip_prefix("/FMSInfo/") else { return };
-                let fms = &mut self.inner.lock().unwrap().fms;
-                // WPILib publishes integers; accept doubles from other clients too.
-                let int =
-                    || value.as_i64().or(value.as_f64().map(|v| v as i64)).unwrap_or_default();
-                match key {
-                    "FMSControlData" => fms.control = int(),
-                    "EventName" => fms.event = value.as_str().unwrap_or_default().to_string(),
-                    "MatchType" => fms.match_type = int(),
-                    "MatchNumber" => fms.match_number = int(),
-                    "ReplayNumber" => fms.replay = int(),
-                    _ => {}
+                if let Some(key) = topic.strip_prefix("/FMSInfo/") {
+                    self.recorder.set_fms(key, &value);
                 }
             }
         }

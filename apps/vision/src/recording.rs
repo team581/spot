@@ -19,21 +19,21 @@ use serde::Serialize;
 use serde_json::json;
 use utoipa::ToSchema;
 
-use crate::app::Fms;
 use crate::clock::monotonic_us;
 use crate::config::{FieldLayout, RobotConfig};
 use crate::nt::Nt;
 use crate::pipeline::FrameResult;
 
+mod window;
+
+pub use window::Fms;
+use window::{Finish, Window};
+
 const SEGMENT_US: i64 = 2_000_000;
-const PREROLL_US: i64 = 5_000_000;
-const POSTROLL_US: i64 = 5_000_000;
 /// Maximum rate of camera images stored per camera.
 const IMAGE_FPS: f64 = 30.0;
 /// Delete the oldest recordings once the disk is fuller than this percentage.
 const MAX_DISK_USAGE_PERCENT: f64 = 80.0;
-const ENABLED: i64 = 0x01;
-const FMS_ATTACHED: i64 = 0x10;
 
 pub const WEBSOCKET_PORT: u16 = 5801;
 
@@ -41,12 +41,6 @@ struct Segment {
     path: PathBuf,
     start_us: i64,
     end_us: i64,
-}
-
-struct Active {
-    start_us: i64,
-    name: String,
-    disabled_us: Option<i64>,
 }
 
 struct CameraChannels {
@@ -60,12 +54,9 @@ struct State {
     writer: Option<(McapWriterHandle<BufWriter<File>>, PathBuf, i64)>,
     segments: VecDeque<Segment>,
     next_segment: u64,
-    active: Option<Active>,
     config: Option<(RobotConfig, Option<Arc<FieldLayout>>)>,
-    cameras: HashMap<String, CameraChannels>,
-    /// Log times are NT server time while synced and local time otherwise.
-    synced: bool,
-    last_us: i64,
+    fms: Fms,
+    window: Window,
 }
 
 pub struct Recorder {
@@ -75,6 +66,8 @@ pub struct Recorder {
     dir: PathBuf,
     buffer: PathBuf,
     state: Mutex<State>,
+    /// Apart from `state`, so processing threads don't wait for segment files.
+    cameras: Mutex<HashMap<String, CameraChannels>>,
     status: Arc<RawChannel>,
     config: Arc<RawChannel>,
     field: Arc<RawChannel>,
@@ -133,12 +126,11 @@ impl Recorder {
                 writer: None,
                 segments: VecDeque::new(),
                 next_segment: 0,
-                active: None,
                 config: None,
-                cameras: HashMap::new(),
-                synced: false,
-                last_us: 0,
+                fms: Fms::default(),
+                window: Window::default(),
             }),
+            cameras: Mutex::new(HashMap::new()),
         })
     }
 
@@ -186,8 +178,12 @@ impl Recorder {
         }
     }
 
-    fn camera<'a>(&self, state: &'a mut State, name: &str) -> &'a mut CameraChannels {
-        state.cameras.entry(name.to_string()).or_insert_with(|| CameraChannels {
+    fn camera<'a>(
+        &self,
+        cameras: &'a mut HashMap<String, CameraChannels>,
+        name: &str,
+    ) -> &'a mut CameraChannels {
+        cameras.entry(name.to_string()).or_insert_with(|| CameraChannels {
             image: self.context.channel_builder(format!("/{name}/image")).build(),
             detections: json_channel(
                 &self.context,
@@ -202,8 +198,8 @@ impl Recorder {
     /// Logs a processed frame: detections every frame, images at up to `IMAGE_FPS`.
     pub fn frame(&self, result: &FrameResult) {
         let time_us = self.log_time(result.monotonic_us);
-        let mut state = self.state.lock().unwrap();
-        let channels = self.camera(&mut state, result.camera);
+        let mut cameras = self.cameras.lock().unwrap();
+        let channels = self.camera(&mut cameras, result.camera);
         let time = nanos(time_us);
         let tags: Vec<_> = result
             .detections
@@ -279,55 +275,37 @@ impl Recorder {
         self.log.log_with_time(&log, nanos(now));
     }
 
+    /// Updates from an `/FMSInfo/<key>` value.
+    pub fn set_fms(&self, key: &str, value: &rmpv::Value) {
+        self.state.lock().unwrap().fms.set(key, value);
+    }
+
     /// Rotates segments and starts or finishes enable-triggered recordings.
-    pub fn tick(&self, fms: &Fms) {
+    pub fn tick(&self) {
         let synced = self.nt.get().is_some_and(|nt| nt.synced());
         let now_us = self.now();
         let mut state = self.state.lock().unwrap();
-        if synced != state.synced {
-            // Log times jump to another time base. Finish with the old one and start over.
-            let end_us = state.last_us;
-            if let Some(active) = state.active.take() {
-                self.finish(&mut state, active.start_us, end_us, active.name);
+        let state = &mut *state;
+        let recording = state.config.is_some();
+        let decision = state.window.tick(now_us, synced, recording, &state.fms);
+        if let Some(restart) = decision.restart {
+            if let Some(finish) = restart.finish {
+                self.finish(state, finish);
             }
-            self.close_segment(&mut state, end_us);
+            self.close_segment(state, restart.end_us);
             for segment in state.segments.drain(..) {
                 let _ = std::fs::remove_file(segment.path);
             }
-            state.synced = synced;
         }
-        state.last_us = now_us;
-        let recording = state.config.is_some();
         if !recording {
-            self.close_segment(&mut state, now_us);
-            state.active = None;
+            self.close_segment(state, now_us);
         } else if state.writer.as_ref().is_none_or(|(_, _, start)| now_us - start >= SEGMENT_US) {
-            self.rotate(&mut state, now_us);
+            self.rotate(state, now_us);
         }
-
-        let robot_enabled = recording && synced && fms.control & ENABLED != 0;
-        match &mut state.active {
-            None if robot_enabled => {
-                state.active = Some(Active {
-                    start_us: now_us - PREROLL_US,
-                    name: name(fms),
-                    disabled_us: None,
-                });
-            }
-            Some(active) if robot_enabled => active.disabled_us = None,
-            Some(active) if active.disabled_us.is_none() => active.disabled_us = Some(now_us),
-            Some(Active { disabled_us: Some(at), .. }) if now_us - *at >= POSTROLL_US => {
-                let active = state.active.take().unwrap();
-                self.finish(&mut state, active.start_us, now_us, active.name);
-            }
-            _ => {}
+        if let Some(finish) = decision.finish {
+            self.finish(state, finish);
         }
-
-        let keep_from = state
-            .active
-            .as_ref()
-            .map_or(now_us - PREROLL_US, |a| a.start_us.min(now_us - PREROLL_US));
-        while state.segments.front().is_some_and(|s| s.end_us < keep_from) {
+        while state.segments.front().is_some_and(|s| s.end_us < decision.keep_from_us) {
             let segment = state.segments.pop_front().unwrap();
             let _ = std::fs::remove_file(segment.path);
         }
@@ -358,7 +336,7 @@ impl Recorder {
     }
 
     /// Merges the segments overlapping `start_us..end_us` into a recording in the background.
-    fn finish(&self, state: &mut State, start_us: i64, end_us: i64, name: String) {
+    fn finish(&self, state: &mut State, Finish { start_us, end_us, name }: Finish) {
         self.close_segment(state, end_us);
         let staging = self.buffer.join(format!("merge-{name}"));
         let _ = std::fs::create_dir_all(&staging);
@@ -417,43 +395,6 @@ impl Recorder {
         recordings.sort_by_key(|r| std::cmp::Reverse(r.modified));
         recordings
     }
-}
-
-/// `EVENT_Q12` when the FMS is attached, otherwise the local time.
-fn name(fms: &Fms) -> String {
-    let kind = match fms.match_type {
-        1 => "P",
-        2 => "Q",
-        3 => "E",
-        _ => "",
-    };
-    if fms.control & FMS_ATTACHED != 0 && !fms.event.is_empty() && !kind.is_empty() {
-        let event: String =
-            fms.event.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
-        let replay = if fms.replay > 1 { format!("_R{}", fms.replay) } else { String::new() };
-        format!("{event}_{kind}{}{replay}", fms.match_number)
-    } else {
-        local_time()
-    }
-}
-
-fn local_time() -> String {
-    // SAFETY: `time` accepts null, and `tm` is written by localtime_r before it is read.
-    let tm = unsafe {
-        let now = libc::time(std::ptr::null_mut());
-        let mut tm: libc::tm = std::mem::zeroed();
-        libc::localtime_r(&now, &mut tm);
-        tm
-    };
-    format!(
-        "{:04}-{:02}-{:02}_{:02}-{:02}-{:02}",
-        tm.tm_year + 1900,
-        tm.tm_mon + 1,
-        tm.tm_mday,
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec
-    )
 }
 
 /// Topics that are logged at the start of each segment and needed from the start of a recording.
