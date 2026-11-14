@@ -1,9 +1,13 @@
+/// <reference types="vite-plus/client" />
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+// SWYFT Robotics' OV9281 USB-C camera, converted from its STEP file without the parts hidden inside the case.
+import cameraModelUrl from './camera.glb?url';
 
 /** WPILib translation in metres and `Rotation3d(roll, pitch, yaw)` in degrees; omitted values are 0. */
 export interface Pose {
@@ -82,8 +86,24 @@ const placed = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }: Pose): Pl
 	quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(radians(roll), radians(pitch), radians(yaw), 'ZYX')),
 });
 const isProperty = (color: string) => /^[\w-]+$/.test(color);
+/** The camera model looking along +X with its lens front at the origin, once loaded. */
+let cameraModel: THREE.Object3D | undefined;
+async function parseCameraModel() {
+	const { scene } = await new GLTFLoader().loadAsync(cameraModelUrl);
+	// The model's lens looks along +Z with its front 18.1 mm up; the USB-C port (-Y) is image down.
+	scene.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, -0.0181, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+	scene.traverse((object) => {
+		if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial) {
+			object.material.metalness = 0;
+			// The case takes the camera's color.
+			object.userData.tinted = object.name.includes('CASE');
+		}
+	});
+	cameraModel = scene;
+}
+let loadingCameraModel: Promise<void> | undefined;
 export interface Scene {
-	/** Lines are named by their color; labels are `CSS2DObject`s. */
+	/** Lines and camera cases are named by their color; labels are `CSS2DObject`s. */
 	root: THREE.Group;
 	center: number[];
 	/** Metres to fit in view at zoom 1. */
@@ -130,6 +150,20 @@ function label(parent: THREE.Object3D, text: string, p: number[], color: Color) 
 	object.center.set(0.5, 1);
 	object.position.fromArray(p);
 	parent.add(object);
+}
+/** The camera model with its case in this color, or nothing until it loads. */
+function body(parent: THREE.Object3D, color: Color) {
+	if (!cameraModel) {
+		return;
+	}
+	const model = cameraModel.clone();
+	model.traverse((object) => {
+		if (object instanceof THREE.Mesh && object.userData.tinted) {
+			object.material = object.material.clone();
+			object.name = color;
+		}
+	});
+	parent.add(model);
 }
 function box(parent: THREE.Object3D, [x, y, z]: number[], color: Color) {
 	const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(x, y, z).translate(0, 0, z / 2));
@@ -179,20 +213,11 @@ function view(parent: THREE.Object3D, { bitmap, fx, fy, cx, cy }: CameraImage, c
 		color,
 	);
 }
-function camera(parent: THREE.Object3D, pose: Placed, color: Color, name: string, lens = 'Lens') {
+function camera(parent: THREE.Object3D, pose: Placed, color: Color, name: string) {
 	const group = posed(parent, pose);
-	box(group, [0.18, 0.14, 0.12], color);
-	arrow(group, [0.7, 0, 0], lens, color);
-	segments(
-		group,
-		[
-			[0, 0, 0.12],
-			[0, 0, 0.3],
-		],
-		color,
-		2,
-	);
-	label(group, name, [0, 0, 0.35], color);
+	body(group, color);
+	arrow(group, [0.7, 0, 0], '', color);
+	label(group, name, [0, 0, 0.02], color);
 	return group;
 }
 /** Builds the scene in WPILib NWU metres. Needs `document` for labels but no WebGL. */
@@ -248,9 +273,9 @@ export function buildScene(state: ViewerState): Scene {
 		{
 			loop(chassis, rectangle(drivebase.length, drivebase.width), 'accent-text', 2.5);
 		}
-		arrow(chassis, [0, 0, 0.8], '+Z up', 'muted-foreground');
-		arrow(chassis, [0.95, 0, 0.03], 'Front · +X', 'accent-text');
-		arrow(chassis, [0, 0.65, 0.03], '+Y left', 'muted-foreground');
+		const corner = posed(root, placed({ x: -1.2, y: -1.2 }));
+		arrow(corner, [0.8, 0, 0], '+X front', 'muted-foreground');
+		arrow(corner, [0, 0.8, 0], '+Y left', 'muted-foreground');
 	}
 	if (state.kind === 'robot') {
 		for (const mount of state.mounts) {
@@ -259,8 +284,6 @@ export function buildScene(state: ViewerState): Scene {
 			if (mount.image) {
 				view(group, mount.image, color);
 			}
-			arrow(group, [0, 0.25, 0], '+Y', 'good');
-			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
 	} else if (field) {
 		const robot = (chassis: THREE.Object3D, color: Color) => {
@@ -286,11 +309,11 @@ export function buildScene(state: ViewerState): Scene {
 			if (c.robot) {
 				robot(chassis, c.color);
 			}
-			const body = camera(chassis, placed(c.pose), c.color, c.name, '');
+			const mount = camera(chassis, placed(c.pose), c.color, c.name);
 			if (c.image) {
-				view(body, c.image, c.color);
+				view(mount, c.image, c.color);
 			}
-			const position = body.getWorldPosition(new THREE.Vector3());
+			const position = mount.getWorldPosition(new THREE.Vector3());
 			for (const id of c.robot ? c.tags : []) {
 				const tag = tags.get(id);
 				if (!tag) {
@@ -342,6 +365,10 @@ function dispose(root: THREE.Object3D) {
 			object.geometry.dispose();
 			object.material.dispose();
 		}
+		// Tinted camera cases share the loaded model's geometry.
+		if (object instanceof THREE.Mesh && object.userData.tinted) {
+			object.material.dispose();
+		}
 		if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial) {
 			object.geometry.dispose();
 			object.material.map?.dispose();
@@ -359,6 +386,7 @@ export class SpotViewer {
 	/** Movement keys held down, by `KeyboardEvent.code`. */
 	private readonly held = new Set<string>();
 	private frame = 0;
+	private destroyed = false;
 	private last = 0;
 	private framing = { center: [0, 0, 0], extent: [3, 3] };
 	/** Holds framing on the robot so flickering detections don't move the view. */
@@ -380,6 +408,12 @@ export class SpotViewer {
 		this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas });
 		this.renderer.setPixelRatio(devicePixelRatio);
 		this.camera.up.set(0, 0, 1);
+		// A headlight from above the view so the camera models show their shape from any angle.
+		const light = new THREE.DirectionalLight('white', 2);
+		light.position.set(0, 1, 0);
+		light.target.position.set(0, 0, -1);
+		this.camera.add(light, light.target);
+		this.scene.add(this.camera, new THREE.AmbientLight('white', 1.5));
 		this.controls = new OrbitControls(this.camera, canvas);
 		this.controls.minPolarAngle = 0;
 		this.controls.maxPolarAngle = Math.PI / 2;
@@ -462,6 +496,15 @@ export class SpotViewer {
 			this.render();
 		});
 		this.resize.observe(canvas);
+		void this.loadCameraModel();
+	}
+	/** Redraws with the camera model once it loads. */
+	private async loadCameraModel() {
+		loadingCameraModel ??= parseCameraModel();
+		await loadingCameraModel;
+		if (!this.destroyed) {
+			this.draw();
+		}
 	}
 	reset(): void {
 		Object.assign(this.orbit, defaultOrbit());
@@ -483,6 +526,7 @@ export class SpotViewer {
 		this.frame = this.held.size > 0 ? requestAnimationFrame(this.move) : 0;
 	};
 	destroy(): void {
+		this.destroyed = true;
 		cancelAnimationFrame(this.frame);
 		for (const remove of this.listeners) {
 			remove();
@@ -514,7 +558,15 @@ export class SpotViewer {
 		this.content = root;
 		this.scene.add(root);
 		root.traverse((object) => {
-			if (!(object instanceof LineSegments2)) {
+			const material =
+				object instanceof LineSegments2
+					? object.material
+					: object instanceof THREE.Mesh &&
+						  object.userData.tinted === true &&
+						  object.material instanceof THREE.MeshStandardMaterial
+						? object.material
+						: undefined;
+			if (!material) {
 				return;
 			}
 			if (!palette.has(object.name)) {
@@ -523,7 +575,7 @@ export class SpotViewer {
 					this.color(isProperty(object.name) ? styles.getPropertyValue(`--${object.name}`).trim() : object.name),
 				);
 			}
-			object.material.color.copy(palette.get(object.name)!);
+			material.color.copy(palette.get(object.name)!);
 		});
 		this.status.textContent = status;
 		if (!this.focused) {
