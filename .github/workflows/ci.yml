@@ -59,7 +59,7 @@ jobs:
         run: |
           root=/nix/var/nix/gcroots/spot-ci/application
           sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
-          nix build path:.#checks.aarch64-linux.application -L --cores 2 --max-jobs 2 --out-link "$root"
+          nix build path:.#checks.aarch64-linux.application -L --cores 0 --max-jobs 2 --out-link "$root"
       - name: Stop Nix before unmounting the cache
         if: ${{ always() && steps.nix.outcome == 'success' }}
         run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service

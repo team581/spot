@@ -95,7 +95,7 @@
           {
             system.configurationRevision = self.rev or self.dirtyRev or null;
             services.spot-vision.revision = self.shortRev or self.dirtyShortRev or null;
-            services.spot-vision.commitTime = self.lastModified;
+            services.spot-vision.commitTime = self.lastModified or null;
           }
         ];
       };
