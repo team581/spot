@@ -19,7 +19,7 @@
 	},
 	"devDependencies": {
 		"@types/three": "0.187.0",
-		"typescript": "7.1.0-dev.20261103.1",
-		"vite-plus": "1.4.0"
+		"typescript": "7.1.0-dev.20261113.1",
+		"vite-plus": "1.6.0"
 	}
 }
