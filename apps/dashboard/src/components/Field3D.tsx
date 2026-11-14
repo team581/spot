@@ -4,7 +4,7 @@ import { SpotViewer } from '@spot/camera-viewer';
 import type { CameraImage, FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
 import type { Candidate, Detections } from '../detections';
-import { fmt } from './common';
+import { fmt } from '../format';
 import { Button } from '@/components/ui/button';
 
 const PALETTE = ['#2f7fc1', '#d9822b', '#2e9d5b', '#c8467a', '#8a5cc7', '#1f9a96', '#b59a12', '#d4553a'];

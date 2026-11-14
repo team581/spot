@@ -1,5 +1,6 @@
 import { useStatus, useSystem } from '../queries';
-import { DataList, ErrorText, PageTitle, Panel, Revision, StateBadge, commitDate, fmt } from '../components/common';
+import { DataList, ErrorText, PageTitle, Panel, Revision, StateBadge } from '../components/common';
+import { commitDate, fmt } from '../format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const percent = (value: number | null | undefined) => (value == null ? '—' : `${fmt(value, 0)}%`);

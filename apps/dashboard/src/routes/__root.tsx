@@ -11,7 +11,8 @@ import {
 	TriangleAlert,
 } from 'lucide-react';
 import { useStatus } from '../queries';
-import { Revision, commitDate, stateLabel } from '../components/common';
+import { Revision } from '../components/common';
+import { commitDate, stateLabel } from '../format';
 import {
 	Sidebar,
 	SidebarContent,

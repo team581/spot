@@ -2,10 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from 'cn';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CameraState } from '../api';
-
-/** Fixed-point text for nullable numbers. */
-export const fmt = (value: number | null | undefined, digits = 1) =>
-	value == null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+import { stateLabel } from '../format';
 
 export function PageTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
 	return (
@@ -47,8 +44,6 @@ export function ErrorText({ error }: { error: Error | string | null | undefined 
 	) : null;
 }
 
-export const stateLabel = (state: string) => (state[0]?.toUpperCase() + state.slice(1)).replaceAll('_', ' ');
-
 export function StateBadge({ state }: { state: CameraState }) {
 	return (
 		<span
@@ -61,9 +56,6 @@ export function StateBadge({ state }: { state: CameraState }) {
 		</span>
 	);
 }
-
-/** A commit's date in the viewer's time zone, as `YYYY-MM-DD`. */
-export const commitDate = (unixSeconds: number) => new Date(unixSeconds * 1000).toLocaleDateString('en-CA');
 
 /** Links the Git commit Spot was built from, highlighting builds with uncommitted changes. */
 export function Revision({ revision }: { revision: string }) {

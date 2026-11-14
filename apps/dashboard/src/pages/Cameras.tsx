@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router';
 import { useConfig, useDevices, useStatus } from '../queries';
 import { useAllDetections, useAllImages } from '../live';
-import { PageTitle, Panel, StateBadge, fmt } from '../components/common';
+import { PageTitle, Panel, StateBadge } from '../components/common';
+import { fmt } from '../format';
 import { Field3D } from '../components/Field3D';
 import { LiveView } from '../components/LiveView';
 import { Card } from '@/components/ui/card';
