@@ -4,6 +4,17 @@ import type { Json, Overrides } from '../overrides';
 import { useConfig, useEditOverrides } from '../queries';
 import { DataList, ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -112,6 +123,7 @@ function Paste({ robot, edit }: { robot: Json | undefined; edit: ReturnType<type
 export default function Config() {
 	const { data: view, error } = useConfig();
 	const edit = useEditOverrides();
+	const [discarding, setDiscarding] = useState(false);
 	const robot = robotConfig(view?.robot_config);
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The backend returns JSON overrides validated against the robot config schema.
 	const differences = diffOverrides(robot, (view?.overrides ?? {}) as Overrides);
@@ -140,18 +152,31 @@ export default function Config() {
 			<Panel
 				title="Overrides"
 				action={
-					<Button
-						variant="destructive"
-						size="sm"
-						disabled={differences.length === 0 || edit.isPending}
-						onClick={() => {
-							if (confirm('Discard all dashboard overrides?')) {
-								edit.mutate(() => ({}));
-							}
-						}}
-					>
-						Discard overrides
-					</Button>
+					<AlertDialog open={discarding} onOpenChange={setDiscarding}>
+						<AlertDialogTrigger
+							render={<Button variant="destructive" size="sm" disabled={differences.length === 0 || edit.isPending} />}
+						>
+							Discard overrides
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Discard all dashboard overrides?</AlertDialogTitle>
+								<AlertDialogDescription>Spot will go back to using the robot config as is.</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									variant="destructive"
+									onClick={() => {
+										edit.mutate(() => ({}));
+										setDiscarding(false);
+									}}
+								>
+									Discard overrides
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				}
 			>
 				{differences.length > 0 ? (
