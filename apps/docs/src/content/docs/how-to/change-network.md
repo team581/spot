@@ -13,7 +13,7 @@ Clear it to go back to the roboRIO.
 
 ## Use a static address
 
-1. Under **Ethernet**, set **Addressing** to **Static**, enter the address, and choose **Try change**.
+1. Under **Ethernet**, set **Addressing** to **Static**, enter the address (for example `10.5.81.12`, always on a /24), and choose **Try change**.
 2. Reconnect to the dashboard at the new address and choose **Confirm** before the countdown ends.
 
 If you can't reach the new address, wait for the countdown.

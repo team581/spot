@@ -94,7 +94,7 @@ function EthernetForm({
 					<Label htmlFor="address">Static address</Label>
 					<Input
 						id="address"
-						placeholder="10.5.81.11/24"
+						placeholder="10.5.81.12"
 						value={address}
 						onChange={(e) => {
 							setAddress(e.target.value);

@@ -466,7 +466,7 @@ export interface components {
 			z?: number;
 		};
 		NetworkChange: {
-			/** @description IPv4 address with an optional prefix, for example `10.5.81.11/24`. Static mode only. */
+			/** @description IPv4 address on the robot's /24, for example `10.5.81.12`. Static mode only. */
 			address?: string;
 			mode: components['schemas']['AddressMode'];
 		};

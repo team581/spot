@@ -28,3 +28,22 @@ Addressing changes SHALL be applied as a trial that the user must confirm before
 
 - **WHEN** a user reconnects at the new address and confirms before the countdown ends
 - **THEN** the new addressing is kept
+
+### Requirement: Static address entry
+
+A static Ethernet address SHALL be entered as a single IPv4 host address without a prefix, and Spot SHALL apply it on a /24 subnet. Spot SHALL report the configured and pending static address without a prefix.
+
+#### Scenario: Bare address
+
+- **WHEN** a user tries the static address `10.5.81.12`
+- **THEN** Spot applies `10.5.81.12` on a /24 subnet and shows the address as `10.5.81.12`
+
+#### Scenario: Address with a prefix
+
+- **WHEN** a user tries the static address `10.5.81.12/24`
+- **THEN** Spot rejects the change and keeps the current addressing
+
+#### Scenario: Unusable host address
+
+- **WHEN** a user tries a network, broadcast, loopback, or multicast address, such as `10.5.81.0` or `10.5.81.255`
+- **THEN** Spot rejects the change and keeps the current addressing

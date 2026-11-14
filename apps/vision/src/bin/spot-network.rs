@@ -93,12 +93,22 @@ async fn checkpoints() -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Parses `a.b.c.d[/prefix]` (default /24, as on FRC robot networks) into a usable host address.
+/// Static addresses always use a /24, as on FRC robot networks.
+const PREFIX: u8 = 24;
+
+/// Parses a static host address entered by the user.
+fn parse_host(input: &str) -> Result<(Ipv4Addr, u8), String> {
+    let ip: Ipv4Addr =
+        input.trim().parse().map_err(|_| "Use an IPv4 address, for example 10.5.81.12")?;
+    parse_address(&format!("{ip}/{PREFIX}"))
+}
+
+/// Parses `a.b.c.d/prefix` into a usable host address.
 fn parse_address(input: &str) -> Result<(Ipv4Addr, u8), String> {
-    let error = || "Use an IPv4 address, for example 10.5.81.11 or 10.5.81.11/24".to_string();
-    let (ip, prefix) = input.split_once('/').unwrap_or((input, "24"));
-    let ip: Ipv4Addr = ip.trim().parse().map_err(|_| error())?;
-    let prefix: u8 = prefix.trim().parse().map_err(|_| error())?;
+    let error = || format!("{input} is not an IPv4 address with a prefix");
+    let (ip, prefix) = input.split_once('/').ok_or_else(error)?;
+    let ip: Ipv4Addr = ip.parse().map_err(|_| error())?;
+    let prefix: u8 = prefix.parse().map_err(|_| error())?;
     let mask = if prefix == 0 { 0 } else { u32::MAX << (32 - prefix.min(32)) };
     let bits = u32::from(ip);
     let usable = (1..=30).contains(&prefix)
@@ -107,7 +117,7 @@ fn parse_address(input: &str) -> Result<(Ipv4Addr, u8), String> {
         && bits & !mask != 0
         && bits & !mask != !mask;
     if !usable {
-        return Err("Choose a usable IPv4 host address and prefix /1 through /30".into());
+        return Err("Choose a usable IPv4 host address".into());
     }
     Ok((ip, prefix))
 }
@@ -146,6 +156,7 @@ impl Helper {
                     .split(',')
                     .map(str::trim)
                     .find(|a| !a.is_empty() && *a != self.settings.maintenance_address)
+                    .and_then(|a| a.split('/').next())
                     .unwrap_or_default()
                     .to_string(),
                 AddressMode::Automatic => String::new(),
@@ -232,7 +243,7 @@ impl Helper {
         match change.mode {
             AddressMode::Automatic => change.address.clear(),
             AddressMode::Static => {
-                let address = parse_address(&change.address)?;
+                let address = parse_host(&change.address)?;
                 if parse_address(&maintenance).is_ok_and(|m| m.0 == address.0) {
                     return Err("The maintenance address is fixed".into());
                 }
@@ -251,7 +262,7 @@ impl Helper {
                         return Err("This subnet overlaps another Jetson network".into());
                     }
                 }
-                change.address = format!("{}/{}", address.0, address.1);
+                change.address = address.0.to_string();
             }
         }
         for (uuid, name) in &connections {
@@ -274,7 +285,7 @@ impl Helper {
         let result = async {
             let mut addresses = maintenance.clone();
             if change.mode == AddressMode::Static {
-                addresses = format!("{addresses},{}", change.address);
+                addresses = format!("{addresses},{}/{PREFIX}", change.address);
             }
             let method = if change.mode == AddressMode::Static { "manual" } else { "auto" };
             nm(&[
@@ -329,7 +340,9 @@ impl Helper {
             self.pending.as_ref().ok_or("This network change expired or was already reverted")?;
         let link = self.link().await?;
         let ready = match pending.change.mode {
-            AddressMode::Static => link.addresses.contains(&pending.change.address),
+            AddressMode::Static => {
+                link.addresses.contains(&format!("{}/{PREFIX}", pending.change.address))
+            }
             AddressMode::Automatic => {
                 link.addresses.iter().any(|a| *a != self.settings.maintenance_address)
             }
@@ -435,11 +448,12 @@ mod tests {
 
     #[test]
     fn parses_robot_addresses() {
-        assert_eq!(parse_address("10.5.81.11"), Ok(("10.5.81.11".parse().unwrap(), 24)));
-        assert_eq!(parse_address("10.5.81.11/16"), Ok(("10.5.81.11".parse().unwrap(), 16)));
-        assert!(parse_address("10.5.81.0").is_err());
-        assert!(parse_address("10.5.81.255").is_err());
-        assert!(parse_address("127.0.0.1").is_err());
+        assert_eq!(parse_host(" 10.5.81.12 "), Ok(("10.5.81.12".parse().unwrap(), 24)));
+        assert!(parse_host("10.5.81.12/24").is_err());
+        assert!(parse_host("10.5.81.0").is_err());
+        assert!(parse_host("10.5.81.255").is_err());
+        assert!(parse_host("127.0.0.1").is_err());
+        assert_eq!(parse_address("172.17.0.1/16"), Ok(("172.17.0.1".parse().unwrap(), 16)));
         assert!(parse_address("10.5.81.11/31").is_err());
     }
 }

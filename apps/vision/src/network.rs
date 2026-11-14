@@ -17,7 +17,7 @@ pub enum AddressMode {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NetworkChange {
     pub mode: AddressMode,
-    /// IPv4 address with an optional prefix, for example `10.5.81.11/24`. Static mode only.
+    /// IPv4 address on the robot's /24, for example `10.5.81.12`. Static mode only.
     #[serde(default)]
     pub address: String,
 }
