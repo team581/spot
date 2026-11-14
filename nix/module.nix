@@ -54,7 +54,8 @@ in
     };
     environment.systemPackages = [
       cfg.package
-      pkgs.v4l-utils
+      # The command-line tools, without the Qt GUIs.
+      (pkgs.v4l-utils.override { withGUI = false; })
     ];
     # Dashboard and API, plus the Foxglove WebSocket server.
     networking.firewall.allowedTCPPorts = cfg.ports ++ [ 5801 ];

@@ -5,6 +5,7 @@
   cmake,
   ninja,
   pkg-config,
+  removeReferencesTo,
   libpng,
   zlib,
 }:
@@ -22,6 +23,7 @@ stdenv.mkDerivation (finalAttrs: {
     cmake
     ninja
     pkg-config
+    removeReferencesTo
   ];
   buildInputs = [
     libpng
@@ -47,5 +49,10 @@ stdenv.mkDerivation (finalAttrs: {
     (lib.cmakeBool "WITH_TIFF" false)
     (lib.cmakeBool "WITH_WEBP" false)
   ];
+  # cv::getBuildInformation() embeds the compiler's path, which would otherwise keep the whole
+  # toolchain in Spot's closure.
+  postFixup = ''
+    remove-references-to -t ${stdenv.cc} $out/lib/libopencv_core.so.*.*.*
+  '';
   meta.license = lib.licenses.asl20;
 })
