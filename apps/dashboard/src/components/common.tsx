@@ -62,6 +62,25 @@ export function StateBadge({ state }: { state: CameraState }) {
 	);
 }
 
+/** A commit's date in the viewer's time zone, as `YYYY-MM-DD`. */
+export const commitDate = (unixSeconds: number) => new Date(unixSeconds * 1000).toLocaleDateString('en-CA');
+
+/** Links the Git commit Spot was built from, highlighting builds with uncommitted changes. */
+export function Revision({ revision }: { revision: string }) {
+	const dirty = revision.endsWith('-dirty');
+	return (
+		<a
+			href={`https://github.com/team581/spot/commit/${revision.replace(/-dirty$/, '')}`}
+			target="_blank"
+			rel="noreferrer"
+			title={dirty ? 'Built with uncommitted changes' : undefined}
+			className={cn('font-mono underline-offset-4 hover:underline', dirty && 'text-warning')}
+		>
+			{revision}
+		</a>
+	);
+}
+
 export function DataList({ values }: { values: Record<string, ReactNode> }) {
 	return (
 		<dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">

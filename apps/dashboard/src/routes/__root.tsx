@@ -11,7 +11,7 @@ import {
 	TriangleAlert,
 } from 'lucide-react';
 import { useStatus } from '../queries';
-import { stateLabel } from '../components/common';
+import { Revision, commitDate, stateLabel } from '../components/common';
 import { ThemeMenu } from '../components/ThemeMenu';
 import {
 	Sidebar,
@@ -128,7 +128,14 @@ function Root() {
 						<ThemeMenu />
 						<SidebarTrigger className="max-md:hidden" />
 						<small className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-							{status ? `Spot ${status.version}` : 'Spot'}
+							Spot
+							{status?.revision ? (
+								<>
+									{' '}
+									<Revision revision={status.revision} />
+								</>
+							) : null}
+							{status?.commit_time == null ? null : ` · ${commitDate(status.commit_time)}`}
 						</small>
 					</SidebarFooter>
 				</Sidebar>

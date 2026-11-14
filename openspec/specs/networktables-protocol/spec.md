@@ -53,7 +53,7 @@ Each estimate's NT timestamp SHALL be its frame's capture time in NT server time
 
 ### Requirement: Most fundamental state
 
-`SpotStatus` SHALL contain the version, a state, and `overrides_active`. Its state SHALL be the first problem that applies, in order: `waiting_for_time_sync`, `waiting_for_config`, `invalid_config`, `missing_camera`, `uncalibrated_camera`; otherwise `ready`. Details SHALL be in `/Spot/outputs/error`, which is empty when `ready`. Only cameras marked `required` SHALL affect it.
+`SpotStatus` SHALL contain the version, a state, and `overrides_active`. The version SHALL be the short Git commit Spot was built from, ending in `-dirty` when built from uncommitted changes, or empty when unknown. Its state SHALL be the first problem that applies, in order: `waiting_for_time_sync`, `waiting_for_config`, `invalid_config`, `missing_camera`, `uncalibrated_camera`; otherwise `ready`. Details SHALL be in `/Spot/outputs/error`, which is empty when `ready`. Only cameras marked `required` SHALL affect it.
 
 #### Scenario: Optional camera unplugged
 

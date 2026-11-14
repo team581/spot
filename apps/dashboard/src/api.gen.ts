@@ -551,12 +551,18 @@ export interface components {
 			| 'uncalibrated_camera';
 		Status: {
 			cameras: components['schemas']['CameraStatus'][];
+			/**
+			 * Format: int64
+			 * @description Unix time of that commit.
+			 */
+			commit_time?: number | null;
 			/** @description Details for a non-ready state. */
 			error: string;
 			nt: components['schemas']['NtStatus'];
 			overrides_active: boolean;
+			/** @description Short Git commit Spot was built from, with `-dirty` for uncommitted changes. */
+			revision?: string | null;
 			state: components['schemas']['SpotState'];
-			version: string;
 		};
 		SystemStatus: {
 			/**

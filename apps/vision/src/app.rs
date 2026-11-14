@@ -25,7 +25,13 @@ use crate::processor::Processing;
 use crate::recording::Recorder;
 use crate::structs;
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Where this build came from, when it was built from a Git checkout.
+pub struct Build {
+    /// Short commit, with `-dirty` when built from uncommitted changes.
+    pub revision: Option<String>,
+    /// Unix time of the commit.
+    pub commit_time: Option<i64>,
+}
 
 /// Jetson-local settings, kept out of the robot config.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -92,6 +98,7 @@ struct Session {
 pub struct App {
     state_dir: PathBuf,
     system: crate::system::System,
+    build: Build,
     recorder: Arc<Recorder>,
     discovery: Discovery,
     nt: OnceLock<Arc<Nt>>,
@@ -118,6 +125,7 @@ impl App {
         state_dir: &Path,
         replay: Option<&Path>,
         default_team: Option<u16>,
+        build: Build,
         recorder: Arc<Recorder>,
     ) -> Arc<App> {
         let read = |name: &str| std::fs::read_to_string(state_dir.join(name)).ok();
@@ -129,6 +137,7 @@ impl App {
         let app = Arc::new(App {
             state_dir: state_dir.to_path_buf(),
             system: Default::default(),
+            build,
             recorder,
             discovery: Discovery::new(replay),
             nt: OnceLock::new(),
@@ -307,7 +316,11 @@ impl App {
         let inner = self.inner.lock().unwrap();
         let (state, error) = self.state(&inner);
         self.recorder.tick();
-        let status = structs::spot_status(VERSION, state, !inner.overrides.is_empty());
+        let status = structs::spot_status(
+            self.build.revision.as_deref().unwrap_or_default(),
+            state,
+            !inner.overrides.is_empty(),
+        );
         nt.publish("/Spot/outputs/status", "struct:SpotStatus", NtValue::Raw(status), now);
         nt.publish("/Spot/outputs/error", "string", NtValue::String(error), now);
         for camera in &inner.statuses {
@@ -337,7 +350,8 @@ impl App {
         let (state, error) = self.state(&inner);
         let nt = self.nt();
         Status {
-            version: VERSION.into(),
+            revision: self.build.revision.clone(),
+            commit_time: self.build.commit_time,
             state,
             error,
             overrides_active: !inner.overrides.is_empty(),
@@ -575,7 +589,10 @@ impl nt::Handler for Arc<App> {
 
 #[derive(Serialize, ToSchema)]
 pub struct Status {
-    pub version: String,
+    /// Short Git commit Spot was built from, with `-dirty` for uncommitted changes.
+    pub revision: Option<String>,
+    /// Unix time of that commit.
+    pub commit_time: Option<i64>,
     pub state: SpotState,
     /// Details for a non-ready state.
     pub error: String,

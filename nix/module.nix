@@ -18,6 +18,16 @@ in
       type = lib.types.package;
       description = "Built dashboard (`dashboard/`) and documentation (`jetson-docs/`).";
     };
+    revision = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Short Git commit Spot was built from, shown on the dashboard and sent to robot code.";
+    };
+    commitTime = lib.mkOption {
+      type = lib.types.nullOr lib.types.int;
+      default = null;
+      description = "Unix time of the commit Spot was built from.";
+    };
     team = lib.mkOption {
       type = lib.types.nullOr lib.types.ints.u16;
       default = null;
@@ -97,6 +107,14 @@ in
             "--listen"
             "0.0.0.0:${toString port}"
           ]) cfg.ports
+          ++ lib.optionals (cfg.revision != null) [
+            "--revision"
+            cfg.revision
+          ]
+          ++ lib.optionals (cfg.commitTime != null) [
+            "--commit-time"
+            (toString cfg.commitTime)
+          ]
           ++ lib.optionals (cfg.team != null) [
             "--team"
             (toString cfg.team)

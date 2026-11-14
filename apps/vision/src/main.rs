@@ -50,6 +50,12 @@ enum Command {
         /// Team number to use until one is set on the dashboard.
         #[arg(long)]
         team: Option<u16>,
+        /// Short Git commit this build came from.
+        #[arg(long)]
+        revision: Option<String>,
+        /// Unix time of that commit.
+        #[arg(long)]
+        commit_time: Option<i64>,
         /// Use each `*.jpg` in this folder as a camera instead of V4L2 devices.
         #[arg(long)]
         replay: Option<PathBuf>,
@@ -82,7 +88,16 @@ async fn main() -> anyhow::Result<()> {
             let schema = schemars::schema_for!(config::RobotConfig);
             println!("{}", serde_json::to_string_pretty(&schema)?);
         }
-        Command::Run { state_dir, listen, web_dir, docs_dir, team, replay } => {
+        Command::Run {
+            state_dir,
+            listen,
+            web_dir,
+            docs_dir,
+            team,
+            revision,
+            commit_time,
+            replay,
+        } => {
             use tracing_subscriber::prelude::*;
             std::fs::create_dir_all(&state_dir)?;
             let recorder = recording::Recorder::new(&state_dir);
@@ -90,7 +105,8 @@ async fn main() -> anyhow::Result<()> {
                 .with(tracing_subscriber::fmt::layer().with_filter(filter()))
                 .with(recording::LogLayer(recorder.clone()).with_filter(filter()))
                 .init();
-            let app = app::App::new(&state_dir, replay.as_deref(), team, recorder);
+            let build = app::Build { revision, commit_time };
+            let app = app::App::new(&state_dir, replay.as_deref(), team, build, recorder);
             app.start();
             let router = api::app(app, web_dir.as_deref(), docs_dir.as_deref());
             let mut servers = tokio::task::JoinSet::new();

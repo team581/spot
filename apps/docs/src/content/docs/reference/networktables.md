@@ -35,11 +35,11 @@ Each estimate's NT timestamp is its frame's capture time, in NT server time.
 
 ## `SpotStatus`
 
-| Field              | Type       | Description                                     |
-| ------------------ | ---------- | ----------------------------------------------- |
-| `version`          | `char[16]` | Spot's version.                                 |
-| `state`            | `uint8`    | See below.                                      |
-| `overrides_active` | `bool`     | Dashboard overrides change robot code's config. |
+| Field              | Type       | Description                                                                                         |
+| ------------------ | ---------- | --------------------------------------------------------------------------------------------------- |
+| `version`          | `char[16]` | Short Git commit Spot was built from, ending in `-dirty` for uncommitted changes. Empty if unknown. |
+| `state`            | `uint8`    | See below.                                                                                          |
+| `overrides_active` | `bool`     | Dashboard overrides change robot code's config.                                                     |
 
 `state` is the first problem in this list that applies:
 

@@ -9,7 +9,8 @@ import java.util.Arrays;
 /**
  * Spot's overall status.
  *
- * @param version Spot's version.
+ * @param version The short Git commit Spot was built from, ending in {@code -dirty} for uncommitted
+ *     changes, or empty if unknown.
  * @param state Spot's state. {@link Spot#error()} explains problems.
  * @param overridesActive Whether dashboard overrides change the robot's config.
  */

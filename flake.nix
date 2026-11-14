@@ -71,7 +71,11 @@
           jetpack.nixosModules.default
           self.nixosModules.spot
           ./nix/hosts/spot/configuration.nix
-          { system.configurationRevision = self.rev or self.dirtyRev or null; }
+          {
+            system.configurationRevision = self.rev or self.dirtyRev or null;
+            services.spot-vision.revision = self.shortRev or self.dirtyShortRev or null;
+            services.spot-vision.commitTime = self.lastModified;
+          }
         ];
       };
       packages = forSystems (

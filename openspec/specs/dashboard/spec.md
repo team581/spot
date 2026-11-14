@@ -45,6 +45,12 @@ The Config page SHALL list overrides next to robot code's values, offer the merg
 ### Requirement: Network and system pages
 
 The dashboard SHALL let users change team number, DHCP or static addressing, and the NT server override, and SHALL show CPU, GPU, temperature, and per-camera FPS.
+Every page SHALL show the Git commit Spot was built from and that commit's date, and SHALL mark builds with uncommitted changes.
+
+#### Scenario: Checking what's deployed
+
+- **WHEN** a user wants to know which build a Jetson is running
+- **THEN** the dashboard shows its commit, linked to GitHub, and the commit's date
 
 #### Scenario: Overheating
 

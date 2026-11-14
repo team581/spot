@@ -1,5 +1,5 @@
 import { useStatus, useSystem } from '../queries';
-import { DataList, ErrorText, PageTitle, Panel, StateBadge, fmt } from '../components/common';
+import { DataList, ErrorText, PageTitle, Panel, Revision, StateBadge, commitDate, fmt } from '../components/common';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const percent = (value: number | null | undefined) => (value == null ? '—' : `${fmt(value, 0)}%`);
@@ -15,7 +15,8 @@ function uptime(seconds: number | null | undefined) {
 
 export default function System() {
 	const { data: system, error } = useSystem();
-	const cameras = useStatus().data?.cameras ?? [];
+	const status = useStatus().data;
+	const cameras = status?.cameras ?? [];
 	return (
 		<>
 			<PageTitle>System</PageTitle>
@@ -30,6 +31,8 @@ export default function System() {
 							Disk: percent(system?.disk_percent),
 							Fan: system?.fan_rpm == null ? '—' : `${fmt(system.fan_rpm, 0)} RPM`,
 							Uptime: uptime(system?.uptime_s),
+							Version: status?.revision ? <Revision revision={status.revision} /> : '—',
+							'Commit date': status?.commit_time == null ? '—' : commitDate(status.commit_time),
 						}}
 					/>
 				</Panel>

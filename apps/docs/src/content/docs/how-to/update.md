@@ -27,7 +27,7 @@ stateDiagram-v2
    mise run jetson:deploy
    ```
 
-3. Check that Spot reports `ready` and that every camera is streaming, on the dashboard or with:
+3. Check that the dashboard's sidebar shows the commit you deployed, and that Spot reports `ready` with every camera streaming, on the dashboard or with:
 
    ```sh
    curl http://10.5.81.11:5800/api/status

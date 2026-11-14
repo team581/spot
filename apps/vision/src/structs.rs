@@ -215,8 +215,8 @@ mod tests {
     #[test]
     fn spot_status_matches_its_schema() {
         for state in spot_states() {
-            let fields = decode("SpotStatus", &spot_status("2026.0.0", state, true));
-            assert_eq!(fields["version"], "2026.0.0");
+            let fields = decode("SpotStatus", &spot_status("52b7bdf-dirty", state, true));
+            assert_eq!(fields["version"], "52b7bdf-dirty");
             assert_eq!(fields["state"], serde_json::to_value(state).unwrap());
             assert_eq!(fields["overrides_active"], true);
         }
