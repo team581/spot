@@ -80,6 +80,8 @@ struct Inner {
 
 /// A camera calibration in progress.
 struct Session {
+    board: Board,
+    /// Detects the board in the camera's frames.
     charuco: Arc<Mutex<Charuco>>,
     size: Option<(u32, u32)>,
     latest: View,
@@ -422,9 +424,10 @@ impl App {
         if !inner.cameras.contains_key(camera) {
             return Err(format!("No camera named {camera:?}"));
         }
-        let charuco = Charuco::new(&inner.settings.calibration_board)?;
+        let board = inner.settings.calibration_board.clone();
         let session = Session {
-            charuco: Arc::new(Mutex::new(charuco)),
+            charuco: Arc::new(Mutex::new(Charuco::new(&board)?)),
+            board,
             size: None,
             latest: View::default(),
             frames: Vec::new(),
@@ -441,7 +444,7 @@ impl App {
         let session = inner.sessions.get(camera).ok_or("This camera is not being calibrated")?;
         Ok(CalibrationView {
             camera: camera.to_string(),
-            board: session.charuco.lock().unwrap().board().clone(),
+            board: session.board.clone(),
             width: session.size.map(|s| s.0),
             height: session.size.map(|s| s.1),
             frames: session.frames.clone(),
@@ -473,13 +476,14 @@ impl App {
     }
 
     pub fn solve_calibration(&self, camera: &str) -> Result<CalibrationView, String> {
-        let (charuco, frames, size) = {
+        let (board, frames, size) = {
             let inner = self.inner.lock().unwrap();
             let session =
                 inner.sessions.get(camera).ok_or("This camera is not being calibrated")?;
-            (session.charuco.clone(), session.frames.clone(), session.size.ok_or("No frames yet")?)
+            (session.board.clone(), session.frames.clone(), session.size.ok_or("No frames yet")?)
         };
-        let solution = charuco.lock().unwrap().solve(&frames, size)?;
+        // A separate board, so the camera keeps detecting while this solves.
+        let solution = Charuco::new(&board)?.solve(&frames, size)?;
         if let Some(session) = self.inner.lock().unwrap().sessions.get_mut(camera) {
             session.solution = Some(solution);
         }

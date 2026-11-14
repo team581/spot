@@ -166,10 +166,6 @@ impl Charuco {
         Ok(Charuco { raw, board: board.clone() })
     }
 
-    pub fn board(&self) -> &Board {
-        &self.board
-    }
-
     pub fn detect(&mut self, gray: &[u8], width: u32, height: u32) -> Result<View, String> {
         assert_eq!(gray.len(), (width * height) as usize);
         let capacity = ((self.board.squares_x - 1) * (self.board.squares_y - 1)) as usize;
