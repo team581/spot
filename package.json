@@ -14,11 +14,11 @@
 		"test": "pnpm -r test"
 	},
 	"devDependencies": {
-		"knip": "6.44.1",
-		"oxfmt": "0.76.0",
-		"oxlint": "1.91.0",
-		"oxlint-tsgolint": "7.0.2005",
-		"vite-plus": "1.5.0"
+		"knip": "6.45.1",
+		"oxfmt": "0.78.0",
+		"oxlint": "1.93.0",
+		"oxlint-tsgolint": "7.0.2007",
+		"vite-plus": "1.6.0"
 	},
 	"devEngines": {
 		"runtime": {
@@ -27,5 +27,5 @@
 			"onFail": "warn"
 		}
 	},
-	"packageManager": "pnpm@12.16.1"
+	"packageManager": "pnpm@12.18.0"
 }
