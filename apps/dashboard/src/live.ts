@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FoxgloveClient } from './foxglove';
 import { decodeDetections } from './detections';
 import type { Detections } from './detections';
@@ -143,14 +143,14 @@ const decodeCharuco = (payload: Uint8Array) => JSON.parse(text.decode(payload)) 
 /** ChArUco board corners, only published while the camera is being calibrated. */
 export const useCharuco = (camera: string) => useTopic(`/${camera}/charuco`, decodeCharuco);
 
-/** A blob URL for the camera's latest JPEG. */
+const decodeImageUrl = (payload: Uint8Array) =>
+	// react-doctor-disable-next-line react-doctor/no-create-object-url-without-revoke -- `useImage` revokes each URL once a newer one replaces it.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Foxglove image bytes are views into WebSocket ArrayBuffers, never SharedArrayBuffers.
+	URL.createObjectURL(new Blob([decodeImage(payload) as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' }));
+
+/** A blob URL for the camera's latest JPEG. Each URL is created once per message, outside rendering. */
 export function useImage(camera: string) {
-	const jpeg = useTopic(`/${camera}/image`, decodeImage);
-	const url = useMemo(
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Foxglove image bytes are views into WebSocket ArrayBuffers, never SharedArrayBuffers.
-		() => jpeg && URL.createObjectURL(new Blob([jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' })),
-		[jpeg],
-	);
+	const url = useTopic(`/${camera}/image`, decodeImageUrl);
 	useEffect(
 		() => () => {
 			if (url) {
