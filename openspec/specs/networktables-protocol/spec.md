@@ -44,7 +44,7 @@ Each estimate's NT timestamp SHALL be its frame's capture time in NT server time
 
 ### Requirement: Estimate struct
 
-`SpotEstimate` SHALL contain the primary `Pose3d` and its RMS reprojection error, an optional alternate `Pose3d` and its error, a bitmask (`int64`) of tag IDs 0 to 63 used, the average camera-to-tag distance, and the tags' fraction of the image area.
+`SpotEstimate` SHALL contain the primary `Pose3d` and its RMS reprojection error, an optional alternate `Pose3d` and its error, a bitmask (`int64`) of the tag IDs used (tags with IDs above 63 are used but left out of the bitmask), the average camera-to-tag distance, and the tags' fraction of the image area.
 
 #### Scenario: Single-tag estimate
 

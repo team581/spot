@@ -22,7 +22,7 @@ Each configured camera SHALL be matched by its required `serial`, and by its opt
 #### Scenario: Unique serial
 
 - **WHEN** exactly one connected device has the camera's `serial`
-- **THEN** Spot captures from that device
+- **THEN** Spot captures from that device, whatever its `port`
 
 #### Scenario: Shared serial without a port
 
@@ -31,7 +31,7 @@ Each configured camera SHALL be matched by its required `serial`, and by its opt
 
 #### Scenario: No match
 
-- **WHEN** no connected device matches the camera's `serial` and `port`
+- **WHEN** no connected device has the camera's `serial`, or several do and none is on its `port`
 - **THEN** the camera's state is `disconnected`
 
 ### Requirement: Limited camera controls

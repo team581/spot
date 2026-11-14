@@ -49,9 +49,9 @@ The dashboard SHALL be served on ports 80 and 5800, with the HTTP API at `/api/`
 
 ### Requirement: No access control
 
-Spot SHALL NOT require authentication for the dashboard, API, or WebSocket.
+Spot SHALL NOT require authentication for the dashboard, API, or WebSocket, including routes that change config or network settings. Any device that can reach Spot is trusted.
 
-#### Scenario: Any device on the robot network
+#### Scenario: Any reachable device
 
-- **WHEN** any device on the robot network opens the dashboard
+- **WHEN** any device that can reach Spot opens the dashboard
 - **THEN** it has full access without signing in

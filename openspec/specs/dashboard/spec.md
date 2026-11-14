@@ -40,7 +40,7 @@ The Config page SHALL list overrides next to robot code's values, offer the merg
 #### Scenario: Saving changes to robot code
 
 - **WHEN** a user copies the merged config into `spot.toml` and deploys robot code
-- **THEN** the overrides are deleted
+- **THEN** Spot deletes the overrides that robot code's config now matches
 
 ### Requirement: Network and system pages
 

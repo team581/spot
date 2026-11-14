@@ -45,7 +45,7 @@ Each estimate SHALL report the best-fitting pose as `primary` and MAY report a s
 #### Scenario: One tag seen head-on
 
 - **WHEN** a single tag is seen nearly head-on
-- **THEN** both mirror-image poses are reported so robot code can choose by heading
+- **THEN** the mirror-image pose is reported as `alternate` when it fits within three times the primary's error, so robot code can choose by heading
 
 ### Requirement: No trust policy in Spot
 

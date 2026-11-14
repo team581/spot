@@ -26,7 +26,7 @@ A recording SHALL contain each camera's images at up to 30 FPS, tag detections (
 
 ### Requirement: Recordings around enables
 
-Spot SHALL save a recording from about 5 s before each enable to about 5 s after it disables, based on `/FMSInfo/FMSControlData`. Recordings SHALL be named by event and match when an FMS is attached, otherwise by time.
+While Spot is synced with NT server time, it SHALL save a recording from about 5 s before each enable to about 5 s after it disables, based on `/FMSInfo/FMSControlData`. Enables while unsynced SHALL NOT be recorded. Recordings SHALL be named by event and match when an FMS is attached, otherwise by time.
 
 #### Scenario: Practice with a Driver Station
 
