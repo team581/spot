@@ -28,24 +28,9 @@ steps {
     glob = List("**/*.pkl", "**/PklProject")
     check = "hk validate"
   }
+  // Ignored paths live in oxfmt.config.ts.
   ["oxfmt"] = (Builtins.oxfmt) {
     prefix = List("pnpm", "exec")
-    // Match the existing workspace formatting scope.
-    exclude =
-      super.exclude
-        + List(
-          ".agents/**",
-          ".claude/**",
-          "AGENTS.md",
-          "README.md",
-          "apps/vision/**",
-          "mise.toml",
-          "netlify.toml",
-          "nix/**",
-          "openspec/**",
-          "packages/java-client/**",
-          "renovate.json",
-        )
   }
   ["vp-lint"] = (Builtins.vp_lint) {
     prefix = List("pnpm", "exec")
