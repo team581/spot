@@ -23,7 +23,7 @@ use crate::overrides;
 use crate::pipeline::{Camera, FrameResult, Sink, Target};
 use crate::processor::Processing;
 use crate::recording::Recorder;
-use crate::structs::Writer;
+use crate::structs;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -307,15 +307,13 @@ impl App {
         let inner = self.inner.lock().unwrap();
         let (state, error) = self.state(&inner);
         self.recorder.tick();
-        let mut status = Writer::default();
-        status.chars(VERSION, 16).u8(state as u8).bool(!inner.overrides.is_empty());
-        nt.publish("/Spot/outputs/status", "struct:SpotStatus", NtValue::Raw(status.0), now);
+        let status = structs::spot_status(VERSION, state, !inner.overrides.is_empty());
+        nt.publish("/Spot/outputs/status", "struct:SpotStatus", NtValue::Raw(status), now);
         nt.publish("/Spot/outputs/error", "string", NtValue::String(error), now);
         for camera in &inner.statuses {
-            let mut w = Writer::default();
-            w.u8(camera.state as u8).f64(camera.fps).u32(camera.dropped_frames as u32);
+            let status = structs::spot_camera_status(camera);
             let topic = format!("/Spot/outputs/cameras/{}/status", camera.name);
-            nt.publish(&topic, "struct:SpotCameraStatus", NtValue::Raw(w.0), now);
+            nt.publish(&topic, "struct:SpotCameraStatus", NtValue::Raw(status), now);
         }
     }
 
@@ -540,18 +538,9 @@ impl Sink for App {
             session.latest = view.clone();
         }
         let Some(estimate) = &result.estimate else { return };
-        let mut w = Writer::default();
-        let alternate = estimate.alternate.as_ref();
-        w.pose3d(&estimate.primary.pose)
-            .f64(estimate.primary.error)
-            .bool(alternate.is_some())
-            .pose3d(&alternate.map(|a| a.pose).unwrap_or_default())
-            .f64(alternate.map_or(0.0, |a| a.error))
-            .i64(estimate.tag_ids)
-            .f64(estimate.average_tag_distance)
-            .f64(estimate.tag_area);
         let topic = format!("/Spot/outputs/cameras/{}/estimate", result.camera);
-        self.nt().publish(&topic, "struct:SpotEstimate", NtValue::Raw(w.0), result.monotonic_us);
+        let value = NtValue::Raw(structs::spot_estimate(estimate));
+        self.nt().publish(&topic, "struct:SpotEstimate", value, result.monotonic_us);
     }
 }
 
