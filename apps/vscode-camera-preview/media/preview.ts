@@ -52,7 +52,11 @@ function details(c: PreviewCamera): [string, string, boolean?][] {
 		['Controls', controls.join(', ') || 'Camera defaults'],
 		c.calibrations.includes(c.resolution)
 			? ['Calibrations', c.calibrations.join(', ')]
-			: ['Calibrations', `${c.calibrations.join(', ') || 'None'} · none for mode resolution ${c.resolution}`, true],
+			: [
+					'Calibrations',
+					`${c.calibrations.length > 0 ? c.calibrations.join(', ') : 'None'} · none for mode resolution ${c.resolution}`,
+					true,
+				],
 	];
 }
 function draw() {
