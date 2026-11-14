@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from 'cn';
 import { SpotViewer } from '@spot/camera-viewer';
-import type { FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
+import type { CameraImage, FieldCamera as ViewerCamera, ViewerState } from '@spot/camera-viewer';
 import type { CameraConfig, FieldView } from '../api';
 import type { Candidate, Detections } from '../detections';
 import { fmt } from './common';
@@ -16,6 +16,29 @@ export interface FieldCamera {
 	name: string;
 	config: CameraConfig;
 	detections: Detections | undefined;
+	/** Drawn in front of the camera, placed with its calibration at the image's size or Spot's assumed one. */
+	image: ImageBitmap | undefined;
+}
+
+/** The intrinsics Spot assumes for an uncalibrated camera; matches `Calibration::assumed` in the vision service. */
+function assumed(width: number, height: number) {
+	const [sx, sy] = [width / 1280, height / 800];
+	return {
+		cx: 644.0110163765805 * sx,
+		cy: 447.8047664027805 * sy,
+		fx: 799.4949524650956 * sx,
+		fy: 799.8320596652597 * sy,
+	};
+}
+
+function cameraImage({ config, image }: FieldCamera): CameraImage | undefined {
+	// Closed bitmaps have no size and can't be drawn.
+	if (!image?.width) {
+		return undefined;
+	}
+	const { cx, cy, fx, fy } =
+		config.calibrations?.[`${image.width}x${image.height}`] ?? assumed(image.width, image.height);
+	return { bitmap: image, cx, cy, fx, fy };
 }
 
 function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]): ViewerState {
@@ -24,6 +47,7 @@ function viewerState(field: FieldView | null | undefined, cameras: FieldCamera[]
 		name: c.name,
 		pose: c.config.mount ?? {},
 		color: cameraColor(names, c.name),
+		image: cameraImage(c),
 		robot: c.detections?.estimate?.primary ?? null,
 		tags: c.detections?.tags.filter((t) => t.used).map((t) => t.id) ?? [],
 	}));

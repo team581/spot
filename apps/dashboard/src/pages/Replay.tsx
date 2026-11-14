@@ -107,6 +107,7 @@ function Player({ replay }: { replay: Replay }) {
 					cameras={replay.cameras.map((name) => ({
 						config: config?.cameras?.[name] ?? { serial: '' },
 						detections: detectionsAt(replay, name, time),
+						image: images.get(name)?.bitmap,
 						name,
 					}))}
 				/>

@@ -14,12 +14,22 @@ export interface Pose {
 	pitch?: number;
 	yaw?: number;
 }
+/** A camera frame and the pinhole intrinsics, in its pixels, that place it in front of the camera. */
+export interface CameraImage {
+	bitmap: ImageBitmap;
+	fx: number;
+	fy: number;
+	cx: number;
+	cy: number;
+}
 /** A camera and its robot-to-camera transform. */
 export interface Mount {
 	name: string;
 	pose: Pose;
 	/** Any CSS color; robot views default to muted, or blue when selected. */
 	color?: string;
+	/** Drawn in the camera's view frustum. */
+	image?: CameraImage;
 }
 /** A camera on the field: its mount, plus what it currently sees. */
 export interface FieldCamera extends Mount {
@@ -60,6 +70,8 @@ export type ViewerState =
 type Color = 'line' | 'blue' | 'accent-text' | 'muted-foreground' | 'good' | 'warning' | (string & {});
 /** FRC AprilTag (36h11) edge length in metres, across the outer black border. */
 const TAG_SIZE = 0.1651;
+/** Metres in front of a camera to draw its image. */
+const IMAGE_DISTANCE = 0.5;
 interface Placed {
 	position: THREE.Vector3;
 	quaternion: THREE.Quaternion;
@@ -139,6 +151,34 @@ function arrow(parent: THREE.Object3D, direction: number[], text: string, color:
 		label(parent, text, direction, color);
 	}
 }
+/** The image on a plane in front of the camera, with lines from the lens to its corners. */
+function view(parent: THREE.Object3D, { bitmap, fx, fy, cx, cy }: CameraImage, color: Color) {
+	const d = IMAGE_DISTANCE;
+	// The lens looks along +X; image right is -Y and image down is -Z.
+	const corner = (u: number, v: number) => [d, ((cx - u) / fx) * d, ((cy - v) / fy) * d];
+	const corners = [
+		corner(0, 0),
+		corner(bitmap.width, 0),
+		corner(bitmap.width, bitmap.height),
+		corner(0, bitmap.height),
+	];
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners.flat(), 3));
+	geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+	geometry.setIndex([0, 1, 2, 0, 2, 3]);
+	const texture = new THREE.Texture(bitmap);
+	// ImageBitmaps upload top row first, so v = 0 is the top of the image.
+	texture.flipY = false;
+	texture.colorSpace = THREE.SRGBColorSpace;
+	texture.needsUpdate = true;
+	parent.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })));
+	loop(parent, corners, color, 1.5);
+	segments(
+		parent,
+		corners.flatMap((p) => [[0, 0, 0], p]),
+		color,
+	);
+}
 function camera(parent: THREE.Object3D, pose: Placed, color: Color, name: string, lens = 'Lens') {
 	const group = posed(parent, pose);
 	box(group, [0.18, 0.14, 0.12], color);
@@ -216,6 +256,9 @@ export function buildScene(state: ViewerState): Scene {
 		for (const mount of state.mounts) {
 			const color = mount.color ?? (mount.name === state.selectedName ? 'blue' : 'muted-foreground');
 			const group = camera(root, placed(mount.pose), color, mount.name);
+			if (mount.image) {
+				view(group, mount.image, color);
+			}
 			arrow(group, [0, 0.25, 0], '+Y', 'good');
 			arrow(group, [0, 0, 0.25], '+Z', 'accent-text');
 		}
@@ -244,6 +287,9 @@ export function buildScene(state: ViewerState): Scene {
 				robot(chassis, c.color);
 			}
 			const body = camera(chassis, placed(c.pose), c.color, c.name, '');
+			if (c.image) {
+				view(body, c.image, c.color);
+			}
 			const position = body.getWorldPosition(new THREE.Vector3());
 			for (const id of c.robot ? c.tags : []) {
 				const tag = tags.get(id);
@@ -294,6 +340,11 @@ function dispose(root: THREE.Object3D) {
 		}
 		if (object instanceof LineSegments2) {
 			object.geometry.dispose();
+			object.material.dispose();
+		}
+		if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial) {
+			object.geometry.dispose();
+			object.material.map?.dispose();
 			object.material.dispose();
 		}
 	});

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FoxgloveClient } from './foxglove';
 import { decodeDetections } from './detections';
 import type { Detections } from './detections';
-import { decodeImage } from './image';
+import { decodeImage, useCloseReplaced } from './image';
 
 // The dev server proxies the socket so `dev:jetson` reaches Spot's server too.
 const foxglove = new FoxgloveClient(
@@ -63,6 +63,70 @@ export function useAllDetections(cameras: string[]) {
 			setValue(new Map());
 		};
 	}, [key]);
+	return value;
+}
+
+/** Each camera's latest image as a bitmap, decoded at most once per animation frame. */
+export function useAllImages(cameras: string[]) {
+	const [value, setValue] = useState(new Map<string, ImageBitmap>());
+	const key = cameras.join('\n');
+	useEffect(() => {
+		const latest = new Map<string, Uint8Array>();
+		const bitmaps = new Map<string, ImageBitmap>();
+		const run = { decoding: false, frame: 0, stopped: false };
+		const decode = async () => {
+			run.decoding = true;
+			while (latest.size > 0 && !run.stopped) {
+				const batch = [...latest];
+				latest.clear();
+				// oxlint-disable-next-line no-await-in-loop -- Finish each batch before decoding newer images.
+				const decoded = await Promise.all(
+					batch.map(async ([camera, jpeg]) => {
+						try {
+							// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Foxglove image bytes are views into WebSocket ArrayBuffers, never SharedArrayBuffers.
+							return [camera, await createImageBitmap(new Blob([jpeg as Uint8Array<ArrayBuffer>]))] as const;
+						} catch {
+							return undefined;
+						}
+					}),
+				);
+				for (const [camera, bitmap] of decoded.filter((d) => d !== undefined)) {
+					if (run.stopped) {
+						bitmap.close();
+						continue;
+					}
+					bitmaps.set(camera, bitmap);
+				}
+				if (!run.stopped) {
+					setValue(new Map(bitmaps));
+				}
+			}
+			run.decoding = false;
+		};
+		const unsubscribes = key
+			.split('\n')
+			.filter(Boolean)
+			.map((camera) =>
+				foxglove.subscribe(`/${camera}/image`, (payload) => {
+					latest.set(camera, decodeImage(payload));
+					run.frame ||= requestAnimationFrame(() => {
+						run.frame = 0;
+						if (!run.decoding) {
+							void decode();
+						}
+					});
+				}),
+			);
+		return () => {
+			run.stopped = true;
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe();
+			}
+			cancelAnimationFrame(run.frame);
+			setValue(new Map());
+		};
+	}, [key]);
+	useCloseReplaced([...value.values()]);
 	return value;
 }
 

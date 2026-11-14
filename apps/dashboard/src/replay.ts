@@ -4,7 +4,7 @@ import { McapIndexedReader } from '@mcap/core';
 import type { IReadable } from '@mcap/core';
 import type { FieldView, RobotConfig } from './api';
 import { decodeDetections } from './detections';
-import { decodeImage } from './image';
+import { decodeImage, useCloseReplaced } from './image';
 import type { Detections } from './detections';
 
 /** Values in log time order. Times are nanoseconds, as recorded. */
@@ -177,6 +177,14 @@ export function useReplay(url: string) {
 interface Frame {
 	time: number;
 	url: string;
+	/** Undefined when the JPEG can't be decoded. */
+	bitmap: ImageBitmap | undefined;
+}
+
+function revoke(frames: Frame[]) {
+	for (const frame of frames) {
+		URL.revokeObjectURL(frame.url);
+	}
 }
 
 /** Each camera's image at `time`. Requests run one batch at a time, skipping to the latest time. */
@@ -184,13 +192,11 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 	const [frames, setFrames] = useState<{ images: Map<string, Frame>; error?: Error }>({ images: new Map() });
 	const wanted = useRef(time);
 	const busy = useRef(false);
-	const urls = useRef<string[]>([]);
+	const held = useRef<Frame[]>([]);
 	useEffect(
 		() => () => {
-			for (const url of urls.current) {
-				URL.revokeObjectURL(url);
-			}
-			urls.current = [];
+			revoke(held.current);
+			held.current = [];
 		},
 		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- Changing recordings must revoke the previous recording's blob URLs.
 		[replay],
@@ -208,23 +214,29 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 					const at = wanted.current;
 					fetched = at;
 					// oxlint-disable-next-line no-await-in-loop -- Finish each batch before fetching the latest requested time.
-					const results = await Promise.all(replay.cameras.map((camera) => replay.image(camera, at)));
+					const results = await Promise.all(
+						replay.cameras.map(async (camera) => {
+							const result = await replay.image(camera, at);
+							if (!result) {
+								return undefined;
+							}
+							// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCAP reads use ArrayBuffers created by the HTTP reader, never SharedArrayBuffers.
+							const blob = new Blob([result.jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' });
+							const bitmap = await createImageBitmap(blob).catch(() => undefined);
+							return { bitmap, time: result.time, url: URL.createObjectURL(blob) };
+						}),
+					);
 					const images = new Map<string, Frame>();
-					const previous = urls.current;
-					urls.current = [];
-					results.forEach((result, i) => {
-						if (!result) {
-							return;
+					const previous = held.current;
+					held.current = [];
+					results.forEach((frame, i) => {
+						if (frame) {
+							held.current.push(frame);
+							images.set(replay.cameras[i], frame);
 						}
-						// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCAP reads use ArrayBuffers created by the HTTP reader, never SharedArrayBuffers.
-						const url = URL.createObjectURL(new Blob([result.jpeg as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' }));
-						urls.current.push(url);
-						images.set(replay.cameras[i], { time: result.time, url });
 					});
 					setFrames({ images });
-					for (const url of previous) {
-						URL.revokeObjectURL(url);
-					}
+					revoke(previous);
 				}
 			} catch (error) {
 				setFrames((previous) => ({ ...previous, error: error instanceof Error ? error : new Error(String(error)) }));
@@ -233,5 +245,6 @@ export function useReplayImages(replay: Replay | undefined, time: number) {
 			}
 		})();
 	}, [replay, time]);
+	useCloseReplaced([...frames.images.values()].flatMap((frame) => (frame.bitmap ? [frame.bitmap] : [])));
 	return frames;
 }

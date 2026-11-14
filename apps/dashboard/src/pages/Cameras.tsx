@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { useConfig, useDevices, useStatus } from '../queries';
-import { useAllDetections } from '../live';
+import { useAllDetections, useAllImages } from '../live';
 import { PageTitle, Panel, StateBadge, fmt } from '../components/common';
 import { Field3D } from '../components/Field3D';
 import { LiveView } from '../components/LiveView';
@@ -14,6 +14,7 @@ function Field() {
 	const config = view?.config;
 	const cameras = Object.entries(config?.cameras ?? {});
 	const detections = useAllDetections(cameras.map(([name]) => name));
+	const images = useAllImages(cameras.map(([name]) => name));
 	if (!config) {
 		return null;
 	}
@@ -21,7 +22,12 @@ function Field() {
 		<Panel title="Field">
 			<Field3D
 				field={view.field_layout}
-				cameras={cameras.map(([name, camera]) => ({ config: camera, detections: detections.get(name), name }))}
+				cameras={cameras.map(([name, camera]) => ({
+					config: camera,
+					detections: detections.get(name),
+					image: images.get(name),
+					name,
+				}))}
 			/>
 		</Panel>
 	);
