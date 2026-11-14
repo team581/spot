@@ -26,12 +26,12 @@ Spot SHALL use the Jetson Orin's hardware acceleration for image decoding and ta
 
 ### Requirement: Estimate latency
 
-With four cameras streaming at the same time, Spot SHALL publish each frame's pose estimate no more than 20 ms after receiving the frame, and SHOULD do so in under 5 ms.
+With four cameras streaming at the same time, Spot SHALL publish each frame's pose estimate no more than 20 ms after the frame's capture time, and SHOULD do so in under 5 ms.
 
 #### Scenario: Four cameras at full rate
 
 - **WHEN** four cameras stream at `1280x800@120` and all see tags
-- **THEN** each estimate is published within 20 ms of its frame being received, and typically within 5 ms
+- **THEN** each estimate is published within 20 ms of its frame's capture time, and typically within 5 ms
 
 ### Requirement: Distortion-aware detection
 
