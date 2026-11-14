@@ -20,7 +20,8 @@ jobs:
   autofix:
     name: Autofix
     concurrency:
-      group: opencv-cache-${{ github.repository }}-aarch64-linux
+      # Only runs that commit the sticky disk need to wait for each other.
+      group: opencv-cache-${{ github.repository }}-aarch64-linux-${{ (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch) && 'commit' || github.run_id }}
       queue: max
     runs-on: blacksmith-4vcpu-ubuntu-2604-arm
     timeout-minutes: 15
