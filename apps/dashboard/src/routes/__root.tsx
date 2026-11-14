@@ -65,7 +65,8 @@ function Root() {
 						<SidebarMenu>
 							<SidebarMenuItem>
 								<SidebarMenuButton size="lg" render={<Link to="/" />}>
-									<img src="/logo.svg" alt="" className="size-8 object-contain" />
+									<img src="/logo-tight.svg" alt="" className="size-8 object-contain dark:hidden" />
+									<img src="/logo-tight-dark.svg" alt="" className="hidden size-8 object-contain dark:block" />
 									<span className="font-heading text-xl font-semibold">Spot</span>
 								</SidebarMenuButton>
 							</SidebarMenuItem>

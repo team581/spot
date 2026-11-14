@@ -40,7 +40,7 @@ export default defineConfig({
 			description: "Team 581's Jetson vision system: setup, calibration, and robot integration.",
 			favicon: '/favicon.svg',
 			head: jetson ? [{ tag: 'script', content: embedded }] : [],
-			logo: { src: './src/assets/logo.svg' },
+			logo: { light: './src/assets/logo-tight.svg', dark: './src/assets/logo-tight-dark.svg' },
 			plugins: [team581Theme()],
 			sidebar: [
 				{ slug: 'index', label: 'Overview' },
