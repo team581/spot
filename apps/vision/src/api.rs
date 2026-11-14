@@ -4,7 +4,7 @@ use std::path::Path as FsPath;
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use serde_json::{Map, Value};
 use tower_http::services::{ServeDir, ServeFile};
@@ -13,6 +13,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::app::{App, CalibrationView, ConfigView, DeviceStatus, Settings, Status};
+use crate::calibration::{Board, Charuco};
 use crate::network::{self, NetworkChange, NetworkStatus, Request};
 use crate::recording::Recording;
 use crate::system::SystemStatus;
@@ -155,13 +156,13 @@ fn conflict(error: String) -> (StatusCode, String) {
     (StatusCode::CONFLICT, error)
 }
 
-/// The configured ChArUco board as a printable, true-size SVG.
-#[utoipa::path(get, path = "/api/calibration/board.svg", responses((status = 200, content_type = "image/svg+xml", body = String)))]
+/// A preview of a ChArUco board, to check its geometry against a physical board.
+#[utoipa::path(get, path = "/api/calibration/board.png", params(Board), responses((status = 200, content_type = "image/png", body = Vec<u8>), (status = 409, body = String)))]
 async fn board(
-    State(app): AppState,
+    Query(board): Query<Board>,
 ) -> Result<impl axum::response::IntoResponse, (StatusCode, String)> {
-    let svg = app.board_svg().map_err(conflict)?;
-    Ok(([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg))
+    let png = Charuco::new(&board).and_then(|mut charuco| charuco.png()).map_err(conflict)?;
+    Ok(([(axum::http::header::CONTENT_TYPE, "image/png")], png))
 }
 
 /// The camera's calibration session.

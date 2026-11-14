@@ -3,7 +3,7 @@
 use std::ffi::{CStr, c_char};
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::config::Calibration;
 
@@ -15,7 +15,8 @@ pub const MIN_CORNERS: usize = 8;
 pub const MAX_RMS: f64 = 1.0;
 
 /// A ChArUco board. Square and marker sizes are in meters.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct Board {
     pub squares_x: u32,
     pub squares_y: u32,
@@ -25,14 +26,14 @@ pub struct Board {
 }
 
 impl Default for Board {
-    /// Fits on Letter and A4 paper.
+    /// The board the team calibrates with.
     fn default() -> Self {
         Board {
-            squares_x: 11,
-            squares_y: 8,
-            square_size: 0.02,
-            marker_size: 0.015,
-            dictionary: Dictionary::Aruco5x5_100,
+            squares_x: 15,
+            squares_y: 15,
+            square_size: 0.03,
+            marker_size: 0.022,
+            dictionary: Dictionary::Aruco4x4_250,
         }
     }
 }
@@ -44,6 +45,8 @@ pub enum Dictionary {
     Aruco4x4_50 = 0,
     #[serde(rename = "4x4_100")]
     Aruco4x4_100 = 1,
+    #[serde(rename = "4x4_250")]
+    Aruco4x4_250 = 2,
     #[serde(rename = "5x5_50")]
     Aruco5x5_50 = 4,
     #[serde(rename = "5x5_100")]
@@ -194,8 +197,8 @@ impl Charuco {
         Ok(View { ids, corners })
     }
 
-    /// A printable SVG of the board at true size, with a scale check.
-    pub fn svg(&mut self) -> Result<String, String> {
+    /// A PNG of the board, to check the geometry against a physical board.
+    pub fn png(&mut self) -> Result<Vec<u8>, String> {
         const PIXELS_PER_SQUARE: i32 = 200;
         let (mut png, mut len) = (std::ptr::null_mut(), 0);
         let mut error = [0 as c_char; 256];
@@ -216,25 +219,7 @@ impl Charuco {
         // SAFETY: the shim allocated `len` bytes at `png`.
         let bytes = unsafe { std::slice::from_raw_parts(png, len) }.to_vec();
         unsafe { spot_charuco_free_buffer(png) };
-        let b = &self.board;
-        let (width, height) =
-            (b.squares_x as f64 * b.square_size * 1e3, b.squares_y as f64 * b.square_size * 1e3);
-        let margin = 10.0;
-        let caption = format!(
-            "{}x{} squares of {:.1} mm, {:.1} mm {} markers. Print at 100% and measure a square.",
-            b.squares_x,
-            b.squares_y,
-            b.square_size * 1e3,
-            b.marker_size * 1e3,
-            serde_json::to_value(b.dictionary).unwrap().as_str().unwrap_or_default(),
-        );
-        Ok(format!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}mm" height="{ph}mm" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="white"/><image x="{margin}" y="{margin}" width="{width}" height="{height}" style="image-rendering:pixelated" href="data:image/png;base64,{data}"/><text x="{margin}" y="{ty}" font-family="sans-serif" font-size="4">{caption}</text></svg>"#,
-            pw = width + 2.0 * margin,
-            ph = height + 2.0 * margin + 6.0,
-            ty = height + margin + 7.0,
-            data = base64(&bytes),
-        ))
+        Ok(bytes)
     }
 
     /// Calibrates, then drops views more than three scaled MADs above the median error and
@@ -328,36 +313,15 @@ fn median_abs(values: &[f64], center: f64) -> f64 {
     median(&values.iter().map(|v| (v - center).abs()).collect::<Vec<_>>())
 }
 
-fn base64(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let n = (chunk[0] as u32) << 16
-            | (*chunk.get(1).unwrap_or(&0) as u32) << 8
-            | *chunk.get(2).unwrap_or(&0) as u32;
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(TABLE[(n >> (18 - 6 * i) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Renders the board, warps it into synthetic views with a known camera, and checks
-    /// that detection and calibration recover the camera.
+    /// Checks that calibration recovers a known camera from synthetic views.
     #[test]
     fn calibrates_synthetic_views() {
         let board = Board::default();
         let mut charuco = Charuco::new(&board).unwrap();
-        let svg = charuco.svg().unwrap();
-        assert!(svg.starts_with("<svg"));
 
         // Project the board's corners directly: detection is exercised on real images on
         // the Jetson, this checks the calibration and outlier rejection plumbing.
@@ -403,9 +367,7 @@ mod tests {
     fn detects_every_corner_of_a_rendered_board() {
         let board = Board::default();
         let mut charuco = Charuco::new(&board).unwrap();
-        let svg = charuco.svg().unwrap();
-        let data = svg.split("base64,").nth(1).unwrap().split('"').next().unwrap();
-        let png = decode_base64(data);
+        let png = charuco.png().unwrap();
         let image = image::load_from_memory(&png).unwrap().to_luma8();
         // Detection needs a quiet zone around the board.
         let margin = 60;
@@ -414,30 +376,5 @@ mod tests {
         image::imageops::overlay(&mut padded, &image, margin.into(), margin.into());
         let view = charuco.detect(padded.as_raw(), width, height).unwrap();
         assert_eq!(view.ids.len(), ((board.squares_x - 1) * (board.squares_y - 1)) as usize);
-    }
-
-    fn decode_base64(text: &str) -> Vec<u8> {
-        let value = |c: u8| match c {
-            b'A'..=b'Z' => c - b'A',
-            b'a'..=b'z' => c - b'a' + 26,
-            b'0'..=b'9' => c - b'0' + 52,
-            b'+' => 62,
-            _ => 63,
-        } as u32;
-        let bytes: Vec<u8> = text.bytes().filter(|&c| c != b'=').collect();
-        let mut out = Vec::new();
-        for chunk in bytes.chunks(4) {
-            let n = chunk.iter().enumerate().fold(0, |n, (i, &c)| n | value(c) << (18 - 6 * i));
-            out.extend_from_slice(&n.to_be_bytes()[1..chunk.len()]);
-        }
-        out
-    }
-
-    #[test]
-    fn base64_round_trips() {
-        for bytes in [&b"M"[..], b"Ma", b"Man", b"Many bytes"] {
-            assert_eq!(decode_base64(&base64(bytes)), bytes);
-        }
-        assert_eq!(base64(b"Ma"), "TWE=");
     }
 }

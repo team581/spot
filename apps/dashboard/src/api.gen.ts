@@ -4,14 +4,14 @@
  */
 
 export interface paths {
-	'/api/calibration/board.svg': {
+	'/api/calibration/board.png': {
 		parameters: {
 			query?: never;
 			header?: never;
 			path?: never;
 			cookie?: never;
 		};
-		/** The configured ChArUco board as a printable, true-size SVG. */
+		/** A preview of a ChArUco board, to check its geometry against a physical board. */
 		get: operations['board'];
 		put?: never;
 		post?: never;
@@ -411,7 +411,7 @@ export interface components {
 		 * @description OpenCV's predefined ArUco dictionaries.
 		 * @enum {string}
 		 */
-		Dictionary: '4x4_50' | '4x4_100' | '5x5_50' | '5x5_100' | '6x6_50' | '6x6_250';
+		Dictionary: '4x4_50' | '4x4_100' | '4x4_250' | '5x5_50' | '5x5_100' | '6x6_50' | '6x6_250';
 		/** @description A tag's field pose: meters, and a quaternion with +X out of the tag's face. */
 		FieldTag: {
 			/** Format: int32 */
@@ -611,7 +611,13 @@ export type $defs = Record<string, never>;
 export interface operations {
 	board: {
 		parameters: {
-			query?: never;
+			query: {
+				squares_x: number;
+				squares_y: number;
+				square_size: number;
+				marker_size: number;
+				dictionary: components['schemas']['Dictionary'];
+			};
 			header?: never;
 			path?: never;
 			cookie?: never;
@@ -621,7 +627,13 @@ export interface operations {
 			200: {
 				headers: Record<string, unknown>;
 				content: {
-					'image/svg+xml': string;
+					'image/png': number[];
+				};
+			};
+			409: {
+				headers: Record<string, unknown>;
+				content: {
+					'text/plain': string;
 				};
 			};
 		};

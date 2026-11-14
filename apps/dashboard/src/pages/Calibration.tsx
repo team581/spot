@@ -11,7 +11,7 @@ import type { components } from '../api.gen';
 
 type Board = components['schemas']['Board'];
 type Session = components['schemas']['CalibrationView'];
-const dictionaries: Board['dictionary'][] = ['4x4_50', '4x4_100', '5x5_50', '5x5_100', '6x6_50', '6x6_250'];
+const dictionaries: Board['dictionary'][] = ['4x4_50', '4x4_100', '4x4_250', '5x5_50', '5x5_100', '6x6_50', '6x6_250'];
 /** Coverage hint grid: cells with a captured corner count as covered. */
 const GRID = 6;
 const cameraParams = (camera: string) => ({ params: { path: { camera } } });
@@ -28,7 +28,18 @@ function BoardForm({ settings }: { settings: Settings }) {
 		squares_x: String(board.squares_x),
 		squares_y: String(board.squares_y),
 	});
+	const [failedPreview, setFailedPreview] = useState('');
 	const save = useSaveSettings();
+	const draftBoard: Board = {
+		dictionary: draft.dictionary,
+		marker_size: Number(draft.marker_mm) / 1000,
+		square_size: Number(draft.square_mm) / 1000,
+		squares_x: Number(draft.squares_x),
+		squares_y: Number(draft.squares_y),
+	};
+	const preview = `/api/calibration/board.png?${new URLSearchParams(
+		Object.entries(draftBoard).map(([key, value]) => [key, String(value)]),
+	).toString()}`;
 	const field = (key: 'squares_x' | 'squares_y' | 'square_mm' | 'marker_mm', label: string) => (
 		<div className="flex flex-col gap-2">
 			<Label htmlFor={key}>{label}</Label>
@@ -47,18 +58,7 @@ function BoardForm({ settings }: { settings: Settings }) {
 			className="flex flex-col gap-4"
 			onSubmit={(e) => {
 				e.preventDefault();
-				save.mutate({
-					body: {
-						...settings,
-						calibration_board: {
-							dictionary: draft.dictionary,
-							marker_size: Number(draft.marker_mm) / 1000,
-							square_size: Number(draft.square_mm) / 1000,
-							squares_x: Number(draft.squares_x),
-							squares_y: Number(draft.squares_y),
-						},
-					},
-				});
+				save.mutate({ body: { ...settings, calibration_board: draftBoard } });
 			}}
 		>
 			<div className="grid grid-cols-2 gap-3">
@@ -86,17 +86,24 @@ function BoardForm({ settings }: { settings: Settings }) {
 					))}
 				</NativeSelect>
 			</div>
-			<div className="flex flex-wrap items-center gap-3">
-				<Button type="submit" disabled={save.isPending}>
-					Save board
-				</Button>
-				<Button variant="outline" render={<a href="/api/calibration/board.svg" target="_blank" rel="noreferrer" />}>
-					Open printable board
-				</Button>
-			</div>
+			{failedPreview === preview ? (
+				<ErrorText error="These settings don't describe a valid board." />
+			) : (
+				<img
+					src={preview}
+					alt="Board preview"
+					className="w-full rounded-md bg-white p-2"
+					onError={() => {
+						setFailedPreview(preview);
+					}}
+				/>
+			)}
 			<p className="text-sm text-muted-foreground">
-				Print at 100% scale and measure a square. Save the measured size before calibrating.
+				Enter your board's measured sizes, and check that the preview matches it before saving.
 			</p>
+			<Button type="submit" className="self-start" disabled={save.isPending}>
+				Save board
+			</Button>
 			<ErrorText error={save.error} />
 		</form>
 	);

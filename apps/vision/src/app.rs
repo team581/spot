@@ -509,11 +509,6 @@ impl App {
         }
     }
 
-    pub fn board_svg(&self) -> Result<String, String> {
-        let board = self.inner.lock().unwrap().settings.calibration_board.clone();
-        Charuco::new(&board)?.svg()
-    }
-
     pub fn recorder(&self) -> &Recorder {
         &self.recorder
     }

@@ -38,14 +38,25 @@ Calibrations SHALL use pinhole intrinsics with OpenCV's five-coefficient distort
 - **WHEN** a solve succeeds
 - **THEN** it produces `fx`, `fy`, `cx`, `cy`, five distortion coefficients, and the RMS error
 
-### Requirement: Configurable, printable board
+### Requirement: Configurable board with preview
 
-The board geometry SHALL be configurable, and the dashboard SHALL generate a printable board matching it.
+The board geometry SHALL be configurable, and the dashboard SHALL preview the board for the entered geometry before it's saved.
+The default board SHALL be the team's physical calibration board: 15 × 15 squares of 30 mm, with 22 mm markers from the `4x4_250` dictionary.
+
+#### Scenario: No board saved
+
+- **WHEN** a Jetson has no saved board
+- **THEN** detection and the preview use the team's calibration board
+
+#### Scenario: Checking settings against a board
+
+- **WHEN** a user enters a board's square counts, sizes, and dictionary
+- **THEN** the dashboard previews a board with that geometry, to compare with the physical board
 
 #### Scenario: Measured square differs
 
 - **WHEN** a user saves a measured square and marker size
-- **THEN** detection and the printable board use the new geometry
+- **THEN** detection uses the new geometry
 
 ### Requirement: Results become overrides
 
