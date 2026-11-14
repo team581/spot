@@ -438,13 +438,15 @@ impl App {
         self.inner.lock().unwrap().settings.clone()
     }
 
-    pub fn set_settings(&self, settings: Settings) {
+    pub fn set_settings(&self, settings: Settings) -> Result<(), String> {
+        Charuco::new(&settings.calibration_board)?;
         write_atomic(
             &self.state_dir.join(SETTINGS),
             &serde_json::to_vec_pretty(&settings).unwrap(),
         );
         self.servers.send_replace(settings.servers());
         self.inner.lock().unwrap().settings = settings;
+        Ok(())
     }
 
     pub fn system(&self) -> crate::system::SystemStatus {

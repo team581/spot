@@ -67,6 +67,17 @@ pub enum Dictionary {
     Aruco6x6_250 = 10,
 }
 
+impl Dictionary {
+    /// How many distinct markers the dictionary has.
+    fn markers(self) -> u32 {
+        match self {
+            Dictionary::Aruco4x4_50 | Dictionary::Aruco5x5_50 | Dictionary::Aruco6x6_50 => 50,
+            Dictionary::Aruco4x4_100 | Dictionary::Aruco5x5_100 => 100,
+            Dictionary::Aruco4x4_250 | Dictionary::Aruco6x6_250 => 250,
+        }
+    }
+}
+
 /// Chessboard corners found in one image.
 #[derive(Debug, Clone, Default, Serialize, ToSchema)]
 pub struct View {
@@ -326,6 +337,17 @@ impl Charuco {
             || board.squares_y < 3
         {
             return Err("Use at least 3x3 squares, with markers smaller than squares".into());
+        }
+        // Markers fill half the squares, so a board can't have more than twice the dictionary.
+        let markers = board.squares_x * board.squares_y / 2;
+        let available = board.dictionary.markers();
+        if markers > available {
+            let dictionary = serde_json::to_value(board.dictionary).unwrap();
+            let dictionary = dictionary.as_str().unwrap().to_uppercase();
+            return Err(format!(
+                "No board has {}x{} squares with {dictionary} markers: it would need {markers} markers, and {dictionary} has {available}. Check the square counts and dictionary against your printed board.",
+                board.squares_x, board.squares_y,
+            ));
         }
         let mut error = [0 as c_char; 256];
         // SAFETY: the error buffer outlives the call and its length is passed.

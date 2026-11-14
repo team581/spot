@@ -203,6 +203,7 @@ export interface paths {
 		};
 		/** Jetson-local settings. */
 		get: operations['settings'];
+		/** Saves Jetson-local settings, rejecting a calibration board that can't exist. */
 		put: operations['set_settings'];
 		post?: never;
 		delete?: never;
@@ -985,6 +986,12 @@ export interface operations {
 				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['Settings'];
+				};
+			};
+			422: {
+				headers: Record<string, unknown>;
+				content: {
+					'text/plain': string;
 				};
 			};
 		};

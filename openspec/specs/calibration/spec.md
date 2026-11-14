@@ -61,6 +61,11 @@ The default board SHALL be the team's physical calibration board: 15 × 15 squar
 - **WHEN** a user enters a board's square counts, sizes, and dictionary
 - **THEN** the dashboard previews a board with that geometry, to compare with the physical board
 
+#### Scenario: Board that can't exist
+
+- **WHEN** a user saves a board with more markers than its dictionary has
+- **THEN** the service rejects it and keeps the saved board, explaining which settings to check
+
 #### Scenario: Measured square differs
 
 - **WHEN** a user saves a measured square and marker size

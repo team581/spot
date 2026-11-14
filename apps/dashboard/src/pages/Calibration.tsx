@@ -27,7 +27,7 @@ function BoardForm({ settings }: { settings: Settings }) {
 		squares_x: String(board.squares_x),
 		squares_y: String(board.squares_y),
 	});
-	const [failedPreview, setFailedPreview] = useState('');
+	const [failedPreview, setFailedPreview] = useState({ preview: '', error: '' });
 	const save = useSaveSettings();
 	const draftBoard: Board = {
 		dictionary: draft.dictionary,
@@ -85,15 +85,22 @@ function BoardForm({ settings }: { settings: Settings }) {
 					))}
 				</NativeSelect>
 			</div>
-			{failedPreview === preview ? (
-				<ErrorText error="These settings don't describe a valid board." />
+			{failedPreview.preview === preview ? (
+				<ErrorText error={failedPreview.error} />
 			) : (
 				<img
 					src={preview}
 					alt="Board preview"
 					className="w-full rounded-md bg-white p-2"
-					onError={() => {
-						setFailedPreview(preview);
+					onError={async () => {
+						let error = "Couldn't load the board preview.";
+						try {
+							const response = await fetch(preview);
+							if (!response.ok) {
+								error = await response.text();
+							}
+						} catch {}
+						setFailedPreview({ preview, error });
 					}}
 				/>
 			)}

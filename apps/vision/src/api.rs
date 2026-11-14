@@ -102,10 +102,14 @@ async fn settings(State(app): AppState) -> Json<Settings> {
     Json(app.settings())
 }
 
-#[utoipa::path(put, path = "/api/settings", request_body = Settings, responses((status = 200, body = Settings)))]
-async fn set_settings(State(app): AppState, Json(settings): Json<Settings>) -> Json<Settings> {
-    app.set_settings(settings);
-    Json(app.settings())
+/// Saves Jetson-local settings, rejecting a calibration board that can't exist.
+#[utoipa::path(put, path = "/api/settings", request_body = Settings, responses((status = 200, body = Settings), (status = 422, body = String)))]
+async fn set_settings(
+    State(app): AppState,
+    Json(settings): Json<Settings>,
+) -> Result<Json<Settings>, (StatusCode, String)> {
+    app.set_settings(settings).map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, e))?;
+    Ok(Json(app.settings()))
 }
 
 /// Saved MCAP recordings, newest first. Download them from `/recordings/<name>`.
