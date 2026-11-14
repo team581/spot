@@ -114,6 +114,8 @@ export default defineConfig({
 		// Three.js and VS Code conventionally expose a namespace of values and types.
 		'import/no-namespace': ['error', { ignore: ['three', 'vscode'] }],
 		'no-await-in-loop': 'error',
+		// React Doctor suppression comments must start with its lowercase directive.
+		'capitalized-comments': ['error', 'always', { ignorePattern: 'react-doctor-disable' }],
 		// Preserve related object keys and colocate exports with their declarations.
 		'sort-keys': 'off',
 		'import/group-exports': 'off',

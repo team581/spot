@@ -66,6 +66,11 @@ steps {
         "apps/vscode-camera-preview/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
       )
   }
+  ["react-doctor"] {
+    glob =
+      List("apps/dashboard/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}", "apps/dashboard/package.json")
+    check = "pnpm --filter spot-dashboard run react-doctor"
+  }
   ["knip"] = (Builtins.knip) {
     depends = List("vp-lint", "oxlint")
     prefix = List("pnpm", "exec")

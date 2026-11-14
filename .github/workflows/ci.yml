@@ -82,7 +82,7 @@ jobs:
           git diff --exit-code -- apps/dashboard/src/gen
       # Type-aware linting needs Astro's generated content types.
       - run: pnpm --filter spot-docs exec astro sync
-      - run: hk check --all --step oxfmt --step vp-lint --step oxlint --step knip --step typecheck
+      - run: hk check --all --step oxfmt --step vp-lint --step oxlint --step react-doctor --step knip --step typecheck
       - run: pnpm build
       - name: Package VS Code extension
         run: pnpm --filter spot-camera-preview package

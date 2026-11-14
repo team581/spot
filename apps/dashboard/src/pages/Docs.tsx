@@ -38,6 +38,7 @@ export default function Docs() {
 			className="w-full flex-1 border-0"
 			onLoad={() => {
 				follow();
+				// react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- The listener belongs to the frame's window, which is discarded with its document.
 				frame.current?.contentWindow?.addEventListener('hashchange', follow);
 			}}
 		/>

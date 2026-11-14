@@ -40,6 +40,7 @@ export const useDetections = (camera: string) => useTopic(`/${camera}/detections
 export function useAllDetections(cameras: string[]) {
 	const [value, setValue] = useState(new Map<string, Detections>());
 	const key = cameras.join('\n');
+	// react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- The cleanup calls every collected unsubscribe.
 	useEffect(() => {
 		const latest = new Map<string, Uint8Array>();
 		let frame = 0;
@@ -70,6 +71,7 @@ export function useAllDetections(cameras: string[]) {
 export function useAllImages(cameras: string[]) {
 	const [value, setValue] = useState(new Map<string, ImageBitmap>());
 	const key = cameras.join('\n');
+	// react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- The cleanup calls every collected unsubscribe.
 	useEffect(() => {
 		const latest = new Map<string, Uint8Array>();
 		const bitmaps = new Map<string, ImageBitmap>();
