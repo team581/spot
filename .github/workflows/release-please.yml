@@ -103,7 +103,7 @@ jobs:
       - uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
       - uses: gradle/actions/setup-gradle@v6.4.1
       - run: ./gradlew build plainJavadocJar
       - name: Check Maven Central
