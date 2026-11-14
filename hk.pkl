@@ -102,7 +102,10 @@ steps {
         "apps/vision/build.rs",
         "apps/vision/cpp/**",
       )
-    check = "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets -- -D warnings"
+    check =
+      "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --locked -- -D warnings"
+    fix =
+      "cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --locked --fix --allow-dirty -- -D warnings"
   }
   ["spotless"] {
     glob = List("packages/java-client/**/*.{java,gradle}")

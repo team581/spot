@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Tools come from the setup actions, so mise only runs tasks.
+  MISE_TASK_RUN_AUTO_INSTALL: false
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -22,8 +26,7 @@ jobs:
       - uses: jdx/mise-action@v5.2.8
         with:
           install_args: hk pkl
-      - run: hk check --all --step pkl-format
-      - run: hk validate
+      - run: hk check --all --step pkl-format --step hk-validate
 
   nix:
     name: Nix package (aarch64-linux)
@@ -70,20 +73,19 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
+      - uses: jdx/mise-action@v5.2.8
+        with:
+          install_args: hk
       - name: Check generated Protobuf bindings
         run: |
           pnpm --filter spot-dashboard generate:protobuf
           git diff --exit-code -- apps/dashboard/src/gen
-      - run: pnpm check
-      - parallel:
-          - run: pnpm format
-          - run: pnpm lint
-          - run: pnpm knip
+      - run: hk check --all --step oxfmt --step vp-lint --step oxlint --step knip --step typecheck
       - run: pnpm build
       - name: Package VS Code extension
         run: pnpm --filter spot-camera-preview package
       - run: pnpm build:jetson
-      - run: pnpm test
+      - run: mise run test:js
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: web-assets
@@ -104,7 +106,7 @@ jobs:
       - uses: useblacksmith/checkout@v1.8.2
       - uses: jdx/mise-action@v5.2.8
         with:
-          install_args: rust
+          install_args: hk rust
       - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/vision
@@ -130,9 +132,8 @@ jobs:
           nix build path:.#opencv --cores 4 --max-jobs 2 --out-link "$root"
           echo "PKG_CONFIG_PATH=$root/lib/pkgconfig" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$root/lib" >> "$GITHUB_ENV"
-      - run: cargo fmt --manifest-path apps/vision/Cargo.toml --check
-      - run: cargo clippy --manifest-path apps/vision/Cargo.toml --all-targets --locked -- -D warnings
-      - run: cargo test --manifest-path apps/vision/Cargo.toml --locked
+      - run: hk check --all --step cargo-fmt --step clippy
+      - run: mise run test:rust
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true

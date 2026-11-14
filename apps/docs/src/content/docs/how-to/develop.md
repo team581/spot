@@ -40,9 +40,8 @@ mise run dev:jetson
 ## Check a change
 
 ```sh
-mise run format:fix
-mise run lint
-mise run typecheck
+mise run fix
+mise run check
 mise run test
 ```
 

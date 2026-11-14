@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Tools come from the setup actions, so mise only runs tasks.
+  MISE_TASK_RUN_AUTO_INSTALL: false
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -25,10 +29,6 @@ jobs:
       - uses: jdx/mise-action@v5.2.8
         with:
           install_args: hk pkl rust
-      - run: hk fix --all --step pkl-format
-        continue-on-error: true
-      - run: hk validate
-        continue-on-error: true
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -61,11 +61,7 @@ jobs:
         continue-on-error: true
       - run: pnpm --filter spot-docs generate:schema
         continue-on-error: true
-      - run: pnpm format:fix
-        continue-on-error: true
-      - run: pnpm lint:fix
-        continue-on-error: true
-      - run: cargo fmt --manifest-path apps/vision/Cargo.toml
+      - run: hk fix --all --step pkl-format --step oxfmt --step vp-lint --step oxlint --step cargo-fmt
         continue-on-error: true
       - name: Run autofix.ci
         uses: autofix-ci/action@v1.3.4
