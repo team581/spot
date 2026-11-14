@@ -6,7 +6,7 @@ description: Install Spot on a Jetson Orin Nano and get it publishing estimates 
 import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
 
 This guide takes a Jetson Orin Nano in a **Seeed reComputer Robotics J401** carrier from a blank drive to publishing estimates to robot code.
-Installing erases the target drive.
+Installing erases the NVMe drive.
 
 :::danger
 Never flash NVIDIA developer-kit firmware onto the J401.
@@ -74,27 +74,22 @@ Write the image to a USB drive.
 
 ## Install
 
-1. Boot the Jetson from the USB drive.
-2. Partition the target drive with a FAT32 EFI partition labeled `SPOT_EFI` and an ext4 root partition labeled `SPOT_ROOT`.
-   For an NVMe drive:
+1. Connect a USB serial adapter to the Jetson's debug UART and open it at 115200 baud.
+   On macOS:
 
    ```sh
-   sudo parted /dev/nvme0n1 -- mklabel gpt mkpart ESP fat32 1MiB 1GiB set 1 esp on mkpart root ext4 1GiB 100%
-   sudo mkfs.fat -F 32 -n SPOT_EFI /dev/nvme0n1p1
-   sudo mkfs.ext4 -L SPOT_ROOT /dev/nvme0n1p2
+   screen /dev/tty.usbserial-* 115200
    ```
 
-3. Mount them and install:
-
-   ```sh
-   sudo mount /dev/disk/by-label/SPOT_ROOT /mnt
-   sudo mount --mkdir /dev/disk/by-label/SPOT_EFI /mnt/boot
-   sudo spot-install --root /mnt
-   ```
-
-4. Remove the USB drive and reboot.
+2. Plug in the USB drive and power on the Jetson.
+   A Jetson without an installed system boots from the USB drive on its own.
+   To reinstall one, press Esc when the firmware offers it, then choose the USB drive in **Boot Manager**.
+3. The installer starts on its own.
+   Type `yes` to erase the NVMe drive and install Spot.
+4. When the install finishes, remove the USB drive and press Enter to reboot.
 
 Spot starts on boot.
+If the installer stops before finishing, run `sudo spot-install` to start it again.
 
 ## Connect to the robot
 

@@ -11,6 +11,10 @@
       url = "github:anduril/jetpack-nixos";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -18,6 +22,7 @@
       self,
       nixpkgs,
       jetpack,
+      disko,
       ...
     }:
     let
@@ -50,13 +55,28 @@
                 environment.systemPackages = [
                   (pkgs.writeShellApplication {
                     name = "spot-install";
-                    runtimeInputs = [ pkgs.nixos-install ];
+                    runtimeInputs = [
+                      pkgs.nixos-install
+                      host.config.system.build.destroyFormatMount
+                    ];
                     text = ''
-                      exec nixos-install --system ${host.config.system.build.toplevel} \
-                        --no-channel-copy --no-root-passwd --option substituters "" "$@"
+                      disko-destroy-format-mount
+                      nixos-install --system ${host.config.system.build.toplevel} \
+                        --no-channel-copy --no-root-passwd --option substituters ""
+                      read -rp "Spot is installed. Remove the USB drive and press Enter to reboot."
+                      reboot
                     '';
                   })
                 ];
+                # Start the installer on the consoles the ISO logs in to automatically: the screen and the
+                # serial console.
+                environment.loginShellInit = ''
+                  case "$(tty)" in
+                    /dev/tty1 | /dev/ttyTCU0)
+                      sudo spot-install || echo "Spot wasn't installed. Run 'sudo spot-install' to try again."
+                      ;;
+                  esac
+                '';
               }
             )
           ];
@@ -69,6 +89,7 @@
         specialArgs = { inherit packageFor; };
         modules = [
           jetpack.nixosModules.default
+          disko.nixosModules.disko
           self.nixosModules.spot
           ./nix/hosts/spot/configuration.nix
           {
