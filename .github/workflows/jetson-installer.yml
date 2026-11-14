@@ -28,7 +28,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: 8bb70056a503857d02b48fc5db648f61
       R2_BUCKET: spot-jetson-images
     steps:
-      - uses: useblacksmith/checkout@v1.8.2
+      - uses: useblacksmith/checkout@v1.8.3
         with:
           persist-credentials: false
       - name: Mount Nix cache
