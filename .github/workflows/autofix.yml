@@ -28,7 +28,7 @@ jobs:
       - uses: useblacksmith/checkout@v1.8.2
       - uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
-          cache: false
+          cache-workspaces: apps/vision
       - uses: jdx/mise-action@v5.2.8
         with:
           install_args: hk pkl shfmt
