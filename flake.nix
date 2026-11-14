@@ -48,6 +48,8 @@
               {
                 nixpkgs.buildPlatform = system;
                 hardware.enableAllHardware = lib.mkForce false;
+                # The installer only runs on Spot's board, which needs only the host's firmware.
+                hardware.enableRedistributableFirmware = false;
                 # Install the bundled system without general-purpose installer payloads.
                 boot.supportedFilesystems.zfs = lib.mkForce false;
                 system.installer.channel.enable = false;
