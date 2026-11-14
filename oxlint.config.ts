@@ -154,6 +154,8 @@ export default defineConfig({
 			},
 		],
 		'typescript/no-non-null-asserted-optional-chain': 'error',
+		// Pedantic, but catches deprecated APIs that type-checking allows.
+		'typescript/no-deprecated': 'error',
 		'one-var': ['warn', 'never'],
 	},
 });
