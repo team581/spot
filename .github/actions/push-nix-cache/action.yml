@@ -28,14 +28,15 @@ runs:
         key=$(mktemp)
         trap 'rm -f "$key"' EXIT
         printf '%s\n' "$SIGNING_KEY" > "$key"
-        # Build inputs let a local build that changes one package reuse the rest. Paths signed by another cache are
-        # skipped. Every other path is uploaded each time, so one the bucket expired while still in use comes back.
+        # Build inputs let a local build that changes one package reuse the rest. Only paths built here (`ultimate`)
+        # or downloaded from this cache are uploaded, not ones from other caches or registered by the Nix installer.
+        # They're uploaded each time, so one the bucket expired while still in use comes back.
         # The ISO is skipped because it's published separately and is several GiB.
         mapfile -t paths < <(
           nix-store -qR --include-outputs "$(nix-store -qd "$ROOT")" |
             grep -v -e '\.drv$' -e '\.iso$' |
             xargs nix path-info --sigs |
-            awk '{ for (i = 2; i <= NF; i++) if ($i !~ /^nix\.spot\.frc581\.com-1:/) next; print $1 }'
+            awk 'NF > 1 { for (i = 2; i <= NF; i++) if ($i != "ultimate" && $i !~ /^nix\.spot\.frc581\.com-1:/) next; print $1 }'
         )
         echo "Uploading ${#paths[@]} paths"
         nix copy --to "s3://spot-nix-cache?endpoint=8bb70056a503857d02b48fc5db648f61.r2.cloudflarestorage.com&region=auto&compression=zstd&multipart-upload=true&secret-key=$key" "${paths[@]}"
