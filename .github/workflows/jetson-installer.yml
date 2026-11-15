@@ -46,6 +46,10 @@ jobs:
           extra-conf: |
             keep-derivations = true
             keep-outputs = true
+            # Use the flake's binary cache.
+            accept-flake-config = true
+            # Build a path if the cache lists it but no longer has its contents.
+            fallback = true
       - name: Build offline installer
         run: |
           root=/nix/var/nix/gcroots/spot-ci/installer
@@ -78,6 +82,14 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
+      - name: Push Nix cache
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        uses: ./.github/actions/push-nix-cache
+        with:
+          root: /nix/var/nix/gcroots/spot-ci/installer
+          access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
       - name: Garbage collect the Nix cache
         if: ${{ github.ref_name == github.event.repository.default_branch }}
         run: |

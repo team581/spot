@@ -51,6 +51,10 @@ jobs:
           extra-conf: |
             keep-derivations = true
             keep-outputs = true
+            # Use the flake's binary cache.
+            accept-flake-config = true
+            # Build a path if the cache lists it but no longer has its contents.
+            fallback = true
       - name: Install OpenCV
         run: |
           root=/nix/var/nix/gcroots/spot-ci/opencv

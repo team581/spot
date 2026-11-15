@@ -21,6 +21,13 @@ builders = ssh-ng://builder@linux-builder aarch64-linux /etc/nix/builder_ed25519
 builders-use-substitutes = true
 EOF
 fi
+# Nix ignores the flake's binary cache for users it doesn't trust, so add it for everyone.
+if ! grep -q 'nix.spot.frc581.com' "$conf"; then
+  sudo tee -a "$conf" >/dev/null <<'EOF'
+extra-substituters = https://nix.spot.frc581.com
+extra-trusted-public-keys = nix.spot.frc581.com-1:mmw20K4h4s91M+Ukc1ZuOB2Su3L5AhfaSFDcU+TTQ4E=
+EOF
+fi
 
 if [ -d /etc/determinate ]; then
   # Determinate's Native Linux Builder can't build jetpack-nixos, so keep it from taking jobs.

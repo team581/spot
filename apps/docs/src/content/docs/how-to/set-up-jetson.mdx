@@ -34,7 +34,7 @@ To build one from another commit, run the **Jetson offline installer** workflow 
     Nix sends the Linux builds to a NixOS VM, which uses 8 CPUs, 16 GiB of RAM, and up to 40 GiB of disk.
     Free at least 60 GiB on the Mac's disk.
 
-    With [Nix](https://nixos.org/download/) installed, configure it to use the VM once.
+    With [Nix](https://nixos.org/download/) installed, configure it once to use the VM and the binary cache CI uploads to.
     This asks for your password:
 
     ```sh
@@ -64,6 +64,10 @@ To build one from another commit, run the **Jetson offline installer** workflow 
     ```sh
     nix build path:.#installer
     ```
+
+    Accept the flake's `nixConfig` when Nix asks, so it downloads what CI built from `https://nix.spot.frc581.com`.
+    Nix only offers this to [trusted users](https://nix.dev/manual/nix/stable/command-ref/conf-file.html#conf-trusted-users).
+    Otherwise, add the `nixConfig` settings from `flake.nix` to `/etc/nix/nix.conf`.
 
     The image is written to `result/iso/`.
 

@@ -1,6 +1,14 @@
 {
   description = "Team 581 Spot vision appliance";
 
+  # CI uploads what it builds from main here.
+  nixConfig = {
+    extra-substituters = [ "https://nix.spot.frc581.com" ];
+    extra-trusted-public-keys = [
+      "nix.spot.frc581.com-1:mmw20K4h4s91M+Ukc1ZuOB2Su3L5AhfaSFDcU+TTQ4E="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     pnpm2nix = {

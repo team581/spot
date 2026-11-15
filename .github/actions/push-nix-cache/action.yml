@@ -1,0 +1,41 @@
+name: Push Nix cache
+description: Upload what a GC root needed that no other cache provides to the shared binary cache.
+
+inputs:
+  root:
+    description: GC root whose build inputs and outputs are uploaded
+    required: true
+  access-key-id:
+    description: R2 access key ID
+    required: true
+  secret-access-key:
+    description: R2 secret access key
+    required: true
+  signing-key:
+    description: Secret key for nix.spot.frc581.com-1
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+        SIGNING_KEY: ${{ inputs.signing-key }}
+      run: |
+        key=$(mktemp)
+        trap 'rm -f "$key"' EXIT
+        printf '%s\n' "$SIGNING_KEY" > "$key"
+        # Build inputs let a local build that changes one package reuse the rest. Paths signed by another cache are
+        # skipped. Every other path is uploaded each time, so one the bucket expired while still in use comes back.
+        # The ISO is skipped because it's published separately and is several GiB.
+        mapfile -t paths < <(
+          nix-store -qR --include-outputs "$(nix-store -qd "$ROOT")" |
+            grep -v -e '\.drv$' -e '\.iso$' |
+            xargs nix path-info --sigs |
+            awk '{ for (i = 2; i <= NF; i++) if ($i !~ /^nix\.spot\.frc581\.com-1:/) next; print $1 }'
+        )
+        echo "Uploading ${#paths[@]} paths"
+        nix copy --to "s3://spot-nix-cache?endpoint=8bb70056a503857d02b48fc5db648f61.r2.cloudflarestorage.com&region=auto&compression=zstd&multipart-upload=true&secret-key=$key" "${paths[@]}"
