@@ -3,7 +3,13 @@ title: Preview camera mounts in VS Code
 description: Check spot.toml camera mounts in a 3D preview without a robot.
 ---
 
-1. Install **Spot Camera Preview** (`team581.spot-camera-preview`) and **Even Better TOML** from the VS Code Marketplace.
+import { LinkButton } from '@astrojs/starlight/components';
+
+<LinkButton href="vscode:extension/team581.spot-camera-preview" icon="vscode" iconPlacement="start">
+	Install in VS Code
+</LinkButton>
+
+1. Install [Spot Camera Preview](https://marketplace.visualstudio.com/items?itemName=team581.spot-camera-preview) and [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) from the VS Code Marketplace.
 2. Open the robot project as a trusted workspace.
 3. Open `src/main/deploy/spot.toml`.
    The preview opens beside it.
