@@ -300,9 +300,9 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cc"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ff2a8126fff0f8c839080d619675a585e61720bb12d2baceae45769fd66f155"
+checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
 dependencies = [
  "find-msvc-tools",
  "shlex 2.0.1",
@@ -689,9 +689,9 @@ dependencies = [
 
 [[package]]
 name = "foxglove"
-version = "0.30.3"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8de8979ff86a88b1a6bf783b931c42b8a52a7d1ca5f9121b9412dd7ac40cfdb"
+checksum = "a7d50ee32b625ac5bb71933b7fcf249fbdc17ebbfc0e30a49d604506a13d0d16"
 dependencies = [
  "arc-swap",
  "base64",
