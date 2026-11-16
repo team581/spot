@@ -73,6 +73,12 @@
 				}
 			]
 		},
+		"tomlValidation": [
+			{
+				"fileMatch": "spot.toml",
+				"url": "https://spot.frc581.com/spot-config.schema.json"
+			}
+		],
 		"configuration": {
 			"title": "Spot Camera Preview",
 			"properties": {

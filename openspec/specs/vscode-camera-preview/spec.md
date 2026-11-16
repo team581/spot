@@ -32,3 +32,12 @@ The preview SHALL warn when a camera's mode has no calibration.
 
 - **WHEN** a camera's `mode` resolution has no entry in `calibrations`
 - **THEN** the preview shows a warning for that camera
+
+### Requirement: Schema for spot.toml
+
+The extension SHALL associate every file named `spot.toml` with the published Spot JSON Schema for Even Better TOML.
+
+#### Scenario: No schema line
+
+- **WHEN** a user with Even Better TOML opens `spot.toml` without a `#:schema` line
+- **THEN** the editor validates and completes keys against the schema
