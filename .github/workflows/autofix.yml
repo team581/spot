@@ -26,11 +26,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2604-arm
     timeout-minutes: 15
     steps:
-      - uses: useblacksmith/checkout@v1.8.2
+      - uses: useblacksmith/checkout@v1.8.3
       - uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           cache-workspaces: apps/vision
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           install_args: hk pkl shfmt
       - uses: voidzero-dev/setup-vp@v1.22.0
