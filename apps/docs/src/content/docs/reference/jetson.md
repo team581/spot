@@ -1,6 +1,6 @@
 ---
 title: Jetson
-description: Spot's hardware, addresses, ports, files, and recordings.
+description: Spot's hardware, firmware, addresses, ports, files, and recordings.
 ---
 
 ## Hardware
@@ -11,6 +11,25 @@ description: Spot's hardware, addresses, ports, files, and recordings.
 | Cameras  | [Swyft USB camera](https://swyftrobotics.com/electrical/swyft-usb-camera): OV9281 global shutter, mono, MJPEG, 1280×800 at 120 FPS |
 
 Spot uses UVC cameras over V4L2, MJPEG only.
+
+## Firmware
+
+| Item    | Value                                                                       |
+| ------- | --------------------------------------------------------------------------- |
+| Release | Seeed JetPack 7.2 for the J401 with an Orin Nano 8GB                        |
+| Version | `39.2.0-gcid-45755727`, in `/sys/class/dmi/id/bios_version`                 |
+| Image   | `mfi_recomputer-robo-orin-nano-8g-j401-gmsl-7.2.0-39.2.0-2026-06-22.tar.gz` |
+| SHA-256 | `23b68b43e630d166e5079f72509c71ea0e13f76e372ddd06fe22df5494ad3f41`          |
+
+## Debug port
+
+The USB 2.0 Type-C port, labeled Device Mode/Debug, is the only port that can flash the J401.
+The DIP switch next to it sets what the port connects to:
+
+| Position     | Port connects to                                  | On power-up          |
+| ------------ | ------------------------------------------------- | -------------------- |
+| Debug        | Serial console (Silicon Labs CP210x), 115200 baud | Boots normally       |
+| RESET or REC | The Jetson's USB, as `0955:7523 NVIDIA Corp. APX` | Enters recovery mode |
 
 ## Network
 

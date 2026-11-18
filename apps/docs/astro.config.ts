@@ -42,6 +42,7 @@ export default defineConfig({
 					label: 'How-to guides',
 					items: [
 						'how-to/set-up-jetson',
+						'how-to/update-firmware',
 						'how-to/add-camera',
 						'how-to/calibrate',
 						'how-to/save-dashboard-changes',
