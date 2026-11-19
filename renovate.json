@@ -1,7 +1,11 @@
 {
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended", ":disableRateLimiting", ":automergeBranch", ":prNotPending", "schedule:daily"],
-	"timezone": "America/Los_Angeles",
+	"gitIgnoredAuthors": ["114827586+autofix-ci[bot]@users.noreply.github.com"],
+	"labels": ["dependencies"],
+	"nix": {
+		"enabled": true
+	},
 	"packageRules": [
 		{
 			"groupName": "dashboard dependencies",
@@ -44,16 +48,15 @@
 			"separateMajorMinor": true
 		},
 		{
+			"automerge": true,
 			"description": "Automerge non-major updates covered by CI",
 			"matchManagers": ["npm", "github-actions", "mise", "asdf"],
-			"matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
-			"automerge": true
+			"matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"]
 		},
 		{
 			"matchDatasources": ["npm"],
 			"minimumReleaseAge": "24 hours"
 		}
 	],
-	"gitIgnoredAuthors": ["114827586+autofix-ci[bot]@users.noreply.github.com"],
-	"labels": ["dependencies"]
+	"timezone": "America/Los_Angeles"
 }
