@@ -35,6 +35,7 @@
 		{
 			"groupName": "Nix dependencies",
 			"matchManagers": ["nix"],
+			"semanticCommitType": "fix",
 			"separateMajorMinor": true
 		},
 		{
