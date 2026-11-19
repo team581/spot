@@ -1,7 +1,7 @@
 {
 	"name": "spot-camera-preview",
 	"displayName": "Spot Camera Preview",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"description": "Preview Spot camera mounts from a robot project's spot.toml",
 	"categories": [
 		"Visualization"

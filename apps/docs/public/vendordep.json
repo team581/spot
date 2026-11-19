@@ -1,7 +1,7 @@
 {
 	"fileName": "Spot.json",
 	"name": "Spot",
-	"version": "2026.0.1",
+	"version": "2026.1.0",
 	"frcYear": "2026",
 	"uuid": "aef2be80-9619-425f-9860-6f8fab1f47d7",
 	"mavenUrls": [
@@ -12,7 +12,7 @@
 		{
 			"groupId": "com.team581",
 			"artifactId": "spot",
-			"version": "2026.0.1"
+			"version": "2026.1.0"
 		}
 	],
 	"jniDependencies": [],
