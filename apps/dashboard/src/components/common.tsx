@@ -57,8 +57,26 @@ export function StateBadge({ state }: { state: CameraState }) {
 	);
 }
 
-/** Links the Git commit Spot was built from, highlighting builds with uncommitted changes. */
-export function Revision({ revision }: { revision: string }) {
+/**
+ * Links the release Spot was built from, or for other builds its Git commit, highlighting builds with
+ * uncommitted changes.
+ */
+export function BuildVersion({ version, revision }: { version?: string | null; revision?: string | null }) {
+	if (version) {
+		return (
+			<a
+				href={`https://github.com/team581/spot/releases/tag/spot-v${version}`}
+				target="_blank"
+				rel="noreferrer"
+				className="underline-offset-4 hover:underline"
+			>
+				v{version}
+			</a>
+		);
+	}
+	if (!revision) {
+		return null;
+	}
 	const dirty = revision.endsWith('-dirty');
 	return (
 		<a

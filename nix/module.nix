@@ -18,6 +18,7 @@ in
       type = lib.types.package;
       description = "Built dashboard (`dashboard/`) and documentation (`jetson-docs/`).";
     };
+    release = lib.mkEnableOption "reporting this build as a stable release, by its version instead of its commit";
     revision = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -108,6 +109,7 @@ in
             "--listen"
             "0.0.0.0:${toString port}"
           ]) cfg.ports
+          ++ lib.optional cfg.release "--release"
           ++ lib.optionals (cfg.revision != null) [
             "--revision"
             cfg.revision

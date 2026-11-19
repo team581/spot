@@ -1,5 +1,5 @@
 import { useStatus, useSystem } from '../queries';
-import { DataList, ErrorText, PageTitle, Panel, Revision, StateBadge } from '../components/common';
+import { BuildVersion, DataList, ErrorText, PageTitle, Panel, StateBadge } from '../components/common';
 import { commitDate, fmt } from '../format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -32,7 +32,12 @@ export default function System() {
 							Disk: percent(system?.disk_percent),
 							Fan: system?.fan_rpm == null ? '—' : `${fmt(system.fan_rpm, 0)} RPM`,
 							Uptime: uptime(system?.uptime_s),
-							Version: status?.revision ? <Revision revision={status.revision} /> : '—',
+							Version:
+								status?.version || status?.revision ? (
+									<BuildVersion version={status.version} revision={status.revision} />
+								) : (
+									'—'
+								),
 							'Commit date': status?.commit_time == null ? '—' : commitDate(status.commit_time),
 						}}
 					/>

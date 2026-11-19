@@ -50,6 +50,9 @@ enum Command {
         /// Team number to use until one is set on the dashboard.
         #[arg(long)]
         team: Option<u16>,
+        /// Report this build as a stable release, by its version instead of its commit.
+        #[arg(long)]
+        release: bool,
         /// Short Git commit this build came from.
         #[arg(long)]
         revision: Option<String>,
@@ -94,6 +97,7 @@ async fn main() -> anyhow::Result<()> {
             web_dir,
             docs_dir,
             team,
+            release,
             revision,
             commit_time,
             replay,
@@ -105,7 +109,8 @@ async fn main() -> anyhow::Result<()> {
                 .with(tracing_subscriber::fmt::layer().with_filter(filter()))
                 .with(recording::LogLayer(recorder.clone()).with_filter(filter()))
                 .init();
-            let build = app::Build { revision, commit_time };
+            let version = release.then_some(env!("CARGO_PKG_VERSION"));
+            let build = app::Build { version, revision, commit_time };
             let app = app::App::new(&state_dir, replay.as_deref(), team, build, recorder);
             app.start();
             let router = api::app(app, web_dir.as_deref(), docs_dir.as_deref());

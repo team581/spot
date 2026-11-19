@@ -25,8 +25,10 @@ use crate::processor::Processing;
 use crate::recording::Recorder;
 use crate::structs;
 
-/// Where this build came from, when it was built from a Git checkout.
+/// Where this build came from.
 pub struct Build {
+    /// Release version, for stable releases.
+    pub version: Option<&'static str>,
     /// Short commit, with `-dirty` when built from uncommitted changes.
     pub revision: Option<String>,
     /// Unix time of the commit.
@@ -343,7 +345,7 @@ impl App {
         let (state, error) = self.state(&inner);
         self.recorder.tick();
         let status = structs::spot_status(
-            self.build.revision.as_deref().unwrap_or_default(),
+            self.build.version.or(self.build.revision.as_deref()).unwrap_or_default(),
             state,
             !inner.overrides.is_empty(),
         );
@@ -376,6 +378,7 @@ impl App {
         let (state, error) = self.state(&inner);
         let nt = self.nt();
         Status {
+            version: self.build.version.map(str::to_owned),
             revision: self.build.revision.clone(),
             commit_time: self.build.commit_time,
             state,
@@ -666,6 +669,8 @@ impl nt::Handler for Arc<App> {
 
 #[derive(Serialize, ToSchema)]
 pub struct Status {
+    /// Release version, for stable releases.
+    pub version: Option<String>,
     /// Short Git commit Spot was built from, with `-dirty` for uncommitted changes.
     pub revision: Option<String>,
     /// Unix time of that commit.

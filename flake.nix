@@ -44,7 +44,7 @@
       packageFor = pkgs: import ./nix/packages.nix { inherit inputs pkgs; };
       host = self.nixosConfigurations.spot;
       installerFor =
-        system:
+        system: target:
         lib.nixosSystem {
           modules = [
             "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
@@ -62,17 +62,17 @@
                 boot.supportedFilesystems.zfs = lib.mkForce false;
                 system.installer.channel.enable = false;
                 documentation.nixos.enable = lib.mkForce false;
-                isoImage.storeContents = [ host.config.system.build.toplevel ];
+                isoImage.storeContents = [ target.config.system.build.toplevel ];
                 environment.systemPackages = [
                   (pkgs.writeShellApplication {
                     name = "spot-install";
                     runtimeInputs = [
                       pkgs.nixos-install
-                      host.config.system.build.destroyFormatMount
+                      target.config.system.build.destroyFormatMount
                     ];
                     text = ''
                       disko-destroy-format-mount
-                      nixos-install --system ${host.config.system.build.toplevel} \
+                      nixos-install --system ${target.config.system.build.toplevel} \
                         --no-channel-copy --no-root-passwd --option substituters ""
                       read -rp "Spot is installed. Remove the USB drive and press Enter to reboot."
                       reboot
@@ -140,7 +140,12 @@
           };
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          installer = (installerFor system).config.system.build.isoImage;
+          installer = (installerFor system host).config.system.build.isoImage;
+          # Only the release workflow builds this, from a release tag.
+          release-installer =
+            (installerFor system (
+              host.extendModules { modules = [ { services.spot-vision.release = true; } ]; }
+            )).config.system.build.isoImage;
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # Remote builder VM for building the Linux outputs on macOS.

@@ -608,6 +608,8 @@ export interface components {
 			/** @description Short Git commit Spot was built from, with `-dirty` for uncommitted changes. */
 			revision?: string | null;
 			state: components['schemas']['SpotState'];
+			/** @description Release version, for stable releases. */
+			version?: string | null;
 		};
 		SystemStatus: {
 			/**
