@@ -27,6 +27,7 @@ pub fn devices(dir: &Path) -> Vec<Device> {
                 serial: Some(path.file_stem()?.to_string_lossy().into_owned()),
                 port: None,
                 product: "Replay".into(),
+                serial_writable: false,
                 modes: vec![Mode { width, height, fps: FPS }],
                 controls: Vec::new(),
             })

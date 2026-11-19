@@ -70,6 +70,8 @@ pub fn devices(cache: &mut Cache) -> Vec<Device> {
             port: usb.file_name().map(|n| n.to_string_lossy().into_owned()),
             serial: read(&usb.join("serial")).filter(|s| !s.is_empty()),
             product: read(&usb.join("product")).unwrap_or_else(|| "USB camera".into()),
+            serial_writable: (read(&usb.join("idVendor")), read(&usb.join("idProduct")))
+                == (Some(super::swyft::USB_ID.0.into()), Some(super::swyft::USB_ID.1.into())),
             path,
             modes,
             controls,

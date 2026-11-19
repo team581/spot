@@ -99,6 +99,11 @@ impl Camera {
         matches!(*self.0.capture.lock().unwrap(), Ok(true))
     }
 
+    /// Whether capture has let go of its device, after a change of target.
+    pub fn idle(&self) -> bool {
+        matches!(*self.0.capture.lock().unwrap(), Ok(false))
+    }
+
     /// The latest capture or processing problem.
     pub fn error(&self) -> Option<String> {
         if let Err(error) = &*self.0.capture.lock().unwrap() {
@@ -165,6 +170,8 @@ fn capture_loop(shared: &Shared) {
                 Err(error) => break Err(error),
             }
         };
+        // Close the device before reporting idle, so nothing else touches it while it's open.
+        drop(source);
         match result {
             Ok(()) => *shared.capture.lock().unwrap() = Ok(false),
             Err(error) => {

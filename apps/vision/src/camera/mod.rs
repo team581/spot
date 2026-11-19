@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use crate::config::{Controls, Mode};
 
 mod replay;
+pub mod swyft;
 #[cfg(target_os = "linux")]
 mod v4l2;
 
@@ -26,6 +27,8 @@ pub struct Device {
     /// USB port path, such as `1-2.2`.
     pub port: Option<String>,
     pub product: String,
+    /// Whether Spot can rewrite the serial. Only SWYFT cameras support this.
+    pub serial_writable: bool,
     /// Supported MJPEG modes.
     pub modes: Vec<Mode>,
     pub controls: Vec<ControlRange>,

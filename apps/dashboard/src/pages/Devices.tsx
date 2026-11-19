@@ -1,10 +1,22 @@
 import { useForm, useSelector } from '@tanstack/react-form';
 import { TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import type { CameraConfig, DeviceStatus } from '../api';
 import type { Json } from '../overrides';
-import { useConfig, useDevices, useEditOverrides } from '../queries';
+import { $api, useConfig, useDevices, useEditOverrides } from '../queries';
 import { ErrorText, PageTitle, Panel } from '../components/common';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -74,6 +86,84 @@ function Assign({
 	);
 }
 
+const serialPattern = /^[A-Za-z0-9]{1,48}$/;
+
+/** Writes a new serial to a SWYFT camera's flash. It applies once the camera is replugged. */
+function SetSerial({ device: d }: { device: DeviceStatus }) {
+	const [open, setOpen] = useState(false);
+	const [written, setWritten] = useState<string>();
+	const write = $api.useMutation('post', '/api/devices/serial', {
+		onSuccess: (_, { body }) => {
+			setWritten(body.serial);
+			setOpen(false);
+		},
+	});
+	const form = useForm({
+		defaultValues: { serial: '' },
+		onSubmit: ({ value }) => {
+			write.mutate({ body: { path: d.path, serial: value.serial } });
+		},
+	});
+	const serial = useSelector(form.store, (state) => state.values.serial);
+	return (
+		<>
+			<AlertDialog
+				open={open}
+				onOpenChange={(next) => {
+					setOpen(next);
+					if (next) {
+						form.reset();
+						write.reset();
+					}
+				}}
+			>
+				<AlertDialogTrigger render={<Button variant="link" size="sm" className="ml-2 h-auto p-0 text-accent-text" />}>
+					Set serial
+				</AlertDialogTrigger>
+				<AlertDialogContent>
+					<form
+						className="grid gap-4"
+						onSubmit={(e) => {
+							e.preventDefault();
+							void form.handleSubmit();
+						}}
+					>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Set {d.path} serial</AlertDialogTitle>
+							<AlertDialogDescription>Pauses capture. Replug to apply, then reassign.</AlertDialogDescription>
+						</AlertDialogHeader>
+						<form.Field name="serial">
+							{(field) => (
+								<Input
+									name={field.name}
+									aria-label="New serial"
+									placeholder="FRONT"
+									maxLength={48}
+									value={field.state.value}
+									onBlur={field.handleBlur}
+									onChange={(e) => {
+										field.handleChange(e.target.value);
+									}}
+								/>
+							)}
+						</form.Field>
+						<ErrorText error={serial && !serialPattern.test(serial) ? 'Letters and digits only' : write.error} />
+						<AlertDialogFooter>
+							<AlertDialogCancel disabled={write.isPending}>Cancel</AlertDialogCancel>
+							<AlertDialogAction type="submit" disabled={!serialPattern.test(serial) || write.isPending}>
+								{write.isPending ? 'Writing…' : 'Write'}
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</form>
+				</AlertDialogContent>
+			</AlertDialog>
+			{written && written !== d.serial ? (
+				<p className="text-xs text-muted-foreground">Replug to use {written}</p>
+			) : null}
+		</>
+	);
+}
+
 export default function Devices() {
 	const devices = useDevices().data ?? [];
 	const cameras = useConfig().data?.config?.cameras ?? {};
@@ -93,7 +183,7 @@ export default function Devices() {
 					<TriangleAlert className="text-warning!" />
 					<AlertDescription>
 						Serial {[...shared].join(', ')} is shared by several devices, so those cameras are also matched by USB port.
-						Reflash them with unique serials to move them between ports freely.
+						Give them unique serials to move them between ports freely.
 					</AlertDescription>
 				</Alert>
 			) : null}
@@ -115,8 +205,11 @@ export default function Devices() {
 								<TableRow key={d.path}>
 									<TableCell>{d.path}</TableCell>
 									<TableCell>{d.product}</TableCell>
-									<TableCell className={d.serial && shared.has(d.serial) ? 'text-warning' : undefined}>
-										{d.serial ?? '—'}
+									<TableCell>
+										<span className={d.serial && shared.has(d.serial) ? 'text-warning' : undefined}>
+											{d.serial ?? '—'}
+										</span>
+										{d.serial_writable ? <SetSerial device={d} /> : null}
 									</TableCell>
 									<TableCell>{d.port ?? '—'}</TableCell>
 									<TableCell>{d.camera ?? <span className="text-muted-foreground">Unassigned</span>}</TableCell>

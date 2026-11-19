@@ -12,7 +12,7 @@ use tokio::sync::watch;
 use utoipa::ToSchema;
 
 use crate::calibration::{self, Board, Charuco, Coverage, Solution, View};
-use crate::camera::{Device, Discovery};
+use crate::camera::{self, Device, Discovery};
 use crate::clock::monotonic_us;
 use crate::config::{CameraConfig, FieldLayout, FieldView, RobotConfig};
 use crate::health::{
@@ -82,6 +82,8 @@ struct Inner {
     statuses: Vec<CameraStatus>,
     health: health::Cameras,
     sessions: HashMap<String, Session>,
+    /// The device whose serial is being written; no camera captures from it meanwhile.
+    writing_serial: Option<String>,
 }
 
 /// A camera calibration in progress.
@@ -177,6 +179,7 @@ impl App {
                 statuses: Vec::new(),
                 health: health::Cameras::default(),
                 sessions: HashMap::new(),
+                writing_serial: None,
             }),
         });
         let mut inner = app.inner.lock().unwrap();
@@ -268,7 +271,9 @@ impl App {
         inner.cameras.retain(|name, _| config.cameras.contains_key(name));
         for (name, camera) in &config.cameras {
             let target = Target {
-                device: resolve(&inner.devices, camera).ok(),
+                device: resolve(&inner.devices, camera)
+                    .ok()
+                    .filter(|d| inner.writing_serial.as_ref() != Some(&d.path)),
                 mode: camera.mode,
                 controls: camera.controls.clone(),
             };
@@ -397,6 +402,58 @@ impl App {
                 device: device.clone(),
             })
             .collect()
+    }
+
+    /// Rewrites a SWYFT camera's serial, pausing any camera capturing from it. The new serial
+    /// takes effect when the camera is replugged.
+    pub fn set_serial(self: &Arc<Self>, path: &str, serial: &str) -> Result<(), String> {
+        let users: Vec<String> = {
+            let mut inner = self.inner.lock().unwrap();
+            let Some(device) = inner.devices.iter().find(|d| d.path == path) else {
+                return Err(format!("No camera at {path}"));
+            };
+            if !device.serial_writable {
+                return Err("Spot can only set the serial of SWYFT cameras".into());
+            }
+            if inner.writing_serial.is_some() {
+                return Err("Another camera's serial is being written".into());
+            }
+            let users = match &inner.effective {
+                Some(e) => e
+                    .config
+                    .cameras
+                    .iter()
+                    .filter(|(_, c)| resolve(&inner.devices, c).ok().as_ref() == Some(device))
+                    .map(|(name, _)| name.clone())
+                    .collect(),
+                None => Vec::new(),
+            };
+            inner.writing_serial = Some(path.to_string());
+            self.reconcile(&mut inner);
+            users
+        };
+        // A camera that was failing to open retries within 5 seconds, then sees it has no device.
+        let deadline = Instant::now() + Duration::from_secs(6);
+        let released = loop {
+            let inner = self.inner.lock().unwrap();
+            if users.iter().all(|name| inner.cameras.get(name).is_none_or(Camera::idle)) {
+                break true;
+            }
+            drop(inner);
+            if Instant::now() > deadline {
+                break false;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        let result = if released {
+            camera::swyft::set_serial(path, serial).map_err(|e| format!("{e:#}"))
+        } else {
+            Err(format!("{} didn't stop capturing from {path}", users.join(", ")))
+        };
+        let mut inner = self.inner.lock().unwrap();
+        inner.writing_serial = None;
+        self.reconcile(&mut inner);
+        result
     }
 
     pub fn config(&self) -> ConfigView {
@@ -686,6 +743,7 @@ mod tests {
             serial: Some(serial.into()),
             port: Some(port.into()),
             product: String::new(),
+            serial_writable: false,
             modes: Vec::new(),
             controls: Vec::new(),
         }

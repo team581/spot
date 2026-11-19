@@ -125,6 +125,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/api/devices/serial': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Writes a SWYFT camera's serial to its flash, pausing any camera capturing from it.
+		 *     The camera uses the new serial once it's replugged.
+		 */
+		post: operations['set_serial'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/api/network': {
 		parameters: {
 			query?: never;
@@ -419,6 +439,8 @@ export interface components {
 			port?: string | null;
 			product: string;
 			serial?: string | null;
+			/** @description Whether Spot can rewrite the serial. Only SWYFT cameras support this. */
+			serial_writable: boolean;
 		};
 		DeviceStatus: components['schemas']['Device'] & {
 			/** @description The configured camera using this device. */
@@ -536,6 +558,12 @@ export interface components {
 			cameras?: Record<string, components['schemas']['CameraConfig']>;
 			/** @description Tag IDs that are never used for pose estimation. */
 			ignored_tags?: number[];
+		};
+		SetSerial: {
+			/** @description Device node, from `/api/devices`. */
+			path: string;
+			/** @description 1 to 48 ASCII letters and digits. */
+			serial: string;
 		};
 		/** @description Jetson-local settings, kept out of the robot config. */
 		Settings: {
@@ -835,6 +863,31 @@ export interface operations {
 				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['DeviceStatus'][];
+				};
+			};
+		};
+	};
+	set_serial: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['SetSerial'];
+			};
+		};
+		responses: {
+			204: {
+				headers: Record<string, unknown>;
+				content?: never;
+			};
+			409: {
+				headers: Record<string, unknown>;
+				content: {
+					'text/plain': string;
 				};
 			};
 		};

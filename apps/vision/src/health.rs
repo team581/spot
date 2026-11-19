@@ -205,6 +205,7 @@ mod tests {
             serial: Some("a".into()),
             port: None,
             product: String::new(),
+            serial_writable: false,
             modes: Vec::new(),
             controls: Vec::new(),
         }

@@ -18,7 +18,17 @@ description: Assign a new camera, tune it, and set its mount.
 
 Some cameras ship with identical serial numbers.
 Spot then also matches them by USB port, and the **Devices** page fills in `port` for you.
-Keep those cameras in the same Jetson ports, or reflash them with unique serials.
+Keep those cameras in the same Jetson ports, or give them unique serials.
+
+To give a Swyft USB camera a unique serial:
+
+1. On the **Devices** page, choose **Set serial** next to the camera's serial.
+2. Enter the new serial, using letters and digits, and choose **Write**.
+3. Replug the camera.
+4. Assign the camera again.
+   Spot drops its `port`, since the serial alone now identifies it.
+
+Other cameras need their maker's tool.
 
 ## Check a mount
 

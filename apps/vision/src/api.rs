@@ -28,6 +28,7 @@ fn router() -> OpenApiRouter<Arc<App>> {
     OpenApiRouter::with_openapi(Api::openapi())
         .routes(routes!(status))
         .routes(routes!(devices))
+        .routes(routes!(set_serial))
         .routes(routes!(config))
         .routes(routes!(set_overrides))
         .routes(routes!(settings, set_settings))
@@ -74,6 +75,28 @@ async fn status(State(app): AppState) -> Json<Status> {
 #[utoipa::path(get, path = "/api/devices", responses((status = 200, body = Vec<DeviceStatus>)))]
 async fn devices(State(app): AppState) -> Json<Vec<DeviceStatus>> {
     Json(app.devices())
+}
+
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+struct SetSerial {
+    /// Device node, from `/api/devices`.
+    path: String,
+    /// 1 to 48 ASCII letters and digits.
+    serial: String,
+}
+
+/// Writes a SWYFT camera's serial to its flash, pausing any camera capturing from it.
+/// The camera uses the new serial once it's replugged.
+#[utoipa::path(post, path = "/api/devices/serial", request_body = SetSerial, responses((status = 204), (status = 409, body = String)))]
+async fn set_serial(
+    State(app): AppState,
+    Json(request): Json<SetSerial>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    tokio::task::spawn_blocking(move || app.set_serial(&request.path, &request.serial))
+        .await
+        .map_err(|e| conflict(e.to_string()))?
+        .map_err(conflict)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Robot config, dashboard overrides, and the merged result.

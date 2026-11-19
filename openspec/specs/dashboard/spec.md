@@ -38,6 +38,15 @@ The dashboard SHALL let users assign connected devices to camera names, and set 
 - **WHEN** a user assigns a newly plugged-in device to a name and adjusts its exposure
 - **THEN** both changes are saved as overrides
 
+### Requirement: Setting SWYFT camera serials
+
+The Devices page SHALL let users write a new serial, 1 to 48 letters and digits, to a SWYFT camera's flash. Spot SHALL pause any camera capturing from that device while writing, and SHALL change only the camera's USB config block. Spot MUST refuse camera revisions whose controller or flash it hasn't been verified on.
+
+#### Scenario: Giving a camera a unique serial
+
+- **WHEN** a user sets a SWYFT camera's serial to `FRONT` and replugs it
+- **THEN** the camera enumerates with serial `FRONT`, and its old assignment no longer matches until it's assigned again
+
 ### Requirement: Config page
 
 The Config page SHALL list overrides next to robot code's values, offer the merged config as copyable TOML, and accept pasted TOML to replace the config as overrides.
