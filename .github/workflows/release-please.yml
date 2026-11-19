@@ -13,15 +13,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: release-please
-  cancel-in-progress: false
-
 jobs:
   release-please:
     if: ${{ github.event_name == 'push' }}
     runs-on: blacksmith-4vcpu-ubuntu-2604
     timeout-minutes: 5
+    # Job-level, so a release's installer build doesn't hold up release PR updates.
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -31,6 +31,8 @@ jobs:
       tag_name: ${{ steps.release.outputs['apps/vscode-camera-preview--tag_name'] }}
       java_client_release_created: ${{ steps.release.outputs['packages/java-client--release_created'] }}
       java_client_tag_name: ${{ steps.release.outputs['packages/java-client--tag_name'] }}
+      spot_release_created: ${{ steps.release.outputs.release_created }}
+      spot_tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v5.0.0
         id: release
@@ -125,3 +127,78 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+
+  publish-installer:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.spot_release_created == 'true' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2604-arm
+    timeout-minutes: 180
+    concurrency:
+      # Only runs that commit the sticky disk need to wait for each other.
+      group: nix-cache-${{ github.repository }}-aarch64-linux-commit
+      queue: max
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 8bb70056a503857d02b48fc5db648f61
+      R2_BUCKET: spot-jetson-images
+    steps:
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          ref: ${{ needs.release-please.outputs.spot_tag_name }}
+          persist-credentials: false
+      - name: Mount Nix cache
+        uses: useblacksmith/stickydisk@v1.7.2
+        with:
+          key: ${{ github.repository }}-nix-cache-aarch64-linux
+          path: /nix
+          commit: true
+      - name: Prepare Nix installation
+        run: sudo rm -f /nix/receipt.json
+      - uses: DeterminateSystems/nix-installer-action@v23
+        id: nix
+        with:
+          extra-conf: |
+            keep-derivations = true
+            keep-outputs = true
+            # Use the flake's binary cache.
+            accept-flake-config = true
+            # Build a path if the cache lists it but no longer has its contents.
+            fallback = true
+      - name: Build offline installer
+        run: |
+          root=/nix/var/nix/gcroots/spot-ci/installer
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$(dirname "$root")"
+          nix build .#packages.aarch64-linux.installer -L --cores 8 --max-jobs 2 --out-link "$root"
+          ln -sfn "$root" result
+      - name: Upload latest installer
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ env.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        shell: nix shell --inputs-from path:. nixpkgs#awscli2 --command bash -euo pipefail {0}
+        # Replacing fixed keys retains only the latest release's installer.
+        run: |
+          aws s3 cp result/iso/*.iso "s3://$R2_BUCKET/latest/spot-installer.iso" \
+            --only-show-errors --cache-control no-store
+          sha256sum < result/iso/*.iso | sed 's/-$/spot-installer.iso/' |
+            aws s3 cp - "s3://$R2_BUCKET/latest/spot-installer.iso.sha256" \
+              --content-type text/plain --cache-control no-store
+      - name: Push Nix cache
+        uses: ./.github/actions/push-nix-cache
+        with:
+          root: /nix/var/nix/gcroots/spot-ci/installer
+          access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+      - name: Garbage collect the Nix cache
+        run: |
+          df -h /nix
+          sudo "$(command -v nix-store)" --gc
+          df -h /nix
+      - name: Stop Nix before unmounting the cache
+        if: ${{ always() && steps.nix.outcome == 'success' }}
+        run: sudo systemctl stop nix-daemon.socket determinate-nixd.socket nix-daemon.service

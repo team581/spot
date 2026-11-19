@@ -1,10 +1,30 @@
 {
 	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-	"bootstrap-sha": "2d139625a2470cfa56934950a026ca23807ff8a6",
+	"bootstrap-sha": "4e560f374d79d6a2808839c1db6a381a393aad10",
 	"release-type": "node",
 	"include-component-in-tag": true,
 	"plugins": ["node-workspace"],
 	"packages": {
+		".": {
+			"component": "spot",
+			"release-type": "simple",
+			"initial-version": "2026.0.0",
+			"pull-request-title-pattern": "chore(spot): release ${version}",
+			"exclude-paths": ["apps/vscode-camera-preview", "packages/camera-viewer", "packages/java-client"],
+			"extra-files": [
+				{
+					"type": "toml",
+					"path": "apps/vision/Cargo.toml",
+					"jsonpath": "$.package.version"
+				},
+				{
+					"type": "toml",
+					"path": "apps/vision/Cargo.lock",
+					"jsonpath": "$.package[?(@.name.value==='spot-vision')].version"
+				},
+				"nix/packages.nix"
+			]
+		},
 		"apps/vscode-camera-preview": {
 			"component": "camera-preview",
 			"draft": true,

@@ -1,12 +1,9 @@
 {
 	"rules": [
 		{
-			"id": "expire-installer-after-seven-days",
+			"id": "abort-incomplete-installer-uploads",
 			"enabled": true,
 			"conditions": { "prefix": "latest/" },
-			"deleteObjectsTransition": {
-				"condition": { "type": "Age", "maxAge": 604800 }
-			},
 			"abortMultipartUploadsTransition": {
 				"condition": { "type": "Age", "maxAge": 86400 }
 			}
