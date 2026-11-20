@@ -45,8 +45,11 @@ When a camera has a calibration for its resolution, detection SHALL account for 
 ### Requirement: Measurable detector changes
 
 `spot-vision corpus` SHALL score detection accuracy and speed on labelled frames.
+It SHALL match detections one-to-one by ID and convex-quad intersection over union of at least 0.5, matching complete labels before partial ones.
+Recall and the share of tags with all four corners within one pixel SHALL use all complete labels, including misses, as the denominator.
+Detections matched to partial labels SHALL count neither as hits nor as unmatched detections.
 
 #### Scenario: Evaluating a detector change
 
 - **WHEN** a developer runs `spot-vision corpus`
-- **THEN** it reports accuracy and timing against the labelled frames
+- **THEN** it reports recall, precision, unmatched and ignored detection counts, corner accuracy, and detection timing for the labelled frames
