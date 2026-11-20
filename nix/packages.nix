@@ -90,7 +90,7 @@ let
   );
   web = pkgs.stdenvNoCC.mkDerivation {
     pname = "spot-web";
-    version = "2026.0.0"; # x-release-please-version
+    version = "2026.1.0"; # x-release-please-version
     src = webSource;
     nativeBuildInputs = [
       pkgs.nodejs
@@ -126,7 +126,7 @@ let
   );
   rustArgs = {
     pname = "spot-vision";
-    version = "2026.0.0"; # x-release-please-version
+    version = "2026.1.0"; # x-release-please-version
     src = lib.fileset.toSource {
       root = ../apps/vision;
       fileset = lib.fileset.intersection (lib.fileset.fromSource source) (

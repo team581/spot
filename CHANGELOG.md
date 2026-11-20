@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.1.0](https://github.com/team581/spot/compare/spot-v2026.0.0...spot-v2026.1.0) (2026-11-20)
+
+
+### Features
+
+* **vision:** improve AprilTag corpus scoring ([70dd640](https://github.com/team581/spot/commit/70dd6403ed077bd9b57b6518a3192b28b7b1ba0b))
+
 ## 2026.0.0 (2026-11-19)
 
 
