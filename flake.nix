@@ -1,8 +1,11 @@
 {
   description = "Team 581 Spot vision appliance";
 
-  # CI uploads what it builds from main here.
   nixConfig = {
+    # pnpm2nix has one nested attribute lookup per lockfile line, which
+    # Determinate Nix 3.24.3 and later count toward the evaluation limit.
+    max-call-depth = 20000;
+    # CI uploads what it builds from main here.
     extra-substituters = [ "https://nix.spot.frc581.com" ];
     extra-trusted-public-keys = [
       "nix.spot.frc581.com-1:mmw20K4h4s91M+Ukc1ZuOB2Su3L5AhfaSFDcU+TTQ4E="
