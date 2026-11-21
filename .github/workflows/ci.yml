@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: useblacksmith/checkout@v1.8.3
-      - uses: jdx/mise-action@v5.2.9
+      - uses: jdx/mise-action@v5.2.10
         with:
           install_args: hk pkl
       - run: hk check --all --step pkl-format --step hk-validate
@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: useblacksmith/checkout@v1.8.3
-      - uses: jdx/mise-action@v5.2.9
+      - uses: jdx/mise-action@v5.2.10
         with:
           install_args: hk shellcheck shfmt
       - run: hk check --all --step shfmt --step shellcheck
@@ -97,7 +97,7 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
-      - uses: jdx/mise-action@v5.2.9
+      - uses: jdx/mise-action@v5.2.10
         with:
           install_args: hk
       - name: Check generated Protobuf bindings
@@ -133,7 +133,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           cache-workspaces: apps/vision
-      - uses: jdx/mise-action@v5.2.9
+      - uses: jdx/mise-action@v5.2.10
         with:
           install_args: hk
       - name: Install native Rust dependencies
