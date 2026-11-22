@@ -12,6 +12,17 @@ description: Spot's hardware, firmware, addresses, ports, files, and recordings.
 
 Spot uses UVC cameras over V4L2, MJPEG only.
 
+## USB host ports
+
+| Connectors | Sockets                                | USB 2.0 path                                                             |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------------ |
+| J17/J18    | Two stacked USB-A pairs (four sockets) | One shared 480 Mb/s uplink through the onboard Microchip hub             |
+| J7         | One stacked USB-A pair (two sockets)   | Two direct root ports on the PCIe Renesas controller                     |
+| J19        | USB-C Host/DisplayPort                 | A direct root port on the Jetson, separate from the Microchip hub's port |
+
+The [Seeed Robotics J401 manual](https://files.seeedstudio.com/products/NVIDIA-Jetson/reComputer_robotics_J401_user_manual.pdf#page=13) shows the connector locations in Figure 4. The [schematic](https://files.seeedstudio.com/products/NVIDIA-Jetson/reComputer%20Robotics%20J401_V1.0_SCH.pdf) shows the USB paths on sheets 11-16.
+See [how to wire multiple Swyft cameras](../../how-to/add-camera/#wire-multiple-swyft-cameras).
+
 ## Firmware
 
 | Item    | Value                                                                       |
@@ -23,7 +34,7 @@ Spot uses UVC cameras over V4L2, MJPEG only.
 
 ## Debug port
 
-The USB 2.0 Type-C port, labeled Device Mode/Debug, is the only port that can flash the J401.
+The USB 2.0 Type-C port (J20), labeled Device Mode/Debug, is the only port that can flash the J401.
 The DIP switch next to it sets what the port connects to:
 
 | Position     | Port connects to                                  | On power-up          |

@@ -57,7 +57,10 @@ export default defineConfig({
 					label: 'Reference',
 					items: ['reference/config', 'reference/networktables', 'reference/java-client', 'reference/jetson'],
 				},
-				{ label: 'Explanation', items: ['explanation/pose-estimates', 'explanation/config'] },
+				{
+					label: 'Explanation',
+					items: ['explanation/pose-estimates', 'explanation/usb-camera-bandwidth', 'explanation/config'],
+				},
 			],
 			social: [
 				...(jetson ? [{ icon: 'left-arrow' as const, label: 'Dashboard', href: '/' }] : []),
