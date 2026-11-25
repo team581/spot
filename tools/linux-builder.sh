@@ -18,10 +18,21 @@ if [ "${1:-start}" = stop ]; then
 fi
 
 if ! running; then
+  cert_file=${NIX_SSL_CERT_FILE:-$(nix config show ssl-cert-file)}
+  if [ ! -r "$cert_file" ] || [ ! -s "$cert_file" ]; then
+    echo "The linux-builder VM needs a readable CA bundle; check Nix's ssl-cert-file setting." >&2
+    exit 1
+  fi
   # Installs the VM's SSH key with sudo on the first run.
   nix run "$flake#linux-builder.add-keys"
   echo "Starting the linux-builder VM; its console log is $dir/console.log"
-  QEMU_OPTS="-monitor unix:$dir/monitor.sock,server,nowait" \
+  # The VM mounts its CA bundle from this directory for its entire lifetime.
+  (
+    umask 077
+    mkdir -p "$dir/vm"
+  )
+  NIX_SSL_CERT_FILE="$cert_file" TMPDIR="$dir/vm" USE_TMPDIR=1 \
+    QEMU_OPTS="-monitor unix:$dir/monitor.sock,server,nowait" \
     nohup nix run "$flake#linux-builder.run-builder" >console.log 2>&1 </dev/null &
 fi
 
