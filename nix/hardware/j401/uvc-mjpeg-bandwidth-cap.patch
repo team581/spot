@@ -1,0 +1,21 @@
+--- a/drivers/media/usb/uvc/uvc_video.c
++++ b/drivers/media/usb/uvc/uvc_video.c
+@@ -267,8 +267,18 @@
+ 				     ctrl->dwMaxPayloadTransferSize,
+ 				     stream->maxpsize);
+ 		ctrl->dwMaxPayloadTransferSize = stream->maxpsize;
+ 	}
++
++	/*
++	 * USB 2.0 MJPEG cameras can request far more bandwidth than they use.
++	 * Cap the request at 1536 bytes per microframe so more streams fit.
++	 */
++	if (format->fcc == V4L2_PIX_FMT_MJPEG &&
++	    stream->dev->udev->speed == USB_SPEED_HIGH &&
++	    stream->intf->num_altsetting > 1)
++		ctrl->dwMaxPayloadTransferSize =
++			min_t(u32, ctrl->dwMaxPayloadTransferSize, 1536);
+ }
+ 
+ static size_t uvc_video_ctrl_size(struct uvc_streaming *stream)
+ {

@@ -41,6 +41,13 @@
     # Loading this after mounting a USB root disconnects the onboard hub's devices.
     boot.initrd.kernelModules = [ "onboard_usb_hub" ];
 
+    boot.kernelPatches = [
+      {
+        name = "uvcvideo-mjpeg-bandwidth-cap";
+        patch = ./uvc-mjpeg-bandwidth-cap.patch;
+      }
+    ];
+
     hardware.graphics.enable = true;
     # Preserve the firmware's J401 DTB, including its runtime memory/board fixups.
     hardware.deviceTree.name = lib.mkForce null;
