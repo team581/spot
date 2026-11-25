@@ -691,10 +691,10 @@ fn resolve(devices: &[Device], camera: &CameraConfig) -> Result<Device, (CameraS
 }
 
 impl Sink for App {
-    fn frame(&self, result: &FrameResult) {
-        self.recorder.frame(result);
+    fn frame(&self, result: FrameResult) {
         if let Some(view) = &result.charuco
-            && let Some(session) = self.inner.lock().unwrap().sessions.get_mut(result.camera)
+            && let Some(session) =
+                self.inner.lock().unwrap().sessions.get_mut(result.camera.as_ref())
         {
             session.size = Some((result.width, result.height));
             session.latest = view.clone();
@@ -702,10 +702,12 @@ impl Sink for App {
                 session.auto_capture();
             }
         }
-        let Some(estimate) = &result.estimate else { return };
-        let topic = format!("/Spot/outputs/cameras/{}/estimate", result.camera);
-        let value = NtValue::Raw(structs::spot_estimate(estimate));
-        self.nt().publish(&topic, "struct:SpotEstimate", value, result.monotonic_us);
+        if let Some(estimate) = &result.estimate {
+            let topic = format!("/Spot/outputs/cameras/{}/estimate", result.camera);
+            let value = NtValue::Raw(structs::spot_estimate(estimate));
+            self.nt().publish(&topic, "struct:SpotEstimate", value, result.monotonic_us);
+        }
+        self.recorder.frame(result);
     }
 }
 

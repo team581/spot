@@ -72,45 +72,21 @@ struct Detected {
     corners: [[f64; 2]; 4],
 }
 
-/// The detector for the current image size. On Jetson, each frame is first copied to device
-/// memory, outside the timed calls, as frames arrive from NVJPG.
+/// The detector for the current image size.
 #[derive(Default)]
 struct Runner {
     detector: Option<(apriltag::Detector, (usize, usize))>,
-    #[cfg(feature = "jetson")]
-    device: Option<(usize, *const u8)>,
 }
 
 impl Runner {
-    /// `frame` changes whenever the image does.
-    fn detect(&mut self, pixels: &[u8], size: (usize, usize), frame: usize) -> Vec<Detected> {
+    fn detect(&mut self, pixels: &[u8], size: (usize, usize)) -> Vec<Detected> {
         if self.detector.as_ref().is_none_or(|(_, s)| *s != size) {
             let detector = apriltag::Detector::new(size.0, size.1, apriltag::Config::default());
             self.detector = Some((detector.expect("detector"), size));
-            #[cfg(feature = "jetson")]
-            {
-                self.device = None;
-            }
         }
         let detector = &mut self.detector.as_mut().unwrap().0;
-        #[cfg(feature = "jetson")]
-        let source = {
-            if self.device.is_none_or(|(uploaded, _)| uploaded != frame) {
-                let apriltag::Source::Device { ptr, .. } = detector.upload(pixels).expect("upload")
-                else {
-                    unreachable!()
-                };
-                self.device = Some((frame, ptr));
-            }
-            apriltag::Source::Device { ptr: self.device.unwrap().1, pitch: size.0 }
-        };
-        #[cfg(not(feature = "jetson"))]
-        let source = {
-            let _ = frame;
-            let view = apriltag::ImageView::new(pixels, size.0, size.1, size.0);
-            apriltag::Source::Host(view.expect("image size"))
-        };
-        let tags = detector.detect(&source).expect("detect");
+        let view = apriltag::ImageView::new(pixels, size.0, size.1, size.0).expect("image size");
+        let tags = detector.detect(&view).expect("detect");
         tags.into_iter().map(|t| Detected { id: t.id, corners: t.corners }).collect()
     }
 }
@@ -255,17 +231,17 @@ impl Corpus {
         let dir = self.manifest.parent().unwrap_or(Path::new("."));
         let mut runner = Runner::default();
         let mut groups: BTreeMap<String, Stats> = BTreeMap::new();
-        for (index, frame) in frames.iter().enumerate() {
+        for frame in &frames {
             if self.filter.as_ref().is_some_and(|f| !frame.file.contains(f.as_str())) {
                 continue;
             }
             let (pixels, width, height) = read_pgm(&dir.join(&frame.file))?;
             let size = (width as usize, height as usize);
-            let mut detected = runner.detect(&pixels, size, index);
+            let mut detected = runner.detect(&pixels, size);
             let mut times = Vec::with_capacity(self.repetitions);
             for _ in 0..self.repetitions {
                 let start = Instant::now();
-                detected = runner.detect(&pixels, size, index);
+                detected = runner.detect(&pixels, size);
                 times.push(start.elapsed().as_secs_f64() * 1e3);
             }
             let key = if frame.scenario == "range" {

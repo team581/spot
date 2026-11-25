@@ -19,6 +19,11 @@ Recordings SHALL be MCAP files that open in Foxglove, and the dashboard's live v
 
 A recording SHALL contain each camera's images at up to 30 FPS, tag detections (corners and IDs) and estimates at full rate, camera status, the effective config and field layout at start and on every change, and service logs.
 
+#### Scenario: Recording cannot keep up
+
+- **WHEN** recording I/O fills the bounded recording queue
+- **THEN** Spot skips frames in the recording and live dashboard views rather than blocking camera processing or robot pose publishing, and logs the skipped count
+
 #### Scenario: Config changes mid-match
 
 - **WHEN** the effective config changes during a recording

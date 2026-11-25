@@ -1,16 +1,15 @@
 //! One camera's frame processing: a JPEG in; tags, a pose estimate, and a ChArUco view out.
-//! Jetson builds decode on the NVJPG engine and run the detector's dense stage on the GPU,
-//! straight from NVJPG output in GPU memory.
+//! Jetson builds run the detector's dense stage on the GPU.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use nalgebra::Isometry3;
 
-use crate::apriltag::{self, ImageView, Lens, Source, Tag};
+use crate::apriltag::{self, ImageView, Lens, Tag};
 use crate::calibration::{Charuco, View};
 use crate::config::{Calibration, CameraConfig, FieldLayout, RobotConfig};
-use crate::decode::{Decoder, Pixels};
+use crate::decode;
 use crate::pose::{self, Estimate, TagObservation};
 
 /// How to process a camera's frames.
@@ -59,11 +58,9 @@ pub struct Timings {
     pub pose: Duration,
 }
 
-/// Processes one camera's frames, keeping its decoder and a detector for the current image size
-/// and calibration.
+/// Processes one camera's frames, keeping a detector for the current image size and calibration.
 #[derive(Default)]
 pub struct Processor {
-    decoder: Option<Decoder>,
     detector: Option<Built>,
 }
 
@@ -76,12 +73,7 @@ struct Built {
 impl Processor {
     pub fn process(&mut self, jpeg: &[u8], processing: &Processing) -> anyhow::Result<Processed> {
         let start = Instant::now();
-        let decoder = match &mut self.decoder {
-            Some(decoder) => decoder,
-            None => self.decoder.insert(Decoder::new()?),
-        };
-        // Device pixels are only valid until the next decode, so `gray` doesn't outlive this call.
-        let gray = decoder.decode(jpeg)?;
+        let gray = decode::decode(jpeg)?;
         let decoded = Instant::now();
 
         let size = (gray.width, gray.height);
@@ -101,41 +93,22 @@ impl Processor {
             }),
         };
         let (width, height) = (size.0 as usize, size.1 as usize);
-        let source = match &gray.pixels {
-            Pixels::Host(pixels) => Source::Host(
-                ImageView::new(pixels, width, height, width)
-                    .ok_or_else(|| anyhow::anyhow!("image size mismatch"))?,
-            ),
-            #[cfg(feature = "jetson")]
-            Pixels::Device { ptr, pitch } => Source::Device { ptr: *ptr, pitch: *pitch },
-            #[cfg(not(feature = "jetson"))]
-            Pixels::Device { .. } => anyhow::bail!("device images need the jetson feature"),
-        };
-        let detections = built.detector.detect(&source)?;
+        let view = ImageView::new(&gray.pixels, width, height, width)
+            .ok_or_else(|| anyhow::anyhow!("image size mismatch"))?;
+        let detections = built.detector.detect(&view)?;
         let detected = Instant::now();
 
         let (used_tags, estimate) = estimate(processing, &detections, size);
         let done = Instant::now();
 
         let charuco = match &processing.charuco {
-            Some(charuco) => {
-                let host = match &gray.pixels {
-                    Pixels::Host(pixels) => pixels.as_slice(),
-                    #[cfg(feature = "jetson")]
-                    Pixels::Device { .. } => built.detector.host_pixels(),
-                    #[cfg(not(feature = "jetson"))]
-                    Pixels::Device { .. } => {
-                        unreachable!("only Jetson builds decode to device memory")
-                    }
-                };
-                Some(
-                    charuco
-                        .lock()
-                        .unwrap()
-                        .detect(host, size.0, size.1)
-                        .map_err(|e| anyhow::anyhow!("ChArUco: {e}"))?,
-                )
-            }
+            Some(charuco) => Some(
+                charuco
+                    .lock()
+                    .unwrap()
+                    .detect(&gray.pixels, size.0, size.1)
+                    .map_err(|e| anyhow::anyhow!("ChArUco: {e}"))?,
+            ),
             None => None,
         };
 

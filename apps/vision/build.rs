@@ -1,10 +1,8 @@
-use std::path::Path;
-
 fn main() {
     println!("cargo:rerun-if-changed=cpp");
     charuco();
     if std::env::var_os("CARGO_FEATURE_JETSON").is_some() {
-        jetson();
+        dense();
     }
 }
 
@@ -29,44 +27,6 @@ fn charuco() {
     {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
-}
-
-fn env(name: &str) -> String {
-    println!("cargo:rerun-if-env-changed={name}");
-    std::env::var(name).unwrap_or_else(|_| panic!("{name} must be set for Jetson builds"))
-}
-
-/// NVJPG decoding (Jetson Multimedia API) and the detector's GPU stage.
-fn jetson() {
-    let api = env("SPOT_JETSON_MULTIMEDIA_API");
-    let classes = Path::new(&api).join("samples/common/classes");
-    cc::Build::new()
-        .cpp(true)
-        .std("c++17")
-        .file("cpp/shim/nvjpg.cpp")
-        .files(
-            [
-                "NvJpegDecoder",
-                "NvElement",
-                "NvElementProfiler",
-                "NvLogging",
-                "NvBuffer",
-                "NvBufSurface",
-            ]
-            .map(|name| classes.join(format!("{name}.cpp"))),
-        )
-        .include(Path::new(&api).join("include"))
-        .include(Path::new(&api).join("include/libjpeg-9f"))
-        .warnings(false)
-        .compile("spot_nvjpg");
-    for dir in env("SPOT_NVJPG_LIBRARY_DIRS").split(':') {
-        println!("cargo:rustc-link-search=native={dir}");
-    }
-    for library in ["nvmm_jpeg", "nvbufsurface", "nvbufsurftransform", "cuda"] {
-        println!("cargo:rustc-link-lib=dylib={library}");
-    }
-
-    dense();
 }
 
 /// The tag detector's dense stage.

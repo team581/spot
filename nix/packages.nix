@@ -3,13 +3,6 @@ let
   inherit (pkgs) lib;
   opencv = pkgs.callPackage ./opencv.nix { };
   jetson = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64;
-  # Headers and decoder classes for the NVJPG engine (Jetson Multimedia API).
-  jetsonMultimediaApi =
-    pkgs.runCommand "jetson-multimedia-api" { nativeBuildInputs = [ pkgs.dpkg ]; }
-      ''
-        dpkg -x ${pkgs.nvidia-jetpack.debs.common.nvidia-l4t-jetson-multimedia-api.src} source
-        mv source/usr/src/jetson_multimedia_api $out
-      '';
   source = lib.cleanSourceWith {
     src = ../.;
     filter =
@@ -157,13 +150,7 @@ let
     ++ lib.optionals jetson [
       pkgs.cudaPackages.cuda_cudart
       pkgs.cudaPackages.cuda_cccl
-      pkgs.nvidia-jetpack.l4t-cuda
-      pkgs.nvidia-jetpack.l4t-multimedia
     ];
-    env = lib.optionalAttrs jetson {
-      SPOT_JETSON_MULTIMEDIA_API = "${jetsonMultimediaApi}";
-      SPOT_NVJPG_LIBRARY_DIRS = "${pkgs.nvidia-jetpack.l4t-multimedia}/lib:${pkgs.nvidia-jetpack.l4t-cuda}/lib";
-    };
     # CI runs the tests; Jetson tests would also need the GPU.
     doCheck = false;
   };

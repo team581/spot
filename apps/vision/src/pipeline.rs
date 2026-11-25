@@ -20,13 +20,13 @@ pub struct Target {
     pub controls: Controls,
 }
 
-pub struct FrameResult<'a> {
-    pub camera: &'a str,
+pub struct FrameResult {
+    pub camera: Arc<str>,
     pub monotonic_us: i64,
-    pub jpeg: &'a [u8],
+    pub jpeg: Vec<u8>,
     pub width: u32,
     pub height: u32,
-    pub detections: &'a [Tag],
+    pub detections: Vec<Tag>,
     /// Tags used for the estimate.
     pub used_tags: Vec<u32>,
     pub estimate: Option<Estimate>,
@@ -34,7 +34,7 @@ pub struct FrameResult<'a> {
 }
 
 pub trait Sink: Send + Sync + 'static {
-    fn frame(&self, result: &FrameResult);
+    fn frame(&self, result: FrameResult);
 }
 
 #[derive(Default)]
@@ -45,7 +45,7 @@ pub struct Counters {
 }
 
 struct Shared {
-    name: String,
+    name: Arc<str>,
     target: Mutex<Target>,
     processing: Mutex<Arc<Processing>>,
     slot: Mutex<Option<Frame>>,
@@ -63,7 +63,7 @@ pub struct Camera(Arc<Shared>);
 impl Camera {
     pub fn start(name: &str, target: Target, processing: Processing, sink: Arc<dyn Sink>) -> Self {
         let shared = Arc::new(Shared {
-            name: name.to_string(),
+            name: name.into(),
             target: Mutex::new(target),
             processing: Mutex::new(Arc::new(processing)),
             slot: Mutex::new(None),
@@ -132,14 +132,14 @@ fn capture_loop(shared: &Shared) {
         let mut source = match camera::open(device, target.mode, &target.controls) {
             Ok(source) => source,
             Err(error) => {
-                tracing::warn!(camera = shared.name, %error, "could not open camera");
+                tracing::warn!(camera = %shared.name, %error, "could not open camera");
                 *shared.capture.lock().unwrap() = Err(format!("{error:#}"));
                 std::thread::sleep(backoff);
                 backoff = (backoff * 2).min(Duration::from_secs(5));
                 continue;
             }
         };
-        tracing::info!(camera = shared.name, device = device.path, mode = %target.mode, "streaming");
+        tracing::info!(camera = %shared.name, device = device.path, mode = %target.mode, "streaming");
         backoff = Duration::from_millis(250);
         let mut controls = target.controls.clone();
         let result = loop {
@@ -154,7 +154,7 @@ fn capture_loop(shared: &Shared) {
                 if current.controls != controls {
                     controls = current.controls.clone();
                     if let Err(error) = source.apply(&controls) {
-                        tracing::warn!(camera = shared.name, %error, "could not set controls");
+                        tracing::warn!(camera = %shared.name, %error, "could not set controls");
                     }
                 }
             }
@@ -175,7 +175,7 @@ fn capture_loop(shared: &Shared) {
         match result {
             Ok(()) => *shared.capture.lock().unwrap() = Ok(false),
             Err(error) => {
-                tracing::warn!(camera = shared.name, %error, "capture stopped");
+                tracing::warn!(camera = %shared.name, %error, "capture stopped");
                 *shared.capture.lock().unwrap() = Err(format!("{error:#}"));
             }
         }
@@ -199,13 +199,13 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
         };
         let processing = shared.processing.lock().unwrap().clone();
         let result = processor.process(&frame.jpeg, &processing).map(|processed| {
-            sink.frame(&FrameResult {
-                camera: &shared.name,
+            sink.frame(FrameResult {
+                camera: shared.name.clone(),
                 monotonic_us: frame.monotonic_us,
-                jpeg: &frame.jpeg,
+                jpeg: frame.jpeg,
                 width: processed.width,
                 height: processed.height,
-                detections: &processed.detections,
+                detections: processed.detections,
                 used_tags: processed.used_tags,
                 estimate: processed.estimate,
                 charuco: processed.charuco,
@@ -216,7 +216,7 @@ fn process_loop(shared: &Shared, sink: &dyn Sink) {
         let mut last = shared.process_error.lock().unwrap();
         if error != *last {
             if let Some(error) = &error {
-                tracing::warn!(camera = shared.name, %error, "could not process frames");
+                tracing::warn!(camera = %shared.name, %error, "could not process frames");
             }
             *last = error;
         }

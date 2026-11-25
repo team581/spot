@@ -8,7 +8,7 @@ publish = false
 default-run = "spot-vision"
 
 [features]
-# NVJPG decoding and the tag detector's GPU stage. Requires the Jetson Multimedia API and CUDA.
+# The tag detector's GPU stage. Requires CUDA.
 jetson = []
 
 [dependencies]

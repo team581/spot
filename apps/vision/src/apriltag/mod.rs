@@ -64,17 +64,6 @@ pub struct Tag {
     pub corners: [[f64; 2]; 4],
 }
 
-/// Where a frame's pixels are.
-pub enum Source<'a> {
-    Host(ImageView<'a>),
-    /// Rows `pitch` bytes apart in CUDA device memory.
-    #[cfg(feature = "jetson")]
-    Device {
-        ptr: *const u8,
-        pitch: usize,
-    },
-}
-
 pub struct Detector {
     config: Config,
     width: usize,
@@ -122,44 +111,17 @@ impl Detector {
         })
     }
 
-    /// Copies a packed host image to device memory, for timing as frames arrive from NVJPG.
-    #[cfg(feature = "jetson")]
-    pub fn upload(&mut self, image: &[u8]) -> anyhow::Result<Source<'static>> {
-        Ok(Source::Device { ptr: self.dense.upload(image)?, pitch: self.width })
-    }
-
     /// Detects tags in a frame of the detector's size.
-    pub fn detect(&mut self, source: &Source) -> anyhow::Result<Vec<Tag>> {
-        let host = match *source {
-            Source::Host(view) => {
-                anyhow::ensure!(
-                    (view.width, view.height) == (self.width, self.height),
-                    "image size mismatch"
-                );
-                #[cfg(feature = "jetson")]
-                {
-                    let device = self.dense.upload(view.data)?;
-                    // SAFETY: `upload` returned a packed device copy of the image.
-                    unsafe { self.dense.run(device, self.width)? };
-                }
-                #[cfg(not(feature = "jetson"))]
-                self.dense.run(
-                    &view,
-                    &self.levels,
-                    self.step,
-                    self.config.min_contrast,
-                    NOISE_FACTOR,
-                );
-                view
-            }
-            #[cfg(feature = "jetson")]
-            Source::Device { ptr, pitch } => {
-                // SAFETY: device frames have the detector's size, as the caller promises.
-                unsafe { self.dense.run(ptr, pitch)? };
-                ImageView::new(self.dense.image(), self.width, self.height, self.width)
-                    .expect("the GPU copy covers the image")
-            }
-        };
+    pub fn detect(&mut self, image: &ImageView) -> anyhow::Result<Vec<Tag>> {
+        anyhow::ensure!(
+            (image.width, image.height) == (self.width, self.height),
+            "image size mismatch"
+        );
+        #[cfg(feature = "jetson")]
+        self.dense.run(image.data)?;
+        #[cfg(not(feature = "jetson"))]
+        self.dense.run(image, &self.levels, self.step, self.config.min_contrast, NOISE_FACTOR);
+
         let mut found: Vec<Found> = Vec::new();
         // Coarse levels first: big tags are found once, and finer levels skip them.
         let mut candidates = std::mem::take(&mut self.candidates);
@@ -176,7 +138,7 @@ impl Detector {
                     continue;
                 }
                 if let Some(f) =
-                    examine(&self.config, &self.codebook, &mut self.points, &host, candidate)
+                    examine(&self.config, &self.codebook, &mut self.points, image, candidate)
                 {
                     found.push(f);
                 }
@@ -186,12 +148,6 @@ impl Detector {
         let mut tags: Vec<Tag> = found.into_iter().map(|f| f.tag).collect();
         tags.sort_by_key(|t| t.id);
         Ok(tags)
-    }
-
-    /// The last device frame's pixels, copied to host memory.
-    #[cfg(feature = "jetson")]
-    pub fn host_pixels(&self) -> &[u8] {
-        self.dense.image()
     }
 }
 

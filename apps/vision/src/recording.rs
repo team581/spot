@@ -9,6 +9,8 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{SyncSender, sync_channel};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use foxglove::messages::{CompressedImage, Log, Timestamp};
@@ -34,6 +36,8 @@ const SEGMENT_US: i64 = 2_000_000;
 const IMAGE_FPS: f64 = 30.0;
 /// Delete the oldest recordings once the disk is fuller than this percentage.
 const MAX_DISK_USAGE_PERCENT: f64 = 80.0;
+/// About half a second at four cameras and 120 FPS, well beyond normal disk stalls.
+const QUEUE_CAPACITY: usize = 256;
 
 pub const WEBSOCKET_PORT: u16 = 5801;
 
@@ -59,6 +63,11 @@ struct State {
     window: Window,
 }
 
+enum Work {
+    Frame { result: Box<FrameResult>, time_us: i64 },
+    Tick,
+}
+
 pub struct Recorder {
     /// Log times are NT server time once synced, like WPILOG.
     nt: OnceLock<Arc<Nt>>,
@@ -66,8 +75,8 @@ pub struct Recorder {
     dir: PathBuf,
     buffer: PathBuf,
     state: Mutex<State>,
-    /// Apart from `state`, so processing threads don't wait for segment files.
-    cameras: Mutex<HashMap<String, CameraChannels>>,
+    work: SyncSender<Work>,
+    dropped: AtomicU64,
     status: Arc<RawChannel>,
     config: Arc<RawChannel>,
     field: Arc<RawChannel>,
@@ -113,7 +122,8 @@ impl Recorder {
         let _ = std::fs::remove_dir_all(&buffer);
         std::fs::create_dir_all(&buffer).expect("recordings directory");
         let context = Context::new();
-        Arc::new(Recorder {
+        let (work, receiver) = sync_channel(QUEUE_CAPACITY);
+        let recorder = Arc::new(Recorder {
             nt: OnceLock::new(),
             status: json_channel(&context, "/spot/status", "spot.Status"),
             config: json_channel(&context, "/spot/config", "spot.Config"),
@@ -130,8 +140,32 @@ impl Recorder {
                 fms: Fms::default(),
                 window: Window::default(),
             }),
-            cameras: Mutex::new(HashMap::new()),
-        })
+            work,
+            dropped: AtomicU64::new(0),
+        });
+        let weak = Arc::downgrade(&recorder);
+        std::thread::Builder::new()
+            .name("recorder".into())
+            .spawn(move || {
+                let mut cameras = HashMap::new();
+                while let Ok(work) = receiver.recv() {
+                    let Some(recorder) = weak.upgrade() else { break };
+                    match work {
+                        Work::Frame { result, time_us } => {
+                            recorder.write_frame(&mut cameras, *result, time_us);
+                        }
+                        Work::Tick => {
+                            recorder.rotate_if_due();
+                            let dropped = recorder.dropped.swap(0, Ordering::Relaxed);
+                            if dropped != 0 {
+                                tracing::warn!(dropped, "recording fell behind; skipped frames");
+                            }
+                        }
+                    }
+                }
+            })
+            .unwrap();
+        recorder
     }
 
     pub fn set_clock(&self, nt: Arc<Nt>) {
@@ -195,11 +229,22 @@ impl Recorder {
         })
     }
 
-    /// Logs a processed frame: detections every frame, images at up to `IMAGE_FPS`.
-    pub fn frame(&self, result: &FrameResult) {
+    /// Queues frame data without making the camera wait for recording I/O.
+    pub fn frame(&self, result: FrameResult) {
         let time_us = self.log_time(result.monotonic_us);
-        let mut cameras = self.cameras.lock().unwrap();
-        let channels = self.camera(&mut cameras, result.camera);
+        if self.work.try_send(Work::Frame { result: Box::new(result), time_us }).is_err() {
+            self.dropped.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Logs detections every frame and images at up to `IMAGE_FPS`.
+    fn write_frame(
+        &self,
+        cameras: &mut HashMap<String, CameraChannels>,
+        result: FrameResult,
+        time_us: i64,
+    ) {
+        let channels = self.camera(cameras, &result.camera);
         let time = nanos(time_us);
         let tags: Vec<_> = result
             .detections
@@ -247,7 +292,7 @@ impl Recorder {
                 &CompressedImage {
                     timestamp: timestamp(time_us),
                     frame_id: result.camera.to_string(),
-                    data: result.jpeg.to_vec().into(),
+                    data: result.jpeg.into(),
                     format: "jpeg".into(),
                 },
                 time,
@@ -280,8 +325,13 @@ impl Recorder {
         self.state.lock().unwrap().fms.set(key, value);
     }
 
-    /// Rotates segments and starts or finishes enable-triggered recordings.
+    /// Schedules rotation behind the frames already queued for recording.
     pub fn tick(&self) {
+        let _ = self.work.try_send(Work::Tick);
+    }
+
+    /// Rotates segments and starts or finishes enable-triggered recordings.
+    fn rotate_if_due(&self) {
         let synced = self.nt.get().is_some_and(|nt| nt.synced());
         let now_us = self.now();
         let mut state = self.state.lock().unwrap();

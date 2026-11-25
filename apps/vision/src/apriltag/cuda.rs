@@ -27,13 +27,10 @@ unsafe extern "C" {
         error: *mut c_char,
         len: i32,
     ) -> *mut Raw;
-    fn spot_dense_upload(dense: *mut Raw, image: *const u8) -> *const u8;
     fn spot_dense_run(
         dense: *mut Raw,
-        gray: *const u8,
-        pitch: i32,
+        image: *const u8,
         masks: *mut *const u32,
-        image: *mut *const u8,
         error: *mut c_char,
         len: i32,
     ) -> i32;
@@ -52,7 +49,6 @@ pub struct Gpu {
     /// Each level's offset and length in the shim's mask buffer, in words.
     spans: Vec<(usize, usize)>,
     masks: *const u32,
-    image: *const u8,
 }
 
 // SAFETY: the shim's state is only used through `&mut self`, from one thread at a time.
@@ -96,36 +92,16 @@ impl Gpu {
                 (offset - len, len)
             })
             .collect();
-        Ok(Self { raw, width, height, spans, masks: std::ptr::null(), image: std::ptr::null() })
+        Ok(Self { raw, width, height, spans, masks: std::ptr::null() })
     }
 
-    /// Copies a packed host image to device memory, returning a pointer valid until the next
-    /// upload.
-    pub fn upload(&mut self, image: &[u8]) -> anyhow::Result<*const u8> {
+    /// Runs on a packed host image with the detector's size.
+    pub fn run(&mut self, image: &[u8]) -> anyhow::Result<()> {
         anyhow::ensure!(image.len() == self.width * self.height, "image size mismatch");
-        // SAFETY: the image covers the detector's size.
-        let device = unsafe { spot_dense_upload(self.raw, image.as_ptr()) };
-        anyhow::ensure!(!device.is_null(), "could not upload the image");
-        Ok(device)
-    }
-
-    /// Runs on a device image with the detector's size and rows `pitch` bytes apart.
-    ///
-    /// # Safety
-    /// `gray` must point to such an image in device memory.
-    pub unsafe fn run(&mut self, gray: *const u8, pitch: usize) -> anyhow::Result<()> {
         let mut error = [0 as c_char; 256];
-        // SAFETY: the caller guarantees the image; the outputs outlive the call.
+        // SAFETY: the image covers the detector's size; the inputs and outputs outlive the call.
         let status = unsafe {
-            spot_dense_run(
-                self.raw,
-                gray,
-                pitch as i32,
-                &mut self.masks,
-                &mut self.image,
-                error.as_mut_ptr(),
-                255,
-            )
+            spot_dense_run(self.raw, image.as_ptr(), &mut self.masks, error.as_mut_ptr(), 255)
         };
         anyhow::ensure!(status == 0, "GPU detector: {}", message(&error));
         Ok(())
@@ -137,12 +113,6 @@ impl Gpu {
         // SAFETY: the shim's pinned mask buffer holds every level and stays valid until the
         // next run, which needs `&mut self`.
         unsafe { std::slice::from_raw_parts(self.masks.add(offset), len) }
-    }
-
-    /// The last run's image as packed host memory.
-    pub fn image(&self) -> &[u8] {
-        // SAFETY: as for `mask`.
-        unsafe { std::slice::from_raw_parts(self.image, self.width * self.height) }
     }
 }
 
@@ -179,9 +149,7 @@ mod tests {
                 let mut cpu = Cpu::default();
                 cpu.run(&ImageView::new(&pixels, w, h, w).unwrap(), &levels, 3, 20, 6);
                 let mut gpu = Gpu::new(w, h, 3, 20, 6, &levels).unwrap();
-                let device = gpu.upload(&pixels).unwrap();
-                unsafe { gpu.run(device, w).unwrap() };
-                assert_eq!(gpu.image(), &pixels[..]);
+                gpu.run(&pixels).unwrap();
                 for k in 0..levels.len() {
                     let differing =
                         cpu.masks.levels[k].iter().zip(gpu.mask(k)).filter(|(a, b)| a != b).count();

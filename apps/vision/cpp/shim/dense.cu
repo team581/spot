@@ -197,10 +197,8 @@ struct spot_dense {
   int regions;
   size_t mask_words;
   cudaStream_t stream;
-  cudaStream_t copy_stream;  // the image copy, overlapping the kernels
   uint32_t *masks;       // device, all levels
   uint32_t *host_masks;  // pinned
-  uint8_t *host_image;   // pinned, packed
   uint8_t *upload;       // device, packed
   void *device;          // device allocation for level data and tiles
 };
@@ -210,9 +208,7 @@ static void release(spot_dense *self) {
   cudaFree(self->masks);
   cudaFree(self->upload);
   cudaFreeHost(self->host_masks);
-  cudaFreeHost(self->host_image);
   if (self->stream != nullptr) cudaStreamDestroy(self->stream);
-  if (self->copy_stream != nullptr) cudaStreamDestroy(self->copy_stream);
   delete self;
 }
 
@@ -251,13 +247,11 @@ extern "C" spot_dense *spot_dense_new(int32_t width, int32_t height, int32_t ste
   }
   p.region_start[count] = self->regions;
   cudaError_t status = cudaStreamCreateWithFlags(&self->stream, cudaStreamNonBlocking);
-  if (status == cudaSuccess)
-    status = cudaStreamCreateWithFlags(&self->copy_stream, cudaStreamNonBlocking);
   if (status == cudaSuccess) status = cudaMalloc(&self->device, bytes);
   if (status == cudaSuccess) status = cudaMalloc(&self->masks, self->mask_words * 4);
   if (status == cudaSuccess) status = cudaMallocHost(&self->host_masks, self->mask_words * 4);
   if (status == cudaSuccess)
-    status = cudaMallocHost(&self->host_image, static_cast<size_t>(width) * height);
+    status = cudaMalloc(&self->upload, static_cast<size_t>(width) * height);
   if (status != cudaSuccess) {
     std::snprintf(error, len, "%s", cudaGetErrorString(status));
     release(self);
@@ -280,37 +274,28 @@ extern "C" spot_dense *spot_dense_new(int32_t width, int32_t height, int32_t ste
   return self;
 }
 
-// Copies a packed host image to device memory owned by the detector, returning its pointer.
-extern "C" const uint8_t *spot_dense_upload(spot_dense *self, const uint8_t *image) {
-  const size_t bytes = static_cast<size_t>(self->width) * self->height;
-  if (self->upload == nullptr && cudaMalloc(&self->upload, bytes) != cudaSuccess) return nullptr;
-  if (cudaMemcpy(self->upload, image, bytes, cudaMemcpyHostToDevice) != cudaSuccess) return nullptr;
-  return self->upload;
-}
-
-// Runs the dense stage on a device image with rows `pitch` bytes apart. On success, points
-// `masks` at every level's mask and `image` at a packed host copy of the image, both valid
-// until the next run, and returns 0.
-extern "C" int32_t spot_dense_run(spot_dense *self, const uint8_t *gray, int32_t pitch,
-                                  const uint32_t **masks, const uint8_t **image, char *error,
-                                  int32_t len) {
+// Uploads a packed host image and returns each level's mask, valid until the next run.
+extern "C" int32_t spot_dense_run(spot_dense *self, const uint8_t *image,
+                                  const uint32_t **masks, char *error, int32_t len) {
   const Params &p = self->params;
   const dim3 patches((p.level[0].width + kPatch - 1) / kPatch,
                      (p.level[0].height + kPatch - 1) / kPatch);
-  cudaMemcpy2DAsync(self->host_image, self->width, gray, pitch, self->width, self->height,
-                    cudaMemcpyDeviceToHost, self->copy_stream);
-  sample_kernel<<<patches, dim3(32, 32), 0, self->stream>>>(gray, pitch, p);
-  mask_kernel<<<self->regions, 256, 0, self->stream>>>(p);
-  cudaMemcpyAsync(self->host_masks, self->masks, self->mask_words * 4, cudaMemcpyDeviceToHost,
-                  self->stream);
-  cudaError_t status = cudaStreamSynchronize(self->stream);
-  if (status == cudaSuccess) status = cudaStreamSynchronize(self->copy_stream);
+  const size_t bytes = static_cast<size_t>(self->width) * self->height;
+  cudaError_t status = cudaMemcpyAsync(self->upload, image, bytes, cudaMemcpyHostToDevice,
+                                       self->stream);
+  if (status == cudaSuccess) {
+    sample_kernel<<<patches, dim3(32, 32), 0, self->stream>>>(self->upload, self->width, p);
+    mask_kernel<<<self->regions, 256, 0, self->stream>>>(p);
+    status = cudaMemcpyAsync(self->host_masks, self->masks, self->mask_words * 4,
+                             cudaMemcpyDeviceToHost, self->stream);
+    const cudaError_t sync = cudaStreamSynchronize(self->stream);
+    if (status == cudaSuccess) status = sync;
+  }
   if (status != cudaSuccess) {
     std::snprintf(error, len, "%s", cudaGetErrorString(status));
     return -1;
   }
   *masks = self->host_masks;
-  *image = self->host_image;
   return 0;
 }
 
