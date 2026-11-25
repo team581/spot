@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use axum::body::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio::sync::watch;
@@ -81,11 +82,24 @@ struct Inner {
     config_error: Option<String>,
     devices: Vec<Device>,
     cameras: BTreeMap<String, Camera>,
+    previews: HashMap<String, watch::Sender<Option<Bytes>>>,
     statuses: Vec<CameraStatus>,
     health: health::Cameras,
     sessions: HashMap<String, Session>,
     /// The device whose serial is being written; no camera captures from it meanwhile.
     writing_serial: Option<String>,
+}
+
+impl Inner {
+    fn assigned_camera(&self, device: &Device) -> Option<&str> {
+        self.effective.as_ref()?.config.cameras.iter().find_map(|(name, config)| {
+            (resolve(&self.devices, config).ok().as_ref() == Some(device)).then_some(name.as_str())
+        })
+    }
+
+    fn can_preview(&self, device: &Device) -> bool {
+        self.writing_serial.as_ref() != Some(&device.path) && self.assigned_camera(device).is_none()
+    }
 }
 
 /// A camera calibration in progress.
@@ -178,6 +192,7 @@ impl App {
                 config_error: None,
                 devices: Vec::new(),
                 cameras: BTreeMap::new(),
+                previews: HashMap::new(),
                 statuses: Vec::new(),
                 health: health::Cameras::default(),
                 sessions: HashMap::new(),
@@ -275,6 +290,8 @@ impl App {
             let target = Target {
                 device: resolve(&inner.devices, camera)
                     .ok()
+                    // The preview worker will reconcile after closing its source.
+                    .filter(|d| !inner.previews.contains_key(&d.path))
                     .filter(|d| inner.writing_serial.as_ref() != Some(&d.path)),
                 mode: camera.mode,
                 controls: camera.controls.clone(),
@@ -395,16 +412,68 @@ impl App {
             .devices
             .iter()
             .map(|device| DeviceStatus {
-                camera: inner.effective.as_ref().and_then(|e| {
-                    e.config
-                        .cameras
-                        .iter()
-                        .find(|(_, c)| resolve(&inner.devices, c).ok().as_ref() == Some(device))
-                        .map(|(name, _)| name.clone())
-                }),
+                camera: inner.assigned_camera(device).map(str::to_owned),
                 device: device.clone(),
             })
             .collect()
+    }
+
+    /// Shares one preview capture per device, only while a viewer is connected.
+    pub fn preview(self: &Arc<Self>, path: &str) -> Result<watch::Receiver<Option<Bytes>>, String> {
+        let mut inner = self.inner.lock().unwrap();
+        let device = inner.devices.iter().find(|d| d.path == path).ok_or("Camera not connected")?;
+        if !inner.can_preview(device) {
+            return Err("Camera is assigned or its serial is being written".into());
+        }
+        if let Some(frames) = inner.previews.get(path) {
+            return Ok(frames.subscribe());
+        }
+        // Minimize USB bandwidth, independently of how often frames are sent to the browser.
+        let mode = device
+            .modes
+            .iter()
+            .min_by_key(|m| u64::from(m.width) * u64::from(m.height) * u64::from(m.fps))
+            .copied()
+            .ok_or("Camera has no MJPEG modes")?;
+        let device = device.clone();
+        let (frames, receiver) = watch::channel(None);
+        let app = self.clone();
+        let capture = frames.clone();
+        std::thread::Builder::new()
+            .name("device-preview".into())
+            .spawn(move || {
+                let run = || -> anyhow::Result<()> {
+                    let mut source = camera::open(&device, mode, &Default::default())?;
+                    let interval = Duration::from_millis(100);
+                    let mut next = Instant::now();
+                    loop {
+                        let frame = source.next()?;
+                        let now = Instant::now();
+                        if now < next {
+                            continue;
+                        }
+                        let inner = app.inner.lock().unwrap();
+                        if capture.is_closed()
+                            || !inner.devices.contains(&device)
+                            || !inner.can_preview(&device)
+                        {
+                            return Ok(());
+                        }
+                        capture.send_replace(Some(Bytes::from(frame.jpeg)));
+                        next = now + interval;
+                    }
+                };
+                if let Err(error) = run() {
+                    tracing::warn!(path = device.path, %error, "camera preview stopped");
+                }
+                // The source is closed before a configured camera or serial write may take over.
+                let mut inner = app.inner.lock().unwrap();
+                inner.previews.remove(&device.path);
+                app.reconcile(&mut inner);
+            })
+            .map_err(|error| error.to_string())?;
+        inner.previews.insert(path.to_string(), frames);
+        Ok(receiver)
     }
 
     /// Rewrites a SWYFT camera's serial, pausing any camera capturing from it. The new serial
@@ -439,7 +508,9 @@ impl App {
         let deadline = Instant::now() + Duration::from_secs(6);
         let released = loop {
             let inner = self.inner.lock().unwrap();
-            if users.iter().all(|name| inner.cameras.get(name).is_none_or(Camera::idle)) {
+            if !inner.previews.contains_key(path)
+                && users.iter().all(|name| inner.cameras.get(name).is_none_or(Camera::idle))
+            {
                 break true;
             }
             drop(inner);
@@ -451,7 +522,7 @@ impl App {
         let result = if released {
             camera::swyft::set_serial(path, serial).map_err(|e| format!("{e:#}"))
         } else {
-            Err(format!("{} didn't stop capturing from {path}", users.join(", ")))
+            Err(format!("Capture didn't stop on {path}"))
         };
         let mut inner = self.inner.lock().unwrap();
         inner.writing_serial = None;
@@ -775,5 +846,50 @@ mod tests {
             resolve(&devices, &camera("S", Some("1-2.4"))).unwrap_err().0,
             CameraState::Disconnected
         );
+    }
+
+    #[tokio::test]
+    async fn previews_an_unassigned_device_until_it_is_assigned() {
+        let state = std::env::temp_dir().join(format!("spot-preview-{}", std::process::id()));
+        let replay = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/regression");
+        let app = App::new(
+            &state,
+            Some(&replay),
+            None,
+            Build { version: None, revision: None, commit_time: None },
+            Recorder::new(&state),
+        );
+        app.tick();
+
+        let path = replay.join("periphery.jpg");
+        let mut frames = app.preview(path.to_str().unwrap()).unwrap();
+        let jpeg = tokio::time::timeout(Duration::from_secs(2), frames.wait_for(Option::is_some))
+            .await
+            .unwrap()
+            .unwrap()
+            .clone()
+            .unwrap();
+        assert_eq!(jpeg.as_ref(), std::fs::read(&path).unwrap());
+        assert!(app.config().config.unwrap().cameras.is_empty());
+        assert!(app.config().overrides.is_empty());
+
+        let mode = app
+            .devices()
+            .into_iter()
+            .find(|d| Path::new(&d.device.path) == path)
+            .unwrap()
+            .device
+            .modes[0];
+        let overrides =
+            serde_json::json!({ "cameras": { "side": { "serial": "periphery", "mode": mode } } });
+        app.set_overrides(overrides.as_object().unwrap().clone()).unwrap();
+        assert!(app.preview(path.to_str().unwrap()).is_err());
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while frames.changed().await.is_ok() {}
+        })
+        .await
+        .expect("assigning the device should end the preview");
+        app.set_overrides(Map::new()).unwrap();
+        std::fs::remove_dir_all(state).unwrap();
     }
 }

@@ -1,4 +1,6 @@
 import { Link } from '@tanstack/react-router';
+import { useCallback, useState } from 'react';
+import type { DeviceStatus } from '../api';
 import { useConfig, useDevices, useStatus } from '../queries';
 import { useAllDetections, useAllImages } from '../live';
 import { PageTitle, Panel, StateBadge } from '../components/common';
@@ -34,9 +36,60 @@ function Field() {
 	);
 }
 
+function DevicePreview({ device }: { device: DeviceStatus }) {
+	const [state, setState] = useState<'loading' | 'playing' | 'error'>('loading');
+	const attach = useCallback(
+		(image: HTMLImageElement | null) => {
+			if (image) {
+				image.src = `/api/devices/preview?${new URLSearchParams({ path: device.path })}`;
+			}
+			// An MJPEG request can outlive a detached image. Stop it when closing or switching previews.
+			return () => {
+				image?.removeAttribute('src');
+			};
+		},
+		[device.path],
+	);
+	return (
+		<figure className="grid max-w-2xl gap-2">
+			<figcaption className="text-sm font-medium">
+				Live preview: {device.product} ({device.path})
+			</figcaption>
+			<div className="relative aspect-[16/10] overflow-hidden rounded-md bg-feed">
+				{state === 'error' ? null : (
+					<img
+						ref={attach}
+						alt={`Live feed from ${device.path}`}
+						className="absolute inset-0 size-full object-contain"
+						onLoad={() => {
+							setState('playing');
+						}}
+						onError={() => {
+							setState('error');
+						}}
+					/>
+				)}
+				{state === 'loading' ? (
+					<span className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-white/70">
+						Waiting for image
+					</span>
+				) : null}
+				<span
+					role="status"
+					className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-white/70"
+				>
+					{state === 'error' ? 'Preview unavailable. Close it and try again.' : null}
+				</span>
+			</div>
+		</figure>
+	);
+}
+
 export default function Cameras() {
 	const cameras = useStatus().data?.cameras ?? [];
 	const unassigned = useDevices().data?.filter((d) => !d.camera) ?? [];
+	const [previewPath, setPreviewPath] = useState<string>();
+	const preview = unassigned.find((d) => d.path === previewPath);
 	return (
 		<>
 			<PageTitle
@@ -88,6 +141,9 @@ export default function Cameras() {
 								<TableHead>Product</TableHead>
 								<TableHead>Serial</TableHead>
 								<TableHead>Port</TableHead>
+								<TableHead scope="col" className="text-right">
+									Preview
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -97,10 +153,24 @@ export default function Cameras() {
 									<TableCell>{d.product}</TableCell>
 									<TableCell>{d.serial ?? '—'}</TableCell>
 									<TableCell>{d.port ?? '—'}</TableCell>
+									<TableCell className="text-right">
+										<Button
+											variant="outline"
+											size="sm"
+											aria-expanded={preview === d}
+											aria-label={`${preview === d ? 'Close preview of' : 'Preview'} ${d.path}`}
+											onClick={() => {
+												setPreviewPath(preview === d ? undefined : d.path);
+											}}
+										>
+											{preview === d ? 'Close preview' : 'Preview'}
+										</Button>
+									</TableCell>
 								</TableRow>
 							))}
 						</TableBody>
 					</Table>
+					{preview ? <DevicePreview key={preview.path} device={preview} /> : null}
 				</Panel>
 			) : null}
 		</>

@@ -1,11 +1,14 @@
 //! HTTP API and static dashboard/docs hosting.
 
+use std::convert::Infallible;
 use std::path::Path as FsPath;
 use std::sync::Arc;
 
 use axum::Json;
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
+use futures_util::{StreamExt, stream};
 use serde_json::{Map, Value};
 use tower_http::services::{ServeDir, ServeFile};
 use utoipa::OpenApi;
@@ -28,6 +31,7 @@ fn router() -> OpenApiRouter<Arc<App>> {
     OpenApiRouter::with_openapi(Api::openapi())
         .routes(routes!(status))
         .routes(routes!(devices))
+        .routes(routes!(preview))
         .routes(routes!(set_serial))
         .routes(routes!(config))
         .routes(routes!(set_overrides))
@@ -75,6 +79,38 @@ async fn status(State(app): AppState) -> Json<Status> {
 #[utoipa::path(get, path = "/api/devices", responses((status = 200, body = Vec<DeviceStatus>)))]
 async fn devices(State(app): AppState) -> Json<Vec<DeviceStatus>> {
     Json(app.devices())
+}
+
+#[derive(serde::Deserialize, utoipa::IntoParams)]
+struct PreviewQuery {
+    /// Device path from `/api/devices`.
+    path: String,
+}
+
+/// Live MJPEG preview from an unassigned device, without changing configuration.
+#[utoipa::path(get, path = "/api/devices/preview", params(PreviewQuery), responses((status = 200, content_type = "multipart/x-mixed-replace", body = Vec<u8>), (status = 409, body = String)))]
+async fn preview(
+    State(app): AppState,
+    Query(query): Query<PreviewQuery>,
+) -> Result<impl axum::response::IntoResponse, (StatusCode, String)> {
+    let frames = app.preview(&query.path).map_err(conflict)?;
+    let body = stream::unfold(frames, |mut frames| async move {
+        frames.changed().await.ok()?;
+        let jpeg = frames.borrow_and_update().clone()?;
+        let header = format!(
+            "--spot-frame\r\nContent-Type: image/jpeg\r\nContent-Length: {}\r\n\r\n",
+            jpeg.len()
+        );
+        Some((Ok::<_, Infallible>([header.as_bytes(), &jpeg, b"\r\n"].concat()), frames))
+    })
+    .chain(stream::once(async { Ok(b"--spot-frame--\r\n".to_vec()) }));
+    Ok((
+        [
+            (header::CONTENT_TYPE, "multipart/x-mixed-replace; boundary=spot-frame"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        Body::from_stream(body),
+    ))
 }
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]

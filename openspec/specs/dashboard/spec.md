@@ -29,6 +29,12 @@ The dashboard SHALL show a camera grid with tag overlays, and a 3D field view sh
 - **WHEN** a camera is streaming
 - **THEN** the field view shows its image in its view frustum, live or in a replay
 
+#### Scenario: Previewing an unassigned camera
+
+- **WHEN** a user selects **Preview** for a connected, unassigned device on the Cameras page
+- **THEN** the dashboard shows its live feed without an assignment, an override, or a robot code deploy
+- **AND** the feed stops when the user closes the preview, the device disconnects, or the device is assigned
+
 ### Requirement: Camera tuning
 
 The dashboard SHALL let users assign connected devices to camera names, and set each camera's mode, exposure, and gain while watching its live view and detections table.

@@ -28,7 +28,7 @@ mise run dev
 
 Open the URL Vite prints.
 The service treats each image in `apps/vision/tests/data/regression` as a camera, with the file name as its serial (for example, `center`).
-Assign them on the dashboard to start them.
+Preview them on the **Cameras** page, or assign them to run detection.
 State is kept in `.spot-dev/`; delete it to start over.
 
 To run the dashboard against a real Jetson instead:

@@ -125,6 +125,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/api/devices/preview': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Live MJPEG preview from an unassigned device, without changing configuration. */
+		get: operations['preview'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/api/devices/serial': {
 		parameters: {
 			query?: never;
@@ -865,6 +882,32 @@ export interface operations {
 				headers: Record<string, unknown>;
 				content: {
 					'application/json': components['schemas']['DeviceStatus'][];
+				};
+			};
+		};
+	};
+	preview: {
+		parameters: {
+			query: {
+				/** @description Device path from `/api/devices`. */
+				path: string;
+			};
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			200: {
+				headers: Record<string, unknown>;
+				content: {
+					'multipart/x-mixed-replace': number[];
+				};
+			};
+			409: {
+				headers: Record<string, unknown>;
+				content: {
+					'text/plain': string;
 				};
 			};
 		};
