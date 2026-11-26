@@ -99,7 +99,7 @@
 	],
 	"icon": "icon.png",
 	"engines": {
-		"vscode": "1.147.0"
+		"vscode": "^1.147.0"
 	},
 	"capabilities": {
 		"untrustedWorkspaces": {
