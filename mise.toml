@@ -70,6 +70,16 @@ run = "bash tools/linux-builder-setup.sh"
 description = "Shut down the linux-builder VM"
 run = "bash tools/linux-builder.sh stop"
 
+[tasks."linux-builder:gc"]
+description = "Collect unused Nix store paths in the linux-builder VM"
+depends = ["linux-builder"]
+run = '''
+ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=tools/linux-builder-known-hosts \
+  -i "$HOME/.local/share/linux-builder/keys/builder_ed25519" \
+  builder@linux-builder nix-collect-garbage
+'''
+
 [tasks.check]
 description = "Run every format, lint, and type check"
 run = "hk check --all"

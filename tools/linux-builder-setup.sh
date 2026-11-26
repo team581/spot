@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # The fixed SSH host key that nixpkgs bakes into darwin.linux-builder.
-host_key=c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUpCV2N4Yi9CbGFxdDFhdU90RStGOFFVV3JVb3RpQzVxQkorVXVFV2RWQ2Igcm9vdEBuaXhvcwo=
+host_key=$(cut -d ' ' -f 2- "$(dirname "$0")/linux-builder-known-hosts" | base64)
 
 sudo tee /etc/ssh/ssh_config.d/100-linux-builder.conf >/dev/null <<'EOF'
 Host linux-builder
