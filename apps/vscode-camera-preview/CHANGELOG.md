@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/team581/spot/compare/camera-preview-v1.2.0...camera-preview-v1.2.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **vscode-camera-preview:** allow newer VS Code versions ([97948c9](https://github.com/team581/spot/commit/97948c9d22f1005462765cd7d66a3a5c5598ce93))
+
 ## [1.2.0](https://github.com/team581/spot/compare/camera-preview-v1.1.0...camera-preview-v1.2.0) (2026-11-19)
 
 
