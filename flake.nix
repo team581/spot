@@ -157,10 +157,27 @@
               # Only change the host-side VM settings, so the guest system stays
               # cached and the builder doesn't need a Linux builder to build.
               {
-                virtualisation.cores = 8;
-                virtualisation.darwin-builder = {
-                  memorySize = 16 * 1024;
-                  diskSize = 40 * 1024;
+                options.virtualisation.qemu.drives = lib.mkOption {
+                  # Let the guest's weekly fstrim reclaim space on macOS.
+                  apply = map (
+                    drive:
+                    if drive.name == "root" then
+                      drive
+                      // {
+                        driveExtraOpts = drive.driveExtraOpts // {
+                          discard = "unmap";
+                        };
+                      }
+                    else
+                      drive
+                  );
+                };
+                config.virtualisation = {
+                  cores = 8;
+                  darwin-builder = {
+                    memorySize = 16 * 1024;
+                    diskSize = 40 * 1024;
+                  };
                 };
               }
             ];
