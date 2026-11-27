@@ -30,7 +30,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           cache-workspaces: apps/vision
-      - uses: jdx/mise-action@v5.2.9
+      - uses: jdx/mise-action@v5.3.0
         with:
           install_args: hk pkl shfmt
       - uses: voidzero-dev/setup-vp@v1.22.0
@@ -38,7 +38,7 @@ jobs:
           cache: true
       - run: sudo apt-get install -y libclang-dev pkg-config
       - name: Mount OpenCV cache
-        uses: useblacksmith/stickydisk@v1.7.2
+        uses: useblacksmith/stickydisk@v1.8.0
         with:
           key: ${{ github.repository }}-opencv-cache-aarch64-linux
           path: /nix

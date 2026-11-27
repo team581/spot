@@ -148,7 +148,7 @@ jobs:
           ref: ${{ needs.release-please.outputs.spot_tag_name }}
           persist-credentials: false
       - name: Mount Nix cache
-        uses: useblacksmith/stickydisk@v1.7.2
+        uses: useblacksmith/stickydisk@v1.8.0
         with:
           key: ${{ github.repository }}-nix-cache-aarch64-linux
           path: /nix
