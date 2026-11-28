@@ -4,1128 +4,1122 @@
  */
 
 export interface paths {
-	'/api/calibration/board.png': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** A preview of a ChArUco board, to check its geometry against a physical board. */
-		get: operations['board'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/calibration/{camera}': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** The camera's calibration session. */
-		get: operations['calibration'];
-		put?: never;
-		/** Starts calibrating a camera with the configured board, discarding any earlier session. */
-		post: operations['start_calibration'];
-		/** Ends a calibration session. */
-		delete: operations['stop_calibration'];
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/calibration/{camera}/capturing': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		/** Pauses or resumes capturing views automatically as the board moves. */
-		put: operations['set_capturing'];
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/calibration/{camera}/solve': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Solves for intrinsics from the captured views. Apply the result as an override. */
-		post: operations['solve_calibration'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/config': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Robot config, dashboard overrides, and the merged result. */
-		get: operations['config'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/config/overrides': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		/** Replaces the dashboard overrides. */
-		put: operations['set_overrides'];
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/devices': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Cameras plugged into Spot, whether or not they are configured. */
-		get: operations['devices'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/devices/preview': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Live MJPEG preview from an unassigned device, without changing configuration. */
-		get: operations['preview'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/devices/serial': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/**
-		 * Writes a SWYFT camera's serial to its flash, pausing any camera capturing from it.
-		 *     The camera uses the new serial once it's replugged.
-		 */
-		post: operations['set_serial'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/network': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Ethernet addressing. */
-		get: operations['network_status'];
-		put?: never;
-		/** Tries new Ethernet addressing. It rolls back unless confirmed within 90 seconds. */
-		post: operations['apply_network'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/network/confirm': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Keeps the pending Ethernet change. */
-		post: operations['confirm_network'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/network/revert': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Rolls back the pending Ethernet change. */
-		post: operations['revert_network'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/recordings': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Saved MCAP recordings, newest first. Download them from `/recordings/<name>`. */
-		get: operations['recordings'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/settings': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Jetson-local settings. */
-		get: operations['settings'];
-		/** Saves Jetson-local settings, rejecting a calibration board that can't exist. */
-		put: operations['set_settings'];
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/status': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** Spot and camera status. */
-		get: operations['status'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/api/system': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** CPU, memory, GPU, disk, and temperatures. */
-		get: operations['system'];
-		put?: never;
-		post?: never;
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
+    "/api/calibration/board.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A preview of a ChArUco board, to check its geometry against a physical board. */
+        get: operations["board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/calibration/{camera}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The camera's calibration session. */
+        get: operations["calibration"];
+        put?: never;
+        /** Starts calibrating a camera with the configured board, discarding any earlier session. */
+        post: operations["start_calibration"];
+        /** Ends a calibration session. */
+        delete: operations["stop_calibration"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/calibration/{camera}/capturing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pauses or resumes capturing views automatically as the board moves. */
+        put: operations["set_capturing"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/calibration/{camera}/solve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Solves for intrinsics from the captured views. Apply the result as an override. */
+        post: operations["solve_calibration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Robot config, dashboard overrides, and the merged result. */
+        get: operations["config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces the dashboard overrides. */
+        put: operations["set_overrides"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cameras plugged into Spot, whether or not they are configured. */
+        get: operations["devices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live MJPEG preview from an unassigned device, without changing configuration. */
+        get: operations["preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/serial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Writes a SWYFT camera's serial to its flash, pausing any camera capturing from it.
+         *     The camera uses the new serial once it's replugged.
+         */
+        post: operations["set_serial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ethernet addressing. */
+        get: operations["network_status"];
+        put?: never;
+        /** Tries new Ethernet addressing. It rolls back unless confirmed within 90 seconds. */
+        post: operations["apply_network"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/network/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keeps the pending Ethernet change. */
+        post: operations["confirm_network"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/network/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rolls back the pending Ethernet change. */
+        post: operations["revert_network"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved MCAP recordings, newest first. Download them from `/recordings/<name>`. */
+        get: operations["recordings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jetson-local settings. */
+        get: operations["settings"];
+        /** Saves Jetson-local settings, rejecting a calibration board that can't exist. */
+        put: operations["set_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spot and camera status. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CPU, memory, GPU, disk, and temperatures. */
+        get: operations["system"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-	schemas: {
-		/** @enum {string} */
-		AddressMode: 'automatic' | 'static';
-		/** @enum {string} */
-		AutoExposure: 'manual' | 'aperture_priority';
-		/** @description A ChArUco board. Square and marker sizes are in meters. */
-		Board: {
-			dictionary: components['schemas']['Dictionary'];
-			/** Format: double */
-			marker_size: number;
-			/** Format: double */
-			square_size: number;
-			/** Format: int32 */
-			squares_x: number;
-			/** Format: int32 */
-			squares_y: number;
-		};
-		/** @description Pinhole intrinsics with OpenCV's five-coefficient distortion model. */
-		Calibration: {
-			/** Format: double */
-			cx: number;
-			/** Format: double */
-			cy: number;
-			/** @description `[k1, k2, p1, p2, k3]` */
-			distortion: number[];
-			/** Format: double */
-			fx: number;
-			/** Format: double */
-			fy: number;
-			/**
-			 * Format: double
-			 * @description RMS reprojection error of the calibration in pixels.
-			 */
-			rms?: number | null;
-		};
-		CalibrationView: {
-			board: components['schemas']['Board'];
-			camera: string;
-			/** @description Whether views are captured automatically as the board moves. */
-			capturing: boolean;
-			coverage: components['schemas']['Coverage'];
-			/** @description Captured views. */
-			frames: components['schemas']['View'][];
-			/** Format: int32 */
-			height?: number | null;
-			/** @description Board corners in the most recent frame. */
-			latest: components['schemas']['View'];
-			/**
-			 * Format: double
-			 * @description RMS error in pixels above which a solution is not accepted.
-			 */
-			max_rms: number;
-			/** Format: int32 */
-			min_frames: number;
-			/** @description Why the latest view wasn't captured. */
-			reason: string;
-			solution?: components['schemas']['Solution'] | null;
-			/**
-			 * Format: int32
-			 * @description Image size, once a frame has been seen.
-			 */
-			width?: number | null;
-		};
-		CameraConfig: {
-			/** @description Calibrations keyed by resolution, for example `1280x800`. */
-			calibrations?: Record<string, components['schemas']['Calibration']>;
-			controls?: components['schemas']['Controls'];
-			/** @description Capture mode as `WIDTHxHEIGHT@FPS`. */
-			mode?: components['schemas']['Mode'];
-			/** @description Robot-to-camera transform (WPILib coordinates: +X forward, +Y left, +Z up). */
-			mount?: components['schemas']['Mount'];
-			/**
-			 * @description USB port path, for example `1-2.2`. Only used to tell apart cameras that share a
-			 *     serial, which is the default for some cameras.
-			 */
-			port?: string | null;
-			/** @description Spot is not ready unless this camera is streaming and calibrated. */
-			required?: boolean;
-			/** @description USB serial number. */
-			serial: string;
-		};
-		/** @enum {string} */
-		CameraState: 'streaming' | 'disconnected' | 'duplicate_serial' | 'uncalibrated' | 'falling_behind';
-		CameraStatus: {
-			calibrated: boolean;
-			/**
-			 * Format: double
-			 * @description Frames captured per second.
-			 */
-			capture_fps: number;
-			/** @description Device node of the matched camera. */
-			device?: string | null;
-			/**
-			 * Format: int64
-			 * @description Frames dropped since the camera started because processing fell behind.
-			 */
-			dropped_frames: number;
-			error?: string | null;
-			/**
-			 * Format: double
-			 * @description Frames processed per second.
-			 */
-			fps: number;
-			mode: components['schemas']['Mode'];
-			name: string;
-			required: boolean;
-			state: components['schemas']['CameraState'];
-		};
-		ConfigView: {
-			config?: components['schemas']['RobotConfig'] | null;
-			/** @description Why the latest config was rejected. */
-			error?: string | null;
-			field_layout?: components['schemas']['FieldView'] | null;
-			/** @description Robot TOML with overrides applied, ready to copy into robot code. */
-			merged: string;
-			/** @description Dashboard overrides: a deep-partial config where `null` removes a key. */
-			overrides: Record<string, unknown>;
-			/** @description The robot's TOML, live or cached from the last connection. */
-			robot_config?: string | null;
-			/** @description Whether the robot config came from the robot during this connection. */
-			robot_config_live: boolean;
-		};
-		/** @description A configurable control's range. */
-		ControlRange: {
-			/** Format: int64 */
-			default: number;
-			/** Format: int64 */
-			max: number;
-			/** Format: int64 */
-			min: number;
-			/** @description `auto_exposure`, `exposure_time_absolute`, or `gain` */
-			name: string;
-			/** Format: int64 */
-			step: number;
-		};
-		/** @description Camera controls. Unset controls are reset to the camera's default. */
-		Controls: {
-			auto_exposure?: components['schemas']['AutoExposure'] | null;
-			/**
-			 * Format: int32
-			 * @description Exposure time in the camera's units (100 µs for UVC cameras). Applies in manual mode.
-			 */
-			exposure_time_absolute?: number | null;
-			/** Format: int32 */
-			gain?: number | null;
-		};
-		/** @description How well the captured views cover the image. */
-		Coverage: {
-			/**
-			 * @description Scores from 0 to 1 for a grid over the image, by row. An area scores 1 once it has
-			 *     enough views of the board at varied distances and tilts.
-			 */
-			cells: number[][];
-			/**
-			 * Format: double
-			 * @description Mean of the cell scores.
-			 */
-			progress: number;
-		};
-		/** @description A physical camera. */
-		Device: {
-			controls: components['schemas']['ControlRange'][];
-			/** @description Supported MJPEG modes. */
-			modes: components['schemas']['Mode'][];
-			/** @description Device node, or the image file for a replay camera. */
-			path: string;
-			/** @description USB port path, such as `1-2.2`. */
-			port?: string | null;
-			product: string;
-			serial?: string | null;
-			/** @description Whether Spot can rewrite the serial. Only SWYFT cameras support this. */
-			serial_writable: boolean;
-		};
-		DeviceStatus: components['schemas']['Device'] & {
-			/** @description The configured camera using this device. */
-			camera?: string | null;
-		};
-		/**
-		 * @description OpenCV's predefined ArUco dictionaries.
-		 * @enum {string}
-		 */
-		Dictionary: '4x4_50' | '4x4_100' | '4x4_250' | '5x5_50' | '5x5_100' | '6x6_50' | '6x6_250';
-		/** @description A tag's field pose: meters, and a quaternion with +X out of the tag's face. */
-		FieldTag: {
-			/** Format: int32 */
-			id: number;
-			/** Format: double */
-			qw: number;
-			/** Format: double */
-			qx: number;
-			/** Format: double */
-			qy: number;
-			/** Format: double */
-			qz: number;
-			/** Format: double */
-			x: number;
-			/** Format: double */
-			y: number;
-			/** Format: double */
-			z: number;
-		};
-		/** @description A field layout for the dashboard's 3D view. */
-		FieldView: {
-			/**
-			 * Format: double
-			 * @description Meters along +X.
-			 */
-			length: number;
-			tags: components['schemas']['FieldTag'][];
-			/**
-			 * Format: double
-			 * @description Meters along +Y.
-			 */
-			width: number;
-		};
-		/** @example 1280x800@120 */
-		Mode: string;
-		/**
-		 * @description Translation in meters and rotation in degrees, as WPILib's `Transform3d` and `Rotation3d`.
-		 *     Positive pitch points the lens down.
-		 */
-		Mount: {
-			/** Format: double */
-			pitch?: number;
-			/** Format: double */
-			roll?: number;
-			/** Format: double */
-			x?: number;
-			/** Format: double */
-			y?: number;
-			/** Format: double */
-			yaw?: number;
-			/** Format: double */
-			z?: number;
-		};
-		NetworkChange: {
-			/** @description IPv4 address on the robot's /24, for example `10.5.81.12`. Static mode only. */
-			address?: string;
-			mode: components['schemas']['AddressMode'];
-		};
-		NetworkStatus: {
-			/** @description The configured static address, when static. */
-			address: string;
-			/** @description Addresses currently on the Ethernet bridge. */
-			addresses: string[];
-			/** @description Whether an Ethernet cable has link. */
-			connected: boolean;
-			/** @description The fixed maintenance address that is always present. */
-			maintenance_address: string;
-			mode: components['schemas']['AddressMode'];
-			pending?: components['schemas']['PendingChange'] | null;
-		};
-		NtStatus: {
-			server?: string | null;
-			time_synced: boolean;
-		};
-		PendingChange: {
-			address: string;
-			mode: components['schemas']['AddressMode'];
-			/**
-			 * Format: int64
-			 * @description Seconds until the change rolls back on its own.
-			 */
-			remaining_s: number;
-		};
-		PowerRail: {
-			name: string;
-			/** Format: double */
-			volts: number;
-			/** Format: double */
-			watts: number;
-		};
-		Recording: {
-			/** Format: int64 */
-			bytes: number;
-			/**
-			 * Format: int64
-			 * @description Unix time the recording was finished, in seconds.
-			 */
-			modified: number;
-			/** @description File name, downloadable from `/recordings/<name>`. */
-			name: string;
-		};
-		/** @description Spot's configuration, owned by robot code and sent as TOML over NetworkTables. */
-		RobotConfig: {
-			/** @description Cameras keyed by name. Names appear in NetworkTables topics. */
-			cameras?: Record<string, components['schemas']['CameraConfig']>;
-			/** @description Tag IDs that are never used for pose estimation. */
-			ignored_tags?: number[];
-		};
-		SetSerial: {
-			/** @description Device node, from `/api/devices`. */
-			path: string;
-			/** @description 1 to 48 ASCII letters and digits. */
-			serial: string;
-		};
-		/** @description Jetson-local settings, kept out of the robot config. */
-		Settings: {
-			/** @description The printed calibration board. */
-			calibration_board: components['schemas']['Board'];
-			/** @description NetworkTables server host, overriding the team number's robot address. */
-			nt_server?: string | null;
-			/** Format: int32 */
-			team?: number | null;
-		};
-		Solution: {
-			/** @description Whether the RMS error is within the threshold. */
-			accepted: boolean;
-			calibration: components['schemas']['Calibration'];
-			/** @description Views rejected as outliers, by capture index. */
-			rejected: number[];
-			/** @description Views kept after outlier rejection, by capture index. */
-			used: number[];
-		};
-		/**
-		 * @description Spot's most fundamental problem, in order of precedence.
-		 * @enum {string}
-		 */
-		SpotState:
-			| 'ready'
-			| 'waiting_for_time_sync'
-			| 'waiting_for_config'
-			| 'invalid_config'
-			| 'missing_camera'
-			| 'uncalibrated_camera';
-		Status: {
-			cameras: components['schemas']['CameraStatus'][];
-			/**
-			 * Format: int64
-			 * @description Unix time of that commit.
-			 */
-			commit_time?: number | null;
-			/** @description Details for a non-ready state. */
-			error: string;
-			nt: components['schemas']['NtStatus'];
-			overrides_active: boolean;
-			/** @description Short Git commit Spot was built from, with `-dirty` for uncommitted changes. */
-			revision?: string | null;
-			state: components['schemas']['SpotState'];
-			/** @description Release version, for stable releases. */
-			version?: string | null;
-		};
-		SystemStatus: {
-			/**
-			 * Format: double
-			 * @description CPU use since the previous reading.
-			 */
-			cpu_percent?: number | null;
-			/** Format: double */
-			disk_percent?: number | null;
-			/**
-			 * Format: double
-			 * @description Jetson fan speed, which drops to zero if the fan fails.
-			 */
-			fan_rpm?: number | null;
-			/**
-			 * Format: double
-			 * @description Jetson GPU load.
-			 */
-			gpu_percent?: number | null;
-			/** Format: double */
-			memory_percent?: number | null;
-			/** @description Power rails measured by the Jetson module's INA3221 monitor. */
-			power: components['schemas']['PowerRail'][];
-			temperatures: components['schemas']['Temperature'][];
-			/** Format: double */
-			uptime_s?: number | null;
-		};
-		Temperature: {
-			/** Format: double */
-			celsius: number;
-			name: string;
-		};
-		/** @description Chessboard corners found in one image. */
-		View: {
-			corners: number[][];
-			ids: number[];
-		};
-	};
-	responses: never;
-	parameters: never;
-	requestBodies: never;
-	headers: never;
-	pathItems: never;
+    schemas: {
+        /** @enum {string} */
+        AddressMode: "automatic" | "static";
+        /** @enum {string} */
+        AutoExposure: "manual" | "aperture_priority";
+        /** @description A ChArUco board. Square and marker sizes are in meters. */
+        Board: {
+            dictionary: components["schemas"]["Dictionary"];
+            /** Format: double */
+            marker_size: number;
+            /** Format: double */
+            square_size: number;
+            /** Format: int32 */
+            squares_x: number;
+            /** Format: int32 */
+            squares_y: number;
+        };
+        /** @description Pinhole intrinsics with OpenCV's five-coefficient distortion model. */
+        Calibration: {
+            /** Format: double */
+            cx: number;
+            /** Format: double */
+            cy: number;
+            /** @description `[k1, k2, p1, p2, k3]` */
+            distortion: number[];
+            /** Format: double */
+            fx: number;
+            /** Format: double */
+            fy: number;
+            /**
+             * Format: double
+             * @description RMS reprojection error of the calibration in pixels.
+             */
+            rms?: number | null;
+        };
+        CalibrationView: {
+            board: components["schemas"]["Board"];
+            camera: string;
+            /** @description Whether views are captured automatically as the board moves. */
+            capturing: boolean;
+            coverage: components["schemas"]["Coverage"];
+            /** @description Captured views. */
+            frames: components["schemas"]["View"][];
+            /** Format: int32 */
+            height?: number | null;
+            /** @description Board corners in the most recent frame. */
+            latest: components["schemas"]["View"];
+            /**
+             * Format: double
+             * @description RMS error in pixels above which a solution is not accepted.
+             */
+            max_rms: number;
+            /** Format: int32 */
+            min_frames: number;
+            /** @description Why the latest view wasn't captured. */
+            reason: string;
+            solution?: components["schemas"]["Solution"] | null;
+            /**
+             * Format: int32
+             * @description Image size, once a frame has been seen.
+             */
+            width?: number | null;
+        };
+        CameraConfig: {
+            /** @description Calibrations keyed by resolution, for example `1280x800`. */
+            calibrations?: Record<string, components["schemas"]["Calibration"]>;
+            controls?: components["schemas"]["Controls"];
+            /** @description Capture mode as `WIDTHxHEIGHT@FPS`. */
+            mode?: components["schemas"]["Mode"];
+            /** @description Robot-to-camera transform (WPILib coordinates: +X forward, +Y left, +Z up). */
+            mount?: components["schemas"]["Mount"];
+            /**
+             * @description USB port path, for example `1-2.2`. Only used to tell apart cameras that share a
+             *     serial, which is the default for some cameras.
+             */
+            port?: string | null;
+            /** @description Spot is not ready unless this camera is streaming and calibrated. */
+            required?: boolean;
+            /** @description USB serial number. */
+            serial: string;
+        };
+        /** @enum {string} */
+        CameraState: "streaming" | "disconnected" | "duplicate_serial" | "uncalibrated" | "falling_behind";
+        CameraStatus: {
+            calibrated: boolean;
+            /**
+             * Format: double
+             * @description Frames captured per second.
+             */
+            capture_fps: number;
+            /** @description Device node of the matched camera. */
+            device?: string | null;
+            /**
+             * Format: int64
+             * @description Frames dropped since the camera started because processing fell behind.
+             */
+            dropped_frames: number;
+            error?: string | null;
+            /**
+             * Format: double
+             * @description Frames processed per second.
+             */
+            fps: number;
+            mode: components["schemas"]["Mode"];
+            name: string;
+            required: boolean;
+            state: components["schemas"]["CameraState"];
+        };
+        ConfigView: {
+            config?: components["schemas"]["RobotConfig"] | null;
+            /** @description Why the latest config was rejected. */
+            error?: string | null;
+            field_layout?: components["schemas"]["FieldView"] | null;
+            /** @description Robot TOML with overrides applied, ready to copy into robot code. */
+            merged: string;
+            /** @description Dashboard overrides: a deep-partial config where `null` removes a key. */
+            overrides: Record<string, unknown>;
+            /** @description The robot's TOML, live or cached from the last connection. */
+            robot_config?: string | null;
+            /** @description Whether the robot config came from the robot during this connection. */
+            robot_config_live: boolean;
+        };
+        /** @description A configurable control's range. */
+        ControlRange: {
+            /** Format: int64 */
+            default: number;
+            /** Format: int64 */
+            max: number;
+            /** Format: int64 */
+            min: number;
+            /** @description `auto_exposure`, `exposure_time_absolute`, or `gain` */
+            name: string;
+            /** Format: int64 */
+            step: number;
+        };
+        /** @description Camera controls. Unset controls are reset to the camera's default. */
+        Controls: {
+            auto_exposure?: components["schemas"]["AutoExposure"] | null;
+            /**
+             * Format: int32
+             * @description Exposure time in the camera's units (100 µs for UVC cameras). Applies in manual mode.
+             */
+            exposure_time_absolute?: number | null;
+            /** Format: int32 */
+            gain?: number | null;
+        };
+        /** @description How well the captured views cover the image. */
+        Coverage: {
+            /**
+             * @description Scores from 0 to 1 for a grid over the image, by row. An area scores 1 once it has
+             *     enough views of the board at varied distances and tilts.
+             */
+            cells: number[][];
+            /**
+             * Format: double
+             * @description Mean of the cell scores.
+             */
+            progress: number;
+        };
+        /** @description A physical camera. */
+        Device: {
+            controls: components["schemas"]["ControlRange"][];
+            /** @description Supported MJPEG modes. */
+            modes: components["schemas"]["Mode"][];
+            /** @description Device node, or the image file for a replay camera. */
+            path: string;
+            /** @description USB port path, such as `1-2.2`. */
+            port?: string | null;
+            product: string;
+            serial?: string | null;
+            /** @description Whether Spot can rewrite the serial. Only SWYFT cameras support this. */
+            serial_writable: boolean;
+        };
+        DeviceStatus: components["schemas"]["Device"] & {
+            /** @description The configured camera using this device. */
+            camera?: string | null;
+        };
+        /**
+         * @description OpenCV's predefined ArUco dictionaries.
+         * @enum {string}
+         */
+        Dictionary: "4x4_50" | "4x4_100" | "4x4_250" | "5x5_50" | "5x5_100" | "6x6_50" | "6x6_250";
+        /** @description A tag's field pose: meters, and a quaternion with +X out of the tag's face. */
+        FieldTag: {
+            /** Format: int32 */
+            id: number;
+            /** Format: double */
+            qw: number;
+            /** Format: double */
+            qx: number;
+            /** Format: double */
+            qy: number;
+            /** Format: double */
+            qz: number;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+            /** Format: double */
+            z: number;
+        };
+        /** @description A field layout for the dashboard's 3D view. */
+        FieldView: {
+            /**
+             * Format: double
+             * @description Meters along +X.
+             */
+            length: number;
+            tags: components["schemas"]["FieldTag"][];
+            /**
+             * Format: double
+             * @description Meters along +Y.
+             */
+            width: number;
+        };
+        /** @example 1280x800@120 */
+        Mode: string;
+        /**
+         * @description Translation in meters and rotation in degrees, as WPILib's `Transform3d` and `Rotation3d`.
+         *     Positive pitch points the lens down.
+         */
+        Mount: {
+            /** Format: double */
+            pitch?: number;
+            /** Format: double */
+            roll?: number;
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            y?: number;
+            /** Format: double */
+            yaw?: number;
+            /** Format: double */
+            z?: number;
+        };
+        NetworkChange: {
+            /** @description IPv4 address on the robot's /24, for example `10.5.81.12`. Static mode only. */
+            address?: string;
+            mode: components["schemas"]["AddressMode"];
+        };
+        NetworkStatus: {
+            /** @description The configured static address, when static. */
+            address: string;
+            /** @description Addresses currently on the Ethernet bridge. */
+            addresses: string[];
+            /** @description Whether an Ethernet cable has link. */
+            connected: boolean;
+            /** @description The fixed maintenance address that is always present. */
+            maintenance_address: string;
+            mode: components["schemas"]["AddressMode"];
+            pending?: components["schemas"]["PendingChange"] | null;
+        };
+        NtStatus: {
+            server?: string | null;
+            time_synced: boolean;
+        };
+        PendingChange: {
+            address: string;
+            mode: components["schemas"]["AddressMode"];
+            /**
+             * Format: int64
+             * @description Seconds until the change rolls back on its own.
+             */
+            remaining_s: number;
+        };
+        PowerRail: {
+            name: string;
+            /** Format: double */
+            volts: number;
+            /** Format: double */
+            watts: number;
+        };
+        Recording: {
+            /** Format: int64 */
+            bytes: number;
+            /**
+             * Format: int64
+             * @description Unix time the recording was finished, in seconds.
+             */
+            modified: number;
+            /** @description File name, downloadable from `/recordings/<name>`. */
+            name: string;
+        };
+        /** @description Spot's configuration, owned by robot code and sent as TOML over NetworkTables. */
+        RobotConfig: {
+            /** @description Cameras keyed by name. Names appear in NetworkTables topics. */
+            cameras?: Record<string, components["schemas"]["CameraConfig"]>;
+            /** @description Tag IDs that are never used for pose estimation. */
+            ignored_tags?: number[];
+        };
+        SetSerial: {
+            /** @description Device node, from `/api/devices`. */
+            path: string;
+            /** @description 1 to 48 ASCII letters and digits. */
+            serial: string;
+        };
+        /** @description Jetson-local settings, kept out of the robot config. */
+        Settings: {
+            /** @description The printed calibration board. */
+            calibration_board: components["schemas"]["Board"];
+            /** @description NetworkTables server host, overriding the team number's robot address. */
+            nt_server?: string | null;
+            /** Format: int32 */
+            team?: number | null;
+        };
+        Solution: {
+            /** @description Whether the RMS error is within the threshold. */
+            accepted: boolean;
+            calibration: components["schemas"]["Calibration"];
+            /** @description Views rejected as outliers, by capture index. */
+            rejected: number[];
+            /** @description Views kept after outlier rejection, by capture index. */
+            used: number[];
+        };
+        /**
+         * @description Spot's most fundamental problem, in order of precedence.
+         * @enum {string}
+         */
+        SpotState: "ready" | "waiting_for_time_sync" | "waiting_for_config" | "invalid_config" | "missing_camera" | "uncalibrated_camera";
+        Status: {
+            cameras: components["schemas"]["CameraStatus"][];
+            /**
+             * Format: int64
+             * @description Unix time of that commit.
+             */
+            commit_time?: number | null;
+            /** @description Details for a non-ready state. */
+            error: string;
+            nt: components["schemas"]["NtStatus"];
+            overrides_active: boolean;
+            /** @description Short Git commit Spot was built from, with `-dirty` for uncommitted changes. */
+            revision?: string | null;
+            state: components["schemas"]["SpotState"];
+            /** @description Release version, for stable releases. */
+            version?: string | null;
+        };
+        SystemStatus: {
+            /**
+             * Format: double
+             * @description CPU use since the previous reading.
+             */
+            cpu_percent?: number | null;
+            /** Format: double */
+            disk_percent?: number | null;
+            /**
+             * Format: double
+             * @description Jetson fan speed, which drops to zero if the fan fails.
+             */
+            fan_rpm?: number | null;
+            /**
+             * Format: double
+             * @description Jetson GPU load.
+             */
+            gpu_percent?: number | null;
+            /** Format: double */
+            memory_percent?: number | null;
+            /** @description Power rails measured by the Jetson module's INA3221 monitor. */
+            power: components["schemas"]["PowerRail"][];
+            temperatures: components["schemas"]["Temperature"][];
+            /** Format: double */
+            uptime_s?: number | null;
+        };
+        Temperature: {
+            /** Format: double */
+            celsius: number;
+            name: string;
+        };
+        /** @description Chessboard corners found in one image. */
+        View: {
+            corners: number[][];
+            ids: number[];
+        };
+    };
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-	board: {
-		parameters: {
-			query: {
-				squares_x: number;
-				squares_y: number;
-				square_size: number;
-				marker_size: number;
-				dictionary: components['schemas']['Dictionary'];
-			};
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'image/png': number[];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	calibration: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				camera: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['CalibrationView'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	start_calibration: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				camera: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['CalibrationView'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	stop_calibration: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				camera: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			204: {
-				headers: Record<string, unknown>;
-				content?: never;
-			};
-		};
-	};
-	set_capturing: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				camera: string;
-			};
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'text/plain': boolean;
-			};
-		};
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['CalibrationView'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	solve_calibration: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path: {
-				camera: string;
-			};
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['CalibrationView'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	config: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['ConfigView'];
-				};
-			};
-		};
-	};
-	set_overrides: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		/** @description Deep-partial config; null removes a key */
-		requestBody: {
-			content: {
-				'application/json': Record<string, unknown>;
-			};
-		};
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['ConfigView'];
-				};
-			};
-			/** @description The merged config is invalid */
-			422: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	devices: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['DeviceStatus'][];
-				};
-			};
-		};
-	};
-	preview: {
-		parameters: {
-			query: {
-				/** @description Device path from `/api/devices`. */
-				path: string;
-			};
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'multipart/x-mixed-replace': number[];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	set_serial: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['SetSerial'];
-			};
-		};
-		responses: {
-			204: {
-				headers: Record<string, unknown>;
-				content?: never;
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	network_status: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['NetworkStatus'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	apply_network: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['NetworkChange'];
-			};
-		};
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['NetworkStatus'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	confirm_network: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['NetworkStatus'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	revert_network: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['NetworkStatus'];
-				};
-			};
-			409: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	recordings: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['Recording'][];
-				};
-			};
-		};
-	};
-	settings: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['Settings'];
-				};
-			};
-		};
-	};
-	set_settings: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['Settings'];
-			};
-		};
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['Settings'];
-				};
-			};
-			422: {
-				headers: Record<string, unknown>;
-				content: {
-					'text/plain': string;
-				};
-			};
-		};
-	};
-	status: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['Status'];
-				};
-			};
-		};
-	};
-	system: {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		requestBody?: never;
-		responses: {
-			200: {
-				headers: Record<string, unknown>;
-				content: {
-					'application/json': components['schemas']['SystemStatus'];
-				};
-			};
-		};
-	};
+    board: {
+        parameters: {
+            query: {
+                squares_x: number;
+                squares_y: number;
+                square_size: number;
+                marker_size: number;
+                dictionary: components["schemas"]["Dictionary"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "image/png": number[];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    calibration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["CalibrationView"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    start_calibration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["CalibrationView"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    stop_calibration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: Record<string, unknown>;
+                content?: never;
+            };
+        };
+    };
+    set_capturing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/plain": boolean;
+            };
+        };
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["CalibrationView"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    solve_calibration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["CalibrationView"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+        };
+    };
+    set_overrides: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Deep-partial config; null removes a key */
+        requestBody: {
+            content: {
+                "application/json": Record<string, unknown>;
+            };
+        };
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            /** @description The merged config is invalid */
+            422: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    devices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["DeviceStatus"][];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query: {
+                /** @description Device path from `/api/devices`. */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "multipart/x-mixed-replace": number[];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    set_serial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSerial"];
+            };
+        };
+        responses: {
+            204: {
+                headers: Record<string, unknown>;
+                content?: never;
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    network_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["NetworkStatus"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    apply_network: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["NetworkStatus"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    confirm_network: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["NetworkStatus"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    revert_network: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["NetworkStatus"];
+                };
+            };
+            409: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    recordings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["Recording"][];
+                };
+            };
+        };
+    };
+    settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+        };
+    };
+    set_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Settings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            422: {
+                headers: Record<string, unknown>;
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["Status"];
+                };
+            };
+        };
+    };
+    system: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["SystemStatus"];
+                };
+            };
+        };
+    };
 }
