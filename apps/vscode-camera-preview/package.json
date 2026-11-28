@@ -38,11 +38,11 @@
 		"zod": "4.6.7"
 	},
 	"devDependencies": {
-		"@types/node": "26.6.6",
+		"@types/node": "26.6.11",
 		"@types/vscode": "1.146.0",
 		"@vscode/vsce": "4.1.1",
 		"typescript": "7.0.2",
-		"vite-plus": "1.7.0"
+		"vite-plus": "1.8.0"
 	},
 	"contributes": {
 		"commands": [
