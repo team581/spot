@@ -27,6 +27,6 @@
 	"devDependencies": {
 		"@astrojs/ts-content-mapper": "0.2.0",
 		"parse5": "8.1.1",
-		"typescript": "7.1.0-dev.20261126.1"
+		"typescript": "7.1.0-dev.20261127.1"
 	}
 }
