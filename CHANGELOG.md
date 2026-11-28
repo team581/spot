@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.2.1](https://github.com/team581/spot/compare/spot-v2026.2.0...spot-v2026.2.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deps:** update documentation dependencies ([#53](https://github.com/team581/spot/issues/53)) ([440d1b3](https://github.com/team581/spot/commit/440d1b3a97f5adc2a11fff182e6e1e80d0f37abd))
+
 ## [2026.2.0](https://github.com/team581/spot/compare/spot-v2026.1.0...spot-v2026.2.0) (2026-11-26)
 
 
